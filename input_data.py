@@ -71,6 +71,9 @@ class GeneralData:
         self.flag_infiltration = float(config['FLAGS']['flag_infiltration'])
         self.flag_critical = float(config['FLAGS']['flag_critical'])
         self.pol_min = float(config['FLAGS']['pol_min'])
+        self.flag_floodmaps = float(config['FLAGS']['flag_floodmaps'])
+        self.flag_riskmaps = float(config['FLAGS']['flag_riskmaps'])
+        self.flag_gifs = float(config['FLAGS']['flag_gifs'])
 
 class LULCData: #this should be simplified to n number of lulc classes, an iterative procedure!!** here!!**
     def __init__(self, config_file):

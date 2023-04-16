@@ -12,6 +12,9 @@
 ###################################################################
 
 # --- Import Python Libraries --- #
+import Spatial_data_exporter
+
+
 def model_gpu(path):
     import numpy as np
     import pandas as pd
@@ -26,6 +29,7 @@ def model_gpu(path):
     import csv
     from osgeo import gdal
     import cupy as cp
+    import shutil
     # --- Import created libraries/functions --- #
     import Raster_exporter
     import resize_matrix
@@ -34,6 +38,7 @@ def model_gpu(path):
     import input_data
     import accumulated_incremental
     import Raster_exporter
+
     os.chdir(path)
     #--------------- Initial Data - General --------------------
     general_data = input_data.GeneralData('general_data.ini')
@@ -627,7 +632,10 @@ def model_gpu(path):
                 time_step_factor = cp.maximum(alfa_max - slope_alfa*(cp.maximum(max_velocity - v_threshold, 0)), alfa_min)
                 alfa_save[pos_save, 0] = time_step_factor
 
+
                 # --- Calculation of Stability --- #
+                #create a function and send d_t and velocity_raster for both physical and empirical methods
+
                 mu = 0.5  # Friction coefficient
                 Cd = 1.1
                 ro_person = 1000  # kg/m3
@@ -645,7 +653,7 @@ def model_gpu(path):
                 # Hydrodynamic Force
                 hydro_force = cp.maximum((0.5*(Cd*width1_person*d_t /1000 * cp.power(velocity_raster,2))), 0)
                 # Risk Factor
-                risk_t = np.minimum(hydro_force/available_friction,1)
+                risk_t = np.minimum(hydro_force/available_friction,1)  ##function should return this
                 risk_t[idx_nan] = -9999
 
 
@@ -660,14 +668,14 @@ def model_gpu(path):
                 risk_t_bti1 = cp.logical_and(cp.logical_and((0.37 < vel_t_zzz), (vel_t_zzz <= 3)), (d_t_zzz/1000 >= 1.63*cp.exp(-1.37*vel_t_zzz) + 0.22)).astype(int)*2
                 risk_t_bti2 = cp.logical_and((vel_t_zzz < 0.37), (d_t_zzz/ 1000 >= 1.2)).astype(int)*3
                 risk_t_bti3 = cp.logical_and((vel_t_zzz >= 3), (d_t_zzz/ 1000 <= 0.2)).astype(int)*1
-                risk_t_bti = risk_t_bti1+risk_t_bti2+risk_t_bti3
+                risk_t_bti = risk_t_bti1+risk_t_bti2+risk_t_bti3  ##function should return this
 
                 # risk_t_fti = cp.logical_or(cp.logical_or(cp.logical_and(cp.logical_and((0.45 < vel_t_zzz), (vel_t_zzz <= 3)), (d_t_zzz/1000 >= 1.43*cp.exp(-0.88*vel_t_zzz) + 0.24)),
                 #                             cp.logical_and((vel_t_zzz < 0.45), (d_t_zzz/ 1000 >= 1.2))), vel_t_zzz >= 3).astype(int)
                 risk_t_fti1 = cp.logical_and(cp.logical_and((0.45 < vel_t_zzz), (vel_t_zzz <= 3)), (d_t_zzz/1000 >= 1.43*cp.exp(-0.88*vel_t_zzz) + 0.24)).astype(int)*2
                 risk_t_fti2 = cp.logical_and((vel_t_zzz < 0.45), (d_t_zzz/ 1000 >= 1.22)).astype(int)*3
                 risk_t_fti3 = cp.logical_and((vel_t_zzz >= 3), (d_t_zzz/ 1000 <= 0.24)).astype(int)*1
-                risk_t_fti = risk_t_fti1 + risk_t_fti2 + risk_t_fti3
+                risk_t_fti = risk_t_fti1 + risk_t_fti2 + risk_t_fti3  ##function should return this
 
                 risk_t_bti[idx_nan] = -9999
                 risk_t_fti[idx_nan] = -9999  # no data
@@ -1026,8 +1034,8 @@ def model_gpu(path):
     outlet_hydrograph = cp.asnumpy(outlet_hydrograph)
     # d = cp.asnumpy(d)
     # risk = cp.asnumpy(risk)
-    # risk_bti = cp.asnumpy(risk_bti)
-    # risk_fti = cp.asnumpy(risk_fti)
+    risk_bti = cp.asnumpy(risk_bti)
+    risk_fti = cp.asnumpy(risk_fti)
     time_records = cp.asnumpy(time_records)
     idx = cp.asnumpy(idx)
     d_t = cp.asnumpy(d_t)
@@ -1123,6 +1131,30 @@ def model_gpu(path):
     for i in range(len(filePattern)):  # Deleting previous .gifs
         os.remove(str(path) + "/" + str(filePattern[i]))
 
+    if (general_data.flag_floodmaps == 1) or (general_data.flag_riskmaps == 1):
+        # creating a new 'output_rasters' folder
+        # Define the folder path
+        folder_path = os.path.join(path, 'Rasters_output')
+        # Check if the folder exists
+        if os.path.exists(folder_path):
+            # If the folder exists, delete its contents
+            for filename in os.listdir(folder_path):
+                file_path = os.path.join(folder_path, filename)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                    elif os.path.isdir(file_path):
+                        shutil.rmtree(file_path)
+                except Exception as e:
+                    print(f"Failed to delete {file_path}. Reason: {e}")
+            print("Deleted contents of existing folder.")
+        else:
+            # If the folder doesn't exist, create it
+            os.makedirs(folder_path)
+
+    # changing directory
+    os.chdir(folder_path)
+
     # Changing Nan Values
     d[np.isnan(d)] = 0
     d[np.isinf(d)] = 0
@@ -1130,32 +1162,43 @@ def model_gpu(path):
     for i in range(len(time_records)):
         idx = d[i, :, :] < general_data.depth_wse*1000
         time_map = time_records[i]
-        if general_data.flagwse == 0:
-            FileName = "Flood_depths_t_" + str(int(time_map)) + "_min"
-            raster_exportion = d[i, :, :]/1000
-            raster_exportion[idx] = no_data_value
-        else:
-            FileName =  "Water_Surface_Elevation_t_" + str(int(time_map)) + "_min"
-            raster_exportion = d[i, :, :]/1000
-            raster_exportion[idx] = no_data_value
-            raster_exportion = pd.DataFrame(raster_exportion + dem)
+
+        if general_data.flag_floodmaps == 1:
+            if general_data.flagwse == 0:
+                FileName = "Flood_depths_t_" + str(int(time_map)) + "_min"
+                raster_exportion = d[i, :, :]/1000
+                raster_exportion[idx] = no_data_value
+                Raster_exporter.raster_exporter(FileName, np.size(dem[0, :]), np.size(dem[:, 0]),
+                                                general_data.xllupcorner,
+                                                general_data.yllupcorner, general_data.resolution, no_data_value,
+                                                raster_exportion)
+            else:
+                FileName =  "Water_Surface_Elevation_t_" + str(int(time_map)) + "_min"
+                raster_exportion = d[i, :, :]/1000
+                raster_exportion[idx] = no_data_value
+                raster_exportion = pd.DataFrame(raster_exportion + dem)
+                Raster_exporter.raster_exporter(FileName, np.size(dem[0, :]), np.size(dem[:, 0]),
+                                                general_data.xllupcorner,
+                                                general_data.yllupcorner, general_data.resolution, no_data_value,
+                                                raster_exportion)
         # Risk rasters #
-        FileName_risk = 'Risk_t_' + str(int(time_map)) + "_min"
-        FileName_risk_bti = 'Risk_BTI_t_' + str(int(time_map)) + "_min"
-        FileName_risk_fti = 'Risk_FTI_t_' + str(int(time_map)) + "_min"
-        raster_exportion_risk = risk[i, :, :]
-        raster_exportion_risk_bti = risk_bti[i, :, :]
-        raster_exportion_risk_fti = risk_fti[i, :, :]
-        # Save Map in ASCII format and TIFF
-        Raster_exporter.raster_exporter(FileName_risk, np.size(dem[0,:]), np.size(dem[:,0]), general_data.xllupcorner,
-                                        general_data.yllupcorner, general_data.resolution, no_data_value,
-                                        raster_exportion_risk)
-        Raster_exporter.raster_exporter(FileName_risk_bti, np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
-                                        general_data.yllupcorner, general_data.resolution, no_data_value,
-                                        raster_exportion_risk_bti)
-        Raster_exporter.raster_exporter(FileName_risk_fti, np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
-                                        general_data.yllupcorner, general_data.resolution, no_data_value,
-                                        raster_exportion_risk_fti)
+        if general_data.flag_riskmaps == 1:
+            FileName_risk = 'Risk_t_' + str(int(time_map)) + "_min"
+            FileName_risk_bti = 'Risk_BTI_t_' + str(int(time_map)) + "_min"
+            FileName_risk_fti = 'Risk_FTI_t_' + str(int(time_map)) + "_min"
+            raster_exportion_risk = risk[i, :, :]
+            raster_exportion_risk_bti = risk_bti[i, :, :]
+            raster_exportion_risk_fti = risk_fti[i, :, :]
+            # Save Map in ASCII format and TIFF
+            Raster_exporter.raster_exporter(FileName_risk, np.size(dem[0,:]), np.size(dem[:,0]), general_data.xllupcorner,
+                                            general_data.yllupcorner, general_data.resolution, no_data_value,
+                                            raster_exportion_risk)
+            Raster_exporter.raster_exporter(FileName_risk_bti, np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+                                            general_data.yllupcorner, general_data.resolution, no_data_value,
+                                            raster_exportion_risk_bti)
+            Raster_exporter.raster_exporter(FileName_risk_fti, np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+                                            general_data.yllupcorner, general_data.resolution, no_data_value,
+                                            raster_exportion_risk_fti)
         # Water Quality
         if general_data.flag_waterquality == 1:
             FileName = "Pollutant_Concentration" + str(int(time_map)) + "_min"
@@ -1165,6 +1208,8 @@ def model_gpu(path):
             # Save Map in ASCII format and TIFF
             Raster_exporter.raster_exporter(FileName, np.size(dem[0,:]), np.size(dem[:,0]), general_data.xllupcorner, general_data.yllupcorner, general_data.resolution, no_data_value, raster_exportion)
 
+    # Getting back to the main directory
+    os.chdir(path)
     # --- Point of accumulation --- #
     if general_data.flag_waterquality == 1:
         FileName = 'Accumulation_Areas_1m'
@@ -1244,8 +1289,41 @@ def model_gpu(path):
         # Final Pollutant Mass
 
     # Generate GIF Files of the Simulation
-    # Inundtion_maps !!!!!!!!!!!!!!!!!!!!
+    idx_2 = elevation < 0
+    bool = np.broadcast_to(idx_2, d.shape)
+    dem_multi = np.broadcast_to(dem, d.shape)
+    if general_data.flag_gifs==1:
+        raster_exportion = d/ 1000
+        raster_exportion[bool] = np.nan
+        raster_exportion = raster_exportion + dem_multi
+        Spatial_data_exporter.Spatial_data_exporter('Water Surface Elevation', np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+                                            general_data.yllupcorner, general_data.resolution, no_data_value,
+                                            raster_exportion)
 
+        raster_exportion = d / 1000
+        raster_exportion[bool] = np.nan
+        Spatial_data_exporter.Spatial_data_exporter('Water Flood Depth', np.size(dem[0, :]), np.size(dem[:, 0]),
+                                                        general_data.xllupcorner,
+                                                        general_data.yllupcorner, general_data.resolution, no_data_value,
+                                                        raster_exportion)
+        raster_exportion = risk_fti
+        raster_exportion[bool] = np.nan
+        Spatial_data_exporter.Spatial_data_exporter('Forward Toppling Instability - FTI', np.size(dem[0, :]), np.size(dem[:, 0]),
+                                                        general_data.xllupcorner,
+                                                        general_data.yllupcorner, general_data.resolution, no_data_value,
+                                                        raster_exportion)
+        raster_exportion = risk_bti
+        raster_exportion[bool] = np.nan
+        Spatial_data_exporter.Spatial_data_exporter('Backward Toppling Instability - BTI', np.size(dem[0, :]), np.size(dem[:, 0]),
+                                                        general_data.xllupcorner,
+                                                        general_data.yllupcorner, general_data.resolution, no_data_value,
+                                                        raster_exportion)
+        raster_exportion = dem
+        raster_exportion[bool[0,:,:]] = np.nan
+        Spatial_data_exporter.Spatial_data_exporter('Digital Elevation Model', np.size(dem[0, :]), np.size(dem[:, 0]),
+                                                        general_data.xllupcorner,
+                                                        general_data.yllupcorner, general_data.resolution, no_data_value,
+                                                        raster_exportion)
     # Show Summary Results
     print("Drainage Area = " + str(round(drainage_area/1000/1000, 3)) + " Km2")
     print("Impervious Area = " + str(round(impervious_area/1000/1000, 3)) + " Km2")

@@ -8,7 +8,7 @@
 #                   (luis.castillo@unah.hn)                       #
 #                         February 2023                           #
 #                                                                 #
-#                  ast Updated: 2 February23                      #
+#                  Last Updated: 2 February23                     #
 #                                                                 #
 ###################################################################
 
@@ -38,7 +38,7 @@ def nse(targets,predictions):
 
 # --- Data Path --- #
 # It should be provided the directory of the events to be simulated by the model
-path ='I:/Meu Drive/Papers/Paper - 2Dmodeling + level calibration/591_runs/olds_new_2/'  # Provide the path for the descrete events
+path ='I:/Meu Drive/Papers/Paper - 2Dmodeling + level calibration/591_runs/Climbra/SSP245/'  # Provide the path for the descrete events
 runs = sorted(os.listdir(path))
 
 # --- Non-Parallel Running --- #  # Use if only the CPU is available (run slow)
@@ -55,67 +55,67 @@ for run in runs:
 
 
 # --- Plotting results --- of Calibrated and validated runs --- #
-summary = np.empty((len(runs),4), dtype=object)
-fig = plt.figure(figsize=(8, 8))
-spec = fig.add_gridspec(4, 2)
-row, col, i = 0, 0, 0
-letter= ['$A$', '$B$', '$C$', '$D$', '$E$', '$F$', '$G$']
-for run in runs:
-    obs = pd.read_csv(path + '/' + run + '/level_rain.csv', delimiter=',')
-    cal = pd.read_csv(path + '/' + run + '/Outlet_hydrolevels_Data.txt', delimiter=',')
-    slope = 0.00397
-    manning = 0.015
-    base = 5  # m
-    height = 4.1  # m
-    streamflow = (1 / manning) * (base * (obs.iloc[:, 1] - np.min(obs['Water Height (masl)']))) * np.power(
-         (base * height) / (base + 2 * height), 2 / 3) * np.power(slope, 1 / 2)
-    streamflow_estimated = pd.read_csv(path + '/' + run + '/Outlet_hydrograph_Data.txt', delimiter=',')
-    if run == runs[0]:
-         axs = fig.add_subplot(spec[row, :])
-         axs.plot(obs['Date/time'].astype(str).str[5:-3], streamflow, 'black', linewidth=1.5, label='$Observed$')
-         axs.plot(obs['Date/time'].astype(str).str[5:-3], streamflow_estimated['Discharge (m3/s)'], 'red', linewidth=1, label='$Simulated$', color = 'tab:red')
-         axs_r = axs.twinx()
-         axs_r.bar(obs['Date/time'].astype(str).str[5:-3], obs['Rainfall_Intensity (mm/h)'], color='dodgerblue', width=1, alpha=0.7, label="$Rainfall$")
-         fig.legend(prop={'size': 10}, loc='upper right', bbox_to_anchor=(1, 1), bbox_transform=axs_r.transAxes)
-         axs.xaxis.set_major_locator(plt.MaxNLocator(7))
-         axs_r.xaxis.set_major_locator(plt.MaxNLocator(7))
-         axs_r.set(ylabel='$Rainfall\ Intensity\ (mm/h)$')
-    else:
-         axs = fig.add_subplot(spec[row, col])
-         axs.plot(obs['Date/time'].astype(str).str[5:-3], streamflow, 'black', linewidth=1.5)
-         axs.plot(obs['Date/time'].astype(str).str[5:-3], streamflow_estimated['Discharge (m3/s)'], 'red', linewidth=1, color = 'tab:red')
-         axs_r = axs.twinx()
-         axs_r.bar(obs['Date/time'].astype(str).str[5:-3], obs['Rainfall_Intensity (mm/h)'], color='dodgerblue', width=1, alpha=0.7)
-         axs.xaxis.set_major_locator(plt.MaxNLocator(3))
-         axs_r.xaxis.set_major_locator(plt.MaxNLocator(3))
-         axs.tick_params(axis='x', labelrotation=0)
-         plt.tight_layout()
-    axs_r.set_axisbelow(True)
-    axs_r.set_ylim([0, obs['Rainfall_Intensity (mm/h)'].max() * 3])
-    axs_r.invert_yaxis()
-    axs.annotate(letter[i], (0.05, 0.85), xycoords='axes fraction', bbox=dict(facecolor='none', boxstyle='round,pad=0.2'))
-    axs.set_title(run[3:5]+'-'+run[0:2]+'-'+ run[6:10])
-    summary[i,0] = run
-    summary[i,1] = np.round(nse(streamflow, streamflow_estimated['Discharge (m3/s)']), 2)  # NSE
-    summary[i,2] = np.round(r2_score(streamflow, streamflow_estimated['Discharge (m3/s)']),2)
-    summary[i,3] = np.round(he.pbias(np.asarray(streamflow),np.asarray(streamflow_estimated['Discharge (m3/s)'])),2)
-    i += 1
-    if row == 0:
-         row += 1
-         axs.set(ylabel='$Flow\ Discharge\ (m^3/s)$')
-         continue
-    elif col == 1:
-         axs_r.set(ylabel='$Rainfall\ Intensity\ (mm/h)$')
-         row += 1
-         col = 0
-         continue
-    else:
-         col = 1
-         axs.set(ylabel='$Flow\ Discharge\ (m^3/s)$')
-
-
-fig.savefig('I:/Meu Drive/Papers/Paper - 2Dmodeling + level calibration/figures/'+ 'Calibration_100dpi.jpg', format='jpg', dpi=100)
-fig.savefig('I:/Meu Drive/Papers/Paper - 2Dmodeling + level calibration/figures/'+ 'calibration_600dpi.jpg', format='jpg', dpi=600)
+# summary = np.empty((len(runs),4), dtype=object)
+# fig = plt.figure(figsize=(8, 8))
+# spec = fig.add_gridspec(4, 2)
+# row, col, i = 0, 0, 0
+# letter= ['$A$', '$B$', '$C$', '$D$', '$E$', '$F$', '$G$']
+# for run in runs:
+#     obs = pd.read_csv(path + '/' + run + '/level_rain.csv', delimiter=',')
+#     cal = pd.read_csv(path + '/' + run + '/Outlet_hydrolevels_Data.txt', delimiter=',')
+#     slope = 0.00397
+#     manning = 0.015
+#     base = 5  # m
+#     height = 4.1  # m
+#     streamflow = (1 / manning) * (base * (obs.iloc[:, 1] - np.min(obs['Water Height (masl)']))) * np.power(
+#          (base * height) / (base + 2 * height), 2 / 3) * np.power(slope, 1 / 2)
+#     streamflow_estimated = pd.read_csv(path + '/' + run + '/Outlet_hydrograph_Data.txt', delimiter=',')
+#     if run == runs[0]:
+#          axs = fig.add_subplot(spec[row, :])
+#          axs.plot(obs['Date/time'].astype(str).str[5:-3], streamflow, 'black', linewidth=1.5, label='$Observed$')
+#          axs.plot(obs['Date/time'].astype(str).str[5:-3], streamflow_estimated['Discharge (m3/s)'], 'red', linewidth=1, label='$Simulated$', color = 'tab:red')
+#          axs_r = axs.twinx()
+#          axs_r.bar(obs['Date/time'].astype(str).str[5:-3], obs['Rainfall_Intensity (mm/h)'], color='dodgerblue', width=1, alpha=0.7, label="$Rainfall$")
+#          fig.legend(prop={'size': 10}, loc='upper right', bbox_to_anchor=(1, 1), bbox_transform=axs_r.transAxes)
+#          axs.xaxis.set_major_locator(plt.MaxNLocator(7))
+#          axs_r.xaxis.set_major_locator(plt.MaxNLocator(7))
+#          axs_r.set(ylabel='$Rainfall\ Intensity\ (mm/h)$')
+#     else:
+#          axs = fig.add_subplot(spec[row, col])
+#          axs.plot(obs['Date/time'].astype(str).str[5:-3], streamflow, 'black', linewidth=1.5)
+#          axs.plot(obs['Date/time'].astype(str).str[5:-3], streamflow_estimated['Discharge (m3/s)'], 'red', linewidth=1, color = 'tab:red')
+#          axs_r = axs.twinx()
+#          axs_r.bar(obs['Date/time'].astype(str).str[5:-3], obs['Rainfall_Intensity (mm/h)'], color='dodgerblue', width=1, alpha=0.7)
+#          axs.xaxis.set_major_locator(plt.MaxNLocator(3))
+#          axs_r.xaxis.set_major_locator(plt.MaxNLocator(3))
+#          axs.tick_params(axis='x', labelrotation=0)
+#          plt.tight_layout()
+#     axs_r.set_axisbelow(True)
+#     axs_r.set_ylim([0, obs['Rainfall_Intensity (mm/h)'].max() * 3])
+#     axs_r.invert_yaxis()
+#     axs.annotate(letter[i], (0.05, 0.85), xycoords='axes fraction', bbox=dict(facecolor='none', boxstyle='round,pad=0.2'))
+#     axs.set_title(run[3:5]+'-'+run[0:2]+'-'+ run[6:10])
+#     summary[i,0] = run
+#     summary[i,1] = np.round(nse(streamflow, streamflow_estimated['Discharge (m3/s)']), 2)  # NSE
+#     summary[i,2] = np.round(r2_score(streamflow, streamflow_estimated['Discharge (m3/s)']),2)
+#     summary[i,3] = np.round(he.pbias(np.asarray(streamflow),np.asarray(streamflow_estimated['Discharge (m3/s)'])),2)
+#     i += 1
+#     if row == 0:
+#          row += 1
+#          axs.set(ylabel='$Flow\ Discharge\ (m^3/s)$')
+#          continue
+#     elif col == 1:
+#          axs_r.set(ylabel='$Rainfall\ Intensity\ (mm/h)$')
+#          row += 1
+#          col = 0
+#          continue
+#     else:
+#          col = 1
+#          axs.set(ylabel='$Flow\ Discharge\ (m^3/s)$')
+#
+#
+# fig.savefig('I:/Meu Drive/Papers/Paper - 2Dmodeling + level calibration/figures/'+ 'Calibration_100dpi.jpg', format='jpg', dpi=100)
+# fig.savefig('I:/Meu Drive/Papers/Paper - 2Dmodeling + level calibration/figures/'+ 'calibration_600dpi.jpg', format='jpg', dpi=600)
 
 # --- Plotting results --- of sensitivity runs --- #
 
