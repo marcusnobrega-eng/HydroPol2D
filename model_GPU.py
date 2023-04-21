@@ -56,8 +56,9 @@ def model_gpu(path):
 
     # ---------------- Inflow Cells -------------------------
     inflow_cells = np.zeros((ny_max, nx_max))
-    for i in range(inflow.n_inlets):
-        inflow_cells[int(inflow.inlet_cells.iloc[i, 1])-1, int(inflow.inlet_cells.iloc[i, 0])-1] = 1 #from dataframe to integer
+    if general_data.flag_inflow ==1:
+        for i in range(inflow.n_inlets):
+            inflow_cells[int(inflow.inlet_cells.iloc[i, 1])-1, int(inflow.inlet_cells.iloc[i, 0])-1] = 1 #from dataframe to integer
         # we subtract 1 to the inlets coordinates, Python starts with zero.
 
     # -- Rectangle at the beginning of the Catchment --
@@ -501,12 +502,12 @@ def model_gpu(path):
                 tx = cp.minimum(C, Inflow_Rate)
                 I_t = I_0 + tx*time_step/60
                 pef = delta_p_agg*rainfall_matrix + delta_inflow_agg*inflow_cells - tx*time_step/60
-                d_t = d_0 + pef
+                d_t = cp.maximum(d_0 + pef, 0)
                 inf_m3s_t = (tx/1000)*(cell_area/3600)
             else:
                 Inflow_Rate = cp.divide(delta_p_agg*rainfall_matrix + delta_inflow_agg*inflow_cells + d_0, (time_step/60))
                 pef = delta_p_agg*rainfall_matrix + delta_inflow_agg*inflow_cells
-                d_t = d_0 + pef
+                d_t = cp.maximum(d_0 + pef,0)
         else:
             if general_data.flag_infiltration == 1:
                 # --- Effective precipitation ---- Green-Ampt (1911) --- #
@@ -515,12 +516,12 @@ def model_gpu(path):
                 tx = cp.minimum(C, Inflow_Rate)
                 I_t = I_p + tx*time_step/60
                 pef = delta_p_agg*rainfall_matrix + delta_inflow_agg*inflow_cells - tx*time_step/60
-                d_t = d_p + pef  # ATTENTION HERE
+                d_t = cp.maximum(d_p + pef,0)  # ATTENTION HERE
                 inf_m3s_t = (tx/1000)*(cell_area/3600)
             else:
                 Inflow_Rate = cp.divide(delta_p_agg*rainfall_matrix + delta_inflow_agg*inflow_cells + d_p, (time_step/60))
                 pef = delta_p_agg*rainfall_matrix + delta_inflow_agg*inflow_cells
-                d_t = d_p + pef
+                d_t = cp.maximum(d_p + pef,0)
         total_available_depth = d_t
 
         #  ---- ELEVATIONS ----  #
@@ -730,7 +731,10 @@ def model_gpu(path):
             if z2 < z1:
                 z2 = z1
             if time_step >= time_step_model:
-                delta_inflow_agg = cp.mean(delta_inflow[z1:z2]) / (time_step_model * 60) * time_step * 60
+                if (z1==z2):
+                    delta_inflow_agg = delta_inflow[z1] / (time_step_model * 60) * time_step * 60
+                else:
+                    delta_inflow_agg = cp.mean(delta_inflow[z1:z2]) / (time_step_model * 60) * time_step * 60
             else:
                 delta_inflow_agg = delta_inflow[z1] / (time_step_model * 60) * time_step * 60
             if k == 0:
@@ -747,7 +751,10 @@ def model_gpu(path):
             if z2 < z1:
                 z2 = z1
             if time_step >= time_step_model:
-                delta_p_agg = cp.mean(delta_p[z1:z2]) / (time_step_model * 60) * time_step * 60
+                if (z1==z2):
+                    delta_p_agg = delta_p[z1] / (time_step_model * 60) * time_step * 60
+                else:
+                    delta_p_agg = cp.mean(delta_p[z1:z2]) / (time_step_model * 60) * time_step * 60
             else:
                 delta_p_agg = delta_p[z1] / (time_step_model * 60) * time_step * 60
             if k == 0:
@@ -1151,9 +1158,8 @@ def model_gpu(path):
         else:
             # If the folder doesn't exist, create it
             os.makedirs(folder_path)
-
-    # changing directory
-    os.chdir(folder_path)
+        # changing directory
+        os.chdir(folder_path)
 
     # Changing Nan Values
     d[np.isnan(d)] = 0

@@ -38,8 +38,9 @@ def nse(targets,predictions):
 
 # --- Data Path --- #
 # It should be provided the directory of the events to be simulated by the model
-path ='I:/Meu Drive/Papers/Paper - 2Dmodeling + level calibration/591_runs/Climbra/SSP245/'  # Provide the path for the descrete events
-runs = sorted(os.listdir(path))
+path ='I:/Meu Drive/Papers/Paper - 2Dmodeling + loss curves/runs'  # Provide the path for the descrete events
+# runs = sorted(os.listdir(path))
+runs = ['HydroPol2D']
 
 # --- Non-Parallel Running --- #  # Use if only the CPU is available (run slow)
 # for run in runs:
