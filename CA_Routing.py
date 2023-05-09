@@ -130,6 +130,7 @@ def CA_Routing_GPU(elevation_cell,  elevation_left_t,  elevation_right_t,
                col_outlet,  idx_nan,  flag_critical):
     import cupy as cp
     # ----------- Finding Nans or Values Below a Threshold ------------ #
+
     d_t_min = 0.000001  # m
     d_t_min = cp.asarray(d_t_min)
     idx_2 = d_t_cell < d_t_min*1000
@@ -146,6 +147,7 @@ def CA_Routing_GPU(elevation_cell,  elevation_left_t,  elevation_right_t,
     wse_cell = elevation_cell + depth_cell
 
     # ----------- Depth Differences for All Cells ------------ #
+
     delta_h = cp.zeros((5, cp.size(elevation_cell[:, 0]), cp.size(elevation_cell[0, :])))
     delta_h[0, :, :] = wse_cell - elevation_left_t - cp.divide(d_left_cell, 1000)  # left
     delta_h[1, :, :] = wse_cell - elevation_right_t - cp.divide(d_right_cell, 1000)  # right
@@ -154,6 +156,8 @@ def CA_Routing_GPU(elevation_cell,  elevation_left_t,  elevation_right_t,
 
     # %%% CHECKED 9/28/2021 %%%% #
     # ----------- Outlet Calculations ------------ #
+
+
     if outlet_type == 1:
         S_0 = slope_outlet  # Normal slope
         # V = h * area
@@ -169,6 +173,7 @@ def CA_Routing_GPU(elevation_cell,  elevation_left_t,  elevation_right_t,
         delta_h[4, :, :] = S_0*Resolution
 
     # ----------- Correcting delta_h ------------ #
+
     delta_h[cp.isnan(delta_h)] = 0  # TESTING
     delta_h[cp.isinf(delta_h)] = 0  # TESTING
 
@@ -180,7 +185,6 @@ def CA_Routing_GPU(elevation_cell,  elevation_left_t,  elevation_right_t,
     delta_h[3, -1, :] = 0  # Down
     idx = delta_h < h_min
     delta_h[idx] = 0
-
     # ----------- Available volumes ------------ #
     Vol = cp.multiply(cell_area,delta_h)  # 3-D Array with pages following direction notation
     # Max h
@@ -195,7 +199,6 @@ def CA_Routing_GPU(elevation_cell,  elevation_left_t,  elevation_right_t,
     Vol_min_matrix = cp.min(Vol_nan, axis=0)
     # Total Volume
     Vol_tot = cp.sum(Vol, axis=0)
-
     # ----------- Weights ------------ #
     weight = cp.divide(Vol, (Vol_tot + Vol_min_matrix))
     weight_max = cp.max(weight, axis=0)
@@ -226,8 +229,6 @@ def CA_Routing_GPU(elevation_cell,  elevation_left_t,  elevation_right_t,
     qout_up = qout[2, :, :]
     qout_down = qout[3, :, :]
     outlet_flow = qout[4, :, :]
-
     # ----------- Final depth at the cell ------------ #
     d_t_cell = d_t_cell - (I_tot_end_cell/cell_area)*1000  # final depth in mm
-
     return qout_left, qout_right, qout_up, qout_down, outlet_flow, d_t_cell, I_tot_end_cell, I

@@ -31,6 +31,10 @@ import matplotlib.pylab as plt
 from matplotlib import rc
 import matplotlib as mpl
 from sklearn.metrics import r2_score
+import cProfile
+import main_plotter
+
+
 
 # --- Nash-Sutcliffe Efficiency (NSE) --- #
 def nse(targets,predictions):
@@ -49,11 +53,16 @@ runs = ['HydroPol2D']
 #     print(run + ' = ok')
 
 # --- Parallel Running --- #  # Use if the GPU is available (run faster)
+# with cProfile.Profile() as profile:
 for run in runs:
     path_run = path + '/' + run
     model_GPU.model_gpu(path_run)
     print(run + ' = ok')
+# results = pstats.Stats(profile)
+# results.sort_stats(pstats.SortKey.TIME)
+# results.print_stats()
 
+#main_plotter()
 
 # --- Plotting results --- of Calibrated and validated runs --- #
 # summary = np.empty((len(runs),4), dtype=object)

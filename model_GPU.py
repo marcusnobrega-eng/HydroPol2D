@@ -492,7 +492,8 @@ def model_gpu(path):
             print("Perc(%) = " + str(cp.round_((t / general_data.routing_time) * 100, 2)) + " || t(sec) = " + str(
                 cp.round_(time_step * 60, 2)) + " || dt(mm) = " + str(
                 cp.round_(cp.nanmax(d_t), 2)) + " || inf(mm/hr) = " + str(
-                cp.round_(cp.nanmax(C), 2)))
+                cp.round_(cp.nanmax(C), 2))
+            )
         if tmin_wq < 0 or np.isnan(tmin_wq) or np.isinf(tmin_wq):
             ttt = 1
         if k == 0:
@@ -511,6 +512,7 @@ def model_gpu(path):
         else:
             if general_data.flag_infiltration == 1:
                 # --- Effective precipitation ---- Green-Ampt (1911) --- #
+                C = cp.multiply(ksat, (1 + cp.divide(cp.multiply(d_p + psi, teta_sat - teta_i), I_p)))  # Matrix form
                 C = cp.multiply(ksat, (1 + cp.divide(cp.multiply(d_p + psi, teta_sat - teta_i), I_p)))  # Matrix form
                 Inflow_Rate = cp.divide(delta_p_agg*rainfall_matrix + delta_inflow_agg*inflow_cells + d_p, (time_step/60))
                 tx = cp.minimum(C, Inflow_Rate)
@@ -614,6 +616,7 @@ def model_gpu(path):
                 # --- Velocity Raster --- #
                 velocity_raster = cp.maximum(vel_left, vel_right, vel_up)
                 velocity_raster = cp.maximum(velocity_raster, vel_down)
+                print('|| Vel_med (m/s)'+ str(cp.nanmean(velocity_raster))+'|| Vel_max (m/s)'+ str(cp.nanmax(velocity_raster)))
 
                 # --- Calculation of varying Alpha --- #
                 alfa_max = general_data.alfa
