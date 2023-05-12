@@ -62,7 +62,7 @@ for run in runs:
 # results.sort_stats(pstats.SortKey.TIME)
 # results.print_stats()
 
-#main_plotter()
+
 
 # --- Plotting results --- of Calibrated and validated runs --- #
 # summary = np.empty((len(runs),4), dtype=object)

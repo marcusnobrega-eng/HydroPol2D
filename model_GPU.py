@@ -294,6 +294,7 @@ def model_gpu(path):
     outflow_cms_t = spatial_domain.copy()
     inf_m3s_t = spatial_domain.copy()
     q_exut_t = spatial_domain.copy()
+    slope_percent = spatial_domain.copy()
     #--- Space dependent arrays ---#
     qout_left_t = spatial_domain.copy()
     qout_right_t = spatial_domain.copy()
@@ -418,6 +419,7 @@ def model_gpu(path):
     risk_t = cp.asarray(risk_t)
     risk_t_bti = cp.asarray(risk_t_bti)
     risk_t_fti = cp.asarray(risk_t_fti)
+    slope_percent = cp.asarray(slope_percent)
     outflow_cms_t = cp.asarray(outflow_cms_t)
     inf_m3s_t = cp.asarray(inf_m3s_t)
     q_exut_t = cp.asarray(q_exut_t)
@@ -526,10 +528,18 @@ def model_gpu(path):
                 d_t = cp.maximum(d_p + pef,0)
         total_available_depth = d_t
 
+        if (k==0):
+            #  ---- ELEVATIONS ----  #
+            elevation_left_t = cp.hstack([np.empty((int(ny_max), 1))*np.inf, elevation[:, 0:(nx_max - 1)]])
+            elevation_right_t = cp.hstack([elevation[:, 1:nx_max], cp.empty((int(ny_max), 1))*np.inf])
+            elevation_up_t = cp.vstack([np.empty((1, int(nx_max)))*np.inf, elevation[0:(ny_max - 1), :]])
+            elevation_down_t = cp.vstack([elevation[1: ny_max], cp.empty((1, int(nx_max)))*np.inf])
+            slope_percent = cp.absolute(cp.maximum(cp.maximum(cp.divide(elevation - elevation_left_t,general_data.resolution),cp.divide(elevation - elevation_right_t,general_data.resolution)),cp.maximum(cp.divide(elevation - elevation_up_t,general_data.resolution),cp.divide(elevation - elevation_down_t,general_data.resolution))))
+            slope_percent = cp.arctan(slope_percent)  # change percent slope into rads
         #  ---- ELEVATIONS ----  #
-        elevation_left_t = cp.hstack([np.zeros((int(ny_max), 1)), elevation[:, 0:(nx_max-1)]])
+        elevation_left_t = cp.hstack([np.zeros((int(ny_max), 1)), elevation[:, 0:(nx_max - 1)]])
         elevation_right_t = cp.hstack([elevation[:, 1:nx_max], cp.zeros((int(ny_max), 1))])
-        elevation_up_t = cp.vstack([np.zeros((1, int(nx_max))), elevation[0:(ny_max-1), :]])
+        elevation_up_t = cp.vstack([np.zeros((1, int(nx_max))), elevation[0:(ny_max - 1), :]])
         elevation_down_t = cp.vstack([elevation[1: ny_max], cp.zeros((1, int(nx_max)))])
         #  ---- WATER DEPTHS ----  #
         d_left_cell = cp.hstack([np.zeros((int(ny_max), 1)), total_available_depth[:, 0:(nx_max-1)]])
