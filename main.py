@@ -24,6 +24,8 @@ import math
 import os
 import pandas as pd
 import numpy as np
+
+import input_data
 import model_GPU
 import model
 import hydroeval as he
@@ -34,18 +36,15 @@ from sklearn.metrics import r2_score
 import cProfile
 import main_plotter
 
-
-
 # --- Nash-Sutcliffe Efficiency (NSE) --- #
 def nse(targets,predictions):
     return 1-(np.sum((targets-predictions)**2)/np.sum((targets-np.mean(targets))**2))
 
 # --- Data Path --- #
 # It should be provided the directory of the events to be simulated by the model
-path ='I:/Meu Drive/Papers/Paper - 2Dmodeling + loss curves/runs'  # Provide the path for the descrete events
+path ='I:/Meu Drive/Papers/Paper - 2Dmodeling + human risk/runs/'  # Provide the path for the descrete events
 # runs = sorted(os.listdir(path))
 runs = ['HydroPol2D']
-
 # --- Non-Parallel Running --- #  # Use if only the CPU is available (run slow)
 # for run in runs:
 #     path_run = path + '/' + run
@@ -53,16 +52,12 @@ runs = ['HydroPol2D']
 #     print(run + ' = ok')
 
 # --- Parallel Running --- #  # Use if the GPU is available (run faster)
-# with cProfile.Profile() as profile:
 for run in runs:
-    path_run = path + '/' + run
-    model_GPU.model_gpu(path_run)
+    path_run = path + run
+    rainfalls = input_data.rainfalls_number(path_run + '/Rainfall_Intensity_Data.csv')
+    for rain in range(0, rainfalls.rains):
+        model_GPU.model_gpu(path_run, int(rain))
     print(run + ' = ok')
-# results = pstats.Stats(profile)
-# results.sort_stats(pstats.SortKey.TIME)
-# results.print_stats()
-
-
 
 # --- Plotting results --- of Calibrated and validated runs --- #
 # summary = np.empty((len(runs),4), dtype=object)

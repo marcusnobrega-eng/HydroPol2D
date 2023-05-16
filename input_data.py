@@ -74,6 +74,29 @@ class GeneralData:
         self.flag_floodmaps = float(config['FLAGS']['flag_floodmaps'])
         self.flag_riskmaps = float(config['FLAGS']['flag_riskmaps'])
         self.flag_gifs = float(config['FLAGS']['flag_gifs'])
+        self.flag_txt = float(config['FLAGS']['flag_txt'])
+        self.flag_vel = float(config['FLAGS']['flag_vel'])
+
+        self.g = float(config['HUMAN_RISK']['g'])
+        self.f = float(config['HUMAN_RISK']['f'])
+        self.Fc = float(config['HUMAN_RISK']['Fc'])
+        self.Cc = float(config['HUMAN_RISK']['Cc'])
+        self.m_c = float(config['HUMAN_RISK']['m_c'])
+        self.y_c = float(config['HUMAN_RISK']['y_c'])
+        self.D_c = float(config['HUMAN_RISK']['D_c'])
+        self.d_c = float(config['HUMAN_RISK']['d_c'])
+        self.m_t = float(config['HUMAN_RISK']['m_t'])
+        self.y_t = float(config['HUMAN_RISK']['y_t'])
+        self.D_t = float(config['HUMAN_RISK']['D_t'])
+        self.d_t = float(config['HUMAN_RISK']['d_t'])
+        self.m_a = float(config['HUMAN_RISK']['m_a'])
+        self.y_a = float(config['HUMAN_RISK']['y_a'])
+        self.D_a = float(config['HUMAN_RISK']['D_a'])
+        self.d_a = float(config['HUMAN_RISK']['d_a'])
+        self.m_o = float(config['HUMAN_RISK']['m_o'])
+        self.y_o = float(config['HUMAN_RISK']['y_o'])
+        self.D_o = float(config['HUMAN_RISK']['D_o'])
+        self.d_o = float(config['HUMAN_RISK']['d_o'])
 
 class LULCData: #this should be simplified to n number of lulc classes, an iterative procedure!!** here!!**
     def __init__(self, config_file):
@@ -189,14 +212,18 @@ class LULCData: #this should be simplified to n number of lulc classes, an itera
                                self.per5_index, self.per6_index])
         return lulc_index
 
-
-class PrecipitationData: #here to version no2, as matrix for distribuited rainfall, loop for iterative list of rasters
+class rainfalls_number:
     def __init__(self, precipitation_file):
         df = pd.read_csv(precipitation_file, sep=',')
-        self.intensity_rainfall = df.iloc[:, 1]
-        self.time_rainfall = df.iloc[:, 0]
-        self.time_step_rainfall = df.iloc[2, 0] - df.iloc[1, 0]
-        self.rainfall_duration = df.iloc[2, 0] - df.iloc[1, 0]  # I think that this is wrong in the matlab code / i Gree (luis), it should be just the last row of the column 0
+        self.rains = int(len(df.columns)/2)
+
+class PrecipitationData: #here to version no2, as matrix for distribuited rainfall, loop for iterative list of rasters
+    def __init__(self, precipitation_file, rain):
+        df = pd.read_csv(precipitation_file, sep=',')
+        self.intensity_rainfall = df.iloc[:, rain+1]
+        self.time_rainfall = df.iloc[:, rain+0]
+        self.time_step_rainfall = df.iloc[2, rain+0] - df.iloc[1, rain+0]
+        self.rainfall_duration = df.iloc[2, rain+0] - df.iloc[1, rain+0]
 
 class InflowData:
     def __init__(self, inflow_file, resolution):
