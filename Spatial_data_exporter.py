@@ -20,9 +20,6 @@
 import numpy as np
 import xarray as xr
 import pyproj
-from netCDF4 import Dataset
-import netCDF4 as nc
-import rioxarray
 import imageio
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -100,11 +97,27 @@ def Spatial_data_exporter(FileName ,ncols, nrows, xllcorner, yllcorner, cellsize
         # Save the animation as a GIF
         ani.save('raster_rotation.gif', writer='pillow', dpi=600)
         plt.close()
+    elif (FileName == 'Flow Velocity'):
+        fig, ax = plt.subplots()
+        def update(frame):
+            ax.clear()
+            im = ax.imshow(raster_exportion[frame], cmap='jet')
+            ax.set_title(str(FileName).format(frame))
+            ax.set_xlabel("x (m)")
+            ax.set_ylabel("y (m)")
+            fig.colorbar(im, cax=cax).set_label('Velocity (m/s)')
+
+        cax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+        # Create the animation object
+        ani = FuncAnimation(fig, update, frames=raster_exportion.shape[0], interval=300)
+        # Save the animation as a GIF
+        ani.save(str(FileName) + '.gif', writer='pillow', dpi=600)
+        plt.close()
     else: # for Human instability flooding risk
         fig, ax = plt.subplots()
         # Define custom colormap
-        cmap = ListedColormap(['#d5f5e3', '#f5b041', '#FF0033', '#9b59b6'])
-        boundaries = [-0.5, 0.5, 1.1, 2.2, 3]  # Boundaries between discrete values
+        cmap = ListedColormap(['#00FFFFFF', '#52BE80','#229954','#145A32','#F4D03F','#D4AC0D','#9A7D0A','#E67E22','#CA6F1E','#935116','#C0392B','#A93226','#641E16',])
+        boundaries = [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5]  # Boundaries between discrete values
         norm = BoundaryNorm(boundaries, ncolors=cmap.N, clip=True)
 
         def update(frame):
@@ -114,8 +127,8 @@ def Spatial_data_exporter(FileName ,ncols, nrows, xllcorner, yllcorner, cellsize
             ax.set_xlabel("x (m)")
             ax.set_ylabel("y (m)")
             fig.colorbar(im, cax=cax, ticks=[0, 1, 2, 3])
-            cax.get_yaxis().set_major_locator(FixedLocator([0, 0.75, 1.5, 2.5]))
-            cax.set_yticklabels(['No Risk', 'Sliding\n Risk', 'Combination\n T + S', 'Toppling\n Risk'])
+            cax.get_yaxis().set_major_locator(FixedLocator([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]))
+            cax.set_yticklabels(['1', '2', '3', '4','5','6','7','8','9','10','11','12'])
 
         cax = fig.add_axes([0.83, 0.15, 0.02, 0.7])
         # Create the animation object

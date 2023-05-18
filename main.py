@@ -42,7 +42,7 @@ def nse(targets,predictions):
 
 # --- Data Path --- #
 # It should be provided the directory of the events to be simulated by the model
-path ='I:/Meu Drive/Papers/Paper - 2Dmodeling + human risk/runs/'  # Provide the path for the descrete events
+path ='E:/Google_drive/Meu Drive/Papers/Paper - 2Dmodeling + human risk/runs/'  # Provide the path for the descrete events
 # runs = sorted(os.listdir(path))
 runs = ['HydroPol2D']
 # --- Non-Parallel Running --- #  # Use if only the CPU is available (run slow)
