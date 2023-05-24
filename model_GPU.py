@@ -345,11 +345,12 @@ def model_gpu(path, rain):
     time_size = len(time_store)
     d = np.zeros((time_size, ny_max, nx_max))
     v = np.zeros((time_size, ny_max, nx_max))
-    rc = np.zeros((time_size, ny_max, nx_max))
-    rt = np.zeros((time_size, ny_max, nx_max))
-    ra = np.zeros((time_size, ny_max, nx_max))
-    ro = np.zeros((time_size, ny_max, nx_max))
-    rr = np.zeros((time_size, ny_max, nx_max))
+    rc_m, rc_f = np.zeros((time_size, ny_max, nx_max)),np.zeros((time_size, ny_max, nx_max))
+    rt_m, rt_f = np.zeros((time_size, ny_max, nx_max)),np.zeros((time_size, ny_max, nx_max))
+    ra_m, ra_f = np.zeros((time_size, ny_max, nx_max)),np.zeros((time_size, ny_max, nx_max))
+    ro_m, ro_f = np.zeros((time_size, ny_max, nx_max)),np.zeros((time_size, ny_max, nx_max))
+    rm, rf = np.zeros((time_size, ny_max, nx_max)),np.zeros((time_size, ny_max, nx_max))
+
 
     # risk = np.zeros((time_size, ny_max, nx_max))
     # risk_bti = np.zeros((time_size, ny_max, nx_max))
@@ -398,10 +399,11 @@ def model_gpu(path, rain):
     tmin_wq = general_data.max_time_step
     dmax_final = np.zeros((np.shape(elevation)))
     vmax_final = np.zeros((np.shape(elevation)))
-    rcmax_final = np.zeros((np.shape(elevation)))
-    rtmax_final = np.zeros((np.shape(elevation)))
-    ramax_final = np.zeros((np.shape(elevation)))
-    romax_final = np.zeros((np.shape(elevation)))
+    rcmax_final_m, rcmax_final_f = np.zeros((np.shape(elevation))), np.zeros((np.shape(elevation)))
+    rtmax_final_m, rtmax_final_f = np.zeros((np.shape(elevation))), np.zeros((np.shape(elevation)))
+    ramax_final_m, ramax_final_f = np.zeros((np.shape(elevation))), np.zeros((np.shape(elevation)))
+    romax_final_m, romax_final_f = np.zeros((np.shape(elevation))), np.zeros((np.shape(elevation)))
+
     # risk_final = np.zeros((np.shape(elevation)))
     # risk_bti_final = np.zeros((np.shape(elevation)))
     # risk_fti_final = np.zeros((np.shape(elevation)))
@@ -425,10 +427,10 @@ def model_gpu(path, rain):
     alfa_save = cp.zeros((int(steps), 1))
     dmax_final = cp.asarray(dmax_final)
     vmax_final = cp.asarray(vmax_final)
-    rcmax_final = cp.asarray(rcmax_final)
-    rtmax_final = cp.asarray(rtmax_final)
-    romax_final = cp.asarray(romax_final)
-    ramax_final = cp.asarray(ramax_final)
+    rcmax_final_m, rcmax_final_f = cp.asarray(rcmax_final_m), cp.asarray(rcmax_final_f)
+    rtmax_final_m, rtmax_final_f = cp.asarray(rtmax_final_m), cp.asarray(rtmax_final_f)
+    romax_final_m, romax_final_f = cp.asarray(romax_final_m), cp.asarray(romax_final_f)
+    ramax_final_m, ramax_final_f = cp.asarray(ramax_final_m), cp.asarray(ramax_final_f)
 
     # risk_final = cp.asarray(risk_final)
     # risk_bti_final = cp.asarray(risk_bti_final)
@@ -462,9 +464,9 @@ def model_gpu(path, rain):
         outet_pollutograph = cp.asarray(outet_pollutograph)
     Total_Inflow = cp.asarray(Total_Inflow)
     d_t = cp.asarray(d_t)
-    risk_t = cp.asarray(risk_t)
-    risk_t_bti = cp.asarray(risk_t_bti)
-    risk_t_fti = cp.asarray(risk_t_fti)
+    # risk_t = cp.asarray(risk_t)
+    # risk_t_bti = cp.asarray(risk_t_bti)
+    # risk_t_fti = cp.asarray(risk_t_fti)
     slope_percent = cp.asarray(slope_percent)
     outflow_cms_t = cp.asarray(outflow_cms_t)
     inf_m3s_t = cp.asarray(inf_m3s_t)
@@ -701,23 +703,41 @@ def model_gpu(path, rain):
                 vel_t_zzz = velocity_raster.copy()
                 d_t_zzz = d_t.copy()/1000
 
-                risk_c = human_risk_module.human_risk(vel_t_zzz,d_t_zzz, slope_percent, general_data.m_c, general_data.y_c, general_data.D_c, general_data.d_c, general_data.f, general_data.g, general_data.Cc, general_data.Fc)
-                risk_c2 = risk_c
-                risk_t = human_risk_module.human_risk(vel_t_zzz,d_t_zzz, slope_percent, general_data.m_t, general_data.y_t, general_data.D_t, general_data.d_t, general_data.f, general_data.g, general_data.Cc, general_data.Fc)
-                risk_zero = cp.equal(risk_t, 0)
-                risk_t2 = risk_t + 3
-                risk_t2[risk_zero] = 0
-                risk_a = human_risk_module.human_risk(vel_t_zzz,d_t_zzz, slope_percent, general_data.m_a, general_data.y_a, general_data.D_a, general_data.d_a, general_data.f, general_data.g, general_data.Cc, general_data.Fc)
-                risk_zero = cp.equal(risk_a, 0)
-                risk_a2 = risk_a + 9
-                risk_a2[risk_zero] = 0
-                risk_o = human_risk_module.human_risk(vel_t_zzz,d_t_zzz, slope_percent, general_data.m_o, general_data.y_o, general_data.D_o, general_data.d_o, general_data.f, general_data.g, general_data.Cc, general_data.Fc)
-                risk_zero = cp.equal(risk_o, 0)
-                risk_o2 = risk_o + 6
-                risk_o2[risk_zero] = 0
+                # Risk for male
+                risk_c_m = human_risk_module.human_risk(vel_t_zzz,d_t_zzz, slope_percent, general_data.m_c_m, general_data.y_c_m, general_data.D_c_m, general_data.d_c_m, general_data.f, general_data.g, general_data.Cc, general_data.Fc)
+                risk_c2_m = risk_c_m
+                risk_t_m = human_risk_module.human_risk(vel_t_zzz,d_t_zzz, slope_percent, general_data.m_t_m, general_data.y_t_m, general_data.D_t_m, general_data.d_t_m, general_data.f, general_data.g, general_data.Cc, general_data.Fc)
+                risk_zero = cp.equal(risk_t_m, 0)
+                risk_t2_m = risk_t_m + 3
+                risk_t2_m[risk_zero] = 0
+                risk_a_m = human_risk_module.human_risk(vel_t_zzz,d_t_zzz, slope_percent, general_data.m_a_m, general_data.y_a_m, general_data.D_a_m, general_data.d_a_m, general_data.f, general_data.g, general_data.Cc, general_data.Fc)
+                risk_zero = cp.equal(risk_a_m, 0)
+                risk_a2_m = risk_a_m + 9
+                risk_a2_m[risk_zero] = 0
+                risk_o_m = human_risk_module.human_risk(vel_t_zzz,d_t_zzz, slope_percent, general_data.m_o_m, general_data.y_o_m, general_data.D_o_m, general_data.d_o_m, general_data.f, general_data.g, general_data.Cc, general_data.Fc)
+                risk_zero = cp.equal(risk_o_m, 0)
+                risk_o2_m = risk_o_m + 6
+                risk_o2_m[risk_zero] = 0
+                risk_record_m = cp.maximum(risk_c2_m, risk_t2_m, risk_o2_m)
+                risk_record_m = cp.maximum(risk_record_m, risk_a2_m)
 
-                risk_record = cp.maximum(risk_c2, risk_t2, risk_o2)
-                risk_record = cp.maximum(risk_record, risk_a2)
+                # Risk for female
+                risk_c_f = human_risk_module.human_risk(vel_t_zzz,d_t_zzz, slope_percent, general_data.m_c_f, general_data.y_c_f, general_data.D_c_f, general_data.d_c_f, general_data.f, general_data.g, general_data.Cc, general_data.Fc)
+                risk_c2_f = risk_c_f
+                risk_t_f = human_risk_module.human_risk(vel_t_zzz,d_t_zzz, slope_percent, general_data.m_t_f, general_data.y_t_f, general_data.D_t_f, general_data.d_t_f, general_data.f, general_data.g, general_data.Cc, general_data.Fc)
+                risk_zero = cp.equal(risk_t_f, 0)
+                risk_t2_f = risk_t_f + 3
+                risk_t2_f[risk_zero] = 0
+                risk_a_f = human_risk_module.human_risk(vel_t_zzz,d_t_zzz, slope_percent, general_data.m_a_f, general_data.y_a_f, general_data.D_a_f, general_data.d_a_f, general_data.f, general_data.g, general_data.Cc, general_data.Fc)
+                risk_zero = cp.equal(risk_a_f, 0)
+                risk_a2_f = risk_a_f + 9
+                risk_a2_f[risk_zero] = 0
+                risk_o_f = human_risk_module.human_risk(vel_t_zzz,d_t_zzz, slope_percent, general_data.m_o_f, general_data.y_o_f, general_data.D_o_f, general_data.d_o_f, general_data.f, general_data.g, general_data.Cc, general_data.Fc)
+                risk_zero = cp.equal(risk_o_f, 0)
+                risk_o2_f = risk_o_f + 6
+                risk_o2_f[risk_zero] = 0
+                risk_record_f = cp.maximum(risk_c2_f, risk_t2_f, risk_o2_f)
+                risk_record_f = cp.maximum(risk_record_f, risk_a2_f)
 
                 # mu = 0.5  # Friction coefficient
                 # Cd = 1.1
@@ -946,7 +966,7 @@ def model_gpu(path, rain):
                 vel_left = resize_matrix.resize_matrix(vel_left, domain, ymin_domain_abstracted, ymax_domain_abstracted,
                                                        xmin_domain_abstracted, xmax_domain_abstracted, dymin_matrix,
                                                        dymax_matrix, dxmin_matrix, dxmax_matrix, 1)
-                vel_rigt = resize_matrix.resize_matrix(vel_right, domain, ymin_domain_abstracted, ymax_domain_abstracted,
+                vel_right = resize_matrix.resize_matrix(vel_right, domain, ymin_domain_abstracted, ymax_domain_abstracted,
                                                        xmin_domain_abstracted, xmax_domain_abstracted, dymin_matrix,
                                                        dymax_matrix, dxmin_matrix, dxmax_matrix, 1)
                 vel_up = resize_matrix.resize_matrix(vel_up, domain, ymin_domain_abstracted, ymax_domain_abstracted,
@@ -1049,12 +1069,11 @@ def model_gpu(path, rain):
         if k == 0:
             d[0, :, :] = d_t.get()
             v[0, :, :] = velocity_raster.get()
-            rc[0, :, :] = risk_c.get()
-            rt[0, :, :] = risk_t.get()
-            ra[0, :, :] = risk_a.get()
-            ro[0, :, :] = risk_o.get()
-            rr[0, :, :] = risk_record.get()
-
+            rc_m[0, :, :], rc_f[0, :, :] = risk_c_m.get(), risk_c_f.get()
+            rt_m[0, :, :], rt_f[0, :, :] = risk_t_m.get(), risk_t_f.get()
+            ra_m[0, :, :], ra_f[0, :, :] = risk_a_m.get(), risk_a_f.get()
+            ro_m[0, :, :], ro_f[0, :, :] = risk_o_m.get(), risk_o_f.get()
+            rm[0, :, :], rf[0, :, :] = risk_record_m.get(), risk_record_f.get()
             # risk[0, :, :] = risk_t.get()
             # risk_bti[0, :, :] = risk_t_bti.get()
             # risk_fti[0, :, :] = risk_t_fti.get()
@@ -1070,11 +1089,11 @@ def model_gpu(path, rain):
             t_store = actual_record_state
             d[t_store.get(), :, :] = d_t.get()
             v[t_store.get(), :, :] = velocity_raster.get()
-            rc[t_store.get(), :, :] = risk_c.get()
-            rt[t_store.get(), :, :] = risk_t.get()
-            ra[t_store.get(), :, :] = risk_a.get()
-            ro[t_store.get(), :, :] = risk_o.get()
-            rr[t_store.get(), :, :] = risk_record.get()
+            rc_m[t_store.get(), :, :], rc_f[t_store.get(), :, :] = risk_c_m.get(), risk_c_f.get()
+            rt_m[t_store.get(), :, :], rt_f[t_store.get(), :, :] = risk_t_m.get(), risk_t_f.get()
+            ra_m[t_store.get(), :, :], ra_f[t_store.get(), :, :] = risk_a_m.get(), risk_a_f.get()
+            ro_m[t_store.get(), :, :], ro_f[t_store.get(), :, :] = risk_o_m.get(), risk_o_f.get()
+            rm[t_store.get(), :, :], rf[t_store.get(), :, :] = risk_record_m.get(), risk_record_f.get()
             # risk[t_store.get(), :, :] = risk_t.get()
             # risk_bti[t_store.get(), :, :] = risk_t_bti.get()
             # risk_fti[t_store.get(), :, :] = risk_t_fti.get()
@@ -1109,10 +1128,10 @@ def model_gpu(path, rain):
         v_t = velocity_raster.copy()
         v_t[cp.isnan(velocity_raster)] = -9999
         vmax_final = cp.maximum(v_t, vmax_final)
-        rcmax_final = cp.maximum(risk_c, rcmax_final)
-        rtmax_final = cp.maximum(risk_t, rtmax_final)
-        ramax_final = cp.maximum(risk_a, ramax_final)
-        romax_final = cp.maximum(risk_o, romax_final)
+        rcmax_final_m, rcmax_final_f = cp.maximum(risk_c_m, rcmax_final_m), cp.maximum(risk_c_f, rcmax_final_f)
+        rtmax_final_m, rtmax_final_f = cp.maximum(risk_t_m, rtmax_final_m), cp.maximum(risk_t_f, rtmax_final_f)
+        ramax_final_m, ramax_final_f = cp.maximum(risk_a_m, ramax_final_m), cp.maximum(risk_a_f, ramax_final_f)
+        romax_final_m, romax_final_f = cp.maximum(risk_o_m, romax_final_m), cp.maximum(risk_o_f, romax_final_f)
 
         # risk_final = cp.maximum(risk_t, risk_final)
         # risk_bti_final = cp.maximum(risk_t_bti, risk_bti_final)
@@ -1152,10 +1171,10 @@ def model_gpu(path, rain):
     cell_area = cp.asnumpy(cell_area)
     dmax_final = cp.asnumpy(dmax_final)
     vmax_final = cp.asnumpy(vmax_final)
-    rcmax_final = cp.asnumpy(rcmax_final)
-    rtmax_final = cp.asnumpy(rtmax_final)
-    ramax_final = cp.asnumpy(ramax_final)
-    romax_final = cp.asnumpy(romax_final)
+    rcmax_final_m, rcmax_final_f = cp.asnumpy(rcmax_final_m), cp.asnumpy(rcmax_final_f)
+    rtmax_final_m, rtmax_final_f = cp.asnumpy(rtmax_final_m), cp.asnumpy(rtmax_final_f)
+    ramax_final_m, ramax_final_f = cp.asnumpy(ramax_final_m), cp.asnumpy(ramax_final_f)
+    romax_final_m, romax_final_f = cp.asnumpy(romax_final_m), cp.asnumpy(romax_final_f)
 
     # risk_final = cp.asnumpy(risk_final)
     # risk_bti_final = cp.asnumpy(risk_bti_final)
@@ -1286,27 +1305,40 @@ def model_gpu(path, rain):
                                                 general_data.yllupcorner, general_data.resolution, no_data_value,
                                                 raster_exportion)
             if general_data.flag_riskmaps == 1:
-                FileName_rc = "Rain_"+ str(rain)+'_Risk_child_' + str(int(time_map)) + "_min"
-                FileName_rt = "Rain_"+ str(rain)+'_Risk_teen_' + str(int(time_map)) + "_min"
-                FileName_ra = "Rain_"+ str(rain)+'_Risk_adult_' + str(int(time_map)) + "_min"
-                FileName_ro = "Rain_"+ str(rain)+'_Risk_older_' + str(int(time_map)) + "_min"
-                raster_exportion_rc = rc[i, :, :]
-                raster_exportion_rt = rt[i, :, :]
-                raster_exportion_ra = ra[i, :, :]
-                raster_exportion_ro = ro[i, :, :]
+                FileName_rc_m = "Rain_"+ str(rain)+'_Risk_child_male' + str(int(time_map)) + "_min"
+                FileName_rt_m = "Rain_"+ str(rain)+'_Risk_teen_male' + str(int(time_map)) + "_min"
+                FileName_ra_m = "Rain_"+ str(rain)+'_Risk_adult_male' + str(int(time_map)) + "_min"
+                FileName_ro_m = "Rain_"+ str(rain)+'_Risk_older_male' + str(int(time_map)) + "_min"
+                FileName_rc_f = "Rain_"+ str(rain)+'_Risk_child_female' + str(int(time_map)) + "_min"
+                FileName_rt_f = "Rain_"+ str(rain)+'_Risk_teen_female' + str(int(time_map)) + "_min"
+                FileName_ra_f = "Rain_"+ str(rain)+'_Risk_adult_female' + str(int(time_map)) + "_min"
+                FileName_ro_f = "Rain_"+ str(rain)+'_Risk_older_female' + str(int(time_map)) + "_min"
+
                 # Save Map in ASCII format and TIFF
-                Raster_exporter.raster_exporter(FileName_rc, np.size(dem[0,:]), np.size(dem[:,0]), general_data.xllupcorner,
+                Raster_exporter.raster_exporter(FileName_rc_m, np.size(dem[0,:]), np.size(dem[:,0]), general_data.xllupcorner,
                                                 general_data.yllupcorner, general_data.resolution, no_data_value,
-                                                raster_exportion_rc)
-                Raster_exporter.raster_exporter(FileName_rt, np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+                                                rc_m[i, :, :])
+                Raster_exporter.raster_exporter(FileName_rt_m, np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
                                                 general_data.yllupcorner, general_data.resolution, no_data_value,
-                                                raster_exportion_rt)
-                Raster_exporter.raster_exporter(FileName_ra, np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+                                                rt_m[i, :, :])
+                Raster_exporter.raster_exporter(FileName_ra_m, np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
                                                 general_data.yllupcorner, general_data.resolution, no_data_value,
-                                                raster_exportion_ra)
-                Raster_exporter.raster_exporter(FileName_ro, np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+                                                ra_m[i, :, :])
+                Raster_exporter.raster_exporter(FileName_ro_m, np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
                                                 general_data.yllupcorner, general_data.resolution, no_data_value,
-                                                raster_exportion_ro)
+                                                ro_m[i, :, :])
+                Raster_exporter.raster_exporter(FileName_rc_f, np.size(dem[0,:]), np.size(dem[:,0]), general_data.xllupcorner,
+                                                general_data.yllupcorner, general_data.resolution, no_data_value,
+                                                rc_m[i, :, :])
+                Raster_exporter.raster_exporter(FileName_rt_f, np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+                                                general_data.yllupcorner, general_data.resolution, no_data_value,
+                                                rt_m[i, :, :])
+                Raster_exporter.raster_exporter(FileName_ra_f, np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+                                                general_data.yllupcorner, general_data.resolution, no_data_value,
+                                                ra_m[i, :, :])
+                Raster_exporter.raster_exporter(FileName_ro_f, np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+                                                general_data.yllupcorner, general_data.resolution, no_data_value,
+                                                ro_m[i, :, :])
             # Water Quality
             if general_data.flag_waterquality == 1:
                 FileName = "Rain_"+ str(rain)+"_Pollutant_Concentration" + str(int(time_map)) + "_min"
@@ -1339,25 +1371,45 @@ def model_gpu(path, rain):
             pd.DataFrame(reshaped).to_pickle("Rain_"+ str(rain)+"_Flow_vels" + '.pkl', compression='bz2')
 
         if general_data.flag_riskmaps == 1:
-            raster_exportion = rc
+            raster_exportion = rc_m
             reshaped = raster_exportion.reshape(raster_exportion.shape[0], -1)
-            pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Risk_child" + '.pkl', compression='bz2')
+            pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Risk_child_male" + '.pkl', compression='bz2')
 
-            raster_exportion = rt
+            raster_exportion = rt_m
             reshaped = raster_exportion.reshape(raster_exportion.shape[0], -1)
-            pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Risk_teen" + '.pkl', compression='bz2')
+            pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Risk_teen_male" + '.pkl', compression='bz2')
 
-            raster_exportion = ra
+            raster_exportion = ra_m
             reshaped = raster_exportion.reshape(raster_exportion.shape[0], -1)
-            pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Risk_adult" + '.pkl', compression='bz2')
+            pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Risk_adult_male" + '.pkl', compression='bz2')
 
-            raster_exportion = ro
+            raster_exportion = ro_m
             reshaped = raster_exportion.reshape(raster_exportion.shape[0], -1)
-            pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Risk_older" + '.pkl', compression='bz2')
+            pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Risk_older_male" + '.pkl', compression='bz2')
 
-            raster_exportion = rr
+            raster_exportion = rm
             reshaped = raster_exportion.reshape(raster_exportion.shape[0], -1)
-            pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Risk_record" + '.pkl', compression='bz2')
+            pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Risk_record_male" + '.pkl', compression='bz2')
+
+            raster_exportion = rc_f
+            reshaped = raster_exportion.reshape(raster_exportion.shape[0], -1)
+            pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Risk_child_female" + '.pkl', compression='bz2')
+
+            raster_exportion = rt_f
+            reshaped = raster_exportion.reshape(raster_exportion.shape[0], -1)
+            pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Risk_teen_female" + '.pkl', compression='bz2')
+
+            raster_exportion = ra_f
+            reshaped = raster_exportion.reshape(raster_exportion.shape[0], -1)
+            pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Risk_adult_female" + '.pkl', compression='bz2')
+
+            raster_exportion = ro_f
+            reshaped = raster_exportion.reshape(raster_exportion.shape[0], -1)
+            pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Risk_older_female" + '.pkl', compression='bz2')
+
+            raster_exportion = rf
+            reshaped = raster_exportion.reshape(raster_exportion.shape[0], -1)
+            pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Risk_record_female" + '.pkl', compression='bz2')
         # Water Quality
         if general_data.flag_waterquality == 1:
             raster_exportion = Pol_Conc_Map
@@ -1405,19 +1457,30 @@ def model_gpu(path, rain):
     Raster_exporter.raster_exporter("Rain_"+ str(rain)+'_Flow_Vel_max', np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
                                     general_data.yllupcorner, general_data.resolution, no_data_value,
                                     vmax_final)
-    Raster_exporter.raster_exporter("Rain_"+ str(rain)+'_Risk_child_max', np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+    Raster_exporter.raster_exporter("Rain_"+ str(rain)+'_Risk_child_male_max', np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
                                     general_data.yllupcorner, general_data.resolution, no_data_value,
-                                    rcmax_final)
-    Raster_exporter.raster_exporter("Rain_"+ str(rain)+'_Risk_teen_final', np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+                                    rcmax_final_m)
+    Raster_exporter.raster_exporter("Rain_"+ str(rain)+'_Risk_teen_male_max', np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
                                     general_data.yllupcorner, general_data.resolution, no_data_value,
-                                    rtmax_final)
-    Raster_exporter.raster_exporter("Rain_"+ str(rain)+'_Risk_adult_final', np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+                                    rtmax_final_m)
+    Raster_exporter.raster_exporter("Rain_"+ str(rain)+'_Risk_adult_male_max', np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
                                     general_data.yllupcorner, general_data.resolution, no_data_value,
-                                    ramax_final)
-    Raster_exporter.raster_exporter("Rain_"+ str(rain)+'_Risk_older_final', np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+                                    ramax_final_m)
+    Raster_exporter.raster_exporter("Rain_"+ str(rain)+'_Risk_older_male_max', np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
                                     general_data.yllupcorner, general_data.resolution, no_data_value,
-                                    romax_final)
-
+                                    romax_final_m)
+    Raster_exporter.raster_exporter("Rain_"+ str(rain)+'_Risk_child_female_max', np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+                                    general_data.yllupcorner, general_data.resolution, no_data_value,
+                                    rcmax_final_f)
+    Raster_exporter.raster_exporter("Rain_"+ str(rain)+'_Risk_teen_female_max', np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+                                    general_data.yllupcorner, general_data.resolution, no_data_value,
+                                    rtmax_final_f)
+    Raster_exporter.raster_exporter("Rain_"+ str(rain)+'_Risk_adult_female_max', np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+                                    general_data.yllupcorner, general_data.resolution, no_data_value,
+                                    ramax_final_f)
+    Raster_exporter.raster_exporter("Rain_"+ str(rain)+'_Risk_older_female_max', np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
+                                    general_data.yllupcorner, general_data.resolution, no_data_value,
+                                    romax_final_f)
     # --- DEM --- #
     FileName = "DEM"
     zzz = elevation
@@ -1460,26 +1523,44 @@ def model_gpu(path, rain):
         raster_exportion = raster_exportion + dem_multi
         Spatial_data_exporter.Spatial_data_exporter('Water Surface Elevation', np.size(dem[0, :]), np.size(dem[:, 0]), general_data.xllupcorner,
                                             general_data.yllupcorner, general_data.resolution, no_data_value,
-                                            raster_exportion)
+                                            raster_exportion,
+                                            rainfall.intensity_rainfall,
+                                            rainfall.time_step_rainfall)
 
         raster_exportion = d / 1000
         raster_exportion[bool] = np.nan
+        # raster_exportion[raster_exportion < 0.1] = np.nan
         Spatial_data_exporter.Spatial_data_exporter('Water Flood Depth', np.size(dem[0, :]), np.size(dem[:, 0]),
                                                         general_data.xllupcorner,
                                                         general_data.yllupcorner, general_data.resolution, no_data_value,
-                                                        raster_exportion)
+                                                        raster_exportion,
+                                                        rainfall.intensity_rainfall,
+                                                        rainfall.time_step_rainfall)
         raster_exportion = v
         raster_exportion[bool] = np.nan
+        # raster_exportion[raster_exportion < 0.1] = np.nan
         Spatial_data_exporter.Spatial_data_exporter('Flow Velocity', np.size(dem[0, :]), np.size(dem[:, 0]),
                                                         general_data.xllupcorner,
                                                         general_data.yllupcorner, general_data.resolution, no_data_value,
-                                                        raster_exportion)
-        raster_exportion = rr
+                                                        raster_exportion,
+                                                        rainfall.intensity_rainfall,
+                                                        rainfall.time_step_rainfall)
+        raster_exportion = rm
         raster_exportion[bool] = np.nan
-        Spatial_data_exporter.Spatial_data_exporter('Boy Risk', np.size(dem[0, :]), np.size(dem[:, 0]),
+        Spatial_data_exporter.Spatial_data_exporter('Male Risk', np.size(dem[0, :]), np.size(dem[:, 0]),
                                                         general_data.xllupcorner,
                                                         general_data.yllupcorner, general_data.resolution, no_data_value,
-                                                        raster_exportion)
+                                                        raster_exportion,
+                                                        rainfall.intensity_rainfall,
+                                                        rainfall.time_step_rainfall)
+        raster_exportion = rf
+        raster_exportion[bool] = np.nan
+        Spatial_data_exporter.Spatial_data_exporter('Female Risk', np.size(dem[0, :]), np.size(dem[:, 0]),
+                                                        general_data.xllupcorner,
+                                                        general_data.yllupcorner, general_data.resolution, no_data_value,
+                                                        raster_exportion,
+                                                        rainfall.intensity_rainfall,
+                                                        rainfall.time_step_rainfall)
         # raster_exportion = rt
         # raster_exportion[bool] = np.nan
         # Spatial_data_exporter.Spatial_data_exporter('Teen Boy Risk', np.size(dem[0, :]), np.size(dem[:, 0]),

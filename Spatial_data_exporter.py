@@ -21,46 +21,106 @@ import numpy as np
 import xarray as xr
 import pyproj
 import imageio
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import matplotlib.colors as mcolors
+from matplotlib.colors import LinearSegmentedColormap
+# from matplotlib import rc
+# rc('font', **{'family': 'serif', 'serif': ['Garamond']}, size = '13')
+# rc('text', usetex=False)
+import matplotlib.font_manager as fm
 from matplotlib.ticker import FixedLocator
 from matplotlib.colors import ListedColormap, BoundaryNorm
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.animation import FuncAnimation
+import geopandas as gpd
+import contextily as ctx
+import time
 
-def Spatial_data_exporter(FileName ,ncols, nrows, xllcorner, yllcorner, cellsize, no_data_value, raster_exportion):
+
+
+def Spatial_data_exporter(FileName ,ncols, nrows, xllcorner, yllcorner, cellsize, no_data_value, raster_exportion, rain, rain_time):
     # Create a figure and axis object
     # Define the function to update the animation
     if FileName == 'Water Flood Depth':
-        fig, ax = plt.subplots()
+        fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(6,8), gridspec_kw={'height_ratios': [0.10, 0.90]})
+        shape = gpd.read_file('E:/Google_drive/Meu Drive/Papers/Paper - 2Dmodeling + human risk/runs/HydroPol2D/591_basin.shp').to_crs(epsg=3857)
+        bounds = shape.total_bounds
+        extent = [bounds[0], bounds[2], bounds[1], bounds[3]]
+        plt.subplots_adjust(hspace=-0.20)
         def update(frame):
-            ax.clear()
-            im = ax.imshow(raster_exportion[frame], cmap='jet')
-            ax.set_title(str(FileName).format(frame))
-            ax.set_xlabel("x (m)")
-            ax.set_ylabel("y (m)")
-            fig.colorbar(im, cax=cax).set_label('Depths (m)')
-        cax = fig.add_axes([0.85,0.15, 0.05, 0.7])
+            ax1.clear()
+            ax2.clear()
+            #  rainfall plot with
+            ax1.plot(range(0, len(rain)*rain_time,rain_time), rain, zorder=1)
+            ax1.scatter(frame*rain_time, rain[frame], s=50, color='tab:green', edgecolor='black', zorder=2)
+            ax1.invert_yaxis()
+            ax1.xaxis.set_ticks_position('top')
+            ax1.xaxis.set_label_position('top')
+            ax1.set_xlabel('Time (min)')
+            ax1.set_ylabel('Rainfall \n Intensity (mm/h)')
+
+            shape.boundary.plot(ax=ax2, color='black', linewidth=1)
+            while True:
+                try:
+                    ctx.add_basemap(ax=ax2, zoom=14, alpha=0.3)
+                    break
+                except ValueError:
+                    print("Connection timed out. Retrying...")
+                    time.sleep(5)  # wait for 5 seconds before trying again
+            im = ax2.imshow(raster_exportion[frame], extent=extent, cmap='jet')
+            ax2.set_xlabel("Longitude (m)")
+            ax2.set_ylabel("latitude (m)")
+            ax2.ticklabel_format(useOffset=False, style='plain')
+            ax2.tick_params(axis='y', labelrotation=90)
+
+            fig.colorbar(im, cax=cax, orientation='horizontal').set_label('Flow Depth (m)')
+
+        cax = fig.add_axes([0.15, 0.12, 0.70, 0.03])
         # Create the animation object
-        ani = FuncAnimation(fig, update, frames=raster_exportion.shape[0], interval=300)
+        ani = FuncAnimation(fig, update, frames=raster_exportion.shape[0], interval=1000)
         # Save the animation as a GIF
         ani.save(str(FileName)+'.gif', writer='pillow', dpi=600)
         plt.close()
     elif FileName == 'Water Surface Elevation':
-        fig, ax = plt.subplots()
+        fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(6,8), gridspec_kw={'height_ratios': [0.10, 0.90]})
+        shape = gpd.read_file('E:/Google_drive/Meu Drive/Papers/Paper - 2Dmodeling + human risk/runs/HydroPol2D/591_basin.shp').to_crs(epsg=3857)
+        bounds = shape.total_bounds
+        extent = [bounds[0], bounds[2], bounds[1], bounds[3]]
+        plt.subplots_adjust(hspace=-0.20)
 
         def update(frame):
-            ax.clear()
-            im = ax.imshow(raster_exportion[frame], cmap='jet')
-            ax.set_title(str(FileName).format(frame))
-            ax.set_xlabel("x (m)")
-            ax.set_ylabel("y (m)")
-            fig.colorbar(im, cax=cax).set_label('Depths (m)')
+            ax1.clear()
+            ax2.clear()
+            #  rainfall plot with
+            ax1.plot(range(0, len(rain)*rain_time,rain_time), rain, zorder=1)
+            ax1.scatter(frame*rain_time, rain[frame], s=50, color='tab:green', edgecolor='black', zorder=2)
+            ax1.invert_yaxis()
+            ax1.xaxis.set_ticks_position('top')
+            ax1.xaxis.set_label_position('top')
+            ax1.set_xlabel('Time (min)')
+            ax1.set_ylabel('Rainfall \n Intensity (mm/h)')
 
-        cax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+            shape.boundary.plot(ax=ax2, color='black', linewidth=1)
+            while True:
+                try:
+                    ctx.add_basemap(ax=ax2, zoom=14, alpha=0.3)
+                    break
+                except ValueError:
+                    print("Connection timed out. Retrying...")
+                    time.sleep(5)  # wait for 5 seconds before trying again
+            im = ax2.imshow(raster_exportion[frame], extent=extent, cmap='jet')
+            fig.colorbar(im, cax=cax, orientation='horizontal').set_label('Flow elevations (masl)')
+            ax2.set_xlabel("Longitude (m)")
+            ax2.set_ylabel("latitude (m)")
+            ax2.ticklabel_format(useOffset=False, style='plain')
+            ax2.tick_params(axis='y', labelrotation=90)
+
+        cax = fig.add_axes([0.15, 0.12, 0.70, 0.03])
         # Create the animation object
-        ani = FuncAnimation(fig, update, frames=raster_exportion.shape[0], interval=300)
+        ani = FuncAnimation(fig, update, frames=raster_exportion.shape[0], interval=1000)
         # Save the animation as a GIF
         ani.save(str(FileName) + '.gif', writer='pillow', dpi=600)
         plt.close()
@@ -98,82 +158,94 @@ def Spatial_data_exporter(FileName ,ncols, nrows, xllcorner, yllcorner, cellsize
         ani.save('raster_rotation.gif', writer='pillow', dpi=600)
         plt.close()
     elif (FileName == 'Flow Velocity'):
-        fig, ax = plt.subplots()
+        fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(6,8), gridspec_kw={'height_ratios': [0.10, 0.90]})
+        shape = gpd.read_file('E:/Google_drive/Meu Drive/Papers/Paper - 2Dmodeling + human risk/runs/HydroPol2D/591_basin.shp').to_crs(epsg=3857)
+        bounds = shape.total_bounds
+        extent = [bounds[0], bounds[2], bounds[1], bounds[3]]
+        plt.subplots_adjust(hspace=-0.20)
         def update(frame):
-            ax.clear()
-            im = ax.imshow(raster_exportion[frame], cmap='jet')
-            ax.set_title(str(FileName).format(frame))
-            ax.set_xlabel("x (m)")
-            ax.set_ylabel("y (m)")
-            fig.colorbar(im, cax=cax).set_label('Velocity (m/s)')
+            ax1.clear()
+            ax2.clear()
+            #  rainfall plot with
+            ax1.plot(range(0, len(rain)*rain_time,rain_time), rain, zorder=1)
+            ax1.scatter(frame*rain_time, rain[frame], s=50, color='tab:green', edgecolor='black', zorder=2)
+            ax1.invert_yaxis()
+            ax1.xaxis.set_ticks_position('top')
+            ax1.xaxis.set_label_position('top')
+            ax1.set_xlabel('Time (min)')
+            ax1.set_ylabel('Rainfall \n Intensity (mm/h)')
 
-        cax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+            shape.boundary.plot(ax=ax2, color='black', linewidth=1)
+            ctx.add_basemap(ax=ax2, zoom=14, alpha=0.3)
+            im = ax2.imshow(raster_exportion[frame], extent=extent, cmap='jet')
+            ax2.set_xlabel("Longitude (m)")
+            ax2.set_ylabel("latitude (m)")
+            ax2.ticklabel_format(useOffset=False, style='plain')
+            ax2.tick_params(axis='y', labelrotation=90)
+
+            fig.colorbar(im, cax=cax, orientation='horizontal').set_label('Velocity (m/s)')
+
+        cax = fig.add_axes([0.15, 0.12, 0.70, 0.03])
         # Create the animation object
-        ani = FuncAnimation(fig, update, frames=raster_exportion.shape[0], interval=300)
+        ani = FuncAnimation(fig, update, frames=raster_exportion.shape[0], interval=1000)
         # Save the animation as a GIF
         ani.save(str(FileName) + '.gif', writer='pillow', dpi=600)
         plt.close()
     else: # for Human instability flooding risk
-        fig, ax = plt.subplots()
+        fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(6,8), gridspec_kw={'height_ratios': [0.10, 0.90]})
         # Define custom colormap
-        cmap = ListedColormap(['#00FFFFFF', '#52BE80','#229954','#145A32','#F4D03F','#D4AC0D','#9A7D0A','#E67E22','#CA6F1E','#935116','#C0392B','#A93226','#641E16',])
-        boundaries = [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5]  # Boundaries between discrete values
+        shape = gpd.read_file('E:/Google_drive/Meu Drive/Papers/Paper - 2Dmodeling + human risk/runs/HydroPol2D/591_basin.shp').to_crs(epsg=3857)
+        bounds = shape.total_bounds
+        extent = [bounds[0], bounds[2], bounds[1], bounds[3]]
+        # Remove space between subplots
+        plt.subplots_adjust(hspace=-0.20)
+        # cmap = ListedColormap(['#ffffff00', '#52BE80','#229954','#145A32','#F4D03F','#D4AC0D','#9A7D0A','#E67E22','#CA6F1E','#935116','#C0392B','#A93226','#641E16',])
+        cmap = ListedColormap(
+            ['#ffffff00', '#52BE80', '#52BE80', '#52BE80', '#F4D03F', '#F4D03F', '#F4D03F', '#E67E22', '#E67E22',
+             '#E67E22', '#C0392B', '#C0392B', '#C0392B'])
+        boundaries = [-0.5, 0.5, 3.5, 6.5, 9.5, 12.5]  # Boundaries between discrete values
         norm = BoundaryNorm(boundaries, ncolors=cmap.N, clip=True)
 
         def update(frame):
-            ax.clear()
-            im = ax.imshow(raster_exportion[frame], cmap=cmap, norm=norm)  # Use custom colormap and norm
-            ax.set_title(str(FileName).format(frame))
-            ax.set_xlabel("x (m)")
-            ax.set_ylabel("y (m)")
-            fig.colorbar(im, cax=cax, ticks=[0, 1, 2, 3])
-            cax.get_yaxis().set_major_locator(FixedLocator([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]))
-            cax.set_yticklabels(['1', '2', '3', '4','5','6','7','8','9','10','11','12'])
+            ax1.clear()
+            ax2.clear()
+            #  rainfall plot with
+            ax1.plot(range(0, len(rain)*rain_time,rain_time), rain, zorder=1)
+            ax1.scatter(frame*rain_time, rain[frame], s=50, color='tab:green', edgecolor='black', zorder=2)
+            ax1.invert_yaxis()
+            ax1.xaxis.set_ticks_position('top')
+            ax1.xaxis.set_label_position('top')
+            ax1.set_xlabel('Time (min)')
+            ax1.set_ylabel('Rainfall \n Intensity (mm/h)')
+            #  risk plot
+            shape.boundary.plot(ax=ax2, color='black', linewidth=1)
+            # try to add basemap, if it fails due to a ConnectTimeout exception, wait for 5 seconds and try again
+            while True:
+                try:
+                    ctx.add_basemap(ax=ax2, zoom=14, alpha=0.3)
+                    break
+                except ValueError:
+                    print("Connection timed out. Retrying...")
+                    time.sleep(5)  # wait for 5 seconds before trying again
 
-        cax = fig.add_axes([0.83, 0.15, 0.02, 0.7])
+            im = ax2.imshow(raster_exportion[frame], extent=extent, cmap=cmap, norm=norm)  # Use custom colormap and norm
+            ax2.set_xlabel("Longitude (m)")
+            ax2.set_ylabel("latitude (m)")
+            ax2.ticklabel_format(useOffset=False, style='plain')
+            ax2.tick_params(axis='y', labelrotation=90)
+
+            fig.colorbar(im, cax=cax, orientation='horizontal')
+            cax.get_xaxis().set_major_locator(FixedLocator([0, 2, 5, 8, 11]))
+            cax.yaxis.set_major_locator(plt.NullLocator())
+            cax.set_xticklabels(['No \n Riks', 'Child \n Risk', 'Teen \n Risk', 'Elderly \n Risk', 'Adult \n Risk'])
+
+        cax = fig.add_axes([0.15, 0.12, 0.70, 0.03])
+        # fig.tight_layout()
         # Create the animation object
-        ani = FuncAnimation(fig, update, frames=raster_exportion.shape[0], interval=300)
+        ani = FuncAnimation(fig, update, frames=raster_exportion.shape[0], interval=1000)
         # Save the animation as a GIF
         ani.save(str(FileName) + '.gif', writer='pillow', dpi=600)
         plt.close()
-    # wgs84 = pyproj.Proj('EPSG:4326')
-    # # Define the source and target coordinate systems
-    # utm = pyproj.Proj('EPSG:31983')
-    # # Define the dimensions and coordinates of the dataset
-    # lat = [yllcorner + cellsize * i for i in range(ncols)]
-    # lon = [xllcorner + cellsize * i for i in range(nrows)]
-    # #
-    # # # to wgs84
-    # n,lat=pyproj.transform(utm, wgs84, np.zeros_like(lat), lat)
-    # lon,n=pyproj.transform(utm, wgs84, np.zeros_like(lon), lon)
-    # #
-    # time = [i for i in range(len(raster_exportion))]
-    # #
-    # data = xr.Dataset({'data':(['time','lat',"lon"],raster_exportion)},
-    #                   coords={'time':time,
-    #                           'lon':lon,
-    #                           'lat':lat}
-    # )
-    # data = data.sortby('lat',ascending=False)
-    #
-    # data.to_netcdf('test.nc')
 
-    # ds = nc.Dataset('test.nc', 'w', format='NETCDF4')
-    #
-    # lat_dim = ds.createDimension('lat', ncols)  # latitude axis
-    # lon_dim = ds.createDimension('lon', nrows)  # longitude axis
-    # time_dim = ds.createDimension('time', len(raster_exportion))
-    #
-    # times = ds.createVariable('time', 'f4', ('time',))
-    # lats = ds.createVariable('lat', 'f4', ('lat',))
-    # lons = ds.createVariable('lon', 'f4', ('lon',))
-    # value = ds.createVariable('value', 'f4', ('time', 'lat', 'lon',))
-    # value.units = 'Unknown'
-    #
-    # lats[:] = lat
-    # lons[:] = lon
-    # times[:] = time
-    # value[:] = raster_exportion
 
-    # ds.close()
     return
