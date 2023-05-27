@@ -236,10 +236,10 @@ class rainfalls_number:
 class PrecipitationData:  #here to version no2, as matrix for distribuited rainfall, loop for iterative list of rasters
     def __init__(self, precipitation_file, rain):
         df = pd.read_csv(precipitation_file, sep=',')
-        self.intensity_rainfall = df.iloc[:, rain+1]
-        self.time_rainfall = df.iloc[:, rain+0]
-        self.time_step_rainfall = df.iloc[2, rain+0] - df.iloc[1, rain+0]
-        self.rainfall_duration = df.iloc[2, rain+0] - df.iloc[1, rain+0]
+        self.intensity_rainfall = df.iloc[:, (rain*2)+1]
+        self.time_rainfall = df.iloc[:, (rain*2)+0]
+        self.time_step_rainfall = df.iloc[2, (rain*2)+0] - df.iloc[1, (rain*2)+0]
+        self.rainfall_duration = df.iloc[2, (rain*2)+0] - df.iloc[1, (rain*2)+0]
 
 class InflowData:
     def __init__(self, inflow_file, resolution):

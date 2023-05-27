@@ -67,12 +67,15 @@ def Spatial_data_exporter(FileName ,ncols, nrows, xllcorner, yllcorner, cellsize
                 try:
                     ctx.add_basemap(ax=ax2, zoom=14, alpha=0.3)
                     break
-                except ValueError:
+                except ConnectionError:
                     print("Connection timed out. Retrying...")
-                    time.sleep(5)  # wait for 5 seconds before trying again
+                    time.sleep(120)  # wait for 5 seconds before trying again
+                except Exception as e:
+                    print(f"An exception ocurred: {str(e)}")
+                    break
             im = ax2.imshow(raster_exportion[frame], extent=extent, cmap='jet')
             ax2.set_xlabel("Longitude (m)")
-            ax2.set_ylabel("latitude (m)")
+            ax2.set_ylabel("Latitude (m)")
             ax2.ticklabel_format(useOffset=False, style='plain')
             ax2.tick_params(axis='y', labelrotation=90)
 
@@ -80,6 +83,7 @@ def Spatial_data_exporter(FileName ,ncols, nrows, xllcorner, yllcorner, cellsize
 
         cax = fig.add_axes([0.15, 0.12, 0.70, 0.03])
         # Create the animation object
+
         ani = FuncAnimation(fig, update, frames=raster_exportion.shape[0], interval=1000)
         # Save the animation as a GIF
         ani.save(str(FileName)+'.gif', writer='pillow', dpi=600)
@@ -108,13 +112,16 @@ def Spatial_data_exporter(FileName ,ncols, nrows, xllcorner, yllcorner, cellsize
                 try:
                     ctx.add_basemap(ax=ax2, zoom=14, alpha=0.3)
                     break
-                except ValueError:
+                except ConnectionError:
                     print("Connection timed out. Retrying...")
-                    time.sleep(5)  # wait for 5 seconds before trying again
+                    time.sleep(120)  # wait for 5 seconds before trying again
+                except Exception as e:
+                    print(f"An exception ocurred: {str(e)}")
+                    break
             im = ax2.imshow(raster_exportion[frame], extent=extent, cmap='jet')
             fig.colorbar(im, cax=cax, orientation='horizontal').set_label('Flow elevations (masl)')
             ax2.set_xlabel("Longitude (m)")
-            ax2.set_ylabel("latitude (m)")
+            ax2.set_ylabel("Latitude (m)")
             ax2.ticklabel_format(useOffset=False, style='plain')
             ax2.tick_params(axis='y', labelrotation=90)
 
@@ -176,10 +183,19 @@ def Spatial_data_exporter(FileName ,ncols, nrows, xllcorner, yllcorner, cellsize
             ax1.set_ylabel('Rainfall \n Intensity (mm/h)')
 
             shape.boundary.plot(ax=ax2, color='black', linewidth=1)
-            ctx.add_basemap(ax=ax2, zoom=14, alpha=0.3)
+            while True:
+                try:
+                    ctx.add_basemap(ax=ax2, zoom=14, alpha=0.3)
+                    break
+                except ConnectionError:
+                    print("Connection timed out. Retrying...")
+                    time.sleep(120)  # wait for 5 seconds before trying again
+                except Exception as e:
+                    print(f"An exception ocurred: {str(e)}")
+                    break
             im = ax2.imshow(raster_exportion[frame], extent=extent, cmap='jet')
             ax2.set_xlabel("Longitude (m)")
-            ax2.set_ylabel("latitude (m)")
+            ax2.set_ylabel("Latitude (m)")
             ax2.ticklabel_format(useOffset=False, style='plain')
             ax2.tick_params(axis='y', labelrotation=90)
 
@@ -224,13 +240,16 @@ def Spatial_data_exporter(FileName ,ncols, nrows, xllcorner, yllcorner, cellsize
                 try:
                     ctx.add_basemap(ax=ax2, zoom=14, alpha=0.3)
                     break
-                except ValueError:
+                except ConnectionError:
                     print("Connection timed out. Retrying...")
-                    time.sleep(5)  # wait for 5 seconds before trying again
+                    time.sleep(120)  # wait for 5 seconds before trying again
+                except Exception as e:
+                    print(f"An exception ocurred: {str(e)}")
+                    break
 
             im = ax2.imshow(raster_exportion[frame], extent=extent, cmap=cmap, norm=norm)  # Use custom colormap and norm
             ax2.set_xlabel("Longitude (m)")
-            ax2.set_ylabel("latitude (m)")
+            ax2.set_ylabel("Latitude (m)")
             ax2.ticklabel_format(useOffset=False, style='plain')
             ax2.tick_params(axis='y', labelrotation=90)
 

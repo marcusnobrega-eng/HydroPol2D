@@ -1353,7 +1353,7 @@ def model_gpu(path, rain):
         idx = np.isinf(dem)
         if general_data.flag_floodmaps == 1:
             if general_data.flagwse == 0:
-                raster_exportion = d
+                raster_exportion = np.round(d/ 1000,2)
                 reshaped = raster_exportion.reshape(raster_exportion.shape[0],-1)
                 pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Flood_depths" + '.pkl', compression='bz2')
                 # retrieving data from file.
@@ -1366,7 +1366,7 @@ def model_gpu(path, rain):
                 pd.DataFrame(reshaped).to_pickle("Rain_" + str(rain) + "_Water_Surface_Elevations" + '.pkl', compression='bz2')
         # Risk rasters #
         if general_data.flag_vel == 1:
-            raster_exportion = v
+            raster_exportion = np.round(v,2)
             reshaped = raster_exportion.reshape(raster_exportion.shape[0], -1)
             pd.DataFrame(reshaped).to_pickle("Rain_"+ str(rain)+"_Flow_vels" + '.pkl', compression='bz2')
 
