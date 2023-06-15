@@ -44,7 +44,7 @@ def nse(targets,predictions):
 # It should be provided the directory of the events to be simulated by the model
 path ='E:/Google_drive/Meu Drive/Papers/Paper - 2Dmodeling + human risk/runs/'  # Provide the path for the descrete events
 # runs = sorted(os.listdir(path))
-runs = ['HydroPol2D']
+runs = ['Example -IGGG']
 # --- Non-Parallel Running --- #  # Use if only the CPU is available (run slow)
 # for run in runs:
 #     path_run = path + '/' + run

@@ -76,6 +76,7 @@ class GeneralData:
         self.flag_gifs = float(config['FLAGS']['flag_gifs'])
         self.flag_txt = float(config['FLAGS']['flag_txt'])
         self.flag_vel = float(config['FLAGS']['flag_vel'])
+        self.flag_risk_model = float(config['FLAGS']['flag_risk_model'])
 
         self.g = float(config['HUMAN_RISK']['g'])
         self.f = float(config['HUMAN_RISK']['f'])
