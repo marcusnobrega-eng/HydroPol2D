@@ -14,6 +14,9 @@ HydroPol2D is a tool developed in Matlab and Python that allows:
 
 For detailed information, please refer to: https://doi.org/10.1016/j.jhydrol.2023.129982
 
+# There are two branches in this GitHub repository: one for Matlab and the other for Python
+Please choose the one you want to use accordingly.
+
 The software requires a license of Microsoft Excel 2013 or superior and Matlab 2021 or higher. 
 
 Please, refer to the Supplementary Material for detailed information on the interfaces and equations used in the software.
@@ -30,3 +33,5 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 Developer: Marcus Nóbrega Gomes Júnior,
 
 Ph.D. Candidate at USP and at UTSA.
+
+Email: marcusnobrega.engcivil@gmail.com
