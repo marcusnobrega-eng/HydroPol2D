@@ -21,7 +21,9 @@ The software requires a license of Microsoft Excel 2013 or superior and Matlab 2
 
 Please, refer to the Supplementary Material for detailed information on the interfaces and equations used in the software.
 
-Copyright (c) 2023-present Marcus Nóbrega and other contributors
+We show details of how to run the model at the end of the file.
+
+Copyright (c) 2023-present Marcus Nóbrega and other contributors (Luis Miguel Castillo, Matheus Schroeder, and Cesar do Lago).
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute subject to the following conditions:
 
@@ -33,5 +35,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 Developer: Marcus Nóbrega Gomes Júnior,
 
 Ph.D. Candidate at USP and at UTSA.
+
+Department of Hydraulic and Sanitary Engineering & Department of Civil and Environmental Engineering
 
 Email: marcusnobrega.engcivil@gmail.com
