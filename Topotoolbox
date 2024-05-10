@@ -1,3 +1,4 @@
 You need to download the topotoolbox to properly use the HydroPol2D model
 To this end, please download it at:
 https://github.com/wschwanghart/topotoolbox
+After downloading the files, you need to save them in a folder in your machine and use the directory of this folder in the General_Data.xlsx, which controls the main input data in HydroPol2D.
