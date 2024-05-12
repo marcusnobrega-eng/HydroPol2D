@@ -26,7 +26,20 @@ if flags.flag_dam_break == 1
     flag_break_1 = 1; flag_break_2 = 1;    
 end
 
+n_snaps = 20;
+dt_snap = running_control.routing_time/n_snaps;
+time_snap = [1:1:n_snaps]*dt_snap;
+z2_snap = 0;
 while t <= (running_control.routing_time + running_control.min_time_step/60)
+
+    % Snap Results
+    z1_snap = find(time_snap>=t,1,'first');
+    if z1_snap > z2_snap
+       Snapshot_Results
+       pause(0.1);
+    end
+    z2_snap = z1_snap;
+
     % Infiltration and Available Depth
     % Show stats
     
@@ -284,7 +297,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60)
                 Human_Instability.risk_t_af = Human_risk(flags.flag_human_instability,velocities.velocity_raster,depths.d_t./1000,Human_Instability.ro_water,Human_Instability.gravity,Human_Instability.mu,Human_Instability.Cd,Human_Instability.slope,Human_Instability.m_a_f,Human_Instability.y_a_f,Human_Instability.w_a_f,Human_Instability.d_a_f);
                 Human_Instability.risk_t_of = Human_risk(flags.flag_human_instability,velocities.velocity_raster,depths.d_t./1000,Human_Instability.ro_water,Human_Instability.gravity,Human_Instability.mu,Human_Instability.Cd,Human_Instability.slope,Human_Instability.m_o_f,Human_Instability.y_o_f,Human_Instability.w_o_f,Human_Instability.d_o_f);
             end
-        else             % % % % % % % %  Solution for the Stable Method - Time-step refreshment
+        else          
             % Water Slopes Calculation (THERE IS A MISTAKE HERE)
             error('This method is currenly not working, please choose the courant method')
         end

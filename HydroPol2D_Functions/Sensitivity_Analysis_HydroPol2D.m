@@ -32,8 +32,6 @@ if flags.flag_waterquality == 1
 end
 Baseline_Outputs(1,1,4) = Flooded_Area; % Flooded areas (m2)
 Baseline_Outputs(1,1,5) = Risk_Area; % Areas with drag risk (m2)
-%% Variation Range
-var_range = [0.5 0.75 1 1.25 1.5]'; % var/baseline
 
 % %%%%%%%%%%%%%% LULC DATA %%%%%%%%%%%%%%%%%%%
 input_table = readtable('LULC_parameters.xlsx');

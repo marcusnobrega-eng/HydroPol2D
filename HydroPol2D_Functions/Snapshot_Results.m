@@ -132,7 +132,11 @@ if k > 1
     end
     t_title = 'Infiltration Rate';
     axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
-    z = gather(Hydro_States.f); z(idx_nan) = nan;
+    if flags.flag_infiltration == 1
+        z = gather(Hydro_States.f); z(idx_nan) = nan;
+    else
+        z = zeros(size(idx_nan)); z(idx_nan) = nan;
+    end
     idx = z < 0;
     z(idx) = nan;
     idx = isinf(z);
@@ -256,7 +260,7 @@ if k > 1
     colormap(jet)
     hold on
     kk = colorbar ;
-    ylabel(kk,'$\Delta \theta$ ($\mathrm{cm^3.cm^{-3}})$','Interpreter','Latex','FontSize',12)
+    ylabel(kk,'$v$ ($\mathrm{m \cdot s^{-1}})$','Interpreter','Latex','FontSize',12)
     xlabel(' x (m) ','Interpreter','Latex','FontSize',12)
     ylabel ('y (m) ','Interpreter','Latex','FontSize',12)
     ax = ancestor(ax4, 'axes');
@@ -280,7 +284,11 @@ if k > 1
     end
     t_title = 'Rainfall Intensity';
     axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
-    z = gather(BC_States.delta_p_agg/(time_step/60)); z(idx_nan) = nan;
+    if flags.flag_rainfall == 1
+        z = gather(BC_States.delta_p_agg/(time_step/60)); z(idx_nan) = nan;
+    else
+        z = zeros(size(idx_nan)); z(idx_nan) = nan;
+    end
     idx = z < 0;
     z(idx) = nan;
     idx = isinf(z);
