@@ -245,14 +245,17 @@ if flags.flag_reservoir == 1
     Reservoir_Data.x_index = round((-GIS_data.xulcorner + Reservoir_Data.x)/Wshed_Properties.Resolution);
     Reservoir_Data.y_index = round((GIS_data.yulcorner - Reservoir_Data.y)/Wshed_Properties.Resolution);
     for i = 1:length(Reservoir_Data.x_index)
-        Reservoir_Data.p(i,1) = DEM(Reservoir_Data.y_index(i),Reservoir_Data.x_index(i)) - Reservoir_Data_Hv(i); % Spillway elevaation (m)
+        Reservoir_Data.pv(i,1) = DEM(Reservoir_Data.y_index(i),Reservoir_Data.x_index(i)) - Reservoir_Data.Hv(i); % Spillway elevation (m)
+        Reservoir_Data.po(i,1) = DEM(Reservoir_Data.y_index(i),Reservoir_Data.x_index(i)) - Reservoir_Data.Ho(i); % Orifice center elevation (m)
     end
 else
     Reservoir_Data.x_index = [];
     Reservoir_Data.y_index = [];
-    Reservoir_Data.p = []; % Spillway elevaation (m)
+    Reservoir_Data.pv = []; % Spillway elevation (m)
     Reservoir_Data.Kv = [];
     Reservoir_Data.Dir = [];
+    Reservoir_Data.po = [];% Orifice elevation (m)
+	Reservoir_Data.Ko = [];
 end
 
 %% ------------ Inflow Cells  ------------ %
