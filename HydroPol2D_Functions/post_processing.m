@@ -218,7 +218,11 @@ if flags.flag_obs_gauges == 1
     labels_depth = gauges.labels_observed_string; labels_depth{gauges.num_obs_gauges+1} = 'Outlet';
     labels_depth{gauges.num_obs_gauges + 2} = 'Rainfall Intensity';
     legend(labels_depth,'FontName','Garamond','FontSize',8,'location','bestoutside')
-    ylim([0 max(max(gather(BC_States.average_spatial_rainfall)))*6])
+    try
+        ylim([0 max(max(gather(BC_States.average_spatial_rainfall)))*6]);
+    catch
+        ylim([0 10]);
+    end    
     title('Surface Runoff Depth','interpreter','latex','fontsize',12)
     set(gca, 'TickLength', [0.02 0.01]);
     set(gca,'Tickdir','out')

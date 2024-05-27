@@ -1,5 +1,5 @@
-@ -0,0 +1,242 @@
-function [qout_left,qout_right,qout_up,qout_down,outlet_flow,qout_ne,qout_se,qout_sw,qout_nw,d_t,I_tot_end_cell] = CA_Routing_8D_luis_mateo(reservoir_dir,reservoir_x,reservoir_y,Kv,pv,flag_reservoir,elevation_cell,d_tot,roughness_cell,cell_area,time_step,h_0_cell,Resolution,I_tot_end_cell,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,idx_nan,flag_critical,Ko,po)
+%@ -0,0 +1,242 @@
+function [qout_left,qout_right,qout_up,qout_down,outlet_flow,qout_ne,qout_se,qout_sw,qout_nw,d_t,I_tot_end_cell] = CA_Routing_8D(reservoir_dir,reservoir_x,reservoir_y,Kv,pv,flag_reservoir,elevation_cell,d_tot,roughness_cell,cell_area,time_step,h_0_cell,Resolution,I_tot_end_cell,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,idx_nan,flag_critical,Ko,po)
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %                                                                 %
 %                 Produced by Marcus Nobrega Gomes Junior         %

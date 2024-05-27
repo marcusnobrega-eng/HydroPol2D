@@ -435,5 +435,6 @@ if flags.flag_reservoir == 1
     % Calculating Kv = Cd * Lef and orifice parameters
     Reservoir_Data.Kv = Reservoir_Data.Cd.*Reservoir_Data.Lef;
 	Reservoir_Data.Ko = Reservoir_Data.Co.*sqrt(2*9.81*Reservoir_Data.Aculv);
+end
 
 clear input_table
