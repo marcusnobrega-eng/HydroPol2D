@@ -218,7 +218,11 @@ if flags.flag_obs_gauges == 1
     labels_depth = gauges.labels_observed_string; labels_depth{gauges.num_obs_gauges+1} = 'Outlet';
     labels_depth{gauges.num_obs_gauges + 2} = 'Rainfall Intensity';
     legend(labels_depth,'FontName','Garamond','FontSize',8,'location','bestoutside')
-    ylim([0 max(max(gather(BC_States.average_spatial_rainfall)))*6])
+    try
+        ylim([0 max(max(gather(BC_States.average_spatial_rainfall)))*6]);
+    catch
+        ylim([0 10]);
+    end    
     title('Surface Runoff Depth','interpreter','latex','fontsize',12)
     set(gca, 'TickLength', [0.02 0.01]);
     set(gca,'Tickdir','out')
@@ -1458,6 +1462,34 @@ close all
 % save('outlet_data.mat',"dev","rainfall_time","rainfall","streamflow_time","streamflow")
 
 clearvars a_grid area_cells area_km2 b_grid baseFileName C cm color_plot color_plots depth_accumulation depth_ramp elevation f FileName FileName_String filePattern FolderName font_size frame fsize fullFileName h h_max h_min i idx2 idx3 idx_depth idx_i_a idx_wse im imind labels_depth labels_gauges ls max_depth max_h max_inf max_v MS myFolder no_data_value nx_max ny_max Out_Conc points raster_exportion raster_exportion_percentage s size_font t t_max t_previous t_save t_store t_title theFiles topo_path x_grid xbrgin xend xmax y_grid ybegin yend ymax z z1 z2 zmax zmin
+
+%% mateo reservoirs plot
+
+%% sections
+figure;
+% Set the figure size to fit an A4 page horizontally, with a height of 2 inches
+set(gcf, 'Units', 'inches', 'Position', [2 2 8 8]);
+reservoirs = {'out1','out2'}; 
+for i = 1:2
+    subplot(3,2,i)
+    plot(running_control.time_hydrograph, gauges.hydrograph_cell(:,1),'b');hold on
+    plot(running_control.time_hydrograph, gauges.hydrograph_cell(:,i+1),'g');hold on
+    title(reservoirs(i))
+    xlabel('Time (min)')
+    ylabel('Flow (cms)')
+    legend({'Inflow','Outflow'},'Location','northwest')
+end    
+for i = 3:4
+    subplot(3,2,i)
+    plot(running_control.time_hydrograph, gauges.depth_cell(:,1),'b');hold on
+    plot(running_control.time_hydrograph, gauges.depth_cell(:,i-1),'g');hold on
+    title(reservoirs(i-2))
+    xlabel('Time (min)')
+    ylabel('Depths (m)')
+    legend({'Inflow','Outflow'},'Location','northwest')
+end
+
+saveas(gcf,fullfile(folderName,'Gauge_reservior.fig'))
 
 
 

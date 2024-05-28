@@ -1,4 +1,5 @@
-function [qout_left,qout_right,qout_up,qout_down,outlet_flow,qout_ne,qout_se,qout_sw,qout_nw,d_t,I_tot_end_cell] = CA_Routing_8D_luis(reservoir_dir,reservoir_x,reservoir_y,Kv,p,flag_reservoir,elevation_cell,d_tot,roughness_cell,cell_area,time_step,h_0_cell,Resolution,I_tot_end_cell,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,idx_nan,flag_critical)
+%@ -0,0 +1,242 @@
+function [qout_left,qout_right,qout_up,qout_down,outlet_flow,qout_ne,qout_se,qout_sw,qout_nw,d_t,I_tot_end_cell] = CA_Routing_8D(reservoir_dir,reservoir_x,reservoir_y,Kv,pv,flag_reservoir,elevation_cell,d_tot,roughness_cell,cell_area,time_step,h_0_cell,Resolution,I_tot_end_cell,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,idx_nan,flag_critical,Ko,po)
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %                                                                 %
 %                 Produced by Marcus Nobrega Gomes Junior         %
@@ -37,6 +38,12 @@ I_tot_end_previous = I_tot_end_cell;
 %   <-I-> (left right up down) = [left ; right ; up; down]
 % --------------- Cell Depth and Water surface Elevation  % ---------------%
 depth_cell = d_tot./1000; % meters
+
+% Chaning depth_cell of B.C cells to NaN
+for i = 1:length(reservoir_y)
+    depth_cell(reservoir_y(i),reservoir_x(i)) = NaN;
+end
+
 wse_cell = elevation_cell + depth_cell;
 
 % --------------- Depth Differences (delta_h) for All Cells  % ---------------%
@@ -149,34 +156,70 @@ matrix_store = matrix_store./(time_step*60)/(cell_area)*1000*3600; % mm/hr
 % Reservoir Boundary Condition - We are assuming that all flow drains
 % towards the spillway
 if flag_reservoir == 1
-    for ii = 1:length(reservoir_y)
-        % 1 left, 2 right , 3 up, 4 down, 5 NE, 6 SE, 7 SW, 8 NW
+	for ii = 1:length(reservoir_y)
+		% 1 left, 2 right , 3 up, 4 down, 6 NE, 7 SE, 8 SW, 9 NW
         if reservoir_dir(ii) == 1
-            head = elevation_cell(reservoir_y(ii),reservoir_x(ii) + 1) + d_tot(reservoir_y(ii),reservoir_x(ii) + 1)./1000; % Head of water in the neighbour cell
+            DEMelev = elevation_cell(reservoir_y(ii),reservoir_x(ii) + 1);
+            dtsup =  d_tot(reservoir_y(ii),reservoir_x(ii) + 1)./1000;
+            % head = elevation_cell(reservoir_y(ii),reservoir_x(ii) + 1) + d_tot(reservoir_y(ii),reservoir_x(ii) + 1)./1000; % Head of water in the neighbour cell
         elseif reservoir_dir(ii) == 2
-            head = elevation_cell(reservoir_y(ii),reservoir_x(ii) - 1) + d_tot(reservoir_y(ii),reservoir_x(ii) - 1)./1000;
+            DEMelev = elevation_cell(reservoir_y(ii),reservoir_x(ii) - 1);
+            dtsup =  d_tot(reservoir_y(ii),reservoir_x(ii) - 1)./1000;
+            %head = elevation_cell(reservoir_y(ii),reservoir_x(ii) - 1) + d_tot(reservoir_y(ii),reservoir_x(ii) - 1)./1000;
         elseif reservoir_dir(ii) == 3
-            head = elevation_cell(reservoir_y(ii) + 1,reservoir_x(ii)) + d_tot(reservoir_y(ii) + 1,reservoir_x(ii))./1000;
+            DEMelev = elevation_cell(reservoir_y(ii) + 1,reservoir_x(ii));
+            dtsup =  d_tot(reservoir_y(ii) + 1,reservoir_x(ii))./1000;
+            %head = elevation_cell(reservoir_y(ii) + 1,reservoir_x(ii)) + d_tot(reservoir_y(ii) + 1,reservoir_x(ii))./1000;
         elseif reservoir_dir(ii) == 4
-            head = elevation_cell(reservoir_y(ii) - 1,reservoir_x(ii) - 1) + d_tot(reservoir_y(ii) - 1,reservoir_x(ii) - 1)./1000;
-        elseif reservoir_dir(ii) == 5
-            head = elevation_cell(reservoir_y(ii) + 1, reservoir_x(ii) + 1) + d_tot(reservoir_y(ii) + 1,reservoir_x(ii) + 1)./1000;
+            DEMelev = elevation_cell(reservoir_y(ii) - 1,reservoir_x(ii));
+            dtsup =  d_tot(reservoir_y(ii) - 1,reservoir_x(ii))./1000;
+            %head = elevation_cell(reservoir_y(ii) - 1,reservoir_x(ii)) + d_tot(reservoir_y(ii) - 1,reservoir_x(ii))./1000;
         elseif reservoir_dir(ii) == 6
-            head = elevation_cell(reservoir_y(ii) - 1, reservoir_x(ii) + 1) + d_tot(reservoir_y(ii) - 1,reservoir_x(ii) + 1)./1000;
+            DEMelev = elevation_cell(reservoir_y(ii) + 1,reservoir_x(ii) - 1);
+            dtsup =  d_tot(reservoir_y(ii) + 1,reservoir_x(ii) - 1)./1000;
+            %head = elevation_cell(reservoir_y(ii) + 1, reservoir_x(ii) - 1) + d_tot(reservoir_y(ii) + 1,reservoir_x(ii) - 1)./1000;
         elseif reservoir_dir(ii) == 7
-            head = elevation_cell(reservoir_y(ii) - 1, reservoir_x(ii) - 1) + d_tot(reservoir_y(ii) - 1,reservoir_x(ii) - 1)./1000;
+            DEMelev = elevation_cell(reservoir_y(ii) - 1,reservoir_x(ii) - 1);
+            dtsup =  d_tot(reservoir_y(ii) - 1,reservoir_x(ii) - 1)./1000;
+            %head = elevation_cell(reservoir_y(ii) - 1, reservoir_x(ii) - 1) + d_tot(reservoir_y(ii) - 1,reservoir_x(ii) - 1)./1000;
         elseif reservoir_dir(ii) == 8
-            head = elevation_cell(reservoir_y(ii) + 1, reservoir_x(ii) - 1) + d_tot(reservoir_y(ii) + 1,reservoir_x(ii) - 1)./1000;
+            DEMelev = elevation_cell(reservoir_y(ii) - 1,reservoir_x(ii) + 1);
+            dtsup =  d_tot(reservoir_y(ii) - 1,reservoir_x(ii) + 1)./1000;
+            %head = elevation_cell(reservoir_y(ii) - 1, reservoir_x(ii) + 1) + d_tot(reservoir_y(ii) - 1,reservoir_x(ii) + 1)./1000;
+        elseif reservoir_dir(ii) == 9
+            DEMelev = elevation_cell(reservoir_y(ii) + 1,reservoir_x(ii) + 1);
+            dtsup =  d_tot(reservoir_y(ii) + 1,reservoir_x(ii) + 1)./1000;
+            %head = elevation_cell(reservoir_y(ii) + 1, reservoir_x(ii) + 1) + d_tot(reservoir_y(ii) + 1,reservoir_x(ii) + 1)./1000;
         end
-        matrix_store(reservoir_y(ii),reservoir_x(ii),:) = 0;
-        matrix_store(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)) = Kv(ii)*(max(head - p(ii),0))^(3/2)/cell_area*1000*3600; % m3/s to mm/h
-        % Boundary Condition of Maximum Flow
-
-        Available_Volume = 1/(time_step*60)*1000*d_tot(reservoir_y(ii),reservoir_x(ii))./1000; % mm/h
-        matrix_store(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)) = min(matrix_store(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)),Available_Volume); % mm/h
+        
+        head = DEMelev + dtsup;
+		matrix_store(reservoir_y(ii),reservoir_x(ii),:) = 0;
+        matrix_store(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)) = Kv(ii)*(max(head - pv(ii),0))^(3/2)/cell_area*1000*3600 + Ko(ii)*(max(head - po(ii),0))^(1/2)/cell_area*1000*3600; % m3/s to mm/h	
+		% Boundary Condition of Maximum Flow	
+		
+        Available_Volume = (dtsup*1000)/(time_step/60); % mm/h
+		matrix_store(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)) = min(matrix_store(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)),Available_Volume); % mm/h
+		
         % Total Outflow from this cell
-        I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = (time_step*60)*1/(3600*1000)*cell_area*matrix_store(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)); % m3
-    end    
+		%I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = (time_step*60)*1/(3600*1000)*cell_area*matrix_store(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)); % m3
+        if reservoir_dir(ii) == 1
+            I_tot_end_cell(reservoir_y(ii),reservoir_x(ii) + 1) = I_tot_end_cell(reservoir_y(ii),reservoir_x(ii) + 1) + (time_step*60)*1/(3600*1000)*cell_area*matrix_store(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)); % m3
+        elseif reservoir_dir(ii) == 2
+            I_tot_end_cell(reservoir_y(ii),reservoir_x(ii) - 1) = I_tot_end_cell(reservoir_y(ii),reservoir_x(ii) - 1) + (time_step*60)*1/(3600*1000)*cell_area*matrix_store(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)); % m3
+        elseif reservoir_dir(ii) == 3
+            I_tot_end_cell(reservoir_y(ii) + 1,reservoir_x(ii)) = I_tot_end_cell(reservoir_y(ii) + 1,reservoir_x(ii)) + (time_step*60)*1/(3600*1000)*cell_area*matrix_store(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)); % m3
+        elseif reservoir_dir(ii) == 4
+            I_tot_end_cell(reservoir_y(ii) - 1,reservoir_x(ii)) = I_tot_end_cell(reservoir_y(ii) - 1,reservoir_x(ii)) + (time_step*60)*1/(3600*1000)*cell_area*matrix_store(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)); % m3  
+        elseif reservoir_dir(ii) == 6
+            I_tot_end_cell(reservoir_y(ii) + 1,reservoir_x(ii) - 1) = I_tot_end_cell(reservoir_y(ii) + 1,reservoir_x(ii) - 1) + (time_step*60)*1/(3600*1000)*cell_area*matrix_store(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)); % m3
+        elseif reservoir_dir(ii) == 7
+            I_tot_end_cell(reservoir_y(ii) - 1,reservoir_x(ii) - 1) = I_tot_end_cell(reservoir_y(ii) - 1,reservoir_x(ii) - 1) + (time_step*60)*1/(3600*1000)*cell_area*matrix_store(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)); % m3
+        elseif reservoir_dir(ii) == 8
+            I_tot_end_cell(reservoir_y(ii) - 1,reservoir_x(ii) + 1) = I_tot_end_cell(reservoir_y(ii) - 1,reservoir_x(ii) + 1) + (time_step*60)*1/(3600*1000)*cell_area*matrix_store(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)); % m3       
+        elseif reservoir_dir(ii) == 9
+            I_tot_end_cell(reservoir_y(ii) + 1,reservoir_x(ii) + 1) = I_tot_end_cell(reservoir_y(ii) + 1,reservoir_x(ii) + 1) + (time_step*60)*1/(3600*1000)*cell_area*matrix_store(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)); % m3
+        end
+	end
 end
 
 qout_left = matrix_store(:,:,1);
@@ -192,4 +235,9 @@ qout_nw = matrix_store(:,:,9);
 
 %% ---------------% Final depth at the cell % ---------------%
 d_t = d_tot - I_tot_end_cell/cell_area*1000; % final depth in mm;
+
+% Chaning depth_cell of B.C cells to NaN
+for i = 1:length(reservoir_y)
+    d_t(reservoir_y(i),reservoir_x(i)) = NaN;
+end
 end
