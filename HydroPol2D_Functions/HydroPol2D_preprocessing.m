@@ -72,39 +72,53 @@ end
 
 
 %% Checking Extent Problem
+crs_save = DEM_raster.georef.SpatialRef.ProjectedCRS;
+% croping all nan rows and columns
+DEM_raster = crop(DEM_raster);
+LULC_raster = crop(LULC_raster);
+SOIL_raster = crop(SOIL_raster);
+
+DEM_raster.georef.SpatialRef.ProjectedCRS = crs_save;
+LULC_raster.georef.SpatialRef.ProjectedCRS = crs_save;
+SOIL_raster.georef.SpatialRef.ProjectedCRS = crs_save;
+
 % if min(min(DEM_raster.Z)) <= 0
 %     error('Please make sure that you actually have negative or 0 values in the DEM. Otherwise, treat non-value points as NaN or -9999.')
 % end
 if sum(size(DEM_raster.Z)) == sum(size(LULC_raster.Z)) && sum(size(DEM_raster.Z)) == sum(size(SOIL_raster.Z))
 else
-    if sum(size(DEM_raster.Z)) >= sum(size(LULC_raster.Z)) && sum(size(DEM_raster.Z)) >= sum(size(SOIL_raster.Z)) % DEM is larger
+    if sum(size(DEM_raster.Z)) >= sum(size(LULC_raster.Z)) && sum(size(DEM_raster.Z)) >= sum(size(SOIL_raster.Z)) % DEM is larger, it will be clipped
+        raster_resample = SOIL_raster;
+        raster_resample.Z = ~isnan(raster_resample.Z);
+        % Clip other two rasters
+        % ---- Constraint at LULC Raster
+        LULC_raster = clip(LULC_raster,raster_resample);
+        LULC_raster.Z = round(LULC_raster.Z); % Only Integers
+        % ---- Constraint at DEM Raster
+        DEM_raster = clip(DEM_raster,raster_resample);
+    end
+
+    if sum(size(SOIL_raster.Z)) >= sum(size(DEM_raster.Z)) && sum(size(SOIL_raster.Z)) >= sum(size(LULC_raster.Z))  % SOIL is larger, it will be clipped
+        raster_resample = DEM_raster;
+        raster_resample.Z = ~isnan(raster_resample.Z);
+        % Clip other two rasters
+        % ---- Constraint at LULC Raster
+        LULC_raster = clip(LULC_raster,DEM_raster);
+        LULC_raster.Z = round(LULC_raster.Z); % Only Integers
+        % ---- Constraint at SOIL Raster
+        SOIL_raster = clip(raster_resample,SOIL_raster);
+        SOIL_raster.Z = round(SOIL_raster.Z); % Only Integers
+    end
+
+    if sum(size(LULC_raster.Z)) >= sum(size(DEM_raster.Z)) && sum(size(LULC_raster.Z)) >= sum(size(SOIL_raster.Z))  % LULC is larger, it will be clipped
         raster_resample = DEM_raster;
         % Resample other two rasters
-        % ---- Constraint at LULC Raster
-        LULC_raster = resample(LULC_raster,raster_resample);
-        LULC_raster.Z = round(LULC_raster.Z); % Only Integers
         % ---- Constraint at SOIL Raster
-        SOIL_raster = resample(SOIL_raster,raster_resample);
-        SOIL_raster.Z =  round(SOIL_raster.Z); % Only Integers
-    end
-
-    if sum(size(SOIL_raster.Z)) >= sum(size(DEM_raster.Z)) && sum(size(SOIL_raster.Z)) >= sum(size(LULC_raster.Z))  % SOIL is larger
-        raster_resample = SOIL_raster;
-        % Resample other two rasters
-        LULC_raster = resample(LULC_raster,raster_resample);
+        SOIL_raster = clip(raster_resample,SOIL_raster);
+        SOIL_raster.Z = round(SOIL_raster.Z); % Only Integers
         % ---- Constraint at LULC Raster
-        LULC_raster = resample(LULC_raster,raster_resample);
+        LULC_raster = clip(raster_resample,LULC_raster);
         LULC_raster.Z = round(LULC_raster.Z); % Only Integers
-        DEM_raster = resample(DEM_raster,raster_resample);
-    end
-
-    if sum(size(LULC_raster.Z)) >= sum(size(DEM_raster.Z)) && sum(size(LULC_raster.Z)) >= sum(size(SOIL_raster.Z))  % SOIL is larger
-        raster_resample = LULC_raster;
-        % Resample other two rasters
-        % ---- Constraint at SOIL Raster
-        SOIL_raster = resample(SOIL_raster,raster_resample);
-        SOIL_raster.Z =  round(SOIL_raster.Z); % Only Integers
-        DEM_raster = resample(DEM_raster,raster_resample);
     end
 end
 
@@ -590,7 +604,7 @@ close all
 % ------------ Outlet ------------ %
 outlet_index = zeros(zzz);
 elevation_nan = dem;
-elevation_nan(elevation_nan < 0) = nan; % Replacing no-info to nan
+elevation_nan(elevation_nan < -100) = nan; % Replacing no-info to nan
 dem = elevation_nan;
 perimeter = zeros(size(dem));
 % Identifying Watershed Perimeter
