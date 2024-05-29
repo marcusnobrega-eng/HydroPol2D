@@ -328,7 +328,7 @@ if k > 1
 
     % ---------- i --------------- %
 
-    ax5 = subplot(3,2,6);
+    ax6 = subplot(3,2,6);
     if no_plot==0;
         try
         ax2 = mapshow(A,RA,"AlphaData",0.45);hold on;

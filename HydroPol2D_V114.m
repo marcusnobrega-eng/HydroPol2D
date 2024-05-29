@@ -13,7 +13,7 @@ clear all; clc;
 
 % Adding Paths
 addpath 'Input_Data_Sheets'
-model_folder = 'General_Data_HydroPol2D.xlsx';
+model_folder = 'Input_Data_Sheets\General_Data_HydroPol2D.xlsx';
 input_table = readtable(model_folder);
 
 % Load Model Functions
