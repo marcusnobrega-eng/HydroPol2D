@@ -1,5 +1,5 @@
 %@ -0,0 +1,242 @@
-function [qout_left,qout_right,qout_up,qout_down,outlet_flow,qout_ne,qout_se,qout_sw,qout_nw,d_t,I_tot_end_cell] = CA_Routing_8D(reservoir_dir,reservoir_x,reservoir_y,Kv,pv,flag_reservoir,elevation_cell,d_tot,roughness_cell,cell_area,time_step,h_0_cell,Resolution,I_tot_end_cell,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,idx_nan,flag_critical,Ko,po)
+function [qout_left,qout_right,qout_up,qout_down,outlet_flow,qout_ne,qout_se,qout_sw,qout_nw,d_t,I_tot_end_cell] = CA_Routing_8D(reservoir_dir,reservoir_x,reservoir_y,Kv,pv,flag_reservoir,elevation_cell,d_tot,roughness_cell,cell_area,time_step,h_0_cell,Resolution,I_tot_end_cell,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,idx_nan,flag_critical,Ko,po,d_tolerance)
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %                                                                 %
 %                 Produced by Marcus Nobrega Gomes Junior         %
@@ -22,11 +22,11 @@ function [qout_left,qout_right,qout_up,qout_down,outlet_flow,qout_ne,qout_se,qou
 %§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
 % ---------------% Finding Nans or Values Below a Threshold  % ---------------%
 if isgpuarray(cell_area)
-    d_t_min = gpuArray(1e-6); % m
+    d_t_min = gpuArray(d_tolerance/1000); % m
     ny_max = gpuArray(size(elevation_cell,1));
     nx_max = gpuArray(size(elevation_cell,2));
 else
-    d_t_min = 1e-6; % m
+    d_t_min = d_tolerance/1000; % m
     ny_max = size(elevation_cell,1);
     nx_max = size(elevation_cell,2);  
 end
