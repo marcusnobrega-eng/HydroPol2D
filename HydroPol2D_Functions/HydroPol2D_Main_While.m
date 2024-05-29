@@ -26,7 +26,7 @@ if flags.flag_dam_break == 1
     flag_break_1 = 1; flag_break_2 = 1;    
 end
 
-n_snaps = 20;
+n_snaps = 40;
 dt_snap = running_control.routing_time/n_snaps;
 time_snap = [1:1:n_snaps]*dt_snap;
 z2_snap = 0;
@@ -208,27 +208,18 @@ while t <= (running_control.routing_time + running_control.min_time_step/60)
             %             velocities.vel_up = (I_cell(:,:,3)./(0.5/1000.*(depths.d_t + d_up_cell).*Resolution))/(time_step*60) + sqrt(9.81*(depths.d_t + d_up_cell)/2/1000); % m/s;;
             %             velocities.vel_down = (I_cell(:,:,4)./(0.5/1000.*(depths.d_t + d_down_cell).*Resolution))/(time_step*60) + sqrt(9.81*(depths.d_t + d_down_cell)/2/1000); % m/s;
 
-            z = depths.d_t;
-            if flags.flag_GPU == 1
-                Courant_Parameters.dt_threshold = gpuArray(1); % mm
-            else
-                Courant_Parameters.dt_threshold = (1); % mm
-            end
-            z(depths.d_t < CA_States.depth_tolerance) = 1e12;
-            velocities.vel_left = (outflow_rate.qout_left_t/1000/3600)*Wshed_Properties.Resolution^2./(Wshed_Properties.Resolution*z/1000); % m/s
-            velocities.vel_right = (outflow_rate.qout_right_t/1000/3600)*Wshed_Properties.Resolution./(z/1000); % m/s
-            velocities.vel_up = (outflow_rate.qout_up_t/1000/3600)*Wshed_Properties.Resolution./(z/1000); % m/s
-            velocities.vel_down = (outflow_rate.qout_down_t/1000/3600)*Wshed_Properties.Resolution./(z/1000); % m/s
+            flow_depth = depths.d_t; % Depth in which velocities will be calculated (mm)
+            flow_depth(depths.d_t < CA_States.depth_tolerance) = 1e12;
+            velocities.vel_left = (outflow_rate.qout_left_t/1000/3600)*Wshed_Properties.Resolution^2./(Wshed_Properties.Resolution*flow_depth/1000); % m/s
+            velocities.vel_right = (outflow_rate.qout_right_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
+            velocities.vel_up = (outflow_rate.qout_up_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
+            velocities.vel_down = (outflow_rate.qout_down_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
             
             if flags.flag_D8 == 1
-                %                 velocities.vel_ne = (CA_States.I_cell(:,:,6)./(0.5/1000.*(depths.d_t + d_NE_cell).*Resolution))/(time_step*60) + sqrt(9.81*(depths.d_t + d_NE_cell)/2/1000); % m/s
-                %                 velocities.vel_se = (CA_States.I_cell(:,:,7)./(0.5/1000.*(depths.d_t + d_SE_cell).*Resolution))/(time_step*60) + sqrt(9.81*(depths.d_t + d_SE_cell)/2/1000);
-                %                 velocities.vel_sw = (CA_States.I_cell(:,:,8)./(0.5/1000.*(depths.d_t + d_SW_cell).*Resolution))/(time_step*60) + sqrt(9.81*(depths.d_t + d_SW_cell)/2/1000); % m/s;;
-                %                 velocities.vel_nw = (CA_States.I_cell(:,:,9)./(0.5/1000.*(depths.d_t + d_NW_cell).*Resolution))/(time_step*60) + sqrt(9.81*(depths.d_t + d_NW_cell)/2/1000); % m/s;
-                velocities.vel_ne = (outflow_rate.qout_ne_t/1000/3600)*Wshed_Properties.Resolution./(z/1000); % m/s
-                velocities.vel_se = (outflow_rate.qout_se_t/1000/3600)*Wshed_Properties.Resolution./(z/1000); % m/s
-                velocities.vel_sw = (outflow_rate.qout_sw_t/1000/3600)*Wshed_Properties.Resolution./(z/1000); % m/s
-                velocities.vel_nw = (outflow_rate.qout_nw_t/1000/3600)*Wshed_Properties.Resolution./(z/1000); % m/s
+                velocities.vel_ne = (outflow_rate.qout_ne_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
+                velocities.vel_se = (outflow_rate.qout_se_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
+                velocities.vel_sw = (outflow_rate.qout_sw_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
+                velocities.vel_nw = (outflow_rate.qout_nw_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
             end
             %%%%%%%%%%%%%% Find the Maximum Velocity
             velocities.max_velocity_left = max(max(velocities.vel_left));
@@ -255,8 +246,25 @@ while t <= (running_control.routing_time + running_control.min_time_step/60)
             else
                 velocities.velocity_vector = [velocities.max_velocity_left, velocities.max_velocity_right, velocities.max_velocity_up, velocities.max_velocity_down];
             end
-
+            % Old max velocity
+            if k > 1
+                old_velocity = velocities.max_velocity;
+            end
+                
             velocities.max_velocity = max(velocities.velocity_vector);
+
+            % Checking changes in max velocity
+            if k > 1
+                if velocities.max_velocity/old_velocity > 3 && old_velocity > 0
+                    warning('Velocities increasing more than 200% within a time-step, see results. Possible instability.')
+                    subplot(2,1,1)
+                    surf(velocities.velocity_raster); view(0,90); shading interp
+                    subplot(2,1,2)
+                    surf(d_t/1000); view(0,90); shading interp
+                    pause(0.1)
+                end
+            end
+
             if flags.flag_D8 == 1
                 Courant_Parameters.factor_grid = sqrt(1/2);
             else
@@ -265,6 +273,8 @@ while t <= (running_control.routing_time + running_control.min_time_step/60)
             if flags.flag_GPU == 1
                 Courant_Parameters.factor_grid = gpuArray(Courant_Parameters.factor_grid);
             end
+
+
             if velocities.max_velocity > 0
                 new_timestep = (Courant_Parameters.factor_grid*Wshed_Properties.Resolution/velocities.max_velocity); % seconds
                 Courant_Parameters.time_step_factor = max(Courant_Parameters.alfa_max - Courant_Parameters.slope_alfa*(max(velocities.max_velocity - Courant_Parameters.v_threshold,0)),Courant_Parameters.alfa_min);
