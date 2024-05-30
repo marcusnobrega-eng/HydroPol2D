@@ -3,11 +3,13 @@
 % Date 8/14/2023
 % Goal: Plot Snapshot of the Results
 
+
 if k > 1
     close all
     clf
 
     x_grid = GIS_data.xulcorner + Wshed_Properties.Resolution*[1:1:size(DEM_raster.Z,2)]; y_grid = GIS_data.yulcorner - Wshed_Properties.Resolution*[1:1:size(DEM_raster.Z,1)];
+    [X_grid,Y_grid] = meshgrid(x_grid,y_grid);    
     filename = 'Input_Maps';
     set(gcf,'units','inches','position',[2,0,10,8])
     sgtitle(strcat('Elapsed Time =~',num2str(t/60/24),' days'),'interpreter','latex');
@@ -82,40 +84,16 @@ if k > 1
     end
     axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
     z = gather(Hydro_States.ETP); z(idx_nan) = nan;
-    idx = z < 0;
-    z(idx) = nan;
-    idx = isinf(z);
-    z(idx) = nan;
-    xmax = size(z,2);
-    xend = xmax;
-    ymax = size(z,1);
-    yend = ymax;
-    h_min = min(min(z));
     F = z;
-    zmax = max(max(z(~isnan(z))));
-    if isempty(zmax) || isinf(zmax) || zmax == 0
-        zmax = 0.1;
-    end
-    zmin = min(min(z(~isnan(z))));
-    map = surf(x_grid,y_grid,F);
+    map = surf_plot(max(max(F)),t,'\mathrm{ETP}','\mathrm{mm~day{-1}}',F,1,0,32,1,0,[0 90],X_grid,Y_grid);
     set(map,'LineStyle','none'); axis tight; grid on; box on; % this ensures that getframe() returns a consistent size; axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
     title((t_title),'Interpreter','Latex','FontSize',12)
-    view(0,90)
-    if h_min == zmax
-        zmax = 2*h_min;
-    end
-    colormap(jet)
-    hold on
-    kk = colorbar ;
-    caxis([zmin zmax]);
-    ylabel(kk,'$\mathrm{ETP}$~($\mathrm{mm~day{-1}}$)','Interpreter','Latex','FontSize',12)
-    xlabel(' x (m) ','Interpreter','Latex','FontSize',12)
-    ylabel ('y (m) ','Interpreter','Latex','FontSize',12)
     ax = ancestor(ax1, 'axes');
     ax.XAxis.Exponent = 0;xtickformat('%.0f');
     ax.YAxis.Exponent = 0;ytickformat('%.0f');
-
-    zlabel ('$\mathrm{ETP}$~($\mathrm{mm~day{-1}}$)','Interpreter','Latex','FontSize',12)
+    ax = ancestor(ax1, 'axes');
+    ax.XAxis.Exponent = 0;xtickformat('%.0f');
+    ax.YAxis.Exponent = 0;ytickformat('%.0f');
     set(gca, 'FontName', 'Garamond', 'FontSize', 12)
     set(gca, 'TickLength', [0.02 0.01]);
     set(gca,'Tickdir','out')
@@ -141,42 +119,29 @@ if k > 1
     z(idx) = nan;
     idx = isinf(z);
     z(idx) = nan;
-    xmax = size(z,2);
-    xend = xmax;
-    ymax = size(z,1);
-    yend = ymax;
-    h_min = min(min(z));
     F = z;
-    zmax = max(max(z(~isnan(z))));
-    if isempty(zmax) || isinf(zmax) || zmax == 0
-        zmax = 0.1;
-    end
-    map = surf(x_grid,y_grid,F);
+    map = surf_plot(max(max(F)),t,'f','\mathrm{mm~h^{-1}}',F,1,0,32,1,0,[0 90],X_grid,Y_grid);
     set(map,'LineStyle','none'); axis tight; grid on; box on; % this ensures that getframe() returns a consistent size; axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
     title((t_title),'Interpreter','Latex','FontSize',12)
-    view(0,90)
-    if h_min == zmax
-        zmax = 2*h_min;
-    end
-    caxis([h_min zmax]);
-    colormap(jet)
-    hold on
-    kk = colorbar ;
-    ylabel(kk,'$f~(\mathrm{mm~h^{-1}})$','Interpreter','Latex','FontSize',12)
-    xlabel(' x (m) ','Interpreter','Latex','FontSize',12)
-    ylabel ('y (m) ','Interpreter','Latex','FontSize',12)
     ax = ancestor(ax2, 'axes');
     ax.XAxis.Exponent = 0;xtickformat('%.0f');
     ax.YAxis.Exponent = 0;ytickformat('%.0f');
-
-    zlabel ('$f$ ($\mathrm{mm~h^{-1}})$)','Interpreter','Latex','FontSize',12)
+    ax = ancestor(ax2, 'axes');
+    ax.XAxis.Exponent = 0;xtickformat('%.0f');
+    ax.YAxis.Exponent = 0;ytickformat('%.0f');
+    set(gca, 'FontName', 'Garamond', 'FontSize', 12)
+    set(gca, 'TickLength', [0.02 0.01]);
+    set(gca,'Tickdir','out')
+    ax = ancestor(ax2, 'axes');
+    ax.XAxis.Exponent = 0;xtickformat('%.0f');
+    ax.YAxis.Exponent = 0;ytickformat('%.0f');
     set(gca, 'FontName', 'Garamond', 'FontSize', 12)
     set(gca, 'TickLength', [0.02 0.01]);
     set(gca,'Tickdir','out')
 
     % ----------  Depths ------------- %
     ax3 = subplot(3,2,3);
-    if no_plot==0;
+    if no_plot==0
         try
             ax3 = mapshow(A,RA,"AlphaData",0.45);hold on;
             ax3 = mapshow(S_p,'FaceColor','n'); hold on;
@@ -186,42 +151,20 @@ if k > 1
     t_title = 'Depths';
     axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
     z = gather(depths.d_t/1000); z(idx_nan) = nan;
-    idx = z < 0;
-    z(idx) = nan;
-    idx = isinf(z);
-    z(idx) = nan;
-    xmax = size(z,2);
-    xend = xmax;
-    ymax = size(z,1);
-    yend = ymax;
-    h_min = min(min(z));
     F = z;
-    zmax = max(max(z(~isnan(z))));
-    if isempty(zmax) || isinf(zmax) || zmax == 0
-        zmax = 0.1;
-    end
-    map = surf(x_grid,y_grid,F);
+    map = surf_plot(max(max(F)),t,'d','\mathrm{m~}',F,1,0,32,1,0,[0 90],X_grid,Y_grid);
     set(map,'LineStyle','none'); axis tight; grid on; box on; % this ensures that getframe() returns a consistent size; axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
     title((t_title),'Interpreter','Latex','FontSize',12)
-    view(0,90)
-    if h_min == zmax
-        zmax = 2*h_min;
-    end
-    caxis([h_min zmax]);
-    colormap(jet)
-    hold on
-    kk = colorbar ;
-    ylabel(kk,'$d$ ($\mathrm{m})$','Interpreter','Latex','FontSize',12)
-    xlabel(' x (m) ','Interpreter','Latex','FontSize',12)
-    ylabel ('y (m) ','Interpreter','Latex','FontSize',12)
     ax = ancestor(ax3, 'axes');
     ax.XAxis.Exponent = 0;xtickformat('%.0f');
     ax.YAxis.Exponent = 0;ytickformat('%.0f');
-
-    zlabel ('$d$ ($\mathrm{m})$)','Interpreter','Latex','FontSize',12)
+    ax = ancestor(ax3, 'axes');
+    ax.XAxis.Exponent = 0;xtickformat('%.0f');
+    ax.YAxis.Exponent = 0;ytickformat('%.0f');
     set(gca, 'FontName', 'Garamond', 'FontSize', 12)
     set(gca, 'TickLength', [0.02 0.01]);
     set(gca,'Tickdir','out')
+
 
     % ----------  Velocity ------------- %
     ax4 = subplot(3,2,4);
@@ -235,39 +178,24 @@ if k > 1
     t_title = 'Velocity Raster';
     axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
     z = gather((velocities.velocity_raster)); z(idx_nan) = nan;
-    idx = z < 0;
-    z(idx) = nan;
-    idx = isinf(z);
-    z(idx) = nan;
-    xmax = size(z,2);
-    xend = xmax;
-    ymax = size(z,1);
-    yend = ymax;
-    h_min = min(min(z));
     F = z;
-    zmax = max(max(z(~isnan(z))));
-    if isempty(zmax) || isinf(zmax) || zmax == 0
-        zmax = 0.1;
-    end
-    map = surf(x_grid,y_grid,F);
+    map = surf_plot(max(max(F)),t,'f','\mathrm{mm~h^{-1}}',F,1,0,32,1,0,[0 90],X_grid,Y_grid);
     set(map,'LineStyle','none'); axis tight; grid on; box on; % this ensures that getframe() returns a consistent size; axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
     title((t_title),'Interpreter','Latex','FontSize',12)
-    view(0,90)
-    if h_min == zmax
-        zmax = 2*h_min;
-    end
-    caxis([h_min zmax]);
-    colormap(jet)
-    hold on
-    kk = colorbar ;
-    ylabel(kk,'$v$ ($\mathrm{m \cdot s^{-1}})$','Interpreter','Latex','FontSize',12)
-    xlabel(' x (m) ','Interpreter','Latex','FontSize',12)
-    ylabel ('y (m) ','Interpreter','Latex','FontSize',12)
     ax = ancestor(ax4, 'axes');
     ax.XAxis.Exponent = 0;xtickformat('%.0f');
     ax.YAxis.Exponent = 0;ytickformat('%.0f');
+    ax = ancestor(ax4, 'axes');
+    ax.XAxis.Exponent = 0;xtickformat('%.0f');
+    ax.YAxis.Exponent = 0;ytickformat('%.0f');
+    set(gca, 'FontName', 'Garamond', 'FontSize', 12)
+    set(gca, 'TickLength', [0.02 0.01]);
+    set(gca,'Tickdir','out')
+    ax = ancestor(ax2, 'axes');
+    ax.XAxis.Exponent = 0;xtickformat('%.0f');
+    ax.YAxis.Exponent = 0;ytickformat('%.0f');
 
-    zlabel ('$\Delta \theta$ ($\mathrm{cm^3.cm^{-3}}$)','Interpreter','Latex','FontSize',12)
+   
     set(gca, 'FontName', 'Garamond', 'FontSize', 12)
     set(gca, 'TickLength', [0.02 0.01]);
     set(gca,'Tickdir','out')
@@ -289,39 +217,17 @@ if k > 1
     else
         z = zeros(size(idx_nan)); z(idx_nan) = nan;
     end
-    idx = z < 0;
-    z(idx) = nan;
-    idx = isinf(z);
-    z(idx) = nan;
-    xmax = size(z,2);
-    xend = xmax;
-    ymax = size(z,1);
-    yend = ymax;
-    h_min = min(min(z));
     F = z;
     zmax = max(max(z(~isnan(z))));
     if isempty(zmax) || isinf(zmax) || zmax == 0
         zmax = 0.1;
     end
-    map = surf(x_grid,y_grid,F);
+    map = surf_plot(max(max(F)),t,'i','\mathrm{mm~h^{-1}}',F,1,0,32,1,0,[0 90],X_grid,Y_grid);
     set(map,'LineStyle','none'); axis tight; grid on; box on; % this ensures that getframe() returns a consistent size; axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
     title((t_title),'Interpreter','Latex','FontSize',12)
-    view(0,90)
-    if h_min == zmax
-        zmax = 2*h_min;
-    end
-    caxis([h_min zmax]);
-    colormap(jet)
-    hold on
-    kk = colorbar ;
-    ylabel(kk,'$i~(\mathrm{mm~h^{-1}})$','Interpreter','Latex','FontSize',12)
-    xlabel(' x (m) ','Interpreter','Latex','FontSize',12)
-    ylabel ('y (m) ','Interpreter','Latex','FontSize',12)
-    ax = ancestor(ax2, 'axes');
+    ax = ancestor(ax5, 'axes');
     ax.XAxis.Exponent = 0;xtickformat('%.0f');
     ax.YAxis.Exponent = 0;ytickformat('%.0f');
-
-    zlabel ('$i$ ($\mathrm{mm~h^{-1}})$)','Interpreter','Latex','FontSize',12)
     set(gca, 'FontName', 'Garamond', 'FontSize', 12)
     set(gca, 'TickLength', [0.02 0.01]);
     set(gca,'Tickdir','out')
@@ -329,49 +235,25 @@ if k > 1
     % ---------- i --------------- %
 
     ax6 = subplot(3,2,6);
-    if no_plot==0;
+    if no_plot==0
         try
-        ax2 = mapshow(A,RA,"AlphaData",0.45);hold on;
-        ax2 = mapshow(S_p,'FaceColor','n'); hold on;
+        ax6 = mapshow(A,RA,"AlphaData",0.45);hold on;
+        ax6 = mapshow(S_p,'FaceColor','n'); hold on;
         catch ME
         end
     end
     t_title = 'Cumulative Infiltration';
     axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
-    z = gather(Soil_Properties.I_t); z(idx_nan) = nan;
-    idx = z < 0;
-    z(idx) = nan;
-    idx = isinf(z);
-    z(idx) = nan;
-    xmax = size(z,2);
-    xend = xmax;
-    ymax = size(z,1);
-    yend = ymax;
-    h_min = min(min(z));
+    z = gather(Soil_Properties.I_t); z(idx_nan) = nan;    
     F = z;
-    zmax = max(max(z(~isnan(z))));
-    if isempty(zmax) || isinf(zmax) || zmax == 0
-        zmax = 0.1;
-    end
-    map = surf(x_grid,y_grid,F);
+    map = surf_plot(max(max(F)),t,'I_t','mm',F,1,0,32,1,0,[0 90],X_grid,Y_grid);
     set(map,'LineStyle','none'); axis tight; grid on; box on; % this ensures that getframe() returns a consistent size; axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
     title((t_title),'Interpreter','Latex','FontSize',12)
-    view(0,90)
-    if h_min == zmax
-        zmax = 2*h_min;
-    end
-    caxis([h_min zmax]);
-    colormap(jet)
-    hold on
-    kk = colorbar ;
-    ylabel(kk,'$I_t~(\mathrm{mm})$','Interpreter','Latex','FontSize',12)
-    xlabel(' x (m) ','Interpreter','Latex','FontSize',12)
-    ylabel ('y (m) ','Interpreter','Latex','FontSize',12)
-    ax = ancestor(ax2, 'axes');
+    ax = ancestor(ax6, 'axes');
     ax.XAxis.Exponent = 0;xtickformat('%.0f');
     ax.YAxis.Exponent = 0;ytickformat('%.0f');
 
-    zlabel ('$I_t~(\mathrm{mm})$)','Interpreter','Latex','FontSize',12)
+
     set(gca, 'FontName', 'Garamond', 'FontSize', 12)
     set(gca, 'TickLength', [0.02 0.01]);
     set(gca,'Tickdir','out')
