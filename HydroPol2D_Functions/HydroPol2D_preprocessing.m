@@ -43,6 +43,7 @@ fname_SOIL = SOIL_path;
 LULC_raster = GRIDobj(fname_LULC); % Land Use and Land Cover Classification
 DEM_raster = GRIDobj(fname_DEM); % Digital Elevation Model (m)
 SOIL_raster = GRIDobj(fname_SOIL); % Soil Map
+min_dem_value = -200; % min value that a dem can have
 
 % Checking CRS
 try
@@ -74,54 +75,49 @@ end
 %% Checking Extent Problem
 crs_save = DEM_raster.georef.SpatialRef.ProjectedCRS;
 % croping all nan rows and columns
-DEM_raster = crop(DEM_raster);
-LULC_raster = crop(LULC_raster);
-SOIL_raster = crop(SOIL_raster);
-
-DEM_raster.georef.SpatialRef.ProjectedCRS = crs_save;
-LULC_raster.georef.SpatialRef.ProjectedCRS = crs_save;
-SOIL_raster.georef.SpatialRef.ProjectedCRS = crs_save;
+% DEM_raster = crop(DEM_raster);
+% LULC_raster = crop(LULC_raster);
+% SOIL_raster = crop(SOIL_raster);
+% 
+% DEM_raster.georef.SpatialRef.ProjectedCRS = crs_save;
+% LULC_raster.georef.SpatialRef.ProjectedCRS = crs_save;
+% SOIL_raster.georef.SpatialRef.ProjectedCRS = crs_save;
 
 % if min(min(DEM_raster.Z)) <= 0
 %     error('Please make sure that you actually have negative or 0 values in the DEM. Otherwise, treat non-value points as NaN or -9999.')
 % end
 if sum(size(DEM_raster.Z)) == sum(size(LULC_raster.Z)) && sum(size(DEM_raster.Z)) == sum(size(SOIL_raster.Z))
 else
-    if sum(size(DEM_raster.Z)) >= sum(size(LULC_raster.Z)) && sum(size(DEM_raster.Z)) >= sum(size(SOIL_raster.Z)) % DEM is larger, it will be clipped
-        raster_resample = SOIL_raster;
-        raster_resample.Z = ~isnan(raster_resample.Z);
-        % Clip other two rasters
-        % ---- Constraint at LULC Raster
-        LULC_raster = clip(LULC_raster,raster_resample);
-        LULC_raster.Z = round(LULC_raster.Z); % Only Integers
-        % ---- Constraint at DEM Raster
-        DEM_raster = clip(DEM_raster,raster_resample);
-    end
-
-    if sum(size(SOIL_raster.Z)) >= sum(size(DEM_raster.Z)) && sum(size(SOIL_raster.Z)) >= sum(size(LULC_raster.Z))  % SOIL is larger, it will be clipped
-        raster_resample = DEM_raster;
-        raster_resample.Z = ~isnan(raster_resample.Z);
-        % Clip other two rasters
-        % ---- Constraint at LULC Raster
-        LULC_raster = clip(LULC_raster,DEM_raster);
-        LULC_raster.Z = round(LULC_raster.Z); % Only Integers
-        % ---- Constraint at SOIL Raster
-        SOIL_raster = clip(raster_resample,SOIL_raster);
-        SOIL_raster.Z = round(SOIL_raster.Z); % Only Integers
-    end
-
-    if sum(size(LULC_raster.Z)) >= sum(size(DEM_raster.Z)) && sum(size(LULC_raster.Z)) >= sum(size(SOIL_raster.Z))  % LULC is larger, it will be clipped
+    if sum(size(DEM_raster.Z)) >= sum(size(LULC_raster.Z)) && sum(size(DEM_raster.Z)) >= sum(size(SOIL_raster.Z)) % DEM is larger
         raster_resample = DEM_raster;
         % Resample other two rasters
-        % ---- Constraint at SOIL Raster
-        SOIL_raster = clip(raster_resample,SOIL_raster);
-        SOIL_raster.Z = round(SOIL_raster.Z); % Only Integers
         % ---- Constraint at LULC Raster
-        LULC_raster = clip(raster_resample,LULC_raster);
-        LULC_raster.Z = round(LULC_raster.Z); % Only Integers
+        LULC_raster = resample(LULC_raster,raster_resample,'nearest');
+        % LULC_raster.Z = round(LULC_raster.Z,'nearest'); % Only Integers
+        % ---- Constraint at SOIL Raster
+        SOIL_raster = resample(SOIL_raster,raster_resample,'nearest');
+        % SOIL_raster.Z =  round(SOIL_raster.Z); % Only Integers
+    end
+
+    if sum(size(SOIL_raster.Z)) >= sum(size(DEM_raster.Z)) && sum(size(SOIL_raster.Z)) >= sum(size(LULC_raster.Z))  % SOIL is larger
+        raster_resample = SOIL_raster;
+        % Resample other two rasters
+        LULC_raster = resample(LULC_raster,raster_resample,'nearest');
+        % ---- Constraint at LULC Raster
+        LULC_raster = resample(LULC_raster,raster_resample,'nearest');
+        % LULC_raster.Z = round(LULC_raster.Z); % Only Integers
+        DEM_raster = resample(DEM_raster,raster_resample,'bilinear');
+    end
+
+    if sum(size(LULC_raster.Z)) >= sum(size(DEM_raster.Z)) && sum(size(LULC_raster.Z)) >= sum(size(SOIL_raster.Z))  % SOIL is larger
+        raster_resample = LULC_raster;
+        % Resample other two rasters
+        % ---- Constraint at SOIL Raster
+        SOIL_raster = resample(SOIL_raster,raster_resample,'nearest');
+        % SOIL_raster.Z =  round(SOIL_raster.Z); % Only Integers
+        DEM_raster = resample(DEM_raster,raster_resample,'bilinear');
     end
 end
-
 
 % Raster Extent
 GIS_data.xulcorner = DEM_raster.refmat(3,1); % Up Left Corner
@@ -137,7 +133,7 @@ input_data_script;  % Load general data, soil, and LULC parameters
 if flags.flag_resample == 1
     resolution = GIS_data.resolution_resample; % m
     % DEM
-    DEM_raster = resample(DEM_raster,resolution,'bicubic');
+    DEM_raster = resample(DEM_raster,resolution,'bilinear');
     % LULC
     LULC_raster = resample(LULC_raster,resolution);
     LULC_raster.Z = round(LULC_raster.Z);
@@ -223,7 +219,7 @@ SOIL = double(SOIL_raster.Z);
 if flags.flag_input_rainfall_map
     inf_nan_MAPS = isinf(DEM) + isnan(DEM); % Logical array
 else
-    neg_DEM = DEM < 0;
+    neg_DEM = DEM < min_dem_value;
     neg_LULC = LULC < 0;
     neg_SOIL = SOIL < 0;
     inf_nan_MAPS = isinf(DEM) + isnan(DEM) + neg_DEM + isnan(LULC) + isnan(SOIL) + neg_LULC + neg_SOIL + isinf(LULC) + isinf(SOIL); % Logical array
@@ -399,7 +395,7 @@ if flags.flag_ETP == 1
     [ETP_Parameters.lat,ETP_Parameters.lon] = projinv(ETP_Parameters.info.SpatialRef.ProjectedCRS, ETP_Parameters.x_etp,ETP_Parameters.y_etp); % Latitude and Longitude
     ETP_Parameters.neg_DEM = ETP_Parameters.DEM_etp <= 0;
     ETP_Parameters.DEM_etp(ETP_Parameters.neg_DEM) = nan;
-    ETP_Parameters.idx_cells = ETP_Parameters.DEM_etp >= 0;
+    ETP_Parameters.idx_cells = ETP_Parameters.DEM_etp >= min_dem_value;
     % ETP_Parameters.idx_cells = ETP_Parameters.double(idx_cells(:));
     ETP_Parameters.lat(ETP_Parameters.neg_DEM) = nan; % Latitude
     ETP_Parameters.lon(ETP_Parameters.neg_DEM) = nan; % Longitude
@@ -604,7 +600,7 @@ close all
 % ------------ Outlet ------------ %
 outlet_index = zeros(zzz);
 elevation_nan = dem;
-elevation_nan(elevation_nan < -100) = nan; % Replacing no-info to nan
+elevation_nan(elevation_nan < min_dem_value) = nan; % Replacing no-info to nan
 dem = elevation_nan;
 perimeter = zeros(size(dem));
 % Identifying Watershed Perimeter
@@ -906,7 +902,7 @@ spatial_domain = zeros(size(dem));
 dem = dem(ymin:ymax,xmin:xmax);
 lulc_matrix = imp(ymin:ymax,xmin:xmax); % using only specified grid
 soil_matrix  = soil(ymin:ymax,xmin:xmax); % using only specified grid;
-Wshed_Properties.rainfall_matrix = double(elevation >= 0) ; % Elevation could be 0
+Wshed_Properties.rainfall_matrix = double(elevation >= min_dem_value) ; % Elevation could be negative
 Wshed_Properties.rainfall_matrix(Wshed_Properties.rainfall_matrix == 0) = nan;
 
 % ----------- Struct Cells ------------- %
@@ -1113,6 +1109,11 @@ zzz = size(elevation);
 xmax = zzz(2);
 ymax = zzz(1);
 
+%% Locally Reducing Manning of River Networks
+if flags.flag_reduce_DEM == 1
+    LULC_Properties.roughness(idx_facc) = 1*LULC_Properties.roughness(idx_facc);
+    LULC_Properties.h_0(idx_facc) = 0;
+end
 
 %% Conversion of inflow into the time-step of calculations
 if flags.flag_inflow == 1
@@ -1389,6 +1390,26 @@ if flags.flag_D8 == 1
 end
 
 
+%% Checking if all cells of the domain have data
+zzz = Wshed_Properties.rainfall_matrix; zzz = zzz > 0;
+idx_cells = logical(zzz);
+if min(min(LULC_Properties.roughness(idx_cells))) == 0
+    warning('Cells with not associated LULC parameters')
+    warning('Assuming n = 0.03 for these areas. Also assuming h0 = 0 for them.')
+    idx_not_assigned = LULC_Properties.roughness == 0 & idx_cells == 1;
+    LULC_Properties.roughness(idx_not_assigned) = 0.03;
+    LULC_Properties.h_0(idx_not_assigned) = 0;
+    pause(1)
+end
+
+if min(min(Soil_Properties.ksat(idx_cells))) == 0
+    warning('Cells with not associated LULC parameters')
+    warning('Assuming K = 0 for these areas.')
+    idx_not_assigned = Soil_Properties.ksat == 0 & idx_cells == 1;
+    Soil_Properties.ksat(idx_not_assigned) = 0; 
+    pause(1)
+end
+
 %% Plotting Input Rasters
 Plot_Initial_Maps; % Script to plot initial maps
 
@@ -1402,12 +1423,14 @@ if flags.flag_D8 == 1
         dim3 = 9;
         wse_slope_zeros = gpuArray(zeros(dim1,dim2,dim3));
         Distance_Matrix = gpuArray(zeros(dim1,dim2));
+        outflow_bates = gpuArray(zeros(dim1,dim2,dim3));
     else
         dim1 = size(Elevation_Properties.elevation_cell,1);
         dim2 = size(Elevation_Properties.elevation_cell,2);
-        dim3 = 9;
+        dim3 = 5; % (Marcus. I believe it is 5. It was 9)
         wse_slope_zeros = (zeros(dim1,dim2,dim3));
         Distance_Matrix = (zeros(dim1,dim2));
+        outflow_bates = (zeros(dim1,dim2,dim3));
     end
 end
 
@@ -1534,7 +1557,7 @@ end
 %% Clearing Variables
 
 % clearvars  -except register saver_memory_maps idx_rivers rainfall_spatial_aggregation model_folder Input_Rainfall Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters GIS_data Inflow_Parameters ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties topo_path idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx_max	ny_max	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	teta_i_fulldomain	teta_sat	teta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person
-clearvars  -except register saver_memory_maps extra_parameters Lateral_Groundwater_Flux idx_rivers min_soil_moisture rainfall_spatial_aggregation model_folder Input_Rainfall Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters GIS_data Inflow_Parameters ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties topo_path idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx_max	ny_max	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	teta_i_fulldomain	teta_sat	teta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person
+clearvars  -except register saver_memory_maps extra_parameters Lateral_Groundwater_Flux idx_rivers min_soil_moisture rainfall_spatial_aggregation model_folder Input_Rainfall Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters GIS_data Inflow_Parameters ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties topo_path idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx_max	ny_max	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	teta_i_fulldomain	teta_sat	teta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person outflow_bates
 
 
 %% Converting Arrays to GPU Arrays, if required
@@ -1625,5 +1648,8 @@ end
 
 
 clear spatial_domain
+
+
+
 
 
