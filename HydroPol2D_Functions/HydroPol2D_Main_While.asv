@@ -129,18 +129,18 @@ while t <= (running_control.routing_time + running_control.min_time_step/60)
     end
 
     if flags.flag_D8 == 1 % D-8 C-A Model
-        % [outflow_rate.qout_left_t,outflow_rate.qout_right_t,outflow_rate.qout_up_t,outflow_rate.qout_down_t,outlet_states.outlet_flow,outflow_rate.qout_ne_t,outflow_rate.qout_se_t,outflow_rate.qout_sw_t,outflow_rate.qout_nw_t,depths.d_t,CA_States.I_tot_end_cell,~] = CA_Routing_8D_not_optimized(Reservoir_Data.Dir,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.Kv,Reservoir_Data.p,flags.flag_reservoir,Elevation_Properties.elevation_cell,depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical,wse_slope_zeros,Distance_Matrix);
-        [outflow_rate.qout_left_t,outflow_rate.qout_right_t,outflow_rate.qout_up_t,outflow_rate.qout_down_t,outlet_states.outlet_flow,outflow_rate.qout_ne_t,outflow_rate.qout_se_t,outflow_rate.qout_sw_t,outflow_rate.qout_nw_t,depths.d_t,CA_States.I_tot_end_cell] = CA_Routing_8D(Reservoir_Data.Dir,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.Kv,Reservoir_Data.pv,flags.flag_reservoir,Elevation_Properties.elevation_cell,depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical,Reservoir_Data.Ko,Reservoir_Data.po,CA_States.depth_tolerance);
+        % [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,flow_rate.qout_ne_t,flow_rate.qout_se_t,flow_rate.qout_sw_t,flow_rate.qout_nw_t,depths.d_t,CA_States.I_tot_end_cell,~] = CA_Routing_8D_not_optimized(Reservoir_Data.Dir,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.Kv,Reservoir_Data.p,flags.flag_reservoir,Elevation_Properties.elevation_cell,depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical,wse_slope_zeros,Distance_Matrix);
+        [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,flow_rate.qout_ne_t,flow_rate.qout_se_t,flow_rate.qout_sw_t,flow_rate.qout_nw_t,depths.d_t,CA_States.I_tot_end_cell] = CA_Routing_8D(Reservoir_Data.Dir,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.Kv,Reservoir_Data.pv,flags.flag_reservoir,Elevation_Properties.elevation_cell,depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical,Reservoir_Data.Ko,Reservoir_Data.po,CA_States.depth_tolerance);
     else % 4-D CA Model
-        % [outflow_rate.qout_left_t,outflow_rate.qout_right_t,outflow_rate.qout_up_t,outflow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,CA_States.I_cell] = CA_Routing(Reservoir_Data.Dir,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.Kv,Reservoir_Data.p,flags.flag_reservoir,Elevation_Properties.elevation_cell,depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical);
-        [outflow_rate.qout_left_t,outflow_rate.qout_right_t,outflow_rate.qout_up_t,outflow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,velocity_term] = CA_Routing(Reservoir_Data.Dir,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.Kv,Reservoir_Data.p,flags.flag_reservoir,Elevation_Properties.elevation_cell,depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical,velocity_term,Reservoir_Data.Ko,Reservoir_Data.po);
+        % [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,CA_States.I_cell] = CA_Routing(Reservoir_Data.Dir,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.Kv,Reservoir_Data.p,flags.flag_reservoir,Elevation_Properties.elevation_cell,depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical);
+        [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,velocity_term] = CA_Routing(Reservoir_Data.Dir,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.Kv,Reservoir_Data.p,flags.flag_reservoir,Elevation_Properties.elevation_cell,depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical,velocity_term,Reservoir_Data.Ko,Reservoir_Data.po);
     end
     %     qout_t = qout_left + qout_right + qout_up + qout_down + qout_ne + qout_se + qout_sw + qout_ne;
     % Inflows - Von-Neuman
-    outflow_rate.qin_left_t = [zeros(ny_max,1),outflow_rate.qout_right_t(:,1:(nx_max-1))];
-    outflow_rate.qin_right_t = [outflow_rate.qout_left_t(:,(2:(nx_max))) zeros(ny_max,1)];
-    outflow_rate.qin_up_t = [zeros(1,nx_max) ; outflow_rate.qout_down_t(1:(ny_max-1),:)];
-    outflow_rate.qin_down_t = [outflow_rate.qout_up_t(2:(ny_max),:) ; zeros(1,nx_max)];
+    flow_rate.qin_left_t = [zeros(ny_max,1),flow_rate.qout_right_t(:,1:(nx_max-1))];
+    flow_rate.qin_right_t = [flow_rate.qout_left_t(:,(2:(nx_max))) zeros(ny_max,1)];
+    flow_rate.qin_up_t = [zeros(1,nx_max) ; flow_rate.qout_down_t(1:(ny_max-1),:)];
+    flow_rate.qin_down_t = [flow_rate.qout_up_t(2:(ny_max),:) ; zeros(1,nx_max)];
 
     % Inflows - Inclined Directions
     if flags.flag_D8 == 1
@@ -149,31 +149,31 @@ while t <= (running_control.routing_time + running_control.min_time_step/60)
         else
             zero_matrix = zeros(size(Elevation_Properties.elevation_cell));
         end
-        outflow_rate.qin_ne_t = zero_matrix; outflow_rate.qin_se_t = zero_matrix; outflow_rate.qin_sw_t = zero_matrix; outflow_rate.qin_nw_t = zero_matrix;
-        outflow_rate.qin_ne_t(2:(ny_max),1:(nx_max-1)) = outflow_rate.qout_sw_t(1:(ny_max-1),2:(nx_max)); % OK
-        outflow_rate.qin_se_t(1:(ny_max-1),1:(nx_max-1)) = outflow_rate.qout_nw_t(2:ny_max,2:nx_max); % OK
-        outflow_rate.qin_sw_t(1:(ny_max-1),2:(nx_max)) = outflow_rate.qout_ne_t(2:(ny_max),1:(nx_max-1)); % OK
-        outflow_rate.qin_nw_t(2:ny_max,2:nx_max) = outflow_rate.qout_se_t(1:(ny_max-1),1:(nx_max-1)); % OK
+        flow_rate.qin_ne_t = zero_matrix; flow_rate.qin_se_t = zero_matrix; flow_rate.qin_sw_t = zero_matrix; flow_rate.qin_nw_t = zero_matrix;
+        flow_rate.qin_ne_t(2:(ny_max),1:(nx_max-1)) = flow_rate.qout_sw_t(1:(ny_max-1),2:(nx_max)); % OK
+        flow_rate.qin_se_t(1:(ny_max-1),1:(nx_max-1)) = flow_rate.qout_nw_t(2:ny_max,2:nx_max); % OK
+        flow_rate.qin_sw_t(1:(ny_max-1),2:(nx_max)) = flow_rate.qout_ne_t(2:(ny_max),1:(nx_max-1)); % OK
+        flow_rate.qin_nw_t(2:ny_max,2:nx_max) = flow_rate.qout_se_t(1:(ny_max-1),1:(nx_max-1)); % OK
     end
     if flags.flag_D8 == 1
-        outflow_rate.qin_t = outflow_rate.qin_left_t + outflow_rate.qin_right_t + outflow_rate.qin_up_t + outflow_rate.qin_down_t + outflow_rate.qin_ne_t + outflow_rate.qin_se_t + outflow_rate.qin_sw_t + outflow_rate.qin_nw_t;
-        %         outflow_rate.qin_t = outflow_rate.qin_left_t + outflow_rate.qin_right_t + outflow_rate.qin_up_t + outflow_rate.qin_down_t;
+        flow_rate.qin_t = flow_rate.qin_left_t + flow_rate.qin_right_t + flow_rate.qin_up_t + flow_rate.qin_down_t + flow_rate.qin_ne_t + flow_rate.qin_se_t + flow_rate.qin_sw_t + flow_rate.qin_nw_t;
+        %         flow_rate.qin_t = flow_rate.qin_left_t + flow_rate.qin_right_t + flow_rate.qin_up_t + flow_rate.qin_down_t;
     else
-        outflow_rate.qin_t = outflow_rate.qin_left_t + outflow_rate.qin_right_t + outflow_rate.qin_up_t + outflow_rate.qin_down_t;
+        flow_rate.qin_t = flow_rate.qin_left_t + flow_rate.qin_right_t + flow_rate.qin_up_t + flow_rate.qin_down_t;
     end
-    idx3 = logical(isnan(outflow_rate.qin_t) + isinf(outflow_rate.qin_t));
-    outflow_rate.qin_t(idx3) = 0;
+    idx3 = logical(isnan(flow_rate.qin_t) + isinf(flow_rate.qin_t));
+    flow_rate.qin_t(idx3) = 0;
 
-    if min(min(outflow_rate.qin_t)) < 0
+    if min(min(flow_rate.qin_t)) < 0
         ttt = 1;
     end
 
     % Water Quality Parameters for f(B(t))
     if flags.flag_waterquality == 1
         if flags.flag_D8 ~= 1
-            [WQ_States.B_t,WQ_States.P_conc,Out_Conc,tmin_wq,tot_W_out,WQ_States.mass_lost,WQ_States.Tot_Washed] = build_up_wash_off(LULC_Properties.C_3,LULC_Properties.C_4,outflow_rate.qout_left_t,outflow_rate.qout_right_t,outflow_rate.qout_up_t,outflow_rate.qout_down_t,outlet_states.outlet_flow,WQ_States.B_t,time_step,nx_max,ny_max,Wshed_Properties.cell_area,outlet_index,idx_nan_5,flags.flag_wq_model,WQ_States.mass_lost,WQ_States.Tot_Washed,LULC_Properties.Bmin,LULC_Properties.Bmax,LULC_Properties.min_Bt);
+            [WQ_States.B_t,WQ_States.P_conc,Out_Conc,tmin_wq,tot_W_out,WQ_States.mass_lost,WQ_States.Tot_Washed] = build_up_wash_off(LULC_Properties.C_3,LULC_Properties.C_4,flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,WQ_States.B_t,time_step,nx_max,ny_max,Wshed_Properties.cell_area,outlet_index,idx_nan_5,flags.flag_wq_model,WQ_States.mass_lost,WQ_States.Tot_Washed,LULC_Properties.Bmin,LULC_Properties.Bmax,LULC_Properties.min_Bt);
         else
-            [WQ_States.B_t,WQ_States.P_conc,Out_Conc,tmin_wq,tot_W_out,WQ_States.mass_lost,WQ_States.Tot_Washed] = build_up_wash_off_8D(LULC_Properties.C_3,LULC_Properties.C_4,outflow_rate.qout_left_t,outflow_rate.qout_right_t,outflow_rate.qout_up_t,outflow_rate.qout_down_t,outlet_states.outlet_flow,outflow_rate.qout_ne_t,outflow_rate.qout_se_t,outflow_rate.qout_sw_t,outflow_rate.qout_nw_t,WQ_States.B_t,time_step,nx_max,ny_max,Wshed_Properties.cell_area,outlet_index,idx_nan_5,flags.flag_wq_model,WQ_States.mass_lost,WQ_States.Tot_Washed,LULC_Properties.Bmin,LULC_Properties.Bmax,LULC_Properties.min_Bt);
+            [WQ_States.B_t,WQ_States.P_conc,Out_Conc,tmin_wq,tot_W_out,WQ_States.mass_lost,WQ_States.Tot_Washed] = build_up_wash_off_8D(LULC_Properties.C_3,LULC_Properties.C_4,flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,flow_rate.qout_ne_t,flow_rate.qout_se_t,flow_rate.qout_sw_t,flow_rate.qout_nw_t,WQ_States.B_t,time_step,nx_max,ny_max,Wshed_Properties.cell_area,outlet_index,idx_nan_5,flags.flag_wq_model,WQ_States.mass_lost,WQ_States.Tot_Washed,LULC_Properties.Bmin,LULC_Properties.Bmax,LULC_Properties.min_Bt);
         end
     end
     %%%% Checking Mass Balance
@@ -210,16 +210,16 @@ while t <= (running_control.routing_time + running_control.min_time_step/60)
 
             flow_depth = depths.d_t; % Depth in which velocities will be calculated (mm)
             flow_depth(depths.d_t < CA_States.depth_tolerance) = 1e12;
-            velocities.vel_left = (outflow_rate.qout_left_t/1000/3600)*Wshed_Properties.Resolution^2./(Wshed_Properties.Resolution*flow_depth/1000); % m/s
-            velocities.vel_right = (outflow_rate.qout_right_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
-            velocities.vel_up = (outflow_rate.qout_up_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
-            velocities.vel_down = (outflow_rate.qout_down_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
+            velocities.vel_left = (flow_rate.qout_left_t/1000/3600)*Wshed_Properties.Resolution^2./(Wshed_Properties.Resolution*flow_depth/1000); % m/s
+            velocities.vel_right = (flow_rate.qout_right_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
+            velocities.vel_up = (flow_rate.qout_up_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
+            velocities.vel_down = (flow_rate.qout_down_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
             
             if flags.flag_D8 == 1
-                velocities.vel_ne = (outflow_rate.qout_ne_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
-                velocities.vel_se = (outflow_rate.qout_se_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
-                velocities.vel_sw = (outflow_rate.qout_sw_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
-                velocities.vel_nw = (outflow_rate.qout_nw_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
+                velocities.vel_ne = (flow_rate.qout_ne_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
+                velocities.vel_se = (flow_rate.qout_se_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
+                velocities.vel_sw = (flow_rate.qout_sw_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
+                velocities.vel_nw = (flow_rate.qout_nw_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
             end
             %%%%%%%%%%%%%% Find the Maximum Velocity
             velocities.max_velocity_left = max(max(velocities.vel_left));
@@ -608,32 +608,32 @@ while t <= (running_control.routing_time + running_control.min_time_step/60)
     end
 
     % Inflows and Depth Refreshments
-    depths.d_t = depths.d_t + outflow_rate.qin_t*time_step/60;
+    depths.d_t = depths.d_t + flow_rate.qin_t*time_step/60;
     if min(min(depths.d_t)) < 0 
         ttt = 1;
     end
 
     % Clearing stored values
     if flags.flag_GPU == 1
-        outflow_rate.qout_left_t = gpuArray(zeros(ny_max,nx_max));
-        outflow_rate.qout_right_t = gpuArray(zeros(ny_max,nx_max));
-        outflow_rate.qout_up_t = gpuArray( zeros(ny_max,nx_max));
-        outflow_rate.qout_down_t = gpuArray(zeros(ny_max,nx_max));
-        outflow_rate.qout_ne_t = gpuArray(zeros(ny_max,nx_max));
-        outflow_rate.qout_se_t = gpuArray(zeros(ny_max,nx_max));
-        outflow_rate.qout_sw_t = gpuArray(zeros(ny_max,nx_max));
-        outflow_rate.qout_nw_t = gpuArray(zeros(ny_max,nx_max));
-        outflow_rate.qin_t = gpuArray(zeros(ny_max,nx_max));
+        flow_rate.qout_left_t = gpuArray(zeros(ny_max,nx_max));
+        flow_rate.qout_right_t = gpuArray(zeros(ny_max,nx_max));
+        flow_rate.qout_up_t = gpuArray( zeros(ny_max,nx_max));
+        flow_rate.qout_down_t = gpuArray(zeros(ny_max,nx_max));
+        flow_rate.qout_ne_t = gpuArray(zeros(ny_max,nx_max));
+        flow_rate.qout_se_t = gpuArray(zeros(ny_max,nx_max));
+        flow_rate.qout_sw_t = gpuArray(zeros(ny_max,nx_max));
+        flow_rate.qout_nw_t = gpuArray(zeros(ny_max,nx_max));
+        flow_rate.qin_t = gpuArray(zeros(ny_max,nx_max));
     else
-        outflow_rate.qout_left_t = zeros(ny_max,nx_max);
-        outflow_rate.qout_right_t = zeros(ny_max,nx_max);
-        outflow_rate.qout_up_t = zeros(ny_max,nx_max);
-        outflow_rate.qout_down_t = zeros(ny_max,nx_max);
-        outflow_rate.qout_ne_t = zeros(ny_max,nx_max);
-        outflow_rate.qout_se_t = zeros(ny_max,nx_max);
-        outflow_rate.qout_sw_t = zeros(ny_max,nx_max);
-        outflow_rate.qout_nw_t = zeros(ny_max,nx_max);
-        outflow_rate.qin_t = zeros(ny_max,nx_max);
+        flow_rate.qout_left_t = zeros(ny_max,nx_max);
+        flow_rate.qout_right_t = zeros(ny_max,nx_max);
+        flow_rate.qout_up_t = zeros(ny_max,nx_max);
+        flow_rate.qout_down_t = zeros(ny_max,nx_max);
+        flow_rate.qout_ne_t = zeros(ny_max,nx_max);
+        flow_rate.qout_se_t = zeros(ny_max,nx_max);
+        flow_rate.qout_sw_t = zeros(ny_max,nx_max);
+        flow_rate.qout_nw_t = zeros(ny_max,nx_max);
+        flow_rate.qin_t = zeros(ny_max,nx_max);
     end
 
     % Saving Plotting Values - Recording Time
