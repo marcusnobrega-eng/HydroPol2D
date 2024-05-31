@@ -37,7 +37,7 @@ I_tot_end_previous = I_tot_end_cell;
 % --------------- Notation  % ---------------%
 %   <-I-> (left right up down) = [left ; right ; up; down]
 % --------------- Cell Depth and Water surface Elevation  % ---------------%
-depth_cell = d_tot./1000; % meters
+depth_cell = max(d_tot./1000,0); % meters (fixing zero values)
 
 % Chaning depth_cell of B.C cells to NaN
 for i = 1:length(reservoir_y)
@@ -125,7 +125,7 @@ Vol_tot = sum(matrix_store,3);
 % ---------------% Weights  % ---------------%
 matrix_store = matrix_store./(Vol_tot + Vol_min_matrix);
 matrix_store(isnan(matrix_store))=0;
-weight_max = max(matrix_store,[],3);
+weigth_max = max(matrix_store,[],3);
 
 %% ---------------% Velocity Calculation %---------------%
 % Velocity to the cell with the highest gradient
@@ -144,7 +144,7 @@ if sum(sum(I_tot_end_previous)) == 0
     I_tot_end_previous = 0.9*cell_area*depth_cell;
 end
 % I_tot_end = min(depth_cell*cell_area,I_m/max(weight),Vol_min_matrix + I_tot_begin);
-I_tot_end_cell = min(depth_cell.*cell_area,v_m.*depth_cell./weight_max.*(Distance*time_step*60)); % m3
+I_tot_end_cell = min(depth_cell.*cell_area,v_m.*depth_cell./weigth_max.*(Distance*time_step*60)); % m3
 I_tot_end_cell = min(I_tot_end_cell,I_tot_end_previous + Vol_min_matrix);
 I_tot_end_cell(logical(d_tot < d_t_min*1000) + idx_nan > 0) = 0;  % If the depth is smaller than dmin ATTENTION HERE
 

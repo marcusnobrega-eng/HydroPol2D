@@ -88,41 +88,36 @@ crs_save = DEM_raster.georef.SpatialRef.ProjectedCRS;
 % end
 if sum(size(DEM_raster.Z)) == sum(size(LULC_raster.Z)) && sum(size(DEM_raster.Z)) == sum(size(SOIL_raster.Z))
 else
-    if sum(size(DEM_raster.Z)) >= sum(size(LULC_raster.Z)) && sum(size(DEM_raster.Z)) >= sum(size(SOIL_raster.Z)) % DEM is larger, it will be clipped
-        raster_resample = SOIL_raster;
-        raster_resample.Z = ~isnan(raster_resample.Z);
-        % Clip other two rasters
-        % ---- Constraint at LULC Raster
-        LULC_raster = clip(LULC_raster,raster_resample);
-        LULC_raster.Z = round(LULC_raster.Z); % Only Integers
-        % ---- Constraint at DEM Raster
-        DEM_raster = clip(DEM_raster,raster_resample);
-    end
-
-    if sum(size(SOIL_raster.Z)) >= sum(size(DEM_raster.Z)) && sum(size(SOIL_raster.Z)) >= sum(size(LULC_raster.Z))  % SOIL is larger, it will be clipped
-        raster_resample = DEM_raster;
-        raster_resample.Z = ~isnan(raster_resample.Z);
-        % Clip other two rasters
-        % ---- Constraint at LULC Raster
-        LULC_raster = clip(LULC_raster,DEM_raster);
-        LULC_raster.Z = round(LULC_raster.Z); % Only Integers
-        % ---- Constraint at SOIL Raster
-        SOIL_raster = clip(raster_resample,SOIL_raster);
-        SOIL_raster.Z = round(SOIL_raster.Z); % Only Integers
-    end
-
-    if sum(size(LULC_raster.Z)) >= sum(size(DEM_raster.Z)) && sum(size(LULC_raster.Z)) >= sum(size(SOIL_raster.Z))  % LULC is larger, it will be clipped
+    if sum(size(DEM_raster.Z)) >= sum(size(LULC_raster.Z)) && sum(size(DEM_raster.Z)) >= sum(size(SOIL_raster.Z)) % DEM is larger
         raster_resample = DEM_raster;
         % Resample other two rasters
-        % ---- Constraint at SOIL Raster
-        SOIL_raster = clip(raster_resample,SOIL_raster);
-        SOIL_raster.Z = round(SOIL_raster.Z); % Only Integers
         % ---- Constraint at LULC Raster
-        LULC_raster = clip(raster_resample,LULC_raster);
-        LULC_raster.Z = round(LULC_raster.Z); % Only Integers
+        LULC_raster = resample(LULC_raster,raster_resample,'nearest');
+        % LULC_raster.Z = round(LULC_raster.Z,'nearest'); % Only Integers
+        % ---- Constraint at SOIL Raster
+        SOIL_raster = resample(SOIL_raster,raster_resample,'nearest');
+        % SOIL_raster.Z =  round(SOIL_raster.Z); % Only Integers
+    end
+
+    if sum(size(SOIL_raster.Z)) >= sum(size(DEM_raster.Z)) && sum(size(SOIL_raster.Z)) >= sum(size(LULC_raster.Z))  % SOIL is larger
+        raster_resample = SOIL_raster;
+        % Resample other two rasters
+        LULC_raster = resample(LULC_raster,raster_resample,'nearest');
+        % ---- Constraint at LULC Raster
+        LULC_raster = resample(LULC_raster,raster_resample,'nearest');
+        % LULC_raster.Z = round(LULC_raster.Z); % Only Integers
+        DEM_raster = resample(DEM_raster,raster_resample,'bilinear');
+    end
+
+    if sum(size(LULC_raster.Z)) >= sum(size(DEM_raster.Z)) && sum(size(LULC_raster.Z)) >= sum(size(SOIL_raster.Z))  % SOIL is larger
+        raster_resample = LULC_raster;
+        % Resample other two rasters
+        % ---- Constraint at SOIL Raster
+        SOIL_raster = resample(SOIL_raster,raster_resample,'nearest');
+        % SOIL_raster.Z =  round(SOIL_raster.Z); % Only Integers
+        DEM_raster = resample(DEM_raster,raster_resample,'bilinear');
     end
 end
-
 
 % Raster Extent
 GIS_data.xulcorner = DEM_raster.refmat(3,1); % Up Left Corner
@@ -138,7 +133,7 @@ input_data_script;  % Load general data, soil, and LULC parameters
 if flags.flag_resample == 1
     resolution = GIS_data.resolution_resample; % m
     % DEM
-    DEM_raster = resample(DEM_raster,resolution,'bicubic');
+    DEM_raster = resample(DEM_raster,resolution,'bilinear');
     % LULC
     LULC_raster = resample(LULC_raster,resolution);
     LULC_raster.Z = round(LULC_raster.Z);
@@ -1395,6 +1390,26 @@ if flags.flag_D8 == 1
 end
 
 
+%% Checking if all cells of the domain have data
+zzz = Wshed_Properties.rainfall_matrix; zzz = zzz > 0;
+idx_cells = logical(zzz);
+if min(min(LULC_Properties.roughness(idx_cells))) == 0
+    warning('Cells with not associated LULC parameters')
+    warning('Assuming n = 0.03 for these areas. Also assuming h0 = 0 for them.')
+    idx_not_assigned = LULC_Properties.roughness == 0 & idx_cells == 1;
+    LULC_Properties.roughness(idx_not_assigned) = 0.03;
+    LULC_Properties.h_0(idx_not_assigned) = 0;
+    pause(1)
+end
+
+if min(min(Soil_Properties.ksat(idx_cells))) == 0
+    warning('Cells with not associated LULC parameters')
+    warning('Assuming K = 0 for these areas.')
+    idx_not_assigned = Soil_Properties.ksat == 0 & idx_cells == 1;
+    Soil_Properties.ksat(idx_not_assigned) = 0; 
+    pause(1)
+end
+
 %% Plotting Input Rasters
 Plot_Initial_Maps; % Script to plot initial maps
 
@@ -1631,5 +1646,8 @@ end
 
 
 clear spatial_domain
+
+
+
 
 
