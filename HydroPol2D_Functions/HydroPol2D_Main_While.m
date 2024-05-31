@@ -258,6 +258,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60)
                 if velocities.max_velocity > 25 && old_velocity > 0
                     warning('Velocities larger than 25  m per sec. Possible instability.')
                     subplot(2,1,1)
+                    [row_maxvel, col_maxvel] = find(velocities.velocity_raster == max(max(velocities.velocity_raster)));
                     [X, Y] = meshgrid(1:1:size(DEM_raster.Z,2),1:1:size(DEM_raster.Z,1));
                     hold on
                     surf_plot(max(max(velocities.velocity_raster)),t,'v','m/s',velocities.velocity_raster,1,0,32,0.85,0,[0 90],X,Y)

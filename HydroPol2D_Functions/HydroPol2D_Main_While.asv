@@ -255,9 +255,15 @@ while t <= (running_control.routing_time + running_control.min_time_step/60)
 
             % Checking changes in max velocity
             if k > 1
-                if velocities.max_velocity/old_velocity > 3 && old_velocity > 0
-                    warning('Velocities increasing more than 200% within a time-step, see results. Possible instability.')
-                    Snapshot_Results
+                if velocities.max_velocity > 25 && old_velocity > 0
+                    warning('Velocities larger than 25  m per sec. Possible instability.')
+                    subplot(2,1,1)
+                    [row_maxvel, col_maxvel] = find(velocities.velocity_raster == max(max(velocities.velocity_raster)));
+                    [X, Y] = meshgrid(1:1:size(DEM_raster.Z,2),1:1:size(DEM_raster.Z,1));
+                    hold on
+                    surf_plot(max(max(velocities.velocity_raster)),t,'v','m/s',velocities.velocity_raster,1,0,32,0.85,0,[0 90],X,Y)
+                    subplot(2,1,2)
+                    surf_plot(max(max(depths.d_t/1000)),t,'d','m',depths.d_t/1000,1,0,32,0.85,0,[0 90],X,Y)
                     pause(0.1)
                 end
             end

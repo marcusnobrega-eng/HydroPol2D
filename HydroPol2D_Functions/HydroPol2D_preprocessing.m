@@ -43,6 +43,7 @@ fname_SOIL = SOIL_path;
 LULC_raster = GRIDobj(fname_LULC); % Land Use and Land Cover Classification
 DEM_raster = GRIDobj(fname_DEM); % Digital Elevation Model (m)
 SOIL_raster = GRIDobj(fname_SOIL); % Soil Map
+min_dem_value = -200; % min value that a dem can have
 
 % Checking CRS
 try
@@ -74,13 +75,13 @@ end
 %% Checking Extent Problem
 crs_save = DEM_raster.georef.SpatialRef.ProjectedCRS;
 % croping all nan rows and columns
-DEM_raster = crop(DEM_raster);
-LULC_raster = crop(LULC_raster);
-SOIL_raster = crop(SOIL_raster);
-
-DEM_raster.georef.SpatialRef.ProjectedCRS = crs_save;
-LULC_raster.georef.SpatialRef.ProjectedCRS = crs_save;
-SOIL_raster.georef.SpatialRef.ProjectedCRS = crs_save;
+% DEM_raster = crop(DEM_raster);
+% LULC_raster = crop(LULC_raster);
+% SOIL_raster = crop(SOIL_raster);
+% 
+% DEM_raster.georef.SpatialRef.ProjectedCRS = crs_save;
+% LULC_raster.georef.SpatialRef.ProjectedCRS = crs_save;
+% SOIL_raster.georef.SpatialRef.ProjectedCRS = crs_save;
 
 % if min(min(DEM_raster.Z)) <= 0
 %     error('Please make sure that you actually have negative or 0 values in the DEM. Otherwise, treat non-value points as NaN or -9999.')
@@ -223,7 +224,7 @@ SOIL = double(SOIL_raster.Z);
 if flags.flag_input_rainfall_map
     inf_nan_MAPS = isinf(DEM) + isnan(DEM); % Logical array
 else
-    neg_DEM = DEM < 0;
+    neg_DEM = DEM < min_dem_value;
     neg_LULC = LULC < 0;
     neg_SOIL = SOIL < 0;
     inf_nan_MAPS = isinf(DEM) + isnan(DEM) + neg_DEM + isnan(LULC) + isnan(SOIL) + neg_LULC + neg_SOIL + isinf(LULC) + isinf(SOIL); % Logical array
@@ -399,7 +400,7 @@ if flags.flag_ETP == 1
     [ETP_Parameters.lat,ETP_Parameters.lon] = projinv(ETP_Parameters.info.SpatialRef.ProjectedCRS, ETP_Parameters.x_etp,ETP_Parameters.y_etp); % Latitude and Longitude
     ETP_Parameters.neg_DEM = ETP_Parameters.DEM_etp <= 0;
     ETP_Parameters.DEM_etp(ETP_Parameters.neg_DEM) = nan;
-    ETP_Parameters.idx_cells = ETP_Parameters.DEM_etp >= 0;
+    ETP_Parameters.idx_cells = ETP_Parameters.DEM_etp >= min_dem_value;
     % ETP_Parameters.idx_cells = ETP_Parameters.double(idx_cells(:));
     ETP_Parameters.lat(ETP_Parameters.neg_DEM) = nan; % Latitude
     ETP_Parameters.lon(ETP_Parameters.neg_DEM) = nan; % Longitude
@@ -604,7 +605,7 @@ close all
 % ------------ Outlet ------------ %
 outlet_index = zeros(zzz);
 elevation_nan = dem;
-elevation_nan(elevation_nan < -100) = nan; % Replacing no-info to nan
+elevation_nan(elevation_nan < min_dem_value) = nan; % Replacing no-info to nan
 dem = elevation_nan;
 perimeter = zeros(size(dem));
 % Identifying Watershed Perimeter
@@ -906,7 +907,7 @@ spatial_domain = zeros(size(dem));
 dem = dem(ymin:ymax,xmin:xmax);
 lulc_matrix = imp(ymin:ymax,xmin:xmax); % using only specified grid
 soil_matrix  = soil(ymin:ymax,xmin:xmax); % using only specified grid;
-Wshed_Properties.rainfall_matrix = double(elevation >= 0) ; % Elevation could be 0
+Wshed_Properties.rainfall_matrix = double(elevation >= min_dem_value) ; % Elevation could be negative
 Wshed_Properties.rainfall_matrix(Wshed_Properties.rainfall_matrix == 0) = nan;
 
 % ----------- Struct Cells ------------- %
@@ -1113,6 +1114,11 @@ zzz = size(elevation);
 xmax = zzz(2);
 ymax = zzz(1);
 
+%% Locally Reducing Manning of River Networks
+if flags.flag_reduce_DEM == 1
+    LULC_Properties.roughness(idx_facc) = 1*LULC_Properties.roughness(idx_facc);
+    LULC_Properties.h_0(idx_facc) = 0;
+end
 
 %% Conversion of inflow into the time-step of calculations
 if flags.flag_inflow == 1
