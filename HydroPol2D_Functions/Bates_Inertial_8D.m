@@ -111,7 +111,7 @@ matrix_store(matrix_store<0) = 0;
 % by definition it should be the opposite in Bates Formulation, so we multiply by -1
 matrix_store = -1*matrix_store;
 %% Bates Formulation
-outflow = 1000/3600*outflow*Resolution^2/Resolution; % m2 per sec
+outflow = outflow*1/1000*1/3600*Resolution^2/Resolution; % m2 per sec
 dt = time_step*60;
 % q_t_dt = [q_t - g h dt (wse grad)] / (1 + g h dt n^2 q_t / h^(10/3))
 % q_t is in m2/s, all other variables are in international units
@@ -125,11 +125,11 @@ outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;
 outflow(idx_nan) = nan;
 
 % Available Volume
-volume_rate = 1000*3600*depth_cell/dt; % mm per h
-if max(max(max(outflow))) > 0
-    ttt = 1;
-end
-outflow = min(volume_rate,outflow);
+% volume_rate = 1000*3600*depth_cell/dt; % mm per h
+% if max(max(max(outflow))) > 0
+%     ttt = 1;
+% end
+% outflow = min(volume_rate,outflow);
 %% Intercell Volume
 I_tot_end_cell = 1/1000*dt/3600*sum(outflow,3)*Resolution^2; % Total outflow in m3
 % matrix_store now becomes outflow

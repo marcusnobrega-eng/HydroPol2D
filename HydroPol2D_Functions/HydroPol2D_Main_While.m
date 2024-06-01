@@ -7,7 +7,8 @@ format short g
 tic 
 k = 1;
 C = 0;
-t = running_control.time_step_model;
+t = running_control.min_time_step;
+time_step = running_control.min_time_step/60; % min
 Flooded_Area = 0;
 velocities.velocity_raster = 0;
 Risk_Area = 0;
@@ -26,7 +27,7 @@ if flags.flag_dam_break == 1
     flag_break_1 = 1; flag_break_2 = 1;    
 end
 
-n_snaps = 40;
+n_snaps = 10;
 dt_snap = running_control.routing_time/n_snaps;
 time_snap = [1:1:n_snaps]*dt_snap;
 z2_snap = 0;
@@ -362,7 +363,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60)
         if flags.flag_spatial_rainfall ~= 1 && flags.flag_satellite_rainfall ~= 1 && flags.flag_real_time_satellite_rainfall ~= 1
             z1 = find(running_control.time_deltap > t_previous,1,'first'); % begin of the time-step
             z2 = find(running_control.time_deltap <= t,1,'last'); % end of the time-step
-            if z2 < z1
+            if isempty(z2) | z2 < z1 
                 z2 = z1;
             end
             if time_step >= time_step_model

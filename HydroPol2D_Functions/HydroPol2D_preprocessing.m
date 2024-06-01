@@ -1427,7 +1427,7 @@ if flags.flag_D8 == 1
     else
         dim1 = size(Elevation_Properties.elevation_cell,1);
         dim2 = size(Elevation_Properties.elevation_cell,2);
-        dim3 = 5; % (Marcus. I believe it is 5. It was 9)
+        dim3 = 9; 
         wse_slope_zeros = (zeros(dim1,dim2,dim3));
         Distance_Matrix = (zeros(dim1,dim2));
         outflow_bates = (zeros(dim1,dim2,dim3));
