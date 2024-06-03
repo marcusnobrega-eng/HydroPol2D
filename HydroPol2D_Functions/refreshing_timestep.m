@@ -107,7 +107,7 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
 
             % Bates time-step
             wave_celerity = sqrt(9.81*max(depths.d_tot,depths.d_t)/1000); % Using d_t, which is the depth at the end of the time-step
-            new_timestep = min(min(0.4*Wshed_Properties.Resolution./wave_celerity)); % alpha of 0.4
+            new_timestep = min(min(0.4*Wshed_Properties.Resolution./(velocities.velocity_raster + wave_celerity))); % alpha of 0.4
             new_timestep = min(new_timestep,running_control.max_time_step);
         elseif velocities.max_velocity < 0
             error('Model instability. Velocities are becoming negative.')

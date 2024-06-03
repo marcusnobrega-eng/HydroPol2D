@@ -5,7 +5,9 @@
 
 % Loading Input File in case you want to avoid doing all preprocessing
 clear all
-load workspace_14_de_julho.mat
+% load workspace_14_de_julho.mat
+load workspace_RGS.mat
+
 
 format short g
 
@@ -20,7 +22,6 @@ Risk_Area = 0; % initial risk area
 saver_count = 1; % starts in 1 but the next pointer should be 2, this is auto fixed when t reach the next time aggregation.
 store = 1; % (meaning, luis?)
 flags.flag_inertial = 1; % Using Inertial Model
-flags.flag_D8 = 1;
 t_previous = 0;
 
 
@@ -52,8 +53,9 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     
     if k == 1 % First time-step
         if flags.flag_infiltration == 1
-            Hydro_States.i_a = (BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix ...
-                             + BC_States.inflow + depths.d_0 - Hydro_States.ETP/24)./(time_step/60); % Inflow rate [mm/h]
+            % Hydro_States.i_a = (BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix ...
+            %                  + BC_States.inflow + depths.d_0 - Hydro_States.ETP/24)./(time_step/60); % Inflow rate [mm/h]
+            Hydro_States.i_a = (depths.d_0)./(time_step/60); % Inflow rate [mm/h]            
             C = Soil_Properties.ksat.*(1 +  ...
                                       ((depths.d_0 + Soil_Properties.psi).*(Soil_Properties.teta_sat -  ...
                                       Soil_Properties.teta_i))./Soil_Properties.I_0); % matrix form of Infiltration Capacity [mm/h]
@@ -78,15 +80,16 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                          BC_States.inflow + ...
                          idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux; % Effective precipitation within 1 computation time-step [mm]
             depths.d_t = depths.d_0 + depths.pef;
-            if depths.d_t < 0
+            if depths.d_t < -1e-8
                 error('Negative depths. Please reduce the time-step.')
             end
         end
     else
         if flags.flag_infiltration == 1
             % Effective precipitation - Green-Ampt(1911)
-            Hydro_States.i_a = (BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix +  ...
-                                BC_States.inflow + depths.d_p - Hydro_States.ETP/24)./(time_step/60);  % Inflow rate [mm/h]      
+            % Hydro_States.i_a = (BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix +  ...
+            %                     BC_States.inflow + depths.d_p - Hydro_States.ETP/24)./(time_step/60);  % Inflow rate [mm/h]  
+            Hydro_States.i_a = (depths.d_p)./(time_step/60);  % Inflow rate [mm/h]             
             C = Soil_Properties.ksat.*(1 + ((depths.d_p + ...
                                        Soil_Properties.psi).*(Soil_Properties.teta_sat - Soil_Properties.teta_i))./Soil_Properties.I_p); % matrix form of Infiltration Capacity [mm/h]
             Non_C_idx = Soil_Properties.I_t > Soil_Properties.Lu*1000; % Cells that exceed the top layer infiltrated depth
@@ -144,7 +147,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         else
             [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,flow_rate.qout_ne_t,flow_rate.qout_se_t,flow_rate.qout_sw_t,flow_rate.qout_nw_t,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf] = ...
                 Bates_Inertial_8D(Reservoir_Data.Dir,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.Kv,Reservoir_Data.pv,flags.flag_reservoir,Elevation_Properties.elevation_cell,...
-                depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,Reservoir_Data.Ko,Reservoir_Data.po,CA_States.depth_tolerance,outflow_bates,idx_nan);
+                depths.d_tot,depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,Reservoir_Data.Ko,Reservoir_Data.po,CA_States.depth_tolerance,outflow_bates,idx_nan);
         end
     else % 4-D
         % CA
@@ -154,7 +157,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             % -------------------- Local Inertial Formulation ----------------%
             [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf] = ...
                 Bates_Inertial_4D(Reservoir_Data.Dir,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.Kv,Reservoir_Data.pv,flags.flag_reservoir,Elevation_Properties.elevation_cell,...
-                depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,Reservoir_Data.Ko,Reservoir_Data.po,CA_States.depth_tolerance,outflow_bates,idx_nan);
+                depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,Reservoir_Data.Ko,Reservoir_Data.po,CA_States.depth_tolerance,outflow_bates,idx_nan);
         end
     end
 
@@ -191,9 +194,15 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     % Mass Balance Equation (outflow already taken)
     depths.d_t = depths.d_t + flow_rate.qin_t*time_step/60;
 
-    if min(min(depths.d_t)) < 0 
-        error('Depths becoming negative. Reduce time-step.')
-    end  
+
+    if min(min(depths.d_t)) < -1e-3
+        catch_index = catch_index + 1;
+        error('Negative depths. Please reduce the time-step.')
+    else
+        catch_index = 1;
+    end
+
+    depths.d_t = max(depths.d_t,0); % Small values are truncated
 
     % ------ Water Quality Modeling ----- %
     % Water Quality Parameters for f(B(t))
@@ -312,10 +321,15 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     end
 
     catch ME % Reduce the time-step
-        t = t - time_step; 
+        t = t - time_step;         
         % time_step = time_step/2; % min
-        wave_celerity = sqrt(9.81*(max(max(max(depths.d_tot)),max(max(depths.d_t))))); % Using d_t, which is the depth at the end of the time-step
-        new_timestep = min(min(0.4*Wshed_Properties.Resolution./wave_celerity)); % alpha of 0.4
+        wave_celerity = sqrt(9.81*(max(max(max(depths.d_tot/1000)),max(max(depths.d_t/1000))))); % Using d_t, which is the depth at the end of the time-step
+        max_vel = max(max(velocities.velocity_raster));
+        factor = 1/catch_index;
+        new_timestep = factor*(min(0.4*Wshed_Properties.Resolution./(max_vel+wave_celerity))); % alpha of 0.4
+        if catch_index == 1
+            running_control.max_time_step = new_timestep*1.5; % Assuming a smaller max time-step to avoid large integrations
+        end
         new_timestep = min(new_timestep,running_control.max_time_step); % sec
         time_step = new_timestep/60; % min
         t = t + time_step;
