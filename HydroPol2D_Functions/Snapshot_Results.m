@@ -179,7 +179,7 @@ if k > 1
     axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
     z = gather((velocities.velocity_raster)); z(idx_nan) = nan;
     F = z;
-    map = surf_plot(max(max(F)),t,'f','\mathrm{mm~h^{-1}}',F,1,0,32,1,0,[0 90],X_grid,Y_grid);
+    map = surf_plot(max(max(F)),t,'v','\mathrm{m s^{-1}}',F,1,0,32,1,0,[0 90],X_grid,Y_grid);
     set(map,'LineStyle','none'); axis tight; grid on; box on; % this ensures that getframe() returns a consistent size; axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
     title((t_title),'Interpreter','Latex','FontSize',12)
     ax = ancestor(ax4, 'axes');
