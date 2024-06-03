@@ -360,7 +360,7 @@ set(gca, 'FontName', 'Garamond', 'FontSize', 12)
 set(gca, 'TickLength', [0.02 0.01]);
 set(gca,'Tickdir','out')
 
-exportgraphics(gcf,fullfile(strcat('Modeling_Results','\','Input_Maps.TIF')),'ContentType','image','Colorspace','rgb','Resolution',600)
+exportgraphics(gcf,fullfile(strcat('Modeling_Results','\','Input_Maps.TIF')),'ContentType','image','Colorspace','rgb','Resolution',300)
 
 
 close all

@@ -179,7 +179,7 @@ if k > 1
     axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
     z = gather((velocities.velocity_raster)); z(idx_nan) = nan;
     F = z;
-    map = surf_plot(max(max(F)),t,'f','\mathrm{mm~h^{-1}}',F,1,0,32,1,0,[0 90],X_grid,Y_grid);
+    map = surf_plot(max(max(F)),t,'v','\mathrm{m s^{-1}}',F,1,0,32,1,0,[0 90],X_grid,Y_grid);
     set(map,'LineStyle','none'); axis tight; grid on; box on; % this ensures that getframe() returns a consistent size; axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
     title((t_title),'Interpreter','Latex','FontSize',12)
     ax = ancestor(ax4, 'axes');
@@ -213,7 +213,11 @@ if k > 1
     t_title = 'Rainfall Intensity';
     axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
     if flags.flag_rainfall == 1
-        z = gather(BC_States.delta_p_agg/(time_step/60)); z(idx_nan) = nan;
+        if flags.flag_alternated_blocks == 1 || flags.flag_huff == 1
+            z = gather(BC_States.delta_p_agg)*ones(size(idx_nan)); z(idx_nan) = nan;
+        else
+            z = gather(BC_States.delta_p_agg/(time_step/60)); z(idx_nan) = nan;
+        end
     else
         z = zeros(size(idx_nan)); z(idx_nan) = nan;
     end
