@@ -1,5 +1,5 @@
 %@ -0,0 +1,242 @@
-function [qout_left,qout_right,qout_up,qout_down,outlet_flow,qout_ne,qout_se,qout_sw,qout_nw,d_t,I_tot_end_cell,outflow,Hf] = Bates_Inertial_8D(reservoir_dir,reservoir_x,reservoir_y,Kv,pv,flag_reservoir,z,d_tot,roughness_cell,cell_area,time_step,Resolution,I_tot_end_cell,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,Ko,po,d_tolerance,outflow,idx_nan)
+function [qout_left,qout_right,qout_up,qout_down,outlet_flow,qout_ne,qout_se,qout_sw,qout_nw,d_t,I_tot_end_cell,outflow,Hf] = Bates_Inertial_8D(reservoir_dir,reservoir_x,reservoir_y,Kv,pv,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,I_tot_end_cell,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,Ko,po,d_tolerance,outflow,idx_nan)
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %                                                                 %
 %                 Produced by Marcus Nobrega Gomes Junior         %
@@ -37,7 +37,7 @@ h_min = 0;
 % --------------- Notation  % ---------------%
 %   <-I-> (left right up down) = [left ; right ; up; down]
 % --------------- Cell Depth and Water surface Elevation  % ---------------%
-depth_cell = max(d_tot./1000,0); % meters (fixing zero values)
+depth_cell = max(d_p./1000,0); % meters (fixing zero values)
 
 % Assuming a linearization for small depths
 mask = depth_cell <= h_min;
@@ -156,36 +156,36 @@ if flag_reservoir == 1
 		% 1 left, 2 right , 3 up, 4 down, 6 NE, 7 SE, 8 SW, 9 NW
         if reservoir_dir(ii) == 1
             DEMelev = z(reservoir_y(ii),reservoir_x(ii) + 1);
-            dtsup =  d_tot(reservoir_y(ii),reservoir_x(ii) + 1)./1000;
-            % head = z(reservoir_y(ii),reservoir_x(ii) + 1) + d_tot(reservoir_y(ii),reservoir_x(ii) + 1)./1000; % Head of water in the neighbour cell
+            dtsup =  d_p(reservoir_y(ii),reservoir_x(ii) + 1)./1000;
+            % head = z(reservoir_y(ii),reservoir_x(ii) + 1) + d_p(reservoir_y(ii),reservoir_x(ii) + 1)./1000; % Head of water in the neighbour cell
         elseif reservoir_dir(ii) == 2
             DEMelev = z(reservoir_y(ii),reservoir_x(ii) - 1);
-            dtsup =  d_tot(reservoir_y(ii),reservoir_x(ii) - 1)./1000;
-            %head = z(reservoir_y(ii),reservoir_x(ii) - 1) + d_tot(reservoir_y(ii),reservoir_x(ii) - 1)./1000;
+            dtsup =  d_p(reservoir_y(ii),reservoir_x(ii) - 1)./1000;
+            %head = z(reservoir_y(ii),reservoir_x(ii) - 1) + d_p(reservoir_y(ii),reservoir_x(ii) - 1)./1000;
         elseif reservoir_dir(ii) == 3
             DEMelev = z(reservoir_y(ii) + 1,reservoir_x(ii));
-            dtsup =  d_tot(reservoir_y(ii) + 1,reservoir_x(ii))./1000;
-            %head = z(reservoir_y(ii) + 1,reservoir_x(ii)) + d_tot(reservoir_y(ii) + 1,reservoir_x(ii))./1000;
+            dtsup =  d_p(reservoir_y(ii) + 1,reservoir_x(ii))./1000;
+            %head = z(reservoir_y(ii) + 1,reservoir_x(ii)) + d_p(reservoir_y(ii) + 1,reservoir_x(ii))./1000;
         elseif reservoir_dir(ii) == 4
             DEMelev = z(reservoir_y(ii) - 1,reservoir_x(ii));
-            dtsup =  d_tot(reservoir_y(ii) - 1,reservoir_x(ii))./1000;
-            %head = z(reservoir_y(ii) - 1,reservoir_x(ii)) + d_tot(reservoir_y(ii) - 1,reservoir_x(ii))./1000;
+            dtsup =  d_p(reservoir_y(ii) - 1,reservoir_x(ii))./1000;
+            %head = z(reservoir_y(ii) - 1,reservoir_x(ii)) + d_p(reservoir_y(ii) - 1,reservoir_x(ii))./1000;
         elseif reservoir_dir(ii) == 6
             DEMelev = z(reservoir_y(ii) + 1,reservoir_x(ii) - 1);
-            dtsup =  d_tot(reservoir_y(ii) + 1,reservoir_x(ii) - 1)./1000;
-            %head = z(reservoir_y(ii) + 1, reservoir_x(ii) - 1) + d_tot(reservoir_y(ii) + 1,reservoir_x(ii) - 1)./1000;
+            dtsup =  d_p(reservoir_y(ii) + 1,reservoir_x(ii) - 1)./1000;
+            %head = z(reservoir_y(ii) + 1, reservoir_x(ii) - 1) + d_p(reservoir_y(ii) + 1,reservoir_x(ii) - 1)./1000;
         elseif reservoir_dir(ii) == 7
             DEMelev = z(reservoir_y(ii) - 1,reservoir_x(ii) - 1);
-            dtsup =  d_tot(reservoir_y(ii) - 1,reservoir_x(ii) - 1)./1000;
-            %head = z(reservoir_y(ii) - 1, reservoir_x(ii) - 1) + d_tot(reservoir_y(ii) - 1,reservoir_x(ii) - 1)./1000;
+            dtsup =  d_p(reservoir_y(ii) - 1,reservoir_x(ii) - 1)./1000;
+            %head = z(reservoir_y(ii) - 1, reservoir_x(ii) - 1) + d_p(reservoir_y(ii) - 1,reservoir_x(ii) - 1)./1000;
         elseif reservoir_dir(ii) == 8
             DEMelev = z(reservoir_y(ii) - 1,reservoir_x(ii) + 1);
-            dtsup =  d_tot(reservoir_y(ii) - 1,reservoir_x(ii) + 1)./1000;
-            %head = z(reservoir_y(ii) - 1, reservoir_x(ii) + 1) + d_tot(reservoir_y(ii) - 1,reservoir_x(ii) + 1)./1000;
+            dtsup =  d_p(reservoir_y(ii) - 1,reservoir_x(ii) + 1)./1000;
+            %head = z(reservoir_y(ii) - 1, reservoir_x(ii) + 1) + d_p(reservoir_y(ii) - 1,reservoir_x(ii) + 1)./1000;
         elseif reservoir_dir(ii) == 9
             DEMelev = z(reservoir_y(ii) + 1,reservoir_x(ii) + 1);
-            dtsup =  d_tot(reservoir_y(ii) + 1,reservoir_x(ii) + 1)./1000;
-            %head = z(reservoir_y(ii) + 1, reservoir_x(ii) + 1) + d_tot(reservoir_y(ii) + 1,reservoir_x(ii) + 1)./1000;
+            dtsup =  d_p(reservoir_y(ii) + 1,reservoir_x(ii) + 1)./1000;
+            %head = z(reservoir_y(ii) + 1, reservoir_x(ii) + 1) + d_p(reservoir_y(ii) + 1,reservoir_x(ii) + 1)./1000;
         end
         
         head = DEMelev + dtsup;
