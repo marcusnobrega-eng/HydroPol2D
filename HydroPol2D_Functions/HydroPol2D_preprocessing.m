@@ -75,13 +75,13 @@ end
 %% Checking Extent Problem
 crs_save = DEM_raster.georef.SpatialRef.ProjectedCRS;
 % croping all nan rows and columns
-% DEM_raster = crop(DEM_raster);
-% LULC_raster = crop(LULC_raster);
-% SOIL_raster = crop(SOIL_raster);
-% 
-% DEM_raster.georef.SpatialRef.ProjectedCRS = crs_save;
-% LULC_raster.georef.SpatialRef.ProjectedCRS = crs_save;
-% SOIL_raster.georef.SpatialRef.ProjectedCRS = crs_save;
+DEM_raster = crop(DEM_raster);
+LULC_raster = crop(LULC_raster);
+SOIL_raster = crop(SOIL_raster);
+
+DEM_raster.georef.SpatialRef.ProjectedCRS = crs_save;
+LULC_raster.georef.SpatialRef.ProjectedCRS = crs_save;
+SOIL_raster.georef.SpatialRef.ProjectedCRS = crs_save;
 
 % if min(min(DEM_raster.Z)) <= 0
 %     error('Please make sure that you actually have negative or 0 values in the DEM. Otherwise, treat non-value points as NaN or -9999.')
@@ -117,6 +117,16 @@ else
         % SOIL_raster.Z =  round(SOIL_raster.Z); % Only Integers
         DEM_raster = resample(DEM_raster,raster_resample,'bilinear');
     end
+end
+
+% Cheking if there are nan cells whithin the study area to avoid numerical
+% instability 
+if any(~isnan(DEM_raster.Z).*isnan(LULC_raster.Z)) == 1
+    imagesc(~isnan(DEM_raster.Z).*isnan(LULC_raster.Z));
+    error('Please, check your DEM and LULC rasters. There are cells with no information which will produce numerical instability')
+elseif any(~isnan(DEM_raster.Z).*isnan(SOIL_raster.Z)) == 1 
+    imagesc(~isnan(DEM_raster.Z).*isnan(SOIL_raster.Z));
+    error('Please, check your DEM and SOIL rasters. There are cells with no information which will produce numerical instability')
 end
 
 % Raster Extent
