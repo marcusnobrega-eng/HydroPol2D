@@ -70,10 +70,10 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
         if flags.flag_D8 == 1
             velocities.right_component = velocities.right_component + ...
                                          sqrt(2)*(velocities.vel_ne - velocities.vel_sw) + ...
-                                         sqrt(2)*(velocities.vel_se - velocities.vel_new);
+                                         sqrt(2)*(velocities.vel_se - velocities.vel_nw);
             velocities.up_component = velocities.up_component + ...
                                          sqrt(2)*(velocities.vel_ne - velocities.vel_sw) + ...
-                                         -sqrt(2)*(velocities.vel_se - velocities.vel_new);            
+                                         -sqrt(2)*(velocities.vel_se - velocities.vel_nw);            
         end
         velocities.total_velocity = sqrt((velocities.right_component).^2 + (velocities.up_component).^2);
         velocities.max_velocity = max(max(velocities.total_velocity));
@@ -121,7 +121,8 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
 
             % Bates time-step
             wave_celerity = sqrt(9.81*max(depths.d_tot,depths.d_t)/1000); % Using d_t, which is the depth at the end of the time-step
-            new_timestep = min(min(0.25*Wshed_Properties.Resolution./(velocities.total_velocity + wave_celerity))); % alpha of 0.4
+            % new_timestep = min(min(0.25*Wshed_Properties.Resolution./(velocities.total_velocity + wave_celerity))); % alpha of 0.4
+            new_timestep = min(min(0.7*Wshed_Properties.Resolution./(wave_celerity))); % alpha of 0.7            
             new_timestep = min(new_timestep,running_control.max_time_step);
         elseif velocities.max_velocity < 0
             error('Model instability. Velocities are becoming negative.')
