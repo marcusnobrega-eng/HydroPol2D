@@ -5,8 +5,8 @@
 
 % Loading Input File in case you want to avoid doing all preprocessing
 clear all
-% load workspace_14_de_julho.mat
-load workspace_RGS.mat
+load workspace_14_de_julho.mat
+% load workspace_RGS.mat
 
 
 format short g
@@ -81,9 +81,6 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                          BC_States.inflow + ...
                          idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux; % Effective precipitation within 1 computation time-step [mm]
             depths.d_t = depths.d_0 + depths.pef;
-            if depths.d_t < -1e-8
-                error('Negative depths. Please reduce the time-step.')
-            end
         end
     else
         if flags.flag_infiltration == 1
@@ -120,24 +117,24 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     % Effective Precipitation (Available depth at the beginning of the time-step
     depths.d_tot = depths.d_t;
 
-    % if flags.flag_D8 == 1
-    %     %%%% WATER DEPTHS %%%
-    %     depths.d_left_cell = [zeros(ny,1),depths.d_tot(:,1:(nx-1))];
-    %     depths.d_right_cell = [depths.d_tot(:,(2:(nx))) zeros(ny,1)];
-    %     depths.d_up_cell = [zeros(1,nx) ; depths.d_tot(1:(ny-1),:)];
-    %     depths.d_down_cell = [depths.d_tot(2:(ny),:) ; zeros(1,nx)];
-    %     if flags.flag_D8 == 1
-    %         % Simulate with D-8 flow direction
-    %         % --- Adding NE, SE, SW, NW --- %
-    %         depths.d_NE_t(2:(ny),1:(nx-1)) = depths.d_tot(1:(ny-1),2:nx); % OK
-    %         depths.d_SE_t(1:(ny-1),1:(nx-1)) = depths.d_tot(2:ny,2:nx); % OK
-    %         depths.d_SW_t(1:(ny-1),2:(nx)) = depths.d_tot(2:(ny),1:(nx-1)); % OK
-    %         depths.d_NW_t(2:ny,2:nx) = depths.d_tot(1:(ny-1),1:(nx-1)); % OK
-    %     else
-    %         % Simulate with D-4 flow direction
-    %         % Everything already calculated
-    %     end
-    % end
+    if flags.flag_D8 == 1 && flags.flag_diffusive == 1
+        %%%% WATER DEPTHS %%%
+        depths.d_left_cell = [zeros(ny,1),depths.d_tot(:,1:(nx-1))];
+        depths.d_right_cell = [depths.d_tot(:,(2:(nx))) zeros(ny,1)];
+        depths.d_up_cell = [zeros(1,nx) ; depths.d_tot(1:(ny-1),:)];
+        depths.d_down_cell = [depths.d_tot(2:(ny),:) ; zeros(1,nx)];
+        if flags.flag_D8 == 1
+            % Simulate with D-8 flow direction
+            % --- Adding NE, SE, SW, NW --- %
+            depths.d_NE_t(2:(ny),1:(nx-1)) = depths.d_tot(1:(ny-1),2:nx); % OK
+            depths.d_SE_t(1:(ny-1),1:(nx-1)) = depths.d_tot(2:ny,2:nx); % OK
+            depths.d_SW_t(1:(ny-1),2:(nx)) = depths.d_tot(2:(ny),1:(nx-1)); % OK
+            depths.d_NW_t(2:ny,2:nx) = depths.d_tot(1:(ny-1),1:(nx-1)); % OK
+        else
+            % Simulate with D-4 flow direction
+            % Everything already calculated
+        end
+    end
     % 
     %% Flood Routing (Cellular Automata or Fully Hydrodynamic Model)
     if flags.flag_D8 == 1 % D-8

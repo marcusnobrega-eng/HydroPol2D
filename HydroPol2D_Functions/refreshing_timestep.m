@@ -77,6 +77,9 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
         end
         velocities.total_velocity = sqrt((velocities.right_component).^2 + (velocities.up_component).^2);
         velocities.max_velocity = max(max(velocities.total_velocity));
+        
+        % Plotting Velocity Field
+        % quiver(X,Y,velocities.right_component,velocities.up_component,'r')
 
         % Old max velocity
         if k > 1

@@ -214,7 +214,7 @@ if k > 1
     axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
     if flags.flag_rainfall == 1
         if flags.flag_alternated_blocks == 1 || flags.flag_huff == 1
-            z = gather(BC_States.delta_p_agg)*ones(size(idx_nan)); z(idx_nan) = nan;
+            z = gather(BC_States.delta_p_agg)*ones(size(idx_nan))/(time_step/60); z(idx_nan) = nan;
         else
             z = gather(BC_States.delta_p_agg/(time_step/60)); z(idx_nan) = nan;
         end
