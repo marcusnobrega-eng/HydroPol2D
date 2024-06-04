@@ -25,7 +25,7 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
 
         else % Inertial
             flow_depth = Hf*1000; % Depth in which velocities will be calculated (mm) 
-            flow_depth(depths.d_t < CA_States.depth_tolerance) = 1e12; % Smaller depths won't alter velocities
+            flow_depth(flow_depth < CA_States.depth_tolerance) = 1e12; % Smaller depths won't alter velocities
             velocities.vel_left = (flow_rate.qout_left_t/1000/3600)*Wshed_Properties.Resolution^2./(Wshed_Properties.Resolution*flow_depth(:,:,1)/1000); % m/s
             velocities.vel_right = (flow_rate.qout_right_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth(:,:,2)/1000); % m/s
             velocities.vel_up = (flow_rate.qout_up_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth(:,:,3)/1000); % m/s
@@ -65,12 +65,23 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
             velocities.velocity_vector = [velocities.max_velocity_left, velocities.max_velocity_right, velocities.max_velocity_up, velocities.max_velocity_down];
         end
 
+        velocities.right_component = velocities.vel_right - velocities.vel_left;
+        velocities.up_component = velocities.vel_up - velocities.vel_down;
+        if flags.flag_D8 == 1
+            velocities.right_component = velocities.right_component + ...
+                                         sqrt(2)*(velocities.vel_ne - velocities.vel_sw) + ...
+                                         sqrt(2)*(velocities.vel_se - velocities.vel_new);
+            velocities.up_component = velocities.up_component + ...
+                                         sqrt(2)*(velocities.vel_ne - velocities.vel_sw) + ...
+                                         -sqrt(2)*(velocities.vel_se - velocities.vel_new);            
+        end
+        velocities.total_velocity = sqrt((velocities.right_component).^2 + (velocities.up_component).^2);
+        velocities.max_velocity = max(max(velocities.total_velocity));
+
         % Old max velocity
         if k > 1
             old_velocity = velocities.max_velocity;
         end
-
-        velocities.max_velocity = max(velocities.velocity_vector);
 
         % Checking changes in max velocity
         % if k > 1
@@ -107,7 +118,7 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
 
             % Bates time-step
             wave_celerity = sqrt(9.81*max(depths.d_tot,depths.d_t)/1000); % Using d_t, which is the depth at the end of the time-step
-            new_timestep = min(min(0.4*Wshed_Properties.Resolution./(velocities.velocity_raster + wave_celerity))); % alpha of 0.4
+            new_timestep = min(min(0.25*Wshed_Properties.Resolution./(velocities.total_velocity + wave_celerity))); % alpha of 0.4
             new_timestep = min(new_timestep,running_control.max_time_step);
         elseif velocities.max_velocity < 0
             error('Model instability. Velocities are becoming negative.')
