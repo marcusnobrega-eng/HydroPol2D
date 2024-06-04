@@ -32,7 +32,7 @@ else
 end
 % ---------------% Adding minimum slope to do calculations % ---------------%
 % h_min = d_t_min;% m
-h_min = 0;
+h_min = 1e-6;
 
 % --------------- Notation  % ---------------%
 %   <-I-> (left right up down) = [left ; right ; up; down]

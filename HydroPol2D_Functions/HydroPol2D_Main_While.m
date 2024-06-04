@@ -23,7 +23,8 @@ saver_count = 1; % starts in 1 but the next pointer should be 2, this is auto fi
 store = 1; % (meaning, luis?)
 flags.flag_inertial = 1; % Using Inertial Model
 t_previous = 0;
-
+factor_time = 0;
+max_dt = running_control.max_time_step;
 
 % ---- Plotting Results in Real-Time ---- %
 n_snaps = 10; % Number of plots. Time will be divided equally
@@ -69,7 +70,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                          BC_States.inflow - Hydro_States.f*time_step/60 + ...
                          idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux; % Effective precipitation within 1 computation time-step [mm]
             depths.d_t = depths.d_0 + depths.pef; % Adding pef from the previous depth.
-            if min(min(depths.d_t)) < -1e-8
+            if min(min(depths.pef)) < -1e-8
                 error('Negative depths. Please reduce the time-step.')
             else
                 depths.d_t(depths.d_t < 1e-6) = 0;
@@ -194,12 +195,15 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     % Mass Balance Equation (outflow already taken)
     depths.d_t = depths.d_t + flow_rate.qin_t*time_step/60;
 
-
-    if min(min(depths.d_t)) < -1e-3
+    
+    if min(min(depths.d_t)) < -5
+        factor_time = 1;
         catch_index = catch_index + 1;
         error('Negative depths. Please reduce the time-step.')
     else
-        catch_index = 1;
+        catch_index = 0;
+        factor_time = factor_time + 1;
+        running_control.max_time_step = min(running_control.max_time_step*(1+0.1*factor_time),max_dt);        
     end
 
     depths.d_t = max(depths.d_t,0); % Small values are truncated
@@ -326,7 +330,9 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         wave_celerity = sqrt(9.81*(max(max(max(depths.d_tot/1000)),max(max(depths.d_t/1000))))); % Using d_t, which is the depth at the end of the time-step
         max_vel = max(max(velocities.velocity_raster));
         factor = 1/catch_index;
-        new_timestep = factor*(min(0.4*Wshed_Properties.Resolution./(max_vel+wave_celerity))); % alpha of 0.4
+        new_timestep = factor*(min(0.25*Wshed_Properties.Resolution./(max_vel+wave_celerity))); % alpha of 0.4
+        dt_water_balance = min(min(depths.d_p/1000*Wshed_Properties.cell_area./(CA_States.I_tot_end_cell/(time_step*60)))); % sec
+        new_timestep = min(new_timestep,dt_water_balance);
         if catch_index == 1
             running_control.max_time_step = new_timestep*1.5; % Assuming a smaller max time-step to avoid large integrations
         end
