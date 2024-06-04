@@ -4,9 +4,10 @@
 % Goal - Run the main modeling process of the model
 
 % Loading Input File in case you want to avoid doing all preprocessing
-clear all
-load workspace_14_de_julho.mat
-% load workspace_RGS.mat
+% clear all
+% load workspace_14_de_julho.mat
+% clear all
+% load workspace_franquinho.mat
 
 
 format short g
@@ -192,13 +193,21 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     % Mass Balance Equation (outflow already taken)
     depths.d_t = depths.d_t + flow_rate.qin_t*time_step/60;
 
-    
+    % Water Balance Error
+    water_balance_error_volume = abs(sum(sum(depths.d_t(depths.d_t<0))))*Wshed_Properties.Resolution^2*0.001; % m3
+    water_balance_error_mm = water_balance_error_volume/Wshed_Properties.drainage_area*1000; % mm
+    if water_balance_error_mm > 1 % We need to define better this parameter
+        error('Mass balance error too high.')
+    end
+
+    depths.d_t = max(depths.d_t,0);  % Taking away negative masses
+
     if min(min(depths.d_t)) < -5
         factor_time = 1;
         catch_index = catch_index + 1;
         error('Negative depths. Please reduce the time-step.')
     else
-        catch_index = 0;
+        catch_index = 1;
         factor_time = factor_time + 1;
         running_control.max_time_step = min(running_control.max_time_step*(1+0.1*factor_time),max_dt);        
     end
@@ -324,11 +333,12 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     catch ME % Reduce the time-step
         t = t - time_step;         
         % time_step = time_step/2; % min
-        wave_celerity = sqrt(9.81*(max(max(max(depths.d_tot/1000)),max(max(depths.d_t/1000))))); % Using d_t, which is the depth at the end of the time-step
+        wave_celerity = sqrt(9.81*(max(max(max(depths.d_tot/1000)),max(max(depths.d_p/1000))))); % Using d_t, which is the depth at the end of the time-step
         max_vel = max(max(velocities.velocity_raster));
         factor = 1/catch_index;
-        new_timestep = factor*(min(0.25*Wshed_Properties.Resolution./(max_vel+wave_celerity))); % alpha of 0.4
-        dt_water_balance = min(min(depths.d_p/1000*Wshed_Properties.cell_area./(CA_States.I_tot_end_cell/(time_step*60)))); % sec
+        new_timestep = factor*(min(0.7*Wshed_Properties.Resolution./(max_vel+wave_celerity))); % alpha of 0.4
+        % dt_water_balance = min(min(depths.d_p/1000*Wshed_Properties.cell_area./(CA_States.I_tot_end_cell/(time_step*60)))); % sec
+        dt_water_balance = new_timestep;        
         new_timestep = min(new_timestep,dt_water_balance);
         if catch_index == 1
             running_control.max_time_step = new_timestep*1.5; % Assuming a smaller max time-step to avoid large integrations
