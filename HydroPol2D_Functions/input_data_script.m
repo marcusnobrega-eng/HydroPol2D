@@ -3,18 +3,17 @@ input_table = readtable(model_folder);
 
 % Running Control
 input_table_running_control = table2array(input_table(:,2));
-time_save_ETP = input_table_running_control(1); % min
-time_step_model = input_table_running_control(2)/60; % Dividing to convert to min
-running_control.min_time_step = input_table_running_control(3);
-running_control.max_time_step = input_table_running_control(4);
-running_control.time_step_increments = input_table_running_control(5);
-running_control.time_step_change = input_table_running_control(6);
-Courant_Parameters.alfa_max = input_table_running_control(7);
-Courant_Parameters.alfa_min = input_table_running_control(8);
-Courant_Parameters.v_threshold = input_table_running_control(9);
-Courant_Parameters.slope_alfa = input_table_running_control(10);
-date_begin = input_table_running_control(11);
-date_end = input_table_running_control(12);
+time_step_model = input_table_running_control(1)/60; % Dividing to convert to min
+running_control.min_time_step = input_table_running_control(2);
+running_control.max_time_step = input_table_running_control(3);
+running_control.time_step_increments = input_table_running_control(4);
+running_control.time_step_change = input_table_running_control(5);
+Courant_Parameters.alfa_max = input_table_running_control(6);
+Courant_Parameters.alfa_min = input_table_running_control(7);
+Courant_Parameters.v_threshold = input_table_running_control(8);
+Courant_Parameters.slope_alfa = input_table_running_control(9);
+date_begin = input_table_running_control(10);
+date_end = input_table_running_control(11);
 % --- Routing Time --- %
 running_control.routing_time = round((date_end - date_begin)*1440,4); % Minutes
 date_begin = datetime(datestr(date_begin+datenum('30-Dec-1899')));
@@ -61,6 +60,7 @@ flags.flag_groundwater_modeling  = input_table_flags(33);
 flags.flag_river_heigth_compensate = input_table_flags(34);
 flags.flag_rainfall_multiple_runs = input_table_flags(35);
 flags.flag_data_source = input_table_flags(36);
+flags.flag_inertial = input_table_flags(37);
 % Matricial Variables
 % input_table_matricial = table2array(input_table(:,9));
 % running_control.time_step_matrices = input_table_matricial(1);
@@ -70,16 +70,16 @@ if flags.flag_input_rainfall_map + flags.flag_satellite_rainfall + flags.flag_re
     error('Please choose only one type of spatial rainfall data.')
 end
 
+if flags.flag_inertial == 1 && flags.flag_diffusive == 1
+    error('Please, add either diffusive or inertial flag.')
+end
+
 % Watershed Inputs and Cuts
 input_table_watershed_inputs = table2array(input_table(:,12));
 outlet_type = input_table_watershed_inputs(1);
 slope_outlet = input_table_watershed_inputs(2);
-x_outlet_begin = input_table_watershed_inputs(3);
-x_outlet_end = input_table_watershed_inputs(4);
-y_outlet_begin = input_table_watershed_inputs(5);
-y_outlet_end = input_table_watershed_inputs(6);
-n_outlets_data = input_table_watershed_inputs(7);
-Lateral_Groundwater_Flux = input_table_watershed_inputs(8); % m3/s/m
+n_outlets_data = input_table_watershed_inputs(3);
+Lateral_Groundwater_Flux = input_table_watershed_inputs(4); % m3/s/m
 
 % Maps and Plots Control
 input_table_map_plots = table2array(input_table(:,15));
@@ -90,20 +90,20 @@ depth_wse = input_table_map_plots(4);
 flags.flag_wse = input_table_map_plots(5);
 flags.flag_elapsed_time = input_table_map_plots(6);
 running_control.record_time_spatial_rainfall = input_table_map_plots(7);
+time_save_ETP = input_table_map_plots(8);
 
-% CA Parameters
-input_table_CA_parameter = table2array(input_table(:,18));
-CA_States.slope_min = input_table_CA_parameter(1);
-CA_States.flow_tolerance = input_table_CA_parameter(2);
-CA_States.depth_tolerance = input_table_CA_parameter(3);
+% Routing Parameters
+routing_parameters = table2array(input_table(:,18));
+CA_States.depth_tolerance = routing_parameters(1);
 
 
-% Abstraction
-input_table_abstraction = table2array(input_table(:,21));
-xmin = input_table_abstraction(1);
-ymin = input_table_abstraction(2);
-xmax = input_table_abstraction(3);
-ymax = input_table_abstraction(4);
+% River Heigth and Width
+input_table_river = table2array(input_table(:,21));
+GIS_data.alfa_1 = input_table_river(1);
+GIS_data.alfa_2 = input_table_river(2);
+GIS_data.beta_1 = input_table_river(3);
+GIS_data.beta_2 = input_table_river(4);
+
 % GIS_data.xulcorner = input_table_abstraction(5);
 % GIS_data.yulcorner = input_table_abstraction(6);
 
@@ -121,10 +121,7 @@ GIS_data.tau = input_table_DEM(2);
 GIS_data.K_value = input_table_DEM(3);
 GIS_data.sl = input_table_DEM(4);
 GIS_data.resolution_resample = input_table_DEM(5);
-GIS_data.alfa_1 = input_table_DEM(6);
-GIS_data.alfa_2 = input_table_DEM(7);
-GIS_data.beta_1 = input_table_DEM(8);
-GIS_data.beta_2 = input_table_DEM(9);
+
 
 % TopoToolbox Folder
 topo_path = table2cell(input_table(1,31));
