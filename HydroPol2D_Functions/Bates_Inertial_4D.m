@@ -32,7 +32,7 @@ else
 end
 % ---------------% Adding minimum slope to do calculations % ---------------%
 % h_min = d_t_min;% m
-h_min = 1e-6;
+h_min = d_t_min;
 
 % --------------- Notation  % ---------------%
 %   <-I-> (left right up down) = [left ; right ; up; down]
@@ -40,8 +40,7 @@ h_min = 1e-6;
 depth_cell = max(d_p./1000,0); % meters (fixing zero values)
 
 % Assuming a linearization for small depths
-mask = depth_cell <= h_min;
-depth_cell(mask) = 0;
+depth_cell(depth_cell <= h_min) = 0;
 
 % Chaning depth_cell of B.C cells to NaN
 for i = 1:length(reservoir_y)
@@ -61,15 +60,23 @@ matrix_store(:,:,4) = [y(1:(ny-1),:) - y(2:(ny),:); y(end,:)]; % down
 
 
 %% ---------------- Hf (Effective Depth for Calculations) ----------- %
-% max(wse,wsei) - max(z,zi)
+% max(wse,wsei) - max(z,zi) - Old Way
 Hf = 0*matrix_store;
-Hf(:,:,1) = [y(:,1) - z(:,1), max(y(:,2:(nx)), y(:,1:(nx-1))) - max(z(:,2:(nx)), z(:,1:(nx-1)))]; % left
-Hf(:,:,2) = [max(y(:,1:(nx-1)), y(:,2:(nx))) - max(z(:,1:(nx-1)), z(:,2:(nx))), y(:,end) - z(:,end)]; % right
-Hf(:,:,3) = [y(1,:) - z(1,:); max(y(2:(ny),:), y(1:(ny-1),:)) - max(z(2:(ny),:), z(1:(ny-1),:))]; % up
-Hf(:,:,4) = [max(y(1:(ny-1),:), y(2:(ny),:)) - max(z(1:(ny-1),:), z(2:(ny),:)); y(end,:) - z(end,:)]; % down
+% Hf(:,:,1) = [y(:,1) - z(:,1), max(y(:,2:(nx)), y(:,1:(nx-1))) - max(z(:,2:(nx)), z(:,1:(nx-1)))]; % left
+% Hf(:,:,2) = [max(y(:,1:(nx-1)), y(:,2:(nx))) - max(z(:,1:(nx-1)), z(:,2:(nx))), y(:,end) - z(:,end)]; % right
+% Hf(:,:,3) = [y(1,:) - z(1,:); max(y(2:(ny),:), y(1:(ny-1),:)) - max(z(2:(ny),:), z(1:(ny-1),:))]; % up
+% Hf(:,:,4) = [max(y(1:(ny-1),:), y(2:(ny),:)) - max(z(1:(ny-1),:), z(2:(ny),:)); y(end,:) - z(end,:)]; % down
+% Hf(:,:,5) = y - z;
+
+% wse(i) - wse(i+1) - max(z,zi)
+Hf(:,:,1) = [y(:,1) - z(:,1), y(:,2:(nx)) - max(z(:,2:(nx)), z(:,1:(nx-1)))]; % left
+Hf(:,:,2) = [y(:,1:(nx-1)) - max(z(:,1:(nx-1)), z(:,2:(nx))), y(:,end) - z(:,end)]; % right
+Hf(:,:,3) = [y(1,:) - z(1,:);y(2:(ny),:) - max(z(2:(ny),:), z(1:(ny-1),:))]; % up
+Hf(:,:,4) = [y(1:(ny-1),:) - max(z(1:(ny-1),:), z(2:(ny),:)); y(end,:) - z(end,:)]; % down
 Hf(:,:,5) = y - z;
 
-Hf(Hf <= d_t_min) = 0; % No outflow from cells with very low depth
+mask = logical((Hf <= d_t_min) + (repmat(depth_cell,1,1,5) <= h_min));
+Hf(mask) = 0; % No outflow from cells with very low depth
 
 % --------------- Outlet Calculations  % ---------------%
 if outlet_type == 1

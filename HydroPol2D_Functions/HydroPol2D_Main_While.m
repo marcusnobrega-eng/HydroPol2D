@@ -47,11 +47,6 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     % Infiltration and Effective Precipitation Calculation
     % Show stats
     
-    if flags.flag_waterquality == 1
-        perc______duremain______tsec_______dtmm______infmmhr____CmgL_____dtmWQ = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(C)), max(max((WQ_States.P_conc))), tmin_wq]
-    else
-        perc______duremain______tsec_______dtmm______infmmhr____Vmax = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(C)), max(max(velocities.velocity_raster))]
-    end
     if tmin_wq < 0 || isnan(tmin_wq) || isinf(tmin_wq)
         error('Instability. in the Water Quality Model.')
     end
@@ -163,10 +158,6 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         end
     end
 
-    if flags.flag_inertial == 1
-        % saving previous outflows
-        outflow_prev = outflow_bates; % Corrected previous outflow
-    end
 
     %% Outflows become Inflows
     flow_rate.qin_left_t = [zeros(ny,1),flow_rate.qout_right_t(:,1:(nx-1))];
@@ -205,7 +196,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     water_balance_error_volume = abs(sum(sum(depths.d_t(depths.d_t<0))))*Wshed_Properties.Resolution^2*0.001; % m3
     water_balance_error_mm = water_balance_error_volume/Wshed_Properties.drainage_area*1000; % mm
 
-    if water_balance_error_volume > 30 % We need to define better this parameter
+    if water_balance_error_volume > 1 % We need to define better this parameter
         factor_time = 1;
         catch_index = catch_index + 1;
         error('Mass balance error too high.')
@@ -295,6 +286,10 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     % Previous Depths and Moisture
     depths.d_p = depths.d_t;
     Soil_Properties.I_p = Soil_Properties.I_t;
+    if flags.flag_inertial == 1
+        % saving previous outflows
+        outflow_prev = outflow_bates; % Corrected previous outflow
+    end    
 
     % Runoff Coefficient Calculation
     BC_States.outflow_volume  = nansum(nansum(outlet_states.outlet_flow))/1000*Wshed_Properties.cell_area/3600*time_step*60 + BC_States.outflow_volume ;
@@ -334,7 +329,12 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         end
     end
     
-
+    % Show Stats
+    if flags.flag_waterquality == 1
+        perc______duremain______tsec_______dtmm______infmmhr____CmgL_____dtmWQ = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(C)), max(max((WQ_States.P_conc))), tmin_wq]
+    else
+        perc______duremain______tsec_______dtmm______infmmhr____Vmax = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(C)), max(max(velocities.velocity_raster))]
+    end
 
     catch ME % Reduce the time-step
         t = t - time_step;         
@@ -342,7 +342,9 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         wave_celerity = sqrt(9.81*(max(max(max(depths.d_tot/1000)),max(max(depths.d_p/1000))))); % Using d_p, which is the depth at the end of the time-step
         max_vel = max(max(velocities.velocity_raster));
         factor = 1/catch_index;
-        new_timestep = factor*(min(0.7*Wshed_Properties.Resolution./(max_vel+wave_celerity))); % alpha of 0.4
+        % new_timestep = factor*(min(0.25*Wshed_Properties.Resolution./(max_vel+wave_celerity))); % alpha of 0.4
+        new_timestep = factor*(min(0.7*Wshed_Properties.Resolution./(wave_celerity))); % alpha of 0.4
+        
         % dt_water_balance = min(min(depths.d_p/1000*Wshed_Properties.cell_area./(CA_States.I_tot_end_cell/(time_step*60)))); % sec
         dt_water_balance = new_timestep;        
         new_timestep = min(new_timestep,dt_water_balance);
