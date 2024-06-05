@@ -26,6 +26,9 @@ flags.flag_inertial = 1; % Using Inertial Model
 t_previous = 0;
 factor_time = 0;
 max_dt = running_control.max_time_step;
+if flags.flag_inertial == 1
+    outflow_prev = outflow_bates;
+end
 
 % ---- Plotting Results in Real-Time ---- %
 n_snaps = 10; % Number of plots. Time will be divided equally
@@ -146,7 +149,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         else
             [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,flow_rate.qout_ne_t,flow_rate.qout_se_t,flow_rate.qout_sw_t,flow_rate.qout_nw_t,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf] = ...
                 Bates_Inertial_8D(Reservoir_Data.Dir,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.Kv,Reservoir_Data.pv,flags.flag_reservoir,Elevation_Properties.elevation_cell,...
-                depths.d_tot,depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,Reservoir_Data.Ko,Reservoir_Data.po,CA_States.depth_tolerance,outflow_bates,idx_nan);
+                depths.d_tot,depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,Reservoir_Data.Ko,Reservoir_Data.po,CA_States.depth_tolerance,outflow_prev,idx_nan);
         end
     else % 4-D
         % CA
@@ -156,8 +159,13 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             % -------------------- Local Inertial Formulation ----------------%
             [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf] = ...
                 Bates_Inertial_4D(Reservoir_Data.Dir,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.Kv,Reservoir_Data.pv,flags.flag_reservoir,Elevation_Properties.elevation_cell,...
-                depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,Reservoir_Data.Ko,Reservoir_Data.po,CA_States.depth_tolerance,outflow_bates,idx_nan);
+                depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,Reservoir_Data.Ko,Reservoir_Data.po,CA_States.depth_tolerance,outflow_prev,idx_nan);
         end
+    end
+
+    if flags.flag_inertial == 1
+        % saving previous outflows
+        outflow_prev = outflow_bates; % Corrected previous outflow
     end
 
     %% Outflows become Inflows
@@ -196,23 +204,19 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     % Water Balance Error
     water_balance_error_volume = abs(sum(sum(depths.d_t(depths.d_t<0))))*Wshed_Properties.Resolution^2*0.001; % m3
     water_balance_error_mm = water_balance_error_volume/Wshed_Properties.drainage_area*1000; % mm
-    if water_balance_error_mm > 1 % We need to define better this parameter
-        error('Mass balance error too high.')
-    end
 
-    depths.d_t = max(depths.d_t,0);  % Taking away negative masses
-
-    if min(min(depths.d_t)) < -5
+    if water_balance_error_volume > 30 % We need to define better this parameter
         factor_time = 1;
         catch_index = catch_index + 1;
-        error('Negative depths. Please reduce the time-step.')
+        error('Mass balance error too high.')
     else
         catch_index = 1;
         factor_time = factor_time + 1;
         running_control.max_time_step = min(running_control.max_time_step*(1+0.1*factor_time),max_dt);        
     end
 
-    depths.d_t = max(depths.d_t,0); % Small values are truncated
+    depths.d_t = max(depths.d_t,0);  % Taking away negative masses
+    
 
     % ------ Water Quality Modeling ----- %
     % Water Quality Parameters for f(B(t))
@@ -329,11 +333,13 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             flag_break_2 = 0;    
         end
     end
+    
+
 
     catch ME % Reduce the time-step
         t = t - time_step;         
         % time_step = time_step/2; % min
-        wave_celerity = sqrt(9.81*(max(max(max(depths.d_tot/1000)),max(max(depths.d_p/1000))))); % Using d_t, which is the depth at the end of the time-step
+        wave_celerity = sqrt(9.81*(max(max(max(depths.d_tot/1000)),max(max(depths.d_p/1000))))); % Using d_p, which is the depth at the end of the time-step
         max_vel = max(max(velocities.velocity_raster));
         factor = 1/catch_index;
         new_timestep = factor*(min(0.7*Wshed_Properties.Resolution./(max_vel+wave_celerity))); % alpha of 0.4
@@ -349,6 +355,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         depths.d_t = depths.d_p;
         Soil_Properties.I_t = Soil_Properties.I_p;
         update_spatial_BC
+        outflow_bates = outflow_prev; % Not actually necessary anymore
     end    
 end
 
