@@ -260,22 +260,32 @@ zzz = size(dem); % Dimensions of DEM matrix
 % ---- DEM Dimensions --- %
 [ny,nx] = size(dem);
 
+    gauges.easting_obs_gauges = round((-GIS_data.xulcorner + gauges.easting_obs_gauges_absolute)/Wshed_Properties.Resolution);
+    gauges.northing_obs_gauges = round((GIS_data.yulcorner - gauges.northing_obs_gauges_absolute)/Wshed_Properties.Resolution);
+    
+
 % --- Converting coordinates to local coordinates in pixels
 if flags.flag_reservoir == 1
-    Reservoir_Data.x_index = round((-GIS_data.xulcorner + Reservoir_Data.x)/Wshed_Properties.Resolution);
-    Reservoir_Data.y_index = round((GIS_data.yulcorner - Reservoir_Data.y)/Wshed_Properties.Resolution);
-    for i = 1:length(Reservoir_Data.x_index)
-        Reservoir_Data.pv(i,1) = DEM(Reservoir_Data.y_index(i),Reservoir_Data.x_index(i)) - Reservoir_Data.Hv(i); % Spillway elevation (m)
-        Reservoir_Data.po(i,1) = DEM(Reservoir_Data.y_index(i),Reservoir_Data.x_index(i)) - Reservoir_Data.Ho(i); % Orifice center elevation (m)
-    end
+    Reservoir_Data.x_index = round((-GIS_data.xulcorner + Reservoir_Data.x_us)/Wshed_Properties.Resolution);
+    Reservoir_Data.y_index = round((GIS_data.yulcorner - Reservoir_Data.y_us)/Wshed_Properties.Resolution);
+    Reservoir_Data.x_ds1_index = round((-GIS_data.xulcorner + Reservoir_Data.x_ds1)/Wshed_Properties.Resolution);
+    Reservoir_Data.x_ds2_index = round((-GIS_data.xulcorner + Reservoir_Data.x_ds2)/Wshed_Properties.Resolution);
+    Reservoir_Data.y_ds1_index = round((GIS_data.yulcorner - Reservoir_Data.y_ds1)/Wshed_Properties.Resolution);
+    Reservoir_Data.y_ds2_index = round((GIS_data.yulcorner - Reservoir_Data.y_ds2)/Wshed_Properties.Resolution);
 else
+    Reservoir_Data.index = [];
     Reservoir_Data.x_index = [];
     Reservoir_Data.y_index = [];
-    Reservoir_Data.pv = []; % Spillway elevation (m)
-    Reservoir_Data.Kv = [];
-    Reservoir_Data.Dir = [];
-    Reservoir_Data.po = [];% Orifice elevation (m)
-	Reservoir_Data.Ko = [];
+    Reservoir_Data.k1 = [];
+	Reservoir_Data.h1 = [];
+	Reservoir_Data.k2 = [];
+	Reservoir_Data.x_ds1_index = [];
+    Reservoir_Data.y_ds1_index = [];
+    Reservoir_Data.k3 = [];
+    Reservoir_Data.h2 = [];
+    Reservoir_Data.k4 = [];
+    Reservoir_Data.x_ds2_index = [];
+    Reservoir_Data.y_ds2_index = [];
 end
 
 %% ------------ Inflow Cells  ------------ %
