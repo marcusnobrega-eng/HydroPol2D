@@ -22,7 +22,7 @@ velocities.velocity_raster = 0; % initial velocity
 Risk_Area = 0; % initial risk area
 saver_count = 1; % starts in 1 but the next pointer should be 2, this is auto fixed when t reach the next time aggregation.
 store = 1; % (meaning, luis?)
-flags.flag_inertial = 1; % Using Inertial Model
+%flags.flag_inertial = 1; % Using Inertial Model
 t_previous = 0;
 factor_time = 0;
 max_dt = running_control.max_time_step;
@@ -139,22 +139,32 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     if flags.flag_D8 == 1 % D-8
         if flags.flag_inertial ~= 1
             [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,flow_rate.qout_ne_t,flow_rate.qout_se_t,flow_rate.qout_sw_t,flow_rate.qout_nw_t,depths.d_t,CA_States.I_tot_end_cell] = ...
-                CA_Routing_8D(Reservoir_Data.Dir,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.Kv,Reservoir_Data.pv,flags.flag_reservoir,Elevation_Properties.elevation_cell,depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical,Reservoir_Data.Ko,Reservoir_Data.po,CA_States.depth_tolerance);
+                CA_Routing_8D(Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
+                flags.flag_reservoir,Elevation_Properties.elevation_cell,...
+                depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical,CA_States.depth_tolerance);
             % -------------------- Local Inertial Formulation ----------------%
         else
+            continue
+            %{
             [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,flow_rate.qout_ne_t,flow_rate.qout_se_t,flow_rate.qout_sw_t,flow_rate.qout_nw_t,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf] = ...
-                Bates_Inertial_8D(Reservoir_Data.Dir,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.Kv,Reservoir_Data.pv,flags.flag_reservoir,Elevation_Properties.elevation_cell,...
-                depths.d_tot,depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,Reservoir_Data.Ko,Reservoir_Data.po,CA_States.depth_tolerance,outflow_prev,idx_nan);
+                Bates_Inertial_8D(Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
+                flags.flag_reservoir,Elevation_Properties.elevation_cell,...
+                depths.d_tot,depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan);
+            %}
         end
     else % 4-D
         % CA
         if flags.flag_inertial ~= 1
-            [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,velocity_term] = CA_Routing(Reservoir_Data.Dir,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.Kv,Reservoir_Data.p,flags.flag_reservoir,Elevation_Properties.elevation_cell,depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical,velocity_term,Reservoir_Data.Ko,Reservoir_Data.po);
+            [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell] = ...
+                CA_Routing(Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
+                flags.flag_reservoir,Elevation_Properties.elevation_cell,...
+                depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical);
         else
             % -------------------- Local Inertial Formulation ----------------%
             [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf] = ...
-                Bates_Inertial_4D(Reservoir_Data.Dir,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.Kv,Reservoir_Data.pv,flags.flag_reservoir,Elevation_Properties.elevation_cell,...
-                depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,Reservoir_Data.Ko,Reservoir_Data.po,CA_States.depth_tolerance,outflow_prev,idx_nan);
+                Bates_Inertial_4D(Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
+                flags.flag_reservoir,Elevation_Properties.elevation_cell,...
+                depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan);
         end
     end
 
