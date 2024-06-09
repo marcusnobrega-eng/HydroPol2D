@@ -417,21 +417,21 @@ clear input_data input_table
 
 % Reservoir Data
 if flags.flag_reservoir == 1
-    input_table = readtable('Reservoir_Data_ori.xlsx');
+    input_table = readtable('BC_Control_structure.xlsx');
     Reservoir_Data.index = table2array(input_table(:,1));
-    Reservoir_Data.x = table2array(input_table(:,2));
-    Reservoir_Data.y = table2array(input_table(:,3));
-    Reservoir_Data.Lef = table2array(input_table(:,4));
-	Reservoir_Data.Hv = table2array(input_table(:,5));
-	Reservoir_Data.Cd = table2array(input_table(:,6));
-	Reservoir_Data.Aculv = table2array(input_table(:,7));
-    Reservoir_Data.Ho = table2array(input_table(:,8));
-    Reservoir_Data.Co = table2array(input_table(:,9));
-    Reservoir_Data.Dir = table2array(input_table(:,10));
-    Reservoir_Data.Qreg = table2array(input_table(:,11));
-    % Calculating Kv = Cd * Lef and orifice parameters
-    Reservoir_Data.Kv = Reservoir_Data.Cd.*Reservoir_Data.Lef;
-	Reservoir_Data.Ko = Reservoir_Data.Co.*sqrt(2*9.81*Reservoir_Data.Aculv);
+    Reservoir_Data.x_us = table2array(input_table(:,2));
+    Reservoir_Data.y_us = table2array(input_table(:,3));
+    Reservoir_Data.k1 = table2array(input_table(:,4));
+	Reservoir_Data.h1 = table2array(input_table(:,5));
+	Reservoir_Data.k2 = table2array(input_table(:,6));
+	Reservoir_Data.x_ds1 = table2array(input_table(:,7));
+    Reservoir_Data.y_ds1 = table2array(input_table(:,8));
+    Reservoir_Data.k3 = table2array(input_table(:,9));
+    Reservoir_Data.h2 = table2array(input_table(:,10));
+    Reservoir_Data.k4 = table2array(input_table(:,11));
+    Reservoir_Data.x_ds2 = table2array(input_table(:,12));
+    Reservoir_Data.y_ds2 = table2array(input_table(:,13));
+   
 end
 
 clear input_table

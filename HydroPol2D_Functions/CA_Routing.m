@@ -1,4 +1,4 @@
-function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,I] = CA_Routing(reservoir_dir,reservoir_x,reservoir_y,Kv,p,flag_reservoir,elevation_cell,d_tot,roughness_cell,cell_area,time_step,h_0_cell,Resolution,I_tot_end_cell,outlet_check,outlet_type,slope_outlet,row_outlet,col_outlet,idx_nan,flag_critical)
+function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell] = CA_Routing(reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,elevation_cell,d_tot,roughness_cell,cell_area,time_step,h_0_cell,Resolution,I_tot_end_cell,outlet_check,outlet_type,slope_outlet,row_outlet,col_outlet,idx_nan,flag_critical)
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %                                                                 %
 %                 Produced by Marcus Nobrega Gomes Junior         %
@@ -83,12 +83,6 @@ delta_h(:,end,2) = 0; % Right
 delta_h(1,:,3) = 0; % Up
 delta_h(end,:,4) = 0; % Down
 
-if flag_reservoir == 1
-    for ii = 1:length(reservoir_y)
-        delta_h(reservoir_y(ii),reservoir_x(ii),:) = 0; % Imposing no flow to all directions       
-    end
-end
-
 % idx = logical(delta_h < h_min | isnan(delta_h)); % A lot of attention here
 delta_h(logical(delta_h < h_min | isnan(delta_h))) = 0;
 
@@ -143,24 +137,23 @@ qout = I./(time_step*60)/(cell_area)*1000*3600; % mm/hr
 % towards the spillway
 if flag_reservoir == 1
     for ii = 1:length(reservoir_y)
-        % 1 left, 2 right , 3 up, 4 down
-        if reservoir_dir(ii) == 1
-            head = wse_cell(reservoir_y(ii),reservoir_x(ii) + 1); % Head of water in the neighbour cell
-        elseif reservoir_dir(ii) == 2
-            head = wse_cell(reservoir_y(ii),reservoir_x(ii) - 1);
-        elseif reservoir_dir(ii) == 3
-            head = wse_cell(reservoir_y(ii) + 1,reservoir_x(ii));
-        elseif reservoir_dir(ii) == 4
-            head = wse_cell(reservoir_y(ii) - 1,reservoir_x(ii) - 1);
-        end
-        qout(reservoir_y(ii),reservoir_x(ii),:) = 0;
-        qout(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)) = Kv(ii)*(max(head - p(ii),0))^(3/2)/cell_area*1000*3600; % m3/s to mm/h
-        % Boundary Condition of Maximum Flow
-        Available_Volume = 1/(time_step*60)*1000*depth_cell(reservoir_y(ii),reservoir_x(ii)); % mm/h
-        qout(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)) = min(qout(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)),Available_Volume); % mm/h
-        % Total Outflow from this cell
-        I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = (time_step*60)*1/(3600*1000)*cell_area*qout(reservoir_y(ii),reservoir_x(ii),reservoir_dir(ii)); % m3
-    end    
+		dtsup = d_tot(reservoir_y(ii),reservoir_x(ii))./1000; % % Water depth in the cell that has the boundary condition (m)
+        
+        dt_h = (time_step)/60; % timestep in hours
+        % ---- First Boundary Condition ----- %
+        available_volume = 1000*(max(dtsup - h1(ii),0))/dt_h; %  mm/h
+        dh = min(k1(ii)*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
+        I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
+        dtsup = dtsup - dh/1000;
+        % Refreshing downstream cell
+        d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;
+        % ---- Second Boundary Condition ----- %
+        available_volume = 1000*(max(dtsup - h2(ii),0))/dt_h; %  mm/h
+        dh = min(k3(ii)*(max(dtsup - h2(ii),0))^k4(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
+        I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
+        % Refreshing downstream cell
+        d_tot(yds2(ii),xds2(ii)) = d_tot(yds2(ii),xds2(ii)) + dh;
+    end
 end
     qout_left = qout(:,:,1);
     qout_right = qout(:,:,2);
