@@ -1434,9 +1434,13 @@ Plot_Initial_Maps; % Script to plot initial maps
         else
             dim3 = 5;
         end
-        wse_slope_zeros = gpuArray(zeros(dim1,dim2,dim3));
-        Distance_Matrix = gpuArray(zeros(dim1,dim2));
-        outflow_bates = gpuArray(zeros(dim1,dim2,dim3));
+        if flags.flag_inertial == 1
+            outflow_bates = gpuArray(zeros(dim1,dim2,dim3));
+        else
+            wse_slope_zeros = gpuArray(zeros(dim1,dim2,dim3));
+            Distance_Matrix = gpuArray(zeros(dim1,dim2));
+        end
+
     else
         dim1 = size(Elevation_Properties.elevation_cell,1);
         dim2 = size(Elevation_Properties.elevation_cell,2);
@@ -1445,9 +1449,12 @@ Plot_Initial_Maps; % Script to plot initial maps
         else
             dim3 = 5;
         end 
-        wse_slope_zeros = (zeros(dim1,dim2,dim3));
-        Distance_Matrix = (zeros(dim1,dim2));
-        outflow_bates = (zeros(dim1,dim2,dim3));
+        if flags.flag_inertial == 1
+            outflow_bates = (zeros(dim1,dim2,dim3));
+        else
+            wse_slope_zeros = (zeros(dim1,dim2,dim3));
+            Distance_Matrix = (zeros(dim1,dim2));
+        end
     end
 
 
@@ -1613,10 +1620,10 @@ if flags.flag_GPU == 1
     if flags.flag_human_instability > 0
         Human_Instability.slope = arcslope(DEM_raster,'degree');
         Human_Instability.slope = Human_Instability.slope.Z;
-        Human_Instability_text.list = Human_Instability.list;
         Human_Instability.list = [];
-        Human_Instability_text.names = Human_Instability.names;
+        Human_Instability_text.list = Human_Instability.list;
         Human_Instability.names = [];
+        Human_Instability_text.names = Human_Instability.names;
         Human_Instability = structfun(@gpuArray, Human_Instability, 'UniformOutput', false);
     end
     Hydro_States = structfun(@gpuArray, Hydro_States, 'UniformOutput', false);
