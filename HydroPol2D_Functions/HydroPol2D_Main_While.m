@@ -226,11 +226,18 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     end
 
     %% Refreshing Time-step
-    running_control.pos_save = find(running_control.time_change_records < t,1,'last');
-    running_control.time_save = running_control.time_change_records(running_control.pos_save); % min
+    % running_control.pos_save = find(running_control.time_change_records < t,1,'last'); 
+    % running_control.time_save = running_control.time_change_records(running_control.pos_save); % min
+    % running_control.delta_time_save = running_control.time_save - running_control.time_save_previous;
+    % running_control.time_save_previous = running_control.time_save;
+    % running_control.actual_record_timestep = find(running_control.time_change_records < t,1,'last');
+
+    % Refreshing Time-step
+    running_control.pos_save = ceil((t*60)/running_control.time_step_change);
+    running_control.time_save = (running_control.pos_save - 1)*running_control.time_step_change/60;
     running_control.delta_time_save = running_control.time_save - running_control.time_save_previous;
     running_control.time_save_previous = running_control.time_save;
-    running_control.actual_record_timestep = find(running_control.time_change_records < t,1,'last');
+    running_control.actual_record_timestep = ceil((t*60)/running_control.time_step_change);
 
     % Refreshing time-step script
     refreshing_timestep;
@@ -342,8 +349,8 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         wave_celerity = sqrt(9.81*(max(max(max(depths.d_tot/1000)),max(max(depths.d_p/1000))))); % Using d_p, which is the depth at the end of the time-step
         max_vel = max(max(velocities.velocity_raster));
         factor = 1/catch_index;
-        % new_timestep = factor*(min(0.25*Wshed_Properties.Resolution./(max_vel+wave_celerity))); % alpha of 0.4
-        new_timestep = factor*(min(0.7*Wshed_Properties.Resolution./(wave_celerity))); % alpha of 0.4
+        new_timestep = factor*(min(0.7*Wshed_Properties.Resolution./(max_vel+wave_celerity))); % alpha of 0.4
+        % new_timestep = factor*(min(0.7*Wshed_Properties.Resolution./(wave_celerity))); % alpha of 0.4
         
         % dt_water_balance = min(min(depths.d_p/1000*Wshed_Properties.cell_area./(CA_States.I_tot_end_cell/(time_step*60)))); % sec
         dt_water_balance = new_timestep;        
