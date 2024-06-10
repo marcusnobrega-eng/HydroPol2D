@@ -236,12 +236,18 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     end
 
     %% Refreshing Time-step
-    running_control.pos_save = find(running_control.time_change_records < t,1,'last');
-    running_control.time_save = running_control.time_change_records(running_control.pos_save); % min
+    % running_control.pos_save = find(running_control.time_change_records < t,1,'last');
+    % running_control.time_save = running_control.time_change_records(running_control.pos_save); % min
+    % running_control.delta_time_save = running_control.time_save - running_control.time_save_previous;
+    % running_control.time_save_previous = running_control.time_save;
+    % running_control.actual_record_timestep = find(running_control.time_change_records < t,1,'last');
+
+    running_control.pos_save = ceil((t*60)/running_control.time_step_change);
+    running_control.time_save = (running_control.pos_save - 1)*running_control.time_step_change/60;
     running_control.delta_time_save = running_control.time_save - running_control.time_save_previous;
     running_control.time_save_previous = running_control.time_save;
-    running_control.actual_record_timestep = find(running_control.time_change_records < t,1,'last');
-
+    running_control.actual_record_timestep = ceil((t*60)/running_control.time_step_change);
+    
     % Refreshing time-step script
     refreshing_timestep;
     
