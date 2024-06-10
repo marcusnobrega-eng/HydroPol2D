@@ -260,9 +260,10 @@ zzz = size(dem); % Dimensions of DEM matrix
 % ---- DEM Dimensions --- %
 [ny,nx] = size(dem);
 
+if flags.flag_obs_gauges == 1
     gauges.easting_obs_gauges = round((-GIS_data.xulcorner + gauges.easting_obs_gauges_absolute)/Wshed_Properties.Resolution);
     gauges.northing_obs_gauges = round((GIS_data.yulcorner - gauges.northing_obs_gauges_absolute)/Wshed_Properties.Resolution);
-    
+end
 
 % --- Converting coordinates to local coordinates in pixels
 if flags.flag_reservoir == 1
