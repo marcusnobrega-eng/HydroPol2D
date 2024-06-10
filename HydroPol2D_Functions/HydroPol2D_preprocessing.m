@@ -435,7 +435,7 @@ if flags.flag_real_time_satellite_rainfall == 1
     end
     running_control.time_records = (0:running_control.record_time_maps_2:running_control.routing_time); % time in minutes
     running_control.time_record_hydrograph = (0:running_control.record_time_hydrographs:running_control.routing_time); % time in minutes
-    running_control.time_change_records = (0:running_control.time_step_change/60:running_control.routing_time); % time in minutes
+    % running_control.time_change_records = (0:running_control.time_step_change/60:running_control.routing_time); % time in minutes
     % vector to store data
     running_control.time_store = running_control.time_records./time_step_model; % number of steps necessary to reach the record vector
     running_control.time_store(1) = 1; % the zero is the firt time step
@@ -450,7 +450,7 @@ else
     end
     running_control.time_records = (0:running_control.record_time_maps:running_control.routing_time); % time in minutes
     running_control.time_record_hydrograph = (0:running_control.record_time_hydrographs:running_control.routing_time); % time in minutes
-    running_control.time_change_records = (0:running_control.time_step_change/60:running_control.routing_time); % time in minutes
+    % running_control.time_change_records = (0:running_control.time_step_change/60:running_control.routing_time); % time in minutes
     % vector to store data
     running_control.time_store = running_control.time_records./time_step_model; % number of steps necessary to reach the record vector
     running_control.time_store(1) = 1; % the zero is the firt time step
