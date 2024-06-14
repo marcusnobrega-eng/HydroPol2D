@@ -17,12 +17,16 @@ HydroPol2D_preprocessing
 filename = "Pre_Processing_Data.mat";
 save(filename);
 
-% HydroPol2D_Main_While
+%% HydroPol2D_Main_While
 load('Pre_Processing_Data.mat'); k = 1;
+if flags.flag_inertial == 1
+    idx_nan_5 = [];
+end
+%
 if flags.flag_D8 == 1
-    [Qmod, Cmod,Dmod,Flooded_Area,Risk_Area] = HydroPol2D_Routing_Solver_SA_D8(wse_slope_zeros,Distance_Matrix,min_soil_moisture,BC_States, CA_States, Courant_Parameters, date_begin, DEM_raster, depths, Elevation_Properties, flags, gauges, GIS_data, Human_Instability, Hydro_States, idx_nan, idx_nan_5, idx_outlet, Inflow_Parameters, LULC_Properties, Maps, nx_max, ny_max, outlet_index, outlet_runoff_volume, outlet_type, Rainfall_Parameters, recording_parameters, running_control, slope_outlet, Soil_Properties, t_previous, time_calculation_routing, time_step, time_step_model, tmin_wq, WQ_States, Wshed_Properties,idx_rivers,Lateral_Groundwater_Flux,Reservoir_Data,Input_Rainfall);
+    [Qmod, Cmod,Dmod,Flooded_Area,Risk_Area] = HydroPol2D_Routing_Solver_SA_D8(wse_slope_zeros,Distance_Matrix,min_soil_moisture,BC_States, CA_States, Courant_Parameters, date_begin, DEM_raster, depths, Elevation_Properties, flags, gauges, GIS_data, Human_Instability, Hydro_States, idx_nan, idx_nan_5, idx_outlet, Inflow_Parameters, LULC_Properties, Maps, nx, ny, outlet_index, outlet_runoff_volume, outlet_type, Rainfall_Parameters, recording_parameters, running_control, slope_outlet, Soil_Properties, t_previous, time_calculation_routing, time_step, time_step_model, tmin_wq, WQ_States, Wshed_Properties,idx_rivers,Lateral_Groundwater_Flux,Reservoir_Data,Input_Rainfall,outflow_bates);
 else
-    [Qmod, Cmod,Dmod,Flooded_Area,Risk_Area] = HydroPol2D_Routing_Solver_SA(min_soil_moisture,BC_States, CA_States, Courant_Parameters, date_begin, DEM_raster, depths, Elevation_Properties, flags, gauges, GIS_data, Human_Instability, Hydro_States, idx_nan, idx_nan_5, idx_outlet, Inflow_Parameters, LULC_Properties, Maps, nx_max, ny_max, outlet_index, outlet_runoff_volume, outlet_type, Rainfall_Parameters, recording_parameters, running_control, slope_outlet, Soil_Properties, t_previous, time_calculation_routing, time_step, time_step_model, tmin_wq, WQ_States, Wshed_Properties,idx_rivers,Lateral_Groundwater_Flux,Reservoir_Data,Input_Rainfall);
+    [Qmod, Cmod,Dmod,Flooded_Area,Risk_Area] = HydroPol2D_Routing_Solver_SA(min_soil_moisture,BC_States, CA_States, Courant_Parameters, date_begin, DEM_raster, depths, Elevation_Properties, flags, gauges, GIS_data, Human_Instability, Hydro_States, idx_nan, idx_nan_5, idx_outlet, Inflow_Parameters, LULC_Properties, Maps, nx, ny, outlet_index, outlet_runoff_volume, outlet_type, Rainfall_Parameters, recording_parameters, running_control, slope_outlet, Soil_Properties, t_previous, time_calculation_routing, time_step, time_step_model, tmin_wq, WQ_States, Wshed_Properties,idx_rivers,Lateral_Groundwater_Flux,Reservoir_Data,Input_Rainfall,outflow_bates);
 end
 % Save Data - Baseline
 Flow = Qmod; Baseline_Outputs(1,:,1) = Flow;
@@ -113,9 +117,9 @@ for jj = 1:2 % Number of LULC-Based Parameters
                     WQ_States = [];
                 end
                 if flags.flag_D8 == 1
-                    [Qmod, Cmod,Dmod,Flooded_Area,Risk_Area] = HydroPol2D_Routing_Solver_SA_D8(wse_slope_zeros,Distance_Matrix,min_soil_moisture,BC_States, CA_States, Courant_Parameters, date_begin, DEM_raster, depths, Elevation_Properties, flags, gauges, GIS_data, Human_Instability, Hydro_States, idx_nan, idx_nan_5, idx_outlet, Inflow_Parameters, LULC_Properties, Maps, nx_max, ny_max, outlet_index, outlet_runoff_volume, outlet_type, Rainfall_Parameters, recording_parameters, running_control, slope_outlet, Soil_Properties, t_previous, time_calculation_routing, time_step, time_step_model, tmin_wq, WQ_States, Wshed_Properties,idx_rivers,Lateral_Groundwater_Flux,Reservoir_Data,Input_Rainfall);
+                    [Qmod, Cmod,Dmod,Flooded_Area,Risk_Area] = HydroPol2D_Routing_Solver_SA_D8(wse_slope_zeros,Distance_Matrix,min_soil_moisture,BC_States, CA_States, Courant_Parameters, date_begin, DEM_raster, depths, Elevation_Properties, flags, gauges, GIS_data, Human_Instability, Hydro_States, idx_nan, idx_nan_5, idx_outlet, Inflow_Parameters, LULC_Properties, Maps, nx, ny, outlet_index, outlet_runoff_volume, outlet_type, Rainfall_Parameters, recording_parameters, running_control, slope_outlet, Soil_Properties, t_previous, time_calculation_routing, time_step, time_step_model, tmin_wq, WQ_States, Wshed_Properties,idx_rivers,Lateral_Groundwater_Flux,Reservoir_Data,Input_Rainfall,outflow_bates);
                 else
-                    [Qmod, Cmod,Dmod,Flooded_Area,Risk_Area] = HydroPol2D_Routing_Solver_SA(min_soil_moisture,BC_States, CA_States, Courant_Parameters, date_begin, DEM_raster, depths, Elevation_Properties, flags, gauges, GIS_data, Human_Instability, Hydro_States, idx_nan, idx_nan_5, idx_outlet, Inflow_Parameters, LULC_Properties, Maps, nx_max, ny_max, outlet_index, outlet_runoff_volume, outlet_type, Rainfall_Parameters, recording_parameters, running_control, slope_outlet, Soil_Properties, t_previous, time_calculation_routing, time_step, time_step_model, tmin_wq, WQ_States, Wshed_Properties,idx_rivers,Lateral_Groundwater_Flux,Reservoir_Data,Input_Rainfall);
+                    [Qmod, Cmod,Dmod,Flooded_Area,Risk_Area] = HydroPol2D_Routing_Solver_SA(min_soil_moisture,BC_States, CA_States, Courant_Parameters, date_begin, DEM_raster, depths, Elevation_Properties, flags, gauges, GIS_data, Human_Instability, Hydro_States, idx_nan, idx_nan_5, idx_outlet, Inflow_Parameters, LULC_Properties, Maps, nx, ny, outlet_index, outlet_runoff_volume, outlet_type, Rainfall_Parameters, recording_parameters, running_control, slope_outlet, Soil_Properties, t_previous, time_calculation_routing, time_step, time_step_model, tmin_wq, WQ_States, Wshed_Properties,idx_rivers,Lateral_Groundwater_Flux,Reservoir_Data,Input_Rainfall,outflow_bates);
                 end
                 % Save Data
                 Flow = Qmod; data_SA_LULC(mm,:,kk,1) = Flow;
@@ -157,6 +161,106 @@ for ii = 1:size(data_SA_LULC,1) % Number of parameters
     end
 end
 
+%% saving workspace
+save('SA_LULC_Results')
+
+%% Plotting Results - LULC Based
+close all
+% Creating Modeling Results Folder
+% Create the folder name
+folderName = 'Modeling_Results';
+
+% Check if the folder already exists
+if ~exist(folderName, 'dir')
+    % If it doesn't exist, create the folder
+    mkdir(folderName);
+    disp('Folder "Modeling_Results" created successfully!');
+else
+    disp('Data sucessfully exported in Modeling_Results Folder');
+end
+index = 1;
+for i = 1:1 % Variables
+    for j = 1:n_lulc
+        if i == 1
+            x_labels{index,1} = sprintf('$n_%d$',j);
+        elseif i == 2
+            x_labels{index,1} = sprintf('$h_{0,%d}$',j);
+        elseif i == 3
+            x_labels{index,1} = sprintf('$C_{1,%d}$',j);
+        elseif i == 4
+            x_labels{index,1} = sprintf('$C_{2,%d}$',j);
+        elseif i == 5
+            x_labels{index,1} = sprintf('$C_{3,%d}$',j);
+        elseif i == 6
+            x_labels{index,1} = sprintf('$C_{4,%d}$',j);
+        end
+        index = index + 1;
+    end
+end
+var_range_plot = var_range - 1;
+figure % Plotting Intensities
+set(gcf,'units','inches','position',[3,3,6.5,4])
+colors = linspecer(n_lulc);
+index = 0;
+linetypes = {'-',':','-.','--','-',':','-.','--','-'};
+for jj = 1:4 % Number of Output Functions
+    index = index + 1;
+    subplot(4,1,index)
+    title_label = {'Peak Flow','Runoff Volume','Time to Peak','Flooded Areas','Risk Areas'};
+    for ii = 1:n_lulc % Manning and h_0 only
+        if jj == 1
+            plot(var_range_plot*100,peakflow_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
+        elseif jj == 2
+            plot(var_range_plot*100,volume_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
+        elseif jj == 3
+            plot(var_range_plot*100,time_to_peak_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
+        elseif jj == 4
+            plot(var_range_plot*100,flood_area_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
+        elseif jj == 5
+            plot(var_range_plot*100,risk_area_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
+        end
+        hold on
+    end
+    xlabel('Parameter Variation [\%]','Interpreter','latex','FontSize',12)
+    ylabel('Output Variation [\%]','Interpreter','latex','FontSize',12)
+    title(title_label(jj),'interpreter','latex','FontSize',12)
+    legend(x_labels(1:(n_lulc-1)),'Location','Best','Interpreter','latex','FontSize',12)
+    set(gca, 'TickLength', [0.015 0.01]);
+    set(gca,'Tickdir','out')
+    set(gca, 'FontName', 'Garamond', 'FontSize', 12)
+    grid on
+    box on
+
+    % index = index + 1;
+    % subplot(4,2,index)
+    % colors = linspecer(n_lulc);
+    % for ii = 1:n_lulc-1  % Manning and h_0 only
+    %     if jj == 1
+    %         plot(var_range_plot*100,peakflow_variance_LULC(n_lulc + ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
+    %     elseif jj == 2
+    %         plot(var_range_plot*100,volume_variance_LULC(n_lulc + ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
+    %     elseif jj == 3
+    %         plot(var_range_plot*100,time_to_peak_variance_LULC(n_lulc + ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
+    %     elseif jj == 4
+    %         plot(var_range_plot*100,flood_area_variance_LULC(n_lulc + ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
+    %     elseif jj == 5
+    %         plot(var_range_plot*100,risk_area_variance_LULC(n_lulc + ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
+    %     end
+    %     hold on
+    % end
+    % xlabel('Parameter Variation [\%]','Interpreter','latex','FontSize',12)
+    % ylabel('Output Variation [\%]','Interpreter','latex','FontSize',12)
+    % title(title_label(jj),'interpreter','latex','FontSize',12)
+    % legend(x_labels((n_lulc + 1):(2*n_lulc-1)),'Location','Best','Interpreter','latex','FontSize',12)
+    % set(gca, 'TickLength', [0.015 0.01]);
+    % set(gca,'Tickdir','out')
+    % set(gca, 'FontName', 'Garamond', 'FontSize', 12)
+    % grid on
+    % box on
+    % hold on
+end
+file = 'Sensitivity_Analysis_LULC.pdf';
+exportgraphics(gcf,fullfile(folderName,file),'ContentType','vector')
 
 %% SOIL Calculations
 % Preallocate Array
@@ -193,9 +297,9 @@ for jj = 1:3 % Number of SOIL-Based Parameters
 
                 % Run HydroPol2D Model and Retrieve Data
                 if flags.flag_D8 == 1
-                    [Qmod, Cmod,Dmod,Flooded_Area,Risk_Area] = HydroPol2D_Routing_Solver_SA_D8(wse_slope_zeros,Distance_Matrix,min_soil_moisture,BC_States, CA_States, Courant_Parameters, date_begin, DEM_raster, depths, Elevation_Properties, flags, gauges, GIS_data, Human_Instability, Hydro_States, idx_nan, idx_nan_5, idx_outlet, Inflow_Parameters, LULC_Properties, Maps, nx_max, ny_max, outlet_index, outlet_runoff_volume, outlet_type, Rainfall_Parameters, recording_parameters, running_control, slope_outlet, Soil_Properties, t_previous, time_calculation_routing, time_step, time_step_model, tmin_wq, WQ_States, Wshed_Properties,idx_rivers,Lateral_Groundwater_Flux,Reservoir_Data,Input_Rainfall);
+                    [Qmod, Cmod,Dmod,Flooded_Area,Risk_Area] = HydroPol2D_Routing_Solver_SA_D8(wse_slope_zeros,Distance_Matrix,min_soil_moisture,BC_States, CA_States, Courant_Parameters, date_begin, DEM_raster, depths, Elevation_Properties, flags, gauges, GIS_data, Human_Instability, Hydro_States, idx_nan, idx_nan_5, idx_outlet, Inflow_Parameters, LULC_Properties, Maps, nx, ny, outlet_index, outlet_runoff_volume, outlet_type, Rainfall_Parameters, recording_parameters, running_control, slope_outlet, Soil_Properties, t_previous, time_calculation_routing, time_step, time_step_model, tmin_wq, WQ_States, Wshed_Properties,idx_rivers,Lateral_Groundwater_Flux,Reservoir_Data,Input_Rainfall,outflow_bates);
                 else
-                    [Qmod, Cmod,Dmod,Flooded_Area,Risk_Area] = HydroPol2D_Routing_Solver_SA(min_soil_moisture,BC_States, CA_States, Courant_Parameters, date_begin, DEM_raster, depths, Elevation_Properties, flags, gauges, GIS_data, Human_Instability, Hydro_States, idx_nan, idx_nan_5, idx_outlet, Inflow_Parameters, LULC_Properties, Maps, nx_max, ny_max, outlet_index, outlet_runoff_volume, outlet_type, Rainfall_Parameters, recording_parameters, running_control, slope_outlet, Soil_Properties, t_previous, time_calculation_routing, time_step, time_step_model, tmin_wq, WQ_States, Wshed_Properties,idx_rivers,Lateral_Groundwater_Flux,Reservoir_Data,Input_Rainfall);
+                    [Qmod, Cmod,Dmod,Flooded_Area,Risk_Area] = HydroPol2D_Routing_Solver_SA(min_soil_moisture,BC_States, CA_States, Courant_Parameters, date_begin, DEM_raster, depths, Elevation_Properties, flags, gauges, GIS_data, Human_Instability, Hydro_States, idx_nan, idx_nan_5, idx_outlet, Inflow_Parameters, LULC_Properties, Maps, nx, ny, outlet_index, outlet_runoff_volume, outlet_type, Rainfall_Parameters, recording_parameters, running_control, slope_outlet, Soil_Properties, t_previous, time_calculation_routing, time_step, time_step_model, tmin_wq, WQ_States, Wshed_Properties,idx_rivers,Lateral_Groundwater_Flux,Reservoir_Data,Input_Rainfall,outflow_bates);
                 end
                 % Save Data
                 Flow = Qmod; data_SA_SOIL(mm,:,kk,1) = Flow;
@@ -240,103 +344,6 @@ for ii = 1:size(data_SA_SOIL,1) % Number of parameters
 end
 
 
-%% Plotting Results - LULC Based
-close all
-% Creating Modeling Results Folder
-% Create the folder name
-folderName = 'Modeling_Results';
-
-% Check if the folder already exists
-if ~exist(folderName, 'dir')
-    % If it doesn't exist, create the folder
-    mkdir(folderName);
-    disp('Folder "Modeling_Results" created successfully!');
-else
-    disp('Data sucessfully exported in Modeling_Results Folder');
-end
-index = 1;
-for i = 1:2 % Variables
-    for j = 1:n_lulc
-        if i == 1
-            x_labels{index,1} = sprintf('$n_%d$',j);
-        elseif i == 2
-            x_labels{index,1} = sprintf('$h_{0,%d}$',j);
-        elseif i == 3
-            x_labels{index,1} = sprintf('$C_{1,%d}$',j);
-        elseif i == 4
-            x_labels{index,1} = sprintf('$C_{2,%d}$',j);
-        elseif i == 5
-            x_labels{index,1} = sprintf('$C_{3,%d}$',j);
-        elseif i == 6
-            x_labels{index,1} = sprintf('$C_{4,%d}$',j);
-        end
-        index = index + 1;
-    end
-end
-var_range_plot = var_range - 1;
-figure % Plotting Intensities
-set(gcf,'units','inches','position',[3,3,6.5,4])
-colors = linspecer(n_lulc);
-index = 0;
-linetypes = {'-',':','-.','--','-',':','-.','--','-'};
-for jj = 1:4 % Number of Output Functions
-    index = index + 1;
-    subplot(4,2,index)
-    title_label = {'Peak Flow','Runoff Volume','Time to Peak','Flooded Areas','Risk Areas'};
-    for ii = 1:n_lulc-1 % Manning and h_0 only
-        if jj == 1
-            plot(var_range_plot*100,peakflow_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
-        elseif jj == 2
-            plot(var_range_plot*100,volume_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
-        elseif jj == 3
-            plot(var_range_plot*100,time_to_peak_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
-        elseif jj == 4
-            plot(var_range_plot*100,flood_area_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
-        elseif jj == 5
-            plot(var_range_plot*100,risk_area_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
-        end
-        hold on
-    end
-    xlabel('Parameter Variation [\%]','Interpreter','latex','FontSize',12)
-    ylabel('Output Variation [\%]','Interpreter','latex','FontSize',12)
-    title(title_label(jj),'interpreter','latex','FontSize',12)
-    legend(x_labels(1:(n_lulc-1)),'Location','Best','Interpreter','latex','FontSize',12)
-    set(gca, 'TickLength', [0.015 0.01]);
-    set(gca,'Tickdir','out')
-    set(gca, 'FontName', 'Garamond', 'FontSize', 12)
-    grid on
-    box on
-
-    index = index + 1;
-    subplot(4,2,index)
-    colors = linspecer(n_lulc);
-    for ii = 1:n_lulc-1  % Manning and h_0 only
-        if jj == 1
-            plot(var_range_plot*100,peakflow_variance_LULC(n_lulc + ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
-        elseif jj == 2
-            plot(var_range_plot*100,volume_variance_LULC(n_lulc + ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
-        elseif jj == 3
-            plot(var_range_plot*100,time_to_peak_variance_LULC(n_lulc + ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
-        elseif jj == 4
-            plot(var_range_plot*100,flood_area_variance_LULC(n_lulc + ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
-        elseif jj == 5
-            plot(var_range_plot*100,risk_area_variance_LULC(n_lulc + ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
-        end
-        hold on
-    end
-    xlabel('Parameter Variation [\%]','Interpreter','latex','FontSize',12)
-    ylabel('Output Variation [\%]','Interpreter','latex','FontSize',12)
-    title(title_label(jj),'interpreter','latex','FontSize',12)
-    legend(x_labels((n_lulc + 1):(2*n_lulc-1)),'Location','Best','Interpreter','latex','FontSize',12)
-    set(gca, 'TickLength', [0.015 0.01]);
-    set(gca,'Tickdir','out')
-    set(gca, 'FontName', 'Garamond', 'FontSize', 12)
-    grid on
-    box on
-    hold on
-end
-file = 'Sensitivity_Analysis_LULC.pdf';
-exportgraphics(gcf,fullfile(folderName,file),'ContentType','vector')
 
 %% Plotting Results - Only Manning
 close all
@@ -377,17 +384,19 @@ set(gcf,'units','inches','position',[3,3,6.5,4])
 colors = linspecer(n_lulc);
 index = 0;
 linetypes = {'-',':','-.','--','-',':','-.','--','-'};
-for jj = 1:3 % Number of Output Functions
+for jj = 1:4 % Number of Output Functions
     index = index + 1;
-    subplot(3,1,index)
-    title_label = {'Peak Flow','Runoff Volume','Time to Peak'};
+    subplot(2,2,index)
+    title_label = {'Peak Flow','Runoff Volume','Time to Peak','Flooded Areas'};
     for ii = 1:n_lulc-1 % Manning and h_0 only
         if jj == 1
-            plot(var_range_plot*100,peakflow_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
+            plot(var_range_plot*100,peakflow_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii),'marker','d','MarkerEdgeColor','auto','MarkerFaceColor','auto');
         elseif jj == 2
-            plot(var_range_plot*100,volume_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
+            plot(var_range_plot*100,volume_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii),'marker','d','MarkerEdgeColor','auto','MarkerFaceColor','auto');
         elseif jj == 3
-            plot(var_range_plot*100,time_to_peak_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii));
+            plot(var_range_plot*100,time_to_peak_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii),'marker','d','MarkerEdgeColor','auto','MarkerFaceColor','auto');
+        elseif jj == 4
+            plot(var_range_plot*100,flood_area_variance_LULC(ii,:),'color',colors(ii,:),'linewidth',2,'linestyle',linetypes(ii),'marker','d','MarkerEdgeColor','auto','MarkerFaceColor','auto');            
         end
         hold on
     end
@@ -512,23 +521,26 @@ box on
 legend('$k_{sat}$','$\Delta \theta$','$\psi$','interpreter','latex')
 
 %% Plotting Hydrographs
-color_plot = linspecer(8);
-line_width = [1.5 1.25 1 0.75 1 1.25 1.5];
-line_type = {':','-.','--','-','--','-.',':'};
-for i = 1:16
-    for j = 1:size(data_SA_LULC,3)
-        for k = 1:2 % Two Variables
-            index_plot = mod(i,8);
-            if index_plot == 0
-                index_plot = 1;
-            end
-            subplot(1,2,k)
-            dim = 1; % 1 = Flow, 2 = Depth, 3 = Conc
-            variable = data_SA_LULC(i,:,j,dim);
-            plot(running_control.time_record_hydrograph,variable,'color',color_plot(index_plot,:),'linewidth',line_width(j),'linestyle',line_type(j))
-            hold on
-        end
-    end
-end
+% color_plot = linspecer(8);
+% line_width = [1.5 1.25 1 0.75 1 1.25 1.5];
+% line_type = {':','-.','--','-','--','-.',':'};
+% for i = 7
+%     for j = 1:size(data_SA_LULC,3)
+%         for k = 1:1 % Two Variables
+%             index_plot = mod(i,8);
+%             if index_plot == 0
+%                 index_plot = 1;
+%             end
+%             subplot(1,1,1)
+%             dim = 2; % 1 = Flow, 2 = Depth, 3 = Conc
+%             variable = data_SA_LULC(i,:,j,dim)/1000;
+%             plot(running_control.time_record_hydrograph,variable,'color',color_plot(index_plot,:),'linewidth',line_width(j),'linestyle',line_type(j))
+%             hold on
+%         end
+%     end
+% end
 
 save('Sensitivity_workspace');
+
+
+subplot()
