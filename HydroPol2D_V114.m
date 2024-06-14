@@ -22,10 +22,17 @@ addpath(genpath(char(HydroPol2D_tools)));
 
 HydroPol2D_preprocessing
 % Pre_Processing_Data
+
 %% Sensitivity Analysis
 % Activate this code below to run a sensitivity analysis
+% clear all
+% Adding Paths
+% addpath 'Input_Data_Sheets'
+% addpath HydroPol2D_Functions\
+% model_folder = 'Input_Data_Sheets\General_Data_HydroPol2D.xlsx';
+% input_table = readtable(model_folder);
 % ---- Variation Range ---- %
-% var_range = [0.5 0.75 1 1.25 1.5]'; % variable/baseline, such that 0.5
+% var_range = [0.25 0.5 0.75 1 1.25 1.5 1.75]'; % variable/baseline, such that 0.5
 % means the parameters will be changed in 50%.
 % Sensitivity_Analysis_HydroPol2D;
 
