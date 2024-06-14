@@ -135,21 +135,27 @@ matrix_store = outflow; % mm per hour
 % towards the spillway
 if flag_reservoir == 1   
 	for ii = 1:length(reservoir_y)
-        dtsup = d_tot(reservoir_y(ii),reservoir_x(ii))./1000; % % Water depth in the cell that has the boundary condition (m)
-        dt_h = (time_step)/60; % timestep in hours
-        % ---- First Boundary Condition ----- %
-        available_volume = 1000*(max(dtsup - h1(ii),0))/dt_h; %  mm/h
-        dh = min(k1(ii)*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
-        I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
-        dtsup = dtsup - dh/1000;
-        % Refreshing downstream cell
-        d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;
-        % ---- Second Boundary Condition ----- %
-        available_volume = 1000*(max(dtsup - h2(ii),0))/dt_h; %  mm/h
-        dh = min(k3(ii)*(max(dtsup - h2(ii),0))^k4(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
-        I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
-        % Refreshing downstream cell
-        d_tot(yds2(ii),xds2(ii)) = d_tot(yds2(ii),xds2(ii)) + dh;   
+        if ~isnan(yds1(ii))
+            dtsup = d_tot(reservoir_y(ii),reservoir_x(ii))./1000; % % Water depth in the cell that has the boundary condition (m)
+            dt_h = (time_step)/60; % timestep in hours
+            % ---- First Boundary Condition ----- %
+            available_volume = 1000*(max(dtsup - h1(ii),0))/dt_h; %  mm/h
+            dh = min(k1(ii)*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
+            I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
+            dtsup = dtsup - dh/1000;
+        else
+            dh = 0;
+        end
+        if ~isnan(yds2(ii))
+            % Refreshing downstream cell
+            d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;
+            % ---- Second Boundary Condition ----- %
+            available_volume = 1000*(max(dtsup - h2(ii),0))/dt_h; %  mm/h
+            dh = min(k3(ii)*(max(dtsup - h2(ii),0))^k4(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
+            I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
+            % Refreshing downstream cell
+            d_tot(yds2(ii),xds2(ii)) = d_tot(yds2(ii),xds2(ii)) + dh;
+        end
 	end
 end
 qout_left = matrix_store(:,:,1);
