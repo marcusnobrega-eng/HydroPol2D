@@ -235,6 +235,8 @@ if flag_reservoir == 1
             dh = min(k1(ii)*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
             I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
             dtsup = dtsup - dh/1000;
+            % Refreshing downstream cell
+            d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh; 
         else
             dh = 0;
         end
