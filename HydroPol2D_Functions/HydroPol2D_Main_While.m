@@ -25,6 +25,7 @@ store = 1; % (meaning, luis?)
 %flags.flag_inertial = 1; % Using Inertial Model
 t_previous = 0;
 factor_time = 0;
+total_lost_volume = 0;
 max_dt = running_control.max_time_step;
 if flags.flag_inertial == 1
     outflow_prev = outflow_bates;
@@ -200,10 +201,10 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     depths.d_t = depths.d_t + flow_rate.qin_t*time_step/60;
 
     % Water Balance Error
-    water_balance_error_volume = abs(sum(sum(depths.d_t(depths.d_t<0))))*Wshed_Properties.Resolution^2*0.001; % m3
-    water_balance_error_mm = water_balance_error_volume/Wshed_Properties.drainage_area*1000; % mm
-
-    if water_balance_error_volume > 1 % We need to define better this parameter
+    lost_volume = abs(sum(sum(depths.d_t(depths.d_t<0))))*Wshed_Properties.Resolution^2*0.001; % m3
+    water_balance_error_mm = lost_volume/Wshed_Properties.drainage_area*1000; % mm
+    total_lost_volume = lost_volume + total_lost_volume; % m3
+    if lost_volume > 1 % We need to define better this parameter
         factor_time = 1;
         catch_index = catch_index + 1;
         error('Mass balance error too high.')
@@ -359,8 +360,8 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         new_timestep = factor*(min(0.7*Wshed_Properties.Resolution./(wave_celerity))); % alpha of 0.4
         
         % dt_water_balance = min(min(depths.d_p/1000*Wshed_Properties.cell_area./(CA_States.I_tot_end_cell/(time_step*60)))); % sec
-        dt_water_balance = new_timestep;        
-        new_timestep = min(new_timestep,dt_water_balance);
+        % dt_water_balance = new_timestep;        
+        % new_timestep = min(new_timestep,dt_water_balance);
         if catch_index == 1
             running_control.max_time_step = new_timestep*1.5; % Assuming a smaller max time-step to avoid large integrations
         end
