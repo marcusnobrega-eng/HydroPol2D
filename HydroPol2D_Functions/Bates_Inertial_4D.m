@@ -1,23 +1,21 @@
-function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf] = Bates_Inertial_4D(reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,idx_nan)
+function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf] = Bates_Inertial_4D(reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical)
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %                                                                 %
 %                 Produced by Marcus Nobrega Gomes Junior         %
 %                 e-mail:marcusnobrega.engcivil@gmail.com         %
 %                           September 2021                        %
 %                                                                 %
-%                 Last Updated: 7 July, 2022                      %
+%                 Last Updated: 25 Jun, 2024                      %
 %                                                                 %
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 % --------------------- ATTENTION ------------------------------- %
 
-% Matrix matrix_store is actually used to store all arrays, not necessarily
-% delta_h
+% Matrix matrix_store is used to store all arrays, not necessarily
 
 %§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
 %   -----  DESCRIPTION  -----
-%   This function estimates the transfered volume from a cell to the
-%   neighbour cells using a weigthing approach in terms of the available
-%   volume in the neighbour cells
+%   This function estimates the transferred volume from a cell to the
+%   neighbor cells using the local inertial formulation
 %§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
 % ---------------% Finding Nans or Values Below a Threshold  % ---------------%
 if isgpuarray(cell_area)
@@ -41,9 +39,6 @@ depth_cell = max(d_p./1000,0); % meters (fixing zero values)
 % Assuming a linearization for small depths
 depth_cell(depth_cell <= h_min) = 0;
 y = z + depth_cell;
-if max(max(y)) > 10^3
-    ttt = 1;
-end
 
 %% --------------- Depth Differences (delta_h) for All Cells  % ---------------%
 matrix_store(:,:,1) = [y(:,1), y(:,2:(nx)) - y(:,1:(nx-1))]; % left
@@ -69,7 +64,9 @@ Hf(:,:,4) = [y(1:(ny-1),:) - max(z(1:(ny-1),:), z(2:(ny),:)); y(end,:) - z(end,:
 Hf(:,:,5) = y - z;
 
 mask = logical((Hf <= d_t_min) + (repmat(depth_cell,1,1,5) <= h_min));
-Hf(mask) = 0; % No outflow from cells with very low depth
+% Artificial Depth
+artificial_depth = 1e-12;
+Hf(mask) = artificial_depth; % No outflow from cells with very low depth
 
 % --------------- Outlet Calculations  % ---------------%
 if outlet_type == 1
@@ -118,6 +115,48 @@ g = 9.81;
 outflow_prev = outflow;
 outflow = (outflow_prev - g*Hf*dt.*matrix_store)./ ...
           (1 + g*Hf*dt.*roughness_cell.^2.*outflow_prev./(Hf.^(10/3))); % m2 per sec (Hf can be simplified)
+
+%% Eliminating Surplus Velocities at Wet-Dry Interfaces
+% Left 
+idx = Hf(:,:,1) > artificial_depth & [Hf(:,1:(end-1),1),zeros(size(depth_cell,1),1)] == artificial_depth;
+interface_flow = outflow(:,:,1);
+depth = Hf(:,:,1);
+if any(any(idx)) 
+    interface_flow(idx) = depth(idx).*sqrt(g*depth(idx)); % m2 per sec
+    outflow(:,:,1) = interface_flow;   
+end
+% Right
+idx = Hf(:,:,2) > artificial_depth & [zeros(size(depth_cell,1),1), Hf(:,2:(end),2)] == artificial_depth;
+interface_flow = outflow(:,:,2);
+depth = Hf(:,:,2);
+if any(any(idx))
+    interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
+    outflow(:,:,2) = interface_flow;
+end
+% Up
+idx = Hf(:,:,3) > artificial_depth & [zeros(1,size(depth_cell,2));Hf(1:(end-1),:,3)] == artificial_depth;
+interface_flow = outflow(:,:,3);
+depth = Hf(:,:,3);
+if any(any(idx))
+    interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
+    outflow(:,:,3) = interface_flow;
+end
+% Down
+idx = Hf(:,:,4) > artificial_depth & [Hf(2:(end),:,4);zeros(1,size(depth_cell,2))] == artificial_depth;
+interface_flow = outflow(:,:,4);
+depth = Hf(:,:,4);
+if any(any(idx))
+    interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
+    outflow(:,:,4) = interface_flow;
+end
+
+%% Limiting outflow to critical velocity
+if flag_critical == 1
+    critical_velocity = Hf.*sqrt(g*Hf);
+    outflow = min(outflow,critical_velocity);
+end
+
+%% Taking away nans and negative flows
 outflow = Resolution*outflow/(Resolution^2)*1000*3600; % mm per hour
 % Taking out negative values
 outflow(outflow<0) = 0;
@@ -135,27 +174,21 @@ matrix_store = outflow; % mm per hour
 % towards the spillway
 if flag_reservoir == 1   
 	for ii = 1:length(reservoir_y)
-        if ~isnan(yds1(ii))
-            dtsup = d_tot(reservoir_y(ii),reservoir_x(ii))./1000; % % Water depth in the cell that has the boundary condition (m)
-            dt_h = (time_step)/60; % timestep in hours
-            % ---- First Boundary Condition ----- %
-            available_volume = 1000*(max(dtsup - h1(ii),0))/dt_h; %  mm/h
-            dh = min(k1(ii)*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
-            I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
-            dtsup = dtsup - dh/1000;
-        else
-            dh = 0;
-        end
-        if ~isnan(yds2(ii))
-            % Refreshing downstream cell
-            d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;
-            % ---- Second Boundary Condition ----- %
-            available_volume = 1000*(max(dtsup - h2(ii),0))/dt_h; %  mm/h
-            dh = min(k3(ii)*(max(dtsup - h2(ii),0))^k4(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
-            I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
-            % Refreshing downstream cell
-            d_tot(yds2(ii),xds2(ii)) = d_tot(yds2(ii),xds2(ii)) + dh;
-        end
+        dtsup = d_tot(reservoir_y(ii),reservoir_x(ii))./1000; % % Water depth in the cell that has the boundary condition (m)
+        dt_h = (time_step)/60; % timestep in hours
+        % ---- First Boundary Condition ----- %
+        available_volume = 1000*(max(dtsup - h1(ii),0))/dt_h; %  mm/h
+        dh = min(k1(ii)*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
+        I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
+        dtsup = dtsup - dh/1000;
+        % Refreshing downstream cell
+        d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;
+        % ---- Second Boundary Condition ----- %
+        available_volume = 1000*(max(dtsup - h2(ii),0))/dt_h; %  mm/h
+        dh = min(k3(ii)*(max(dtsup - h2(ii),0))^k4(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
+        I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
+        % Refreshing downstream cell
+        d_tot(yds2(ii),xds2(ii)) = d_tot(yds2(ii),xds2(ii)) + dh;   
 	end
 end
 qout_left = matrix_store(:,:,1);
