@@ -202,7 +202,6 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     depths.d_t = depths.d_t + flow_rate.qin_t*time_step/60;
 
     % Water Balance Error
-    lost_volume = abs(sum(sum(depths.d_t(depths.d_t<0))))*Wshed_Properties.Resolution^2*0.001; % m3
     water_balance_error_volume = abs(sum(sum(depths.d_t(depths.d_t<0))))*Wshed_Properties.Resolution^2*0.001; % m3
     water_balance_error_mm = water_balance_error_volume/Wshed_Properties.drainage_area*1000; % mm
 
