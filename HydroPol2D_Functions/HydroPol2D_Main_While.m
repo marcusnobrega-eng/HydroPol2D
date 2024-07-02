@@ -8,15 +8,14 @@
 % load workspace_14_de_julho.mat
 % clear all
 % load workspace_franquinho.mat
-
-
-format short g
+% save('preprocessing_input.mat');
 
 tic 
 k = 1; % time-step counter
 C = 0; % initial infiltration capacity
 t = running_control.min_time_step; % inital time
 time_step = running_control.min_time_step/60; % time-step of the model in min
+update_spatial_BC;
 Flooded_Area = 0; % initial flooded area
 velocities.velocity_raster = 0; % initial velocity
 Risk_Area = 0; % initial risk area
@@ -25,12 +24,14 @@ store = 1; % (meaning, luis?)
 %flags.flag_inertial = 1; % Using Inertial Model
 t_previous = 0;
 factor_time = 0;
-total_lost_volume = 0;
 max_dt = running_control.max_time_step;
+    current_storage = nansum(nansum(BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area + ...
+                                   Wshed_Properties.drainage_area*Soil_Properties.I_t/1000 + ...
+                                   Wshed_Properties.drainage_area*depths.d_t/1000)); % m3
 if flags.flag_inertial == 1
     outflow_prev = outflow_bates;
 end
-
+catch_index = 1;
 % ---- Plotting Results in Real-Time ---- %
 n_snaps = 10; % Number of plots. Time will be divided equally
 dt_snap = running_control.routing_time/n_snaps; time_snap = [1:1:n_snaps]*dt_snap; z2_snap = 0;
@@ -202,9 +203,10 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
 
     % Water Balance Error
     lost_volume = abs(sum(sum(depths.d_t(depths.d_t<0))))*Wshed_Properties.Resolution^2*0.001; % m3
-    water_balance_error_mm = lost_volume/Wshed_Properties.drainage_area*1000; % mm
-    total_lost_volume = lost_volume + total_lost_volume; % m3
-    if lost_volume > 1 % We need to define better this parameter
+    water_balance_error_volume = abs(sum(sum(depths.d_t(depths.d_t<0))))*Wshed_Properties.Resolution^2*0.001; % m3
+    water_balance_error_mm = water_balance_error_volume/Wshed_Properties.drainage_area*1000; % mm
+
+    if water_balance_error_volume > 0.5 % We need to define better this parameter
         factor_time = 1;
         catch_index = catch_index + 1;
         error('Mass balance error too high.')
@@ -245,7 +247,35 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     running_control.delta_time_save = running_control.time_save - running_control.time_save_previous;
     running_control.time_save_previous = running_control.time_save;
     running_control.actual_record_timestep = ceil((t*60)/running_control.time_step_change);
-    
+
+    % Runoff Coefficient Calculation
+    BC_States.outflow_volume  = nansum(nansum(outlet_states.outlet_flow))/1000*Wshed_Properties.cell_area/3600*time_step*60 + BC_States.outflow_volume ;
+    if flags.flag_spatial_rainfall == 1
+        if flags.flag_inflow == 1
+            inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + ...
+                         nansum(nansum(BC_States.delta_p_agg))/1000*Wshed_Properties.cell_area;
+            BC_States.inflow_volume = inflow_vol + BC_States.inflow_volume; % m3
+        end
+    elseif flags.flag_spatial_rainfall ~= 1 && flags.flag_inflow == 1
+        inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area));
+        BC_States.inflow_volume = inflow_vol + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area + BC_States.inflow_volume; % check future
+    end
+
+    % Storage Calculation
+    previous_storage = current_storage;
+    current_storage = nansum(nansum(Wshed_Properties.cell_area*Soil_Properties.I_t/1000 + ...
+                                   Wshed_Properties.cell_area*depths.d_t/1000)); % m3
+    % dS/dt = Qin - Qout = Rain + Inflow - Outflow
+    delta_storage = current_storage - previous_storage;
+    outflow_flux = nansum(nansum(outlet_states.outlet_flow))/1000*Wshed_Properties.cell_area/3600;
+    flux_volumes = inflow_vol - outflow_flux*time_step*60; % dt(Qin - Qout) m3
+    volume_error(k,1) = flux_volumes - delta_storage;    
+
+    % Introducing the volume error to the inflow cells
+    mask = logical(Wshed_Properties.inflow_cells);
+    if any(any(mask))
+        depths.d_t(mask) = depths.d_t(mask) + 1000*max(volume_error(k,1))/sum(sum(mask))/Wshed_Properties.cell_area;
+    end
     % Refreshing time-step script
     refreshing_timestep;
     
@@ -299,25 +329,12 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
 
     % Previous Depths and Moisture
     depths.d_p = depths.d_t;
+
     Soil_Properties.I_p = Soil_Properties.I_t;
     if flags.flag_inertial == 1
         % saving previous outflows
         outflow_prev = outflow_bates; % Corrected previous outflow
     end    
-
-    % Runoff Coefficient Calculation
-    BC_States.outflow_volume  = nansum(nansum(outlet_states.outlet_flow))/1000*Wshed_Properties.cell_area/3600*time_step*60 + BC_States.outflow_volume ;
-    if flags.flag_spatial_rainfall == 1
-        if flags.flag_inflow == 1
-            BC_States.inflow_volume = sum(sum(BC_States.delta_inflow_agg'/1000.*Wshed_Properties.n_inlets*Wshed_Properties.cell_area)) + nansum(nansum(BC_States.delta_p_agg))/1000*Wshed_Properties.cell_area + BC_States.inflow_volume; % check future
-        else
-            BC_States.inflow_volume =  nansum(nansum(BC_States.delta_p_agg))/1000*Wshed_Properties.cell_area + BC_States.inflow_volume; % check future
-        end
-    elseif flags.flag_spatial_rainfall ~= 1 && flags.flag_inflow == 1
-        BC_States.inflow_volume = sum(sum(BC_States.delta_inflow_agg'/1000.*Wshed_Properties.n_inlets*Wshed_Properties.cell_area)) + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area + BC_States.inflow_volume; % check future
-    else
-        BC_States.inflow_volume = BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area + BC_States.inflow_volume; % check future
-    end
 
     % Saving Results in time_observations - Only Valid for Calibration
     save_automatic_cabralition_outputs;
@@ -351,18 +368,19 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     end
 
     catch ME % Reduce the time-step
-        t = t - time_step;         
+        t = t - time_step; 
+        t_previous = t;
         % time_step = time_step/2; % min
         wave_celerity = sqrt(9.81*(max(max(max(depths.d_tot/1000)),max(max(depths.d_p/1000))))); % Using d_p, which is the depth at the end of the time-step
         max_vel = max(max(velocities.velocity_raster));
         factor = 1/catch_index;
-        % new_timestep = factor*(min(0.25*Wshed_Properties.Resolution./(max_vel+wave_celerity))); % alpha of 0.4
-        new_timestep = factor*(min(0.7*Wshed_Properties.Resolution./(wave_celerity))); % alpha of 0.4
+        new_timestep = factor*(min(Courant_Parameters.alfa_min*Wshed_Properties.Resolution./(max_vel+wave_celerity))); % alpha of 0.4
+        % new_timestep = factor*(min(0.25*Wshed_Properties.Resolution./(wave_celerity))); % alpha of 0.4
         
         % dt_water_balance = min(min(depths.d_p/1000*Wshed_Properties.cell_area./(CA_States.I_tot_end_cell/(time_step*60)))); % sec
-        % dt_water_balance = new_timestep;        
-        % new_timestep = min(new_timestep,dt_water_balance);
-        if catch_index == 1
+        dt_water_balance = new_timestep;        
+        new_timestep = min(new_timestep,dt_water_balance);
+        if catch_index > 1
             running_control.max_time_step = new_timestep*1.5; % Assuming a smaller max time-step to avoid large integrations
         end
         new_timestep = min(new_timestep,running_control.max_time_step); % sec
@@ -371,7 +389,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         depths.d_t = depths.d_p;
         Soil_Properties.I_t = Soil_Properties.I_p;
         update_spatial_BC
-        outflow_bates = outflow_prev; % Not actually necessary anymore
+        % outflow_bates = outflow_prev; % Not actually necessary anymore
     end    
 end
 

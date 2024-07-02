@@ -203,7 +203,7 @@ if flags.flag_obs_gauges == 1
     end
     % Outlet
     plot(gather(running_control.time_hydrograph),gather(outlet_states.depth_outlet/1000),'LineWidth',1.5,'linestyle',ls,'marker','.','color','red');
-    xlabel('Time (min)','interpreter','latex'); ylabel('Depth $(\mathrm{m})$','interpreter','latex'); set(gca,'FontSize',12);
+    xlabel('Time ','interpreter','latex'); ylabel('Depth $(\mathrm{m})$','interpreter','latex'); set(gca,'FontSize',12);
     hold on
     yyaxis right; set(gca,'ydir','reverse','ycolor','black');
     if flags.flag_rainfall == 1
@@ -358,7 +358,7 @@ FileName = fullfile(folderName,strcat('\',FileName_String,'.csv'));
 writetable(Rating_Curve_Data,FileName);
 
 % Hydrograph table
-Outlet_Hydrograph_Data = table(gather(running_control.time_hydrograph),gather(outlet_states.outlet_hydrograph),'VariableNames',{'Time (min)','Flow Discharge $(\mathrm{m^3/s})$'});
+Outlet_Hydrograph_Data = table(gather(running_control.time_hydrograph),gather(outlet_states.outlet_hydrograph),'VariableNames',{'Time ','Flow Discharge $(\mathrm{m^3/s})$'});
 
 FileName_String = 'Outlet_Hydrograph_Data_Outlet';
 FileName = fullfile(folderName,strcat('\',FileName_String,'.csv'));

@@ -115,14 +115,15 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
             % Old Solution considering flow velocity
             new_timestep = (Courant_Parameters.factor_grid*Wshed_Properties.Resolution/velocities.max_velocity); % seconds
             Courant_Parameters.time_step_factor = max(Courant_Parameters.alfa_max - Courant_Parameters.slope_alfa*(max(velocities.max_velocity - Courant_Parameters.v_threshold,0)),Courant_Parameters.alfa_min);
+            
             Courant_Parameters.alfa_save(running_control.pos_save,1) = Courant_Parameters.time_step_factor;
             new_timestep = new_timestep*Courant_Parameters.alfa_save(running_control.pos_save,1);
             new_timestep = double(min(new_timestep,running_control.max_time_step));
 
             % Bates time-step
             wave_celerity = sqrt(9.81*max(depths.d_tot,depths.d_t)/1000); % Using d_t, which is the depth at the end of the time-step
-            % new_timestep = min(min(0.25*Wshed_Properties.Resolution./(velocities.total_velocity + wave_celerity))); % alpha of 0.4
-            new_timestep = min(min(0.7*Wshed_Properties.Resolution./(wave_celerity))); % alpha of 0.7            
+            new_timestep = min(min(Courant_Parameters.alfa_min*Wshed_Properties.Resolution./(velocities.total_velocity + wave_celerity))); % alpha of 0.4
+            % new_timestep = min(min(0.7*Wshed_Properties.Resolution./(wave_celerity))); % alpha of 0.7            
             new_timestep = min(new_timestep,running_control.max_time_step);
         elseif velocities.max_velocity < 0
             error('Model instability. Velocities are becoming negative.')

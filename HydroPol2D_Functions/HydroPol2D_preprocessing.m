@@ -788,6 +788,7 @@ end
 
 % Delete
 % outlet_index = perimeter;
+idx_outlet = logical(outlet_index); % Added refreshed idx_outlet
 
 
 [Wshed_Properties.row_outlet,Wshed_Properties.col_outlet] = find(outlet_index == 1); % finding rows and cols of these cells
@@ -1138,10 +1139,10 @@ end
 
 %% Conversion of inflow into the time-step of calculations
 if flags.flag_inflow == 1
-    inflow_length = size(Inflow_Parameters.inflow_hydrograph_rate,1)- 1; % Number of interval
+    inflow_length = size(Inflow_Parameters.inflow_hydrograph_rate,1); % Number of interval
     inflow_discretized = zeros(size(Inflow_Parameters.inflow_hydrograph_rate,2),ceil(inflow_length*Inflow_Parameters.time_step_inflow/time_step_model)); % Preallocating
     for z = 1:Inflow_Parameters.n_stream_gauges
-        for i =1:((inflow_length-1)*Inflow_Parameters.time_step_inflow/time_step_model)
+        for i =1:((inflow_length)*Inflow_Parameters.time_step_inflow/time_step_model)
             inflow_discretized(z,i) = Inflow_Parameters.inflow_hydrograph_rate(ceil((round(i*time_step_model/Inflow_Parameters.time_step_inflow,12))),z); % Discretized into moldel's time-step
         end
     end
@@ -1149,7 +1150,7 @@ end
 % Each z row represent an stream gauge and each i col is a inflow value
 %% Conversion of rainfall into the time-step of calculations for concentrated rainfall
 if flags.flag_rainfall == 1 && flags.flag_spatial_rainfall ~=1  % Only for concentrated rainfall
-    intensity_rainfall_length = length(Rainfall_Parameters.intensity_rainfall) - 1; % Number of intervals
+    intensity_rainfall_length = length(Rainfall_Parameters.intensity_rainfall) ; % Number of intervals
     intensity_discretized = zeros(1,ceil(intensity_rainfall_length*Rainfall_Parameters.time_step_rainfall/time_step_model)); % Preallocating
     for i =1:(intensity_rainfall_length*Rainfall_Parameters.time_step_rainfall/time_step_model)
         intensity_discretized(i) = Rainfall_Parameters.intensity_rainfall(ceil((round(i*time_step_model/Rainfall_Parameters.time_step_rainfall,12))));  % Discretized into moldel's time-step
@@ -1249,7 +1250,7 @@ if flags.flag_satellite_rainfall == 1
 end
 if flags.flag_inflow == 1
     for i = 1:Inflow_Parameters.n_stream_gauges
-        BC_States.delta_inflow_agg(i) = BC_States.delta_inflow(i,1);
+        BC_States.delta_inflow_agg(i,1) = BC_States.delta_inflow(i,1);
     end
 end
 t = 0;
@@ -1382,8 +1383,15 @@ WQ_States.Tot_Washed = spatial_domain;
 BC_States.outflow_volume = 0;
 BC_States.inflow_volume = 0;
 CA_States.I_tot_end_cell = zeros(size(spatial_domain)); % Attention here
-BC_States.inflow = zeros(size(dem,1),size(dem,2));
 Hydro_States.ETP = zeros(size(DEM));
+
+% Inflows Boundary Condition
+if flags.flag_inflow == 1
+    BC_States.inflow = spatial_domain; % This is to solve spatially, don't delete
+    for i = 1:Inflow_Parameters.n_stream_gauges
+        BC_States.inflow = BC_States.inflow + BC_States.delta_inflow_agg(i,1)*Wshed_Properties.inflow_cells(:,:,i); % mm
+    end
+end
 
 %%%% ELEVATIONS %%%
 %%%% ASSIGNING VALUES %%%
