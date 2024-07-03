@@ -92,6 +92,12 @@ flags.flag_elapsed_time = input_table_map_plots(6);
 running_control.record_time_spatial_rainfall = input_table_map_plots(7);
 time_save_ETP = input_table_map_plots(8);
 
+if flags.flag_input_rainfall_map == 1
+    if running_control.record_time_maps < running_control.record_time_spatial_rainfall
+        error('If the input rainfall maps are provided, It is not possible to save maps with fewer temporal resolution than rainfall')
+    end
+end
+
 % Routing Parameters
 routing_parameters = table2array(input_table(:,18));
 CA_States.depth_tolerance = routing_parameters(1);
