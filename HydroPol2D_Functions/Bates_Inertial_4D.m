@@ -117,37 +117,37 @@ outflow = (outflow_prev - g*Hf*dt.*matrix_store)./ ...
 
 %% Eliminating Surplus Velocities at Wet-Dry Interfaces
 % Left 
-idx = Hf(:,:,1) > artificial_depth & [Hf(:,1:(end-1),1),zeros(size(depth_cell,1),1)] == artificial_depth;
-interface_flow = outflow(:,:,1);
-depth = Hf(:,:,1);
-if any(any(idx)) 
-    interface_flow(idx) = depth(idx).*sqrt(g*depth(idx)); % m2 per sec
-    outflow(:,:,1) = interface_flow;   
-end
-% Right
-idx = Hf(:,:,2) > artificial_depth & [zeros(size(depth_cell,1),1), Hf(:,2:(end),2)] == artificial_depth;
-interface_flow = outflow(:,:,2);
-depth = Hf(:,:,2);
-if any(any(idx))
-    interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
-    outflow(:,:,2) = interface_flow;
-end
-% Up
-idx = Hf(:,:,3) > artificial_depth & [zeros(1,size(depth_cell,2));Hf(1:(end-1),:,3)] == artificial_depth;
-interface_flow = outflow(:,:,3);
-depth = Hf(:,:,3);
-if any(any(idx))
-    interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
-    outflow(:,:,3) = interface_flow;
-end
-% Down
-idx = Hf(:,:,4) > artificial_depth & [Hf(2:(end),:,4);zeros(1,size(depth_cell,2))] == artificial_depth;
-interface_flow = outflow(:,:,4);
-depth = Hf(:,:,4);
-if any(any(idx))
-    interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
-    outflow(:,:,4) = interface_flow;
-end
+% idx = Hf(:,:,1) > artificial_depth & [Hf(:,1:(end-1),1),zeros(size(depth_cell,1),1)] == artificial_depth;
+% interface_flow = outflow(:,:,1);
+% depth = Hf(:,:,1);
+% if any(any(idx)) 
+%     interface_flow(idx) = depth(idx).*sqrt(g*depth(idx)); % m2 per sec
+%     outflow(:,:,1) = interface_flow;   
+% end
+% % Right
+% idx = Hf(:,:,2) > artificial_depth & [zeros(size(depth_cell,1),1), Hf(:,2:(end),2)] == artificial_depth;
+% interface_flow = outflow(:,:,2);
+% depth = Hf(:,:,2);
+% if any(any(idx))
+%     interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
+%     outflow(:,:,2) = interface_flow;
+% end
+% % Up
+% idx = Hf(:,:,3) > artificial_depth & [zeros(1,size(depth_cell,2));Hf(1:(end-1),:,3)] == artificial_depth;
+% interface_flow = outflow(:,:,3);
+% depth = Hf(:,:,3);
+% if any(any(idx))
+%     interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
+%     outflow(:,:,3) = interface_flow;
+% end
+% % Down
+% idx = Hf(:,:,4) > artificial_depth & [Hf(2:(end),:,4);zeros(1,size(depth_cell,2))] == artificial_depth;
+% interface_flow = outflow(:,:,4);
+% depth = Hf(:,:,4);
+% if any(any(idx))
+%     interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
+%     outflow(:,:,4) = interface_flow;
+% end
 
 %% Limiting outflow to critical velocity
 if flag_critical == 1

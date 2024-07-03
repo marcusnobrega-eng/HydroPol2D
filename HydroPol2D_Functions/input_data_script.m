@@ -380,15 +380,33 @@ for i = 1:Inflow_Parameters.n_stream_gauges
     if flags.flag_resample
         % Do we have to include Resolution/2 in the calculations?
         nonNanCount = sum(~ismissing(input_table_values(1:end,(i-1)*5 + 3)));
-        easting_inlet_cells(1:nonNanCount,i) = ceil((-GIS_data.xulcorner + Wshed_Properties.Resolution/2 + table2array(input_table_values(1:nonNanCount,(i-1)*5 + 3)))/GIS_data.resolution_resample); % Check R/2
-        northing_inlet_cells(1:nonNanCount,i) = ceil((GIS_data.yulcorner - table2array(input_table_values(1:nonNanCount,(i-1)*5 + 4)))/GIS_data.resolution_resample);
+        x_coordinates = ceil((-DEM_raster.georef.SpatialRef.XWorldLimits(1) + Wshed_Properties.Resolution/2  + Wshed_Properties.Resolution/2 + table2array(input_table_values(1:nonNanCount,(i-1)*5 + 3)))/GIS_data.resolution_resample); % Check R/2
+        y_coordinates = ceil((DEM_raster.georef.SpatialRef.YWorldLimits(1) - Wshed_Properties.Resolution/2 - table2array(input_table_values(1:nonNanCount,(i-1)*5 + 4)))/GIS_data.resolution_resample);
+        points = [x_coordinates,y_coordinates];
+        if size(points,1) ~= nonNanCount
+            warning('Some of the inlet points are located at the same cell. Therefore, we are only considering one of them.')
+        end
+        effective_inlets = unique(points,'rows','stable');
+        easting_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,1);
+        northing_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,2); 
+        Wshed_Properties.n_inlets(:,i) = size(effective_inlets,1);
+
+        easting_inlet_cells(1:nonNanCount,i) = ceil((-DEM_raster.georef.SpatialRef.XWorldLimits(1)  + Wshed_Properties.Resolution/2 + table2array(input_table_values(1:nonNanCount,(i-1)*5 + 3)))/GIS_data.resolution_resample); % Check R/2
+        northing_inlet_cells(1:nonNanCount,i) = ceil((DEM_raster.georef.SpatialRef.YWorldLimits(1) - table2array(input_table_values(1:nonNanCount,(i-1)*5 + 4)))/GIS_data.resolution_resample);
         Wshed_Properties.n_inlets(:,i) = sum(easting_inlet_cells(1:nonNanCount,i)>=0);
     else
         % Do we have to include Resolution/2 in the calculations?
         nonNanCount = sum(~ismissing(input_table_values(1:end,(i-1)*5 + 3)));
-        easting_inlet_cells(1:nonNanCount,i) = ceil((-GIS_data.xulcorner + table2array(input_table_values(1:nonNanCount,(i-1)*5 + 3)))/Wshed_Properties.Resolution);
-        northing_inlet_cells(1:nonNanCount,i) = ceil((GIS_data.yulcorner - Wshed_Properties.Resolution/2 - table2array(input_table_values(1:nonNanCount,(i-1)*5 + 4)))/Wshed_Properties.Resolution); % Check R/2
-        Wshed_Properties.n_inlets(:,i) = sum(sum(easting_inlet_cells(1:nonNanCount,i)>=0));
+        x_coordinates = ceil((-GIS_data.xulcorner + Wshed_Properties.Resolution/2 + table2array(input_table_values(1:nonNanCount,(i-1)*5 + 3)))/Wshed_Properties.Resolution);
+        y_coordinates = ceil((GIS_data.yulcorner - Wshed_Properties.Resolution/2 - table2array(input_table_values(1:nonNanCount,(i-1)*5 + 4)))/Wshed_Properties.Resolution); % Check R/2
+        points = [x_coordinates,y_coordinates];
+        if size(points,1) ~= nonNanCount
+            warning('Some of the inlet points are located at the same cell. Therefore, we are only considering one of them.')
+        end
+        effective_inlets = unique(points,'rows','stable');
+        easting_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,1);
+        northing_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,2); 
+        Wshed_Properties.n_inlets(:,i) = size(effective_inlets,1);
     end
 
 end

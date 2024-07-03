@@ -275,8 +275,15 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     outflow_flux = nansum(nansum(outlet_states.outlet_flow))/1000*Wshed_Properties.cell_area/3600 + ...
                     nansum(nansum(Hydro_States.f/1000/3600*Wshed_Properties.cell_area)); % m3 per sec
     flux_volumes = inflow_vol - outflow_flux*time_step*60; % dt(Qin - Qout) m3
-    volume_error(k,1) = flux_volumes - delta_storage;    
-    
+    volume_error = flux_volumes - delta_storage;    
+
+    % Introducing the volume error to the inflow cells
+    if flags.flag_inflow == 1
+        mask = logical(Wshed_Properties.inflow_cells);
+        if any(any(mask))
+            depths.d_t(mask) = depths.d_t(mask) - 1000*(volume_error)/sum(sum(mask))/Wshed_Properties.cell_area;
+        end
+    end
     % Refreshing time-step script
     refreshing_timestep;
     
@@ -363,9 +370,9 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     
     % Show Stats
     if flags.flag_waterquality == 1
-        perc______duremain______tsec_______dtmm______infmmhr____CmgL_____dtmWQ = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max((WQ_States.P_conc))), tmin_wq]
+        perc______duremain______tsec_______dtmm______infmmhr____CmgL_____dtmWQ___VolErrorm3 = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max((WQ_States.P_conc))), tmin_wq,volume_error]
     else
-        perc______duremain______tsec_______dtmm______infmmhr____Vmax = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max(velocities.velocity_raster))]
+        perc______duremain______tsec_______dtmm______infmmhr____Vmax___VolErrorm3 = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max(velocities.velocity_raster)),volume_error]
     end
 
     catch ME % Reduce the time-step

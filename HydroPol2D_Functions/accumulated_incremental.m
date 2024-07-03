@@ -19,7 +19,7 @@ delta_variable = zeros(size(variable_discretized,1),steps);
 for z = 1:size(variable_discretized,1)
     accum_variable = cumsum(variable_discretized(z,:)*time_step_variable/60);    
     for t = 1:(steps)
-        perc_rainfall = t/steps*100
+        percentage_complete = t/steps*100
         if t == 1
             delta_variable(z,t) = accum_variable(t);
         elseif t >length(variable_discretized)
@@ -30,6 +30,6 @@ for z = 1:size(variable_discretized,1)
     end
 
     variable_intensity = delta_variable/(time_step_variable/60); % mm/h  through all time-steps
-    delta_variable = round(delta_variable,6); % ROUNDED VALUE!!! be careful
+    % delta_variable = round(delta_variable,12); % ROUNDED VALUE!!! be careful
 end
 
