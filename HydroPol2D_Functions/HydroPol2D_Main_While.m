@@ -9,6 +9,7 @@
 % clear all
 % load workspace_franquinho.mat
 % save('preprocessing_input.mat');
+format long
 
 tic 
 k = 1; % time-step counter
@@ -25,9 +26,7 @@ store = 1; % (meaning, luis?)
 t_previous = 0;
 factor_time = 0;
 max_dt = running_control.max_time_step;
-    current_storage = nansum(nansum(BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area + ...
-                                   Wshed_Properties.drainage_area*Soil_Properties.I_t/1000 + ...
-                                   Wshed_Properties.drainage_area*depths.d_t/1000)); % m3
+    current_storage = nansum(nansum(Wshed_Properties.cell_area*depths.d_t/1000)); % m3
 if flags.flag_inertial == 1
     outflow_prev = outflow_bates;
 end
@@ -253,27 +252,34 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         if flags.flag_inflow == 1
             inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + ...
                          nansum(nansum(BC_States.delta_p_agg))/1000*Wshed_Properties.cell_area;
-            BC_States.inflow_volume = inflow_vol + BC_States.inflow_volume; % m3
+        else
+            inflow_vol = nansum(nansum(nansum(nansum(BC_States.delta_p_agg))/1000*Wshed_Properties.cell_area));
         end
+            BC_States.inflow_volume = inflow_vol + BC_States.inflow_volume; % m3        
     elseif flags.flag_spatial_rainfall ~= 1 && flags.flag_inflow == 1
+        inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area;
+        BC_States.inflow_volume = inflow_vol +  BC_States.inflow_volume; % check future
+    else
         inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area));
         BC_States.inflow_volume = inflow_vol + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area + BC_States.inflow_volume; % check future
     end
 
     % Storage Calculation
     previous_storage = current_storage;
-    current_storage = nansum(nansum(Wshed_Properties.cell_area*Soil_Properties.I_t/1000 + ...
-                                   Wshed_Properties.cell_area*depths.d_t/1000)); % m3
-    % dS/dt = Qin - Qout = Rain + Inflow - Outflow
+    current_storage = nansum(nansum(Wshed_Properties.cell_area*depths.d_t/1000)); % m3
+    % dS/dt = Qin - Qout = Rain + Inflow - Outflow - infiltration
     delta_storage = current_storage - previous_storage;
-    outflow_flux = nansum(nansum(outlet_states.outlet_flow))/1000*Wshed_Properties.cell_area/3600;
+    outflow_flux = nansum(nansum(outlet_states.outlet_flow))/1000*Wshed_Properties.cell_area/3600 + ...
+                    nansum(nansum(Hydro_States.f/1000/3600*Wshed_Properties.cell_area)); % m3 per sec
     flux_volumes = inflow_vol - outflow_flux*time_step*60; % dt(Qin - Qout) m3
     volume_error(k,1) = flux_volumes - delta_storage;    
 
     % Introducing the volume error to the inflow cells
-    mask = logical(Wshed_Properties.inflow_cells);
-    if any(any(mask))
-        depths.d_t(mask) = depths.d_t(mask) + 1000*max(volume_error(k,1))/sum(sum(mask))/Wshed_Properties.cell_area;
+    if flags.flag_inflow == 1
+        mask = logical(Wshed_Properties.inflow_cells);
+        if any(any(mask))
+            depths.d_t(mask) = depths.d_t(mask) + 1000*max(volume_error(k,1))/sum(sum(mask))/Wshed_Properties.cell_area;
+        end
     end
     % Refreshing time-step script
     refreshing_timestep;
@@ -361,9 +367,9 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     
     % Show Stats
     if flags.flag_waterquality == 1
-        perc______duremain______tsec_______dtmm______infmmhr____CmgL_____dtmWQ = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(C)), max(max((WQ_States.P_conc))), tmin_wq]
+        perc______duremain______tsec_______dtmm______infmmhr____CmgL_____dtmWQ = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max((WQ_States.P_conc))), tmin_wq]
     else
-        perc______duremain______tsec_______dtmm______infmmhr____Vmax = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(C)), max(max(velocities.velocity_raster))]
+        perc______duremain______tsec_______dtmm______infmmhr____Vmax = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max(velocities.velocity_raster))]
     end
 
     catch ME % Reduce the time-step

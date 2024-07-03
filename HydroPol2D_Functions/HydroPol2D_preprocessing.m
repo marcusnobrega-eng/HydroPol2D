@@ -1391,6 +1391,8 @@ if flags.flag_inflow == 1
     for i = 1:Inflow_Parameters.n_stream_gauges
         BC_States.inflow = BC_States.inflow + BC_States.delta_inflow_agg(i,1)*Wshed_Properties.inflow_cells(:,:,i); % mm
     end
+else
+   BC_States.inflow = 0*spatial_domain;
 end
 
 %%%% ELEVATIONS %%%
