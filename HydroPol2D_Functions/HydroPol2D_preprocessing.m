@@ -814,6 +814,24 @@ catch me
     warning('Outlet mask not exported.')
 end
 
+% Inlet Mask
+FileName = 'Inlet_Mask.tif';
+FileName = fullfile(folderName,FileName);
+% Exporting Outlet_Index as a Mask
+raster_to_export = DEM_raster; % Just to get the properties
+temp = 0*raster_to_export.Z;
+for i = 1:Inflow_Parameters.n_stream_gauges
+    temp = Wshed_Properties.inflow_cells(:,:,i) + temp;
+end
+temp = double(temp>0);
+raster_to_export.Z = temp; % Adding Outlets
+raster_to_export.Z(isnan(DEM_raster.Z)) = nan;
+try
+    GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
+catch me
+    warning('Inlet mask not exported.')
+end
+
 %% Second Way - Outlet Calculation
 % Here we find the k-lowest points in the perimeter of the catchment
 % min_el = min(min(dem)); % Minimum elevation

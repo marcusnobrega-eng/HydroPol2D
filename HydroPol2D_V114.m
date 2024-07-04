@@ -42,7 +42,7 @@ HydroPol2D_preprocessing
 % domain perimeter, activate the following code
 % outlet_index = Wshed_Properties.perimeter;
 
-outlet_index = Wshed_Properties.perimeter;
+% outlet_index = Wshed_Properties.perimeter;
 
 % Main While to Run the Model
 HydroPol2D_Main_While; % Runs the Main While Loop of the Model

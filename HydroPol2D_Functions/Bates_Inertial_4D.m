@@ -68,7 +68,7 @@ Hf(:,:,5) = y - z;
 
 mask = logical((Hf <= d_t_min) + (repmat(depth_cell,1,1,5) <= h_min));
 % Artificial Depth
-artificial_depth = 1e-12;
+artificial_depth = 0;
 Hf(mask) = artificial_depth; % No outflow from cells with very low depth
 
 % --------------- Outlet Calculations  % ---------------%
@@ -160,8 +160,6 @@ outflow = Resolution*outflow/(Resolution^2)*1000*3600; % mm per hour
 outflow(outflow<0) = 0;
 outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;
 outflow(mask) = 0;
-% Taking out values outside of the domain
-outflow(idx_nan) = nan;
 
 %% Intercell Volume
 I_tot_end_cell = dt*sum(1/1000*1/3600*outflow,3)*Resolution^2; % Total outflow in m3

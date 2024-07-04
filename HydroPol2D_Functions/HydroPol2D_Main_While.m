@@ -66,9 +66,12 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             Hydro_States.idx_ETR = Soil_Properties.I_t == min_soil_moisture; % Adopting the minimum depth 
             Hydro_States.ETR  = Hydro_States.ETP; % Real evapotranspiration [mm/h]
             Hydro_States.ETR (Hydro_States.idx_ETR) = Hydro_States.ETP(Hydro_States.idx_ETR) - (min_soil_moisture(Hydro_States.idx_ETR) - (Soil_Properties.I_0(Hydro_States.idx_ETR) + (Hydro_States.f(Hydro_States.idx_ETR))*time_step/60));
+            % depths.pef = BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix + ... 
+            %              BC_States.inflow - Hydro_States.f*time_step/60 + ...
+            %              idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux; % Effective precipitation within 1 computation time-step [mm]
             depths.pef = BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix + ... 
-                         BC_States.inflow - Hydro_States.f*time_step/60 + ...
-                         idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux; % Effective precipitation within 1 computation time-step [mm]
+                         - Hydro_States.f*time_step/60 + ...
+                         idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux; % Effective precipitation within 1 computation time-step [mm]            
             depths.d_t = depths.d_0 + depths.pef; % Adding pef from the previous depth.
             if min(min(depths.pef)) < -1e-8
                 error('Negative depths. Please reduce the time-step.')
@@ -77,9 +80,11 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             end
             Soil_Properties.T = Soil_Properties.Tr; % Beginning to track the replenishing time
         else
+            % depths.pef = BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix + ...
+            %              BC_States.inflow + ...
+            %              idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux; % Effective precipitation within 1 computation time-step [mm]
             depths.pef = BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix + ...
-                         BC_States.inflow + ...
-                         idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux; % Effective precipitation within 1 computation time-step [mm]
+                         idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux; % Effective precipitation within 1 computation time-step [mm]            
             depths.d_t = depths.d_0 + depths.pef;
         end
     else
@@ -105,11 +110,13 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             Hydro_States.ETR (Hydro_States.idx_ETR) = Hydro_States.ETP(Hydro_States.idx_ETR) - (min_soil_moisture(Hydro_States.idx_ETR) - (Soil_Properties.I_p(Hydro_States.idx_ETR) + Hydro_States.f(Hydro_States.idx_ETR)*time_step/60 - Soil_Properties.k_out(Hydro_States.idx_ETR)*time_step/60));
             % Refreshing Soil_Properties.I_t to I_0 for cases where idx_T > 0
             Soil_Properties.I_t(Soil_Properties.idx_T) = min_soil_moisture(Soil_Properties.idx_T);
-            depths.pef = BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix + BC_States.inflow - Hydro_States.f*time_step/60 + idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux;
+            % depths.pef = BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix + BC_States.inflow - Hydro_States.f*time_step/60 + idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux;
+            depths.pef = BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix - Hydro_States.f*time_step/60 + idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux;
             depths.d_t = depths.d_p + depths.pef; %% ATTENTION HERE
         else
             Hydro_States.i_a = (BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix + BC_States.inflow + depths.d_p - Hydro_States.ETP/24)./(time_step/60);
-            depths.pef = BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix + BC_States.inflow - Hydro_States.ETP/24  + idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux;
+            % depths.pef = BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix + BC_States.inflow - Hydro_States.ETP/24  + idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux;
+            depths.pef = BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix - Hydro_States.ETP/24  + idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux;            
             depths.d_t = depths.d_p + depths.pef;
         end
     end
@@ -193,7 +200,10 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     else
         flow_rate.qin_t = flow_rate.qin_left_t + flow_rate.qin_right_t + flow_rate.qin_up_t + flow_rate.qin_down_t;
     end
-
+    
+    % Including Source Terms (inflow hydrograph or water taken from the
+    % domain)
+    flow_rate.qin_t = flow_rate.qin_t + BC_States.inflow/(time_step/60); % mm/h
     idx3 = logical(isnan(flow_rate.qin_t) + isinf(flow_rate.qin_t)); % Mask to take out non cells
     flow_rate.qin_t(idx3) = 0; % No flow at these cells
 
@@ -281,7 +291,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     if flags.flag_inflow == 1
         mask = logical(Wshed_Properties.inflow_cells);
         if any(any(mask))
-            depths.d_t(mask) = depths.d_t(mask) - 1000*(volume_error)/sum(sum(mask))/Wshed_Properties.cell_area;
+            % depths.d_t(mask) = depths.d_t(mask) - 1000*(volume_error)/sum(sum(mask))/Wshed_Properties.cell_area;
         end
     end
     % Refreshing time-step script
@@ -372,7 +382,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     if flags.flag_waterquality == 1
         perc______duremain______tsec_______dtmm______infmmhr____CmgL_____dtmWQ___VolErrorm3 = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max((WQ_States.P_conc))), tmin_wq,volume_error]
     else
-        perc______duremain______tsec_______dtmm______infmmhr____Vmax___VolErrorm3 = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max(velocities.velocity_raster)),volume_error]
+        per__duremain__tsec___dtmm__infmmhr__Vmax___VolErrorm3 = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max(velocities.velocity_raster)),volume_error]
     end
 
     catch ME % Reduce the time-step
