@@ -237,6 +237,7 @@ if flags.flag_obs_gauges == 1
 end
 
 %% Normalized Discharge %%
+zero_matrix = zeros(size(elevation,1),size(elevation,2));
 if flags.flag_obs_gauges == 1 && flags.flag_rainfall == 1
     % Rainfall Std Deviation
     if flags.flag_spatial_rainfall == 1
@@ -297,9 +298,11 @@ if flags.flag_obs_gauges == 1 && flags.flag_rainfall == 1
             bar(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim)),gather(BC_States.average_spatial_rainfall),'FaceColor',[0 .5 .5],'EdgeColor',[0 .55 .55],'LineWidth',1.5);
             ylabel('Aerial Mean Rainfall Intensity (mm/h)','interpreter','latex');
             hold on
-            er = errorbar(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim)),BC_States.average_spatial_rainfall,Rainfall_Parameters.std_dev(1:(dim),1),Rainfall_Parameters.std_dev(1:(dim),1));
-            er.Color = [0 0 0];
-            er.LineStyle = 'none';
+            try
+                er = errorbar(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim)),BC_States.average_spatial_rainfall,Rainfall_Parameters.std_dev(1:(dim),1),Rainfall_Parameters.std_dev(1:(dim),1));
+                er.Color = [0 0 0];
+                er.LineStyle = 'none';
+            end
             plot((gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim)))),gather(BC_States.average_spatial_rainfall),'LineWidth',1.5,'color','blue')
             ylim([0 max(max(gather(BC_States.average_spatial_rainfall)))*6])
         end
