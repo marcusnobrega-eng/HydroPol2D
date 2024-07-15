@@ -1243,11 +1243,14 @@ elseif flags.flag_human_instability == 3
     Maps.Hydro.risk_of = zeros(ny,nx,time_size_2);
 end
 Maps.Hydro.I_t = zeros(ny,nx,time_size_2);
+Maps.Hydro.C = Maps.Hydro.I_t;
+Maps.Hydro.f = Maps.Hydro.I_t;
 outet_hydrograph = zeros(time_size,1);
 time_hydrograph = zeros(time_size,1);
 if flags.flag_waterquality == 1
     Maps.WQ_States.Pol_Conc_Map = zeros(ny,nx,time_size_2);
-    Maps.WQ_States.Pol_mass_map = zeros(ny,nx,time_size_2);
+    Maps.WQ_States.Pol_Mass_Map = zeros(ny,nx,time_size_2);
+    Maps.WQ_States.Pol_Load_Map = zeros(ny,nx,time_size_2);
     Maps.WQ_States.outet_pollutograph = zeros(time_size,1);
 end
 %% Clearing a few variables
