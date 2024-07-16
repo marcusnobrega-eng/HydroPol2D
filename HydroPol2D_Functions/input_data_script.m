@@ -61,6 +61,7 @@ flags.flag_river_heigth_compensate = input_table_flags(34);
 flags.flag_rainfall_multiple_runs = input_table_flags(35);
 flags.flag_data_source = input_table_flags(36);
 flags.flag_inertial = input_table_flags(37);
+flags.flag_dashboard = input_table_flags(38);
 % Matricial Variables
 % input_table_matricial = table2array(input_table(:,9));
 % running_control.time_step_matrices = input_table_matricial(1);
