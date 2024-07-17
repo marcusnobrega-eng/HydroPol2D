@@ -78,7 +78,18 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,first
             bm_r = mapshow(ax.ax_r, A, RA, "AlphaData",0.35);hold(ax.ax_r, 'on');
             bm_v = mapshow(ax.ax_v, A, RA, "AlphaData",0.35);hold(ax.ax_v, 'on');
             F_d = Maps.Hydro.d([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],1);
-            F_r = Maps.Hydro.spatial_rainfall_maps([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],1);
+            if ax.flags.flag_spatial_rainfall == 1
+                F_r = Maps.Hydro.spatial_rainfall_maps([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],1);
+            else
+                mask = isnan(DEM_raster.Z);
+                if ax.flags.flag_rainfall == 1
+                    F_r = ones(ax.DEM_s1,ax.DEM_s2); % ADD Rainfall here
+                    F_r(mask) = nan;
+                else
+                    F_r = zeros(ax.DEM_s1,ax.DEM_s2);
+                    F_r(mask) = nan;
+                end                
+            end
             F_v = double(v_t([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],1));
             
             if ax.flags.flag_infiltration == 1
@@ -224,8 +235,21 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,first
                 set(ax.monitor_ETR, 'CData', Maps.Hydro.ETR_save([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],layer));
             end
             % set(ax.monitor_d, 'CData', idx_g, 'YData', ax.x_grid, 'XData', ax.y_grid)
-            idx_g = Maps.Hydro.spatial_rainfall_maps([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],layer);
-            idx_g(idx_g == 0) = NaN;
+            if ax.flags.flag_spatial_rainfall == 1
+                idx_g = Maps.Hydro.spatial_rainfall_maps([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],layer);                        
+                idx_g(idx_g == 0) = NaN;
+            else
+                mask = isnan(DEM_raster.Z);
+                if ax.flags.flag_rainfall == 1
+                    idx_g = ones(ax.DEM_s1,ax.DEM_s2); % ADD Rainfall here
+                    idx_g(mask) = nan;
+                    idx_g(idx_g == 0) = nan;
+                else
+                    idx_g = zeros(ax.DEM_s1,ax.DEM_s2); % ADD Rainfall here
+                    idx_g(mask) = nan;
+                    idx_g(idx_g == 0) = nan;
+                end      
+            end
             set(ax.monitor_r, 'CData', idx_g);
             % set(ax.monitor_r, 'CData', idx_g, 'YData', ax.x_grid, 'XData', ax.y_grid)
             if ax.flags.flag_infiltration == 1
@@ -234,10 +258,12 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,first
                 idx_g = Maps.Hydro.f([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],layer);
                 idx_g(idx_g == 0) = NaN;
                 set(ax.monitor_f, 'CData', idx_g);
+                idx_g = Maps.Hydro.I_t([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],layer);
+                idx_g(idx_g == 0) = NaN;  
+                set(ax.monitor_i, 'CData', idx_g);
             end
-            idx_g = Maps.Hydro.I_t([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],layer);
-            idx_g(idx_g == 0) = NaN;
-            set(ax.monitor_i, 'CData', idx_g);
+
+            
             % set(ax.monitor_i, 'CData', idx_g, 'YData', ax.x_grid, 'XData', ax.y_grid)
             v_t(v_t == 0) = NaN;
             set(ax.monitor_v, 'CData', v_t);
