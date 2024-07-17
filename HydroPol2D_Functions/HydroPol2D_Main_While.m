@@ -9,7 +9,7 @@
 % clear all
 % load workspace_franquinho.mat
 % save('preprocessing_input.mat');
-format short
+format short g
 
 tic 
 k = 1; % time-step counter
@@ -32,18 +32,24 @@ if flags.flag_inertial == 1
 end
 catch_index = 1;
 % ---- Plotting Results in Real-Time ---- %
-n_snaps = 10; % Number of plots. Time will be divided equally
-dt_snap = running_control.routing_time/n_snaps; time_snap = [1:1:n_snaps]*dt_snap; z2_snap = 0;
+% n_snaps = 10; % Number of plots. Time will be divided equally
+% dt_snap = running_control.routing_time/n_snaps; time_snap = [1:1:n_snaps]*dt_snap; z2_snap = 0;
+if flags.flag_dashboard == 1
+    ax.flags = flags;
+    ax = HydroPol2D_running_dashboard(ax,Maps, zeros(size(DEM_raster.Z)), DEM_raster, ...
+        subsref({gauges, extra_parameters.gauges}, struct('type', '{}', 'subs', {{flags.flag_GPU + 1}})),...
+        1,1);
+end
 % ---- Main Loop --- %
 while t <= (running_control.routing_time + running_control.min_time_step/60) % Running up to the end of the simulation
     try
     % Snapshot results Results
-    z1_snap = find(time_snap>=t,1,'first');
-    if z1_snap > z2_snap
-       Snapshot_Results
-       pause(0.05);
-    end
-    z2_snap = z1_snap;
+    % z1_snap = find(time_snap>=t,1,'first');
+    % if z1_snap > z2_snap
+    %    Snapshot_Results
+    %    pause(0.05);
+    % end
+    % z2_snap = z1_snap;
 
     % Infiltration and Effective Precipitation Calculation
     % Show stats
@@ -270,8 +276,8 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area;
         BC_States.inflow_volume = inflow_vol +  BC_States.inflow_volume; % check future
     else
-        inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area));
-        BC_States.inflow_volume = inflow_vol + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area + BC_States.inflow_volume; % check future
+        inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area ;
+        BC_States.inflow_volume = inflow_vol + BC_States.inflow_volume; % check future
     end
 
     % Storage Calculation
@@ -300,6 +306,28 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     %% Updating Boundary Conditions
     update_spatial_BC; % Updating rainfall and etr B.C.
 
+    % Saving Plotting Values - Recording Time
+    % Maps of Flood Depths, WSE and Pollutant Concentrations
+    % --- Calculating EMC --- %
+    if  flags.flag_automatic_calibration ~= 1
+        if flags.flag_waterquality == 1
+            WQ_States.mass_outlet = max(WQ_States.mass_outlet + Out_Conc*((nansum(nansum(outlet_states.outlet_flow)/1000/3600*1000)))*(time_step*60),0); % mg
+            WQ_States.vol_outlet = max((nansum(nansum(outlet_states.outlet_flow))/1000/3600*1000)*(time_step*60) + WQ_States.vol_outlet,0);
+        end
+    end
+
+    % Previous Time-step
+    if k == 1
+        t_previous = running_control.time_calculation_routing(k,1)/60;
+    else
+        t_previous = t;
+    end
+    % Current time
+    t_save = t + running_control.time_calculation_routing(k,1)/60;
+
+    %% Saving Output Maps
+    save_output_maps;
+
     % Clearing stored values
     if flags.flag_GPU == 1
         flow_rate.qout_left_t = gpuArray(zeros(ny,nx));
@@ -322,28 +350,6 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         flow_rate.qout_nw_t = zeros(ny,nx);
         flow_rate.qin_t = zeros(ny,nx);
     end
-
-    % Saving Plotting Values - Recording Time
-    % Maps of Flood Depths, WSE and Pollutant Concentrations
-    % --- Calculating EMC --- %
-    if  flags.flag_automatic_calibration ~= 1
-        if flags.flag_waterquality == 1
-            WQ_States.mass_outlet = max(WQ_States.mass_outlet + Out_Conc*((nansum(nansum(outlet_states.outlet_flow)/1000/3600*1000)))*(time_step*60),0); % mg
-            WQ_States.vol_outlet = max((nansum(nansum(outlet_states.outlet_flow))/1000/3600*1000)*(time_step*60) + WQ_States.vol_outlet,0);
-        end
-    end
-
-    % Previous Time-step
-    if k == 1
-        t_previous = running_control.time_calculation_routing(k,1)/60;
-    else
-        t_previous = t;
-    end
-    % Current time
-    t_save = t + running_control.time_calculation_routing(k,1)/60;
-
-    %% Saving Output Maps
-    save_output_maps;
 
     % Previous Depths and Moisture
     depths.d_p = depths.d_t;
@@ -411,6 +417,10 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     end    
 end
 
+% Cloasing the dashboard
+if flags.flag_dashboard == 1
+    delete(ax.app)
+end
 % Saving the last modeled data
 Maps.Hydro.d=Maps.Hydro.d(:,:,1:saver_count);
 if flags.flag_infiltration == 1

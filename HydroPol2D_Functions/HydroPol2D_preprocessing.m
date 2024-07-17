@@ -815,21 +815,23 @@ catch me
 end
 
 % Inlet Mask
-FileName = 'Inlet_Mask.tif';
-FileName = fullfile(folderName,FileName);
-% Exporting Outlet_Index as a Mask
-raster_to_export = DEM_raster; % Just to get the properties
-temp = 0*raster_to_export.Z;
-for i = 1:Inflow_Parameters.n_stream_gauges
-    temp = Wshed_Properties.inflow_cells(:,:,i) + temp;
-end
-temp = double(temp>0);
-raster_to_export.Z = temp; % Adding Outlets
-raster_to_export.Z(isnan(DEM_raster.Z)) = nan;
-try
-    GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
-catch me
-    warning('Inlet mask not exported.')
+if flags.flag_inflow == 1
+    FileName = 'Inlet_Mask.tif';
+    FileName = fullfile(folderName,FileName);
+    % Exporting Outlet_Index as a Mask
+    raster_to_export = DEM_raster; % Just to get the properties
+    temp = 0*raster_to_export.Z;
+    for i = 1:Inflow_Parameters.n_stream_gauges
+        temp = Wshed_Properties.inflow_cells(:,:,i) + temp;
+    end
+    temp = double(temp>0);
+    raster_to_export.Z = temp; % Adding Outlets
+    raster_to_export.Z(isnan(DEM_raster.Z)) = nan;
+    try
+        GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
+    catch me
+        warning('Inlet mask not exported.')
+    end
 end
 
 %% Second Way - Outlet Calculation
@@ -1243,11 +1245,14 @@ elseif flags.flag_human_instability == 3
     Maps.Hydro.risk_of = zeros(ny,nx,time_size_2);
 end
 Maps.Hydro.I_t = zeros(ny,nx,time_size_2);
+Maps.Hydro.C = Maps.Hydro.I_t;
+Maps.Hydro.f = Maps.Hydro.I_t;
 outet_hydrograph = zeros(time_size,1);
 time_hydrograph = zeros(time_size,1);
 if flags.flag_waterquality == 1
     Maps.WQ_States.Pol_Conc_Map = zeros(ny,nx,time_size_2);
-    Maps.WQ_States.Pol_mass_map = zeros(ny,nx,time_size_2);
+    Maps.WQ_States.Pol_Mass_Map = zeros(ny,nx,time_size_2);
+    Maps.WQ_States.Pol_Load_Map = zeros(ny,nx,time_size_2);
     Maps.WQ_States.outet_pollutograph = zeros(time_size,1);
 end
 %% Clearing a few variables
