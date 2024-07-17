@@ -276,8 +276,8 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area;
         BC_States.inflow_volume = inflow_vol +  BC_States.inflow_volume; % check future
     else
-        inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area));
-        BC_States.inflow_volume = inflow_vol + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area + BC_States.inflow_volume; % check future
+        inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area ;
+        BC_States.inflow_volume = inflow_vol + BC_States.inflow_volume; % check future
     end
 
     % Storage Calculation
