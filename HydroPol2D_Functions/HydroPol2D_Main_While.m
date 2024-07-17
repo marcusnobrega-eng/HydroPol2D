@@ -158,7 +158,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical,CA_States.depth_tolerance);
         else
             % -------------------- Local Inertial Formulation ----------------%
-            [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf] = ...
+            [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,flow_rate.qout_ne_t,flow_rate.qout_se_t,flow_rate.qout_sw_t,flow_rate.qout_nw_t,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf] = ...
                 Bates_Inertial_8D(Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
                 flags.flag_reservoir,Elevation_Properties.elevation_cell,...
                 depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical);
@@ -193,7 +193,10 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         else
             zero_matrix = zeros(size(Elevation_Properties.elevation_cell));
         end
-        flow_rate.qin_ne_t = zero_matrix; flow_rate.qin_se_t = zero_matrix; flow_rate.qin_sw_t = zero_matrix; flow_rate.qin_nw_t = zero_matrix;
+        flow_rate.qin_ne_t = zero_matrix; 
+        flow_rate.qin_se_t = zero_matrix; 
+        flow_rate.qin_sw_t = zero_matrix; 
+        flow_rate.qin_nw_t = zero_matrix;
         flow_rate.qin_ne_t(2:(ny),1:(nx-1)) = flow_rate.qout_sw_t(1:(ny-1),2:(nx)); % OK
         flow_rate.qin_se_t(1:(ny-1),1:(nx-1)) = flow_rate.qout_nw_t(2:ny,2:nx); % OK
         flow_rate.qin_sw_t(1:(ny-1),2:(nx)) = flow_rate.qout_ne_t(2:(ny),1:(nx-1)); % OK
