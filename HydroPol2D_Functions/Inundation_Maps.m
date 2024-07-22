@@ -228,6 +228,7 @@ for t = 1:f:length(running_control.time_records)
 
     F = z1([ybegin:1:yend],[xbegin:1:xend],t - (store-1)*saver_memory_maps);
     F(idx2(:,:,t - (store-1)*saver_memory_maps)) = 0;
+    F(F==0)=nan;
     % F = z1([ybegin:1:yend],[xbegin:1:xend],t);
     % F(idx2(:,:,t)) = 0;
     if no_plot == 0
@@ -250,7 +251,7 @@ for t = 1:f:length(running_control.time_records)
     view(0,90);
     colorbar
     caxis([z1min z1max]);
-    colormap(depth_ramp)
+    colormap(Spectrum)
     k = colorbar;
     ylabel(k,'WSE (m)','Interpreter','Latex','FontSize',12)
     xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
@@ -301,7 +302,7 @@ for t = 1:f:length(running_control.time_records)
     view(0,90);
     colorbar
     caxis([0 z2max]);
-    colormap(depth_ramp)
+    colormap(Spectrum)
     k = colorbar;
 
     ylabel(k,'Depths (m)','Interpreter','Latex','FontSize',12)
@@ -486,7 +487,7 @@ if flags.flag_spatial_rainfall == 1
     title(title_isoietal,'Interpreter','Latex','FontSize',12);
     colorbar
     caxis([zmin zmax]);
-    colormap(linspecer)
+    colormap(Spectrum)
     k = colorbar;
     ylabel(k,'Cumulative Rainfall Volume (mm)','Interpreter','Latex','FontSize',12)
     xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
@@ -626,8 +627,8 @@ if flags.flag_spatial_rainfall == 1
     set(gcf,'DefaultTextInterpreter','latex')
     if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_input_rainfall_map ~= 1
         close all
-        zmax = Max_rains;
-        zmin = Min_rains;
+        zmax = max(max(Max_rains));
+        zmin = min(min(Min_rains));
         if zmin == zmax
             zmax = zmin + 10; % mm/h
         end
@@ -695,7 +696,7 @@ if flags.flag_spatial_rainfall == 1
             view(0,90);
             colorbar
             caxis([zmin zmax]);
-            colormap(linspecer)
+            colormap(Spectrum)
             k = colorbar;
             ylabel(k,'Rainfall (mm/h)','Interpreter','Latex','FontSize',12)
             xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
@@ -803,7 +804,7 @@ if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_in
         view(0,90);
         colorbar
         caxis([zmin zmax]);
-        colormap(linspecer)
+        colormap(Spectrum)
         k = colorbar;
         ylabel(k,'Rainfall (mm/h)','Interpreter','Latex','FontSize',12)
         xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
@@ -896,7 +897,7 @@ if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_in
         view(0,90);
         colorbar
         caxis([zmin zmax]);
-        colormap(linspecer)
+        colormap(Spectrum)
         k = colorbar;
         ylabel(k,'Rainfall (mm/h)','Interpreter','Latex','FontSize',12)
         xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
@@ -982,7 +983,7 @@ if flags.flag_ETP == 1
         view(0,90);
         colorbar
         caxis([zmin zmax]);
-        colormap(linspecer)
+        colormap(Spectrum)
         k = colorbar;
         ylabel(k,'ETP (mm/day)','Interpreter','Latex','FontSize',12)
         xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
@@ -1172,7 +1173,7 @@ if flags.flag_waterquality == 1
             view(0,90);
             colorbar
             caxis([zmin zmax]);
-            colormap(linspecer)
+            colormap(Spectrum)
 
             k = colorbar;
             ylabel(k,'Concentration (mg/L)','Interpreter','Latex','FontSize',12)

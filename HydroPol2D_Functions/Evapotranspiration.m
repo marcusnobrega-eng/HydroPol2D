@@ -36,7 +36,7 @@ Tmax = Temp_max;
 Tmin = Temp_min;
 %% Processing data
 %DEM
-neg_DEM = DEM < 0;
+neg_DEM = DEM < -200;
 high_DEM = DEM > 99999;
 inf_nan_MAPS = isinf(DEM) + isnan(DEM) + neg_DEM + high_DEM; % Logical array
 idx = inf_nan_MAPS > 0;

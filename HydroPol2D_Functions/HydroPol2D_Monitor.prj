@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.apptool" plugin-version="1.0">
-  <configuration file="G:\Drives compartilhados\2DCAWQ_Model\Model_Functions_Directory\HydroPol2D_Monitor.prj" location="G:\Drives compartilhados\2DCAWQ_Model\Model_Functions_Directory" name="HydroPol2D_Monitor" target="target.mlapps" target-name="Package App">
+  <configuration file="C:\Users\marcu\OneDrive\Documentos\GitHub\HydroPol2D\HydroPol2D_Functions\HydroPol2D_Monitor.prj" location="C:\Users\marcu\OneDrive\Documentos\GitHub\HydroPol2D\HydroPol2D_Functions" name="HydroPol2D_Monitor" target="target.mlapps" target-name="Package App">
     <param.appname>HydroPol2D_Monitor</param.appname>
     <param.authnamewatermark>LMCR</param.authnamewatermark>
     <param.email />
@@ -8,7 +8,7 @@
     <param.icons />
     <param.summary />
     <param.description />
-    <param.screenshot>C:\Users\User\AppData\Local\Temp\tp4fbb263a_3ae0_4394_89f8_07da5fd7c4a6.png</param.screenshot>
+    <param.screenshot />
     <param.version>1.0</param.version>
     <param.products.name />
     <param.products.id />
@@ -23,6 +23,7 @@
       <param.icons />
       <param.summary />
       <param.description />
+      <param.screenshot />
       <param.version />
       <param.products.name />
       <param.products.id />
@@ -37,19 +38,43 @@
     <fileset.resources />
     <fileset.package />
     <build-deliverables>
-      <file location="G:\Drives compartilhados\2DCAWQ_Model" name="Model_Functions_Directory" optional="false">G:\Drives compartilhados\2DCAWQ_Model\Model_Functions_Directory</file>
+      <file location="C:\Users\marcu\OneDrive\Documentos\GitHub\HydroPol2D" name="HydroPol2D_Functions" optional="false">C:\Users\marcu\OneDrive\Documentos\GitHub\HydroPol2D\HydroPol2D_Functions</file>
     </build-deliverables>
     <workflow />
     <matlab>
-      <root>C:\Program Files\MATLAB\R2023a</root>
+      <root>C:\Program Files\MATLAB\R2024a</root>
       <toolboxes>
+        <toolbox name="matlabcoder" />
+        <toolbox name="embeddedcoder" />
+        <toolbox name="gpucoder" />
         <toolbox name="fixedpoint" />
+        <toolbox name="matlabhdlcoder" />
         <toolbox name="neuralnetwork" />
       </toolboxes>
+      <toolbox>
+        <matlabcoder>
+          <enabled>true</enabled>
+        </matlabcoder>
+      </toolbox>
+      <toolbox>
+        <embeddedcoder>
+          <enabled>true</enabled>
+        </embeddedcoder>
+      </toolbox>
+      <toolbox>
+        <gpucoder>
+          <enabled>true</enabled>
+        </gpucoder>
+      </toolbox>
       <toolbox>
         <fixedpoint>
           <enabled>true</enabled>
         </fixedpoint>
+      </toolbox>
+      <toolbox>
+        <matlabhdlcoder>
+          <enabled>true</enabled>
+        </matlabhdlcoder>
       </toolbox>
       <toolbox>
         <neuralnetwork>

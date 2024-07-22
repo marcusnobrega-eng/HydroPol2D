@@ -19,20 +19,20 @@ saver_memory_maps = 12;
 
 %input_table = readtable('General_Data_HydroPol2D.xlsx');
 % Load TopoToolBox Tools
-topo_path = string(table2cell(input_table(1,31)));
+topo_path = string(table2cell(input_table(1,27)));
 addpath(genpath(char(topo_path)));
 
 % Load Model Functions
-HydroPol2D_tools = char(table2cell(input_table(9,31)));
+HydroPol2D_tools = char(table2cell(input_table(9,27)));
 addpath(genpath(char(HydroPol2D_tools)));
 
 % Input Data Paths
-DEM_path = char(table2cell((input_table(3,31))));
-LULC_path = char((table2cell(input_table(4,31))));
-SOIL_path = char(table2cell(input_table(5,31)));
-Warmup_Depth_path = char(table2cell(input_table(6,31)));
-Initial_Buildup_path = char(table2cell(input_table(7,31)));
-Initial_Soil_Moisture_path = char(table2cell(input_table(8,31)));
+DEM_path = char(table2cell((input_table(3,27))));
+LULC_path = char((table2cell(input_table(4,27))));
+SOIL_path = char(table2cell(input_table(5,27)));
+Warmup_Depth_path = char(table2cell(input_table(6,27)));
+Initial_Buildup_path = char(table2cell(input_table(7,27)));
+Initial_Soil_Moisture_path = char(table2cell(input_table(8,27)));
 
 % Rasters
 fname_LULC = LULC_path; fname_DEM = DEM_path;
@@ -119,6 +119,7 @@ else
     end
 end
 
+
 % Checking if there are nan cells within the study area to avoid numerical
 % instability 
 if any(~isnan(DEM_raster.Z).*isnan(LULC_raster.Z)) == 1
@@ -182,6 +183,29 @@ if flags.flag_resample == 1
         DEM_raster = resample(DEM_raster,raster_resample);
     end
 
+% Checking CRS
+try
+if isempty(DEM_raster.georef.SpatialRef.ProjectedCRS)
+    % Enter with CRS code for the raster
+%     prompt = "What is the CRS code for your raster data? ";
+%     code = input(prompt);
+%     projected_data = projcrs(code);
+%     gtiffinfo.SpatialRef.ProjectedCRS = projected_data;
+%     DEM_raster.georef.SpatialRef  = gtiffinfo.SpatialRef;
+%     LULC_raster.georef.SpatialRef  = gtiffinfo.SpatialRef;
+%     SOIL_raster.georef.SpatialRef  = gtiffinfo.SpatialRef;
+    [~,R] = readgeoraster(fname_DEM);
+    proj = R.ProjectedCRS;
+    DEM_raster.georef.SpatialRef.ProjectedCRS  = proj;
+    LULC_raster.georef.SpatialRef.ProjectedCRS  = proj;
+    SOIL_raster.georef.SpatialRef.ProjectedCRS  = proj;
+end
+catch me
+    if isempty(DEM_raster.georef)
+       % some code?
+    end
+end    
+
     % Raster Extent
     GIS_data.xulcorner = DEM_raster.refmat(3,1); % Up Left Corner
     GIS_data.yulcorner = DEM_raster.refmat(3,2);
@@ -189,11 +213,13 @@ if flags.flag_resample == 1
     Wshed_Properties.Resolution = DEM_raster.cellsize; % m
 end
 
+
+
 %% Observed Gauges with Resampled DEM
 % Observed Gauges
 if flags.flag_obs_gauges ==1
     input_table = readtable(model_folder);
-    input_table_observed = (input_table(2:end,37:39));
+    input_table_observed = (input_table(2:end,33:35));
     obs_gauges = table2array(input_table_observed(:,1)); % Indexes
     gauges.num_obs_gauges = sum(~isnan(obs_gauges));
     gauges.easting_obs_gauges_absolute = table2array(input_table_observed(1:gauges.num_obs_gauges,2)); % Easting Coordinates
@@ -203,7 +229,7 @@ if flags.flag_obs_gauges ==1
     gauges.northing_obs_gauges = round((GIS_data.yulcorner - gauges.northing_obs_gauges_absolute)/Wshed_Properties.Resolution);
     
     % Getting the labels
-    labels_observed = (input_table(2:(2+gauges.num_obs_gauges-1),40));
+    labels_observed = (input_table(2:(2+gauges.num_obs_gauges-1),36));
     if flags.flag_obs_gauges == 1
         for i = 1:gauges.num_obs_gauges
             gauges.labels_observed_string{i,:} = string(labels_observed{i,:});
@@ -212,10 +238,10 @@ if flags.flag_obs_gauges ==1
 end
 %% ETP with new resampled DEM
 if flags.flag_ETP == 1
-    GRIDobj2geotiff(DEM_raster,'DEM_ETP.tif');
-    [DEM_etp,R_etp] = readgeoraster('DEM_ETP.tif'); % Getting Raster Information
+    GRIDobj2geotiff(DEM_raster,'Modeling_Results\DEM_ETP.tif');
+    [DEM_etp,R_etp] = readgeoraster('Modeling_Results\DEM_ETP.tif'); % Getting Raster Information
     ETP_Parameters.DEM_etp = double(DEM_etp);
-    ETP_Parameters.info = geotiffinfo('DEM_ETP.tif');
+    ETP_Parameters.info = geotiffinfo('Modeling_Results\DEM_ETP.tif');
 end
 
 %% ----- Transforming Raster into Matrix with Values ----- %
@@ -291,6 +317,7 @@ end
 
 %% ------------ Inflow Cells  ------------ %
 % Here we read where the stream gauges are located
+Wshed_Properties.inflow_mask = zeros(size(DEM_raster.Z));
 if flags.flag_inflow == 1
     Wshed_Properties.inflow_cells = zeros(ny,nx,Inflow_Parameters.n_stream_gauges);
     for i = 1:Inflow_Parameters.n_stream_gauges
@@ -298,9 +325,12 @@ if flags.flag_inflow == 1
             x = easting_inlet_cells(z,i);
             y = northing_inlet_cells(z,i);
             Wshed_Properties.inflow_cells(y,x,i) = 1; % Coordinates of each stream gauge
+            Wshed_Properties.inflow_mask(y,x) = 1;
         end
     end
 end
+
+Wshed_Properties.inflow_mask = logical(Wshed_Properties.inflow_mask);
 
 %% ------------ Rainfall Matrices ------------ %
 if flags.flag_rainfall == 0 % No rainfall
@@ -314,11 +344,10 @@ elseif flags.flag_rainfall == 1 && flags.flag_spatial_rainfall == 1 && flags.fla
     Spatial_Rainfall_Parameters.time_step_spatial = table2array(input_table(7,2)) - table2array(input_table(6,2)); % min
     end_rain = (n_obs-1)*Spatial_Rainfall_Parameters.time_step_spatial;
     %     rainfall_spatial_duration = 0:time_step_spatial:(end_rain); % Rainfall data time in minutes
-    Spatial_Rainfall_Parameters.rainfall_spatial_duration = 0:running_control.record_time_spatial_rainfall:(end_rain); % Rainfall data time in minutes
+    Spatial_Rainfall_Parameters.rainfall_spatial_duration = 0:Spatial_Rainfall_Parameters.time_step_spatial:(end_rain); % Rainfall data time in minutes
     Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg = 0:Spatial_Rainfall_Parameters.time_step_spatial:(end_rain); % Rainfall data time in minutes
     n_spatial_agg = 1 + running_control.record_time_spatial_rainfall/Spatial_Rainfall_Parameters.time_step_spatial;
     rainfall_spatial_aggregation = zeros(size(dem,1),size(dem,2),n_spatial_agg);
-    % rianfall_spatial_aggregation = zeros(size(dem,1),size(dem,2),saver_memory_maps);
 
     % Rainfall Data
     for i = 1:n_max_raingauges
@@ -337,7 +366,6 @@ elseif flags.flag_input_rainfall_map == 1
     Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg = 0:Spatial_Rainfall_Parameters.time_step_spatial:(end_rain); % Rainfall data time in minutes
     n_spatial_agg = 1 + running_control.record_time_spatial_rainfall/Spatial_Rainfall_Parameters.time_step_spatial;
     rainfall_spatial_aggregation = zeros(size(dem,1),size(dem,2),n_spatial_agg);
-    % rianfall_spatial_aggregation = zeros(size(dem,1),size(dem,2),saver_memory_maps);
 
 elseif flags.flag_rainfall == 1 && flags.flag_satellite_rainfall == 1
     n_spatial_agg = 1 + round(running_control.record_time_maps/running_control.record_time_spatial_rainfall,1);
@@ -363,13 +391,14 @@ if flags.flag_ETP == 1
     ETP_Parameters.n_obs_ETP = size(input_table,1) - 2;
     ETP_Parameters.n_max_etp_stations = 50;
     ETP_Parameters.time_step_etp = minutes(datetime(table2array(input_table(5,2)) ) - datetime(table2array(input_table(4,2)) )); % min
-    ETP_Parameters.end_etp = min((ETP_Parameters.n_obs_ETP-1)*ETP_Parameters.time_step_etp,running_control.routing_time);
+    % ETP_Parameters.end_etp = min((ETP_Parameters.n_obs_ETP-1)*ETP_Parameters.time_step_etp,running_control.routing_time);
+    ETP_Parameters.end_etp = (ETP_Parameters.n_obs_ETP-1)*ETP_Parameters.time_step_etp;   
     ETP_Parameters.time_ETP = datetime(table2array(input_table(3:end,2)));
     ETP_Parameters.time_ETP_begin = ETP_Parameters.time_ETP(1);
 
     % Check Initial ETP Dates
     ETP_Parameters.delta_ETP_date = minutes(ETP_Parameters.time_ETP_begin - date_begin); % minutes positive or negative
-    ETP_Parameters.climatologic_spatial_duration = 0:ETP_Parameters.time_step_etp:(ETP_Parameters.end_etp) ; % Rainfall data time in minutes
+    ETP_Parameters.climatologic_spatial_duration = 0:ETP_Parameters.time_step_etp:(ETP_Parameters.end_etp) ; % ETP data time in minutes
     ETP_Parameters.climatologic_spatial_duration = ETP_Parameters.climatologic_spatial_duration + ETP_Parameters.delta_ETP_date;
     [ETP_Parameters.climatologic_spatial_duration(1,1)] = 0;
     
@@ -926,14 +955,10 @@ end
 
 %% Grid Domain
 %%%%%% ORIGINAL GRID %%%%%%
-% In case flags.flag_abstraction == 1, we cut the domain assuming the cells
-% entered in the input_data file
-if flags.flag_abstraction ~= 1
-    xmin = 1; % initial position x in the grid (collums)
-    ymin = 1; % lines (up to down)
-    xmax = zzz(2);
-    ymax = zzz(1);
-end
+xmin = 1; % initial position x in the grid (collums)
+ymin = 1; % lines (up to down)
+xmax = zzz(2);
+ymax = zzz(1);
 % ------------ Cutting Cells ------------
 if flags.flag_inflow == 1
     Wshed_Properties.inflow_cells = Wshed_Properties.inflow_cells(ymin:ymax,xmin:xmax,:);
@@ -1181,7 +1206,7 @@ end
 % Calculates the number of non-inf cells to determine the watershed area
 matrix_nan = isnan(elevation);
 number_nan = sum(sum(matrix_nan));
-Wshed_Properties.drainage_area = (nx*ny - number_nan)*Wshed_Properties.Resolution^2; % m2
+Wshed_Properties.drainage_area = sum(sum((~isnan(DEM_raster.Z))))*Wshed_Properties.Resolution^2; % m2
 Edges = bwperim(dem>=0,8);
 Wshed_Properties.watershed_perimeter = sum(sum(Edges))*Wshed_Properties.Resolution/1000;  % km
 Wshed_Properties.impervious_area = sum(sum(impervious_cells))*Wshed_Properties.cell_area;
@@ -1630,6 +1655,13 @@ end
 
 % We need to finish this part. Also, we need to fix it in the main while 
 
+%% Outlet Perimeter B.C.
+% If you want to assign outlet normal flow boundary conditions to all
+% domain perimeter, activate the following code
+% outlet_index = Wshed_Properties.perimeter;
+if flags.flag_boundary == 1
+    outlet_index = Wshed_Properties.perimeter;
+end
 %% Clearing Variables
 
 % clearvars  -except register saver_memory_maps idx_rivers rainfall_spatial_aggregation model_folder Input_Rainfall Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters GIS_data Inflow_Parameters ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties topo_path idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx	ny	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	teta_i_fulldomain	teta_sat	teta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person
@@ -1649,7 +1681,7 @@ if flags.flag_GPU == 1
     flags = structfun(@gpuArray, flags, 'UniformOutput', false);
     % Gauges Label
     if flags.flag_obs_gauges == 1
-        extra_parameters.gauges.label_observed_string = gauges.labels_observed_string;
+        extra_parameters.gauges.labels_observed_string = gauges.labels_observed_string;
         gauges.labels_observed_string = [];
         gauges = structfun(@gpuArray, gauges, 'UniformOutput', false);
     end

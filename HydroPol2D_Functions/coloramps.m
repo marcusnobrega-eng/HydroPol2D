@@ -1,5 +1,5 @@
 %% ----------------- Coloramps --------------------- %%
-function [Spectrum,depth_ramp,terrain_ramp] = coloramps()
+function [Spectrum,depth_ramp,terrain_ramp,blue_ramp,blues_2,pallete] = coloramps()
 %% Spectrum
 RGB=[0.1127         0    0.3515
      0.2350         0    0.6663
@@ -111,4 +111,64 @@ terrain_ramp = smoothdata(colors, 'gaussian', 10);
 % figure;
 % colormap(terrain_ramp);
 % colorbar;
+
+%% Blues
+% Define the range of colors (shades of blue)
+num_colors = 100; % Number of distinct colors
+start_color = [0, 0.2, 0.6]; % Lighter blue (RGB values)
+end_color = [0.8, 0.9, 1]; % Darker blue (RGB values)
+
+% Adjust contrast by changing the exponent (gamma correction)
+gamma = 2; % Higher values increase contrast, lower values decrease it
+
+% Interpolate between the start and end colors with gamma correction
+r = linspace(start_color(1), end_color(1), num_colors).^gamma;
+g = linspace(start_color(2), end_color(2), num_colors).^gamma;
+b = linspace(start_color(3), end_color(3), num_colors).^gamma;
+
+% Create the colormap matrix
+blue_ramp = [r' g' b'];
+
+%% Blues 2
+% Define a custom colormap with distinguishable shades of blue
+custom_map = [
+    0.031, 0.365, 0.639;  % Deep blue
+    0.098, 0.569, 0.737;  % Darker blue
+    0.306, 0.675, 0.816;  % Dark blue
+    0.529, 0.765, 0.882;  % Medium blue
+    0.725, 0.851, 0.941;  % Soft blue
+    0.882, 0.937, 0.988;  % Light blue  
+    0.973, 0.988, 1.000;  % Very light blue
+];
+
+% Number of intervals for colormap
+num_intervals = size(custom_map, 1);
+
+% Number of points in colormap
+num_points = 256;
+
+% Interpolate colormap to get 256 points
+blues_2 = interp1(linspace(0, 1, num_intervals), custom_map, linspace(0, 1, num_points));
+
+%% Colors
+blue_colors(1,:) = [31, 102, 169]/255;
+blue_colors(2,:) = [52, 148, 204]/255;
+blue_colors(3,:) = [141, 197, 228]/255;
+
+pallete.blue_colors = blue_colors;
+
+red_colors(1,:) = [159, 0, 0]/255;
+red_colors(2,:) = [196, 103, 102]/255;
+red_colors(3,:) = [216, 165, 166]/255;
+
+pallete.red_colors = red_colors;
+
+green_colors(1,:) = [31, 111, 112]/255;
+green_colors(2,:) = [84, 162, 161]/255;
+green_colors(3,:) = [159, 200, 200]/255;
+
+pallete.green_colors = green_colors;
+
+
+
 end

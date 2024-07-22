@@ -3,7 +3,7 @@ close all
 simulation_time = toc;
 
 %% Coloramp
-[Spectrum,depth_ramp,terrain_ramp] = coloramps(); % Run coloramp function
+[Spectrum,depth_ramp,terrain_ramp,blue_ramp,blues_2,pallete] = coloramps(); % Run coloramp function
 
 
 %% Creating Modeling Results Folder
@@ -83,30 +83,26 @@ end
 
 
 %% Outlet Hydrograph
-plot(gather(running_control.time_hydrograph),gather(outlet_states.outlet_hydrograph),'LineWidth',1.5','color','black');
 if flags.flag_elapsed_time == 1
-    xlabel('Elapsed Time (min)','interpreter','latex');
+    line_plot(gather(running_control.time_hydrograph),'\mathrm{Elapsed~Time} ','min',gather(outlet_states.outlet_hydrograph),'\mathrm{Discharge} ','\mathrm{m^3 \cdot s^{-1}}',[],[],[],[],'Hydrograph',1,1);
 else
-    xlabel('Date','interpreter','latex');
+    line_plot(gather(running_control.time_hydrograph),'\mathrm{Date} ','min',gather(outlet_states.outlet_hydrograph),'\mathrm{Discharge} ','\mathrm{m^3 \cdot s^{-1}}',[],[],[],[],'Hydrograph',1,1);
 end
-ylabel('Flow Discharge $(\mathrm{m^3/s})$','interpreter','latex');
-set(gca,'FontSize',12);
-hold on
 yyaxis right; set(gca,'ydir','reverse','ycolor','black');
 if flags.flag_rainfall == 1
     if flags.flag_spatial_rainfall ~=1
         Rainfall_Parameters.time_rainfall = Rainfall_Parameters.time_rainfall(1:length(Rainfall_Parameters.intensity_rainfall));
-        bar(gather(Rainfall_Parameters.time_rainfall),gather(Rainfall_Parameters.intensity_rainfall),'FaceColor',[0 .55 .55],'EdgeColor',[0 .5 .5],'LineWidth',1.5)
-        ylabel('Intensity (mm/h)','interpreter','latex'); ylim([0,max(gather(Rainfall_Parameters.intensity_rainfall)) + 200]);
+        bar(gather(Rainfall_Parameters.time_rainfall),gather(Rainfall_Parameters.intensity_rainfall),'FaceColor',pallete.blue_colors(2,:),'EdgeColor',[0 .5 .5],'LineWidth',1.5)
+        ylabel('Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex'); ylim([0,max(gather(Rainfall_Parameters.intensity_rainfall)) + 200]);
     else
         if flags.flag_rainfall == 1 && flags.flag_spatial_rainfall == 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_real_time_satellite_rainfall ~= 1 && flags.flag_satellite_rainfall ~= 1
             dim = length(BC_States.average_spatial_rainfall);
-            bar((gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim))))',gather(BC_States.average_spatial_rainfall),'FaceColor',[0 .55 .55],'EdgeColor',[0 .5 .5],'LineWidth',1.5);
-            ylabel('Intensity (mm/h)','interpreter','latex'); ylim([0,max(BC_States.average_spatial_rainfall)*5]);
+            bar((gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim))))',gather(BC_States.average_spatial_rainfall),'FaceColor',pallete.blue_colors(2,:),'EdgeColor',[0 .5 .5],'LineWidth',1.5);
+            ylabel('Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex'); ylim([0,max(BC_States.average_spatial_rainfall)*5]);
         else
             dim = length(BC_States.average_spatial_rainfall);
-            bar((gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim))))',gather(BC_States.average_spatial_rainfall),'FaceColor',[0 .55 .55],'EdgeColor',[0 .5 .5],'LineWidth',1.5);
-            ylabel('Intensity (mm/h)','interpreter','latex'); ylim([0,max(BC_States.average_spatial_rainfall)*5]);
+            bar((gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim))))',gather(BC_States.average_spatial_rainfall),'FaceColor',pallete.blue_colors(2,:),'EdgeColor',[0 .5 .5],'LineWidth',1.5);
+            ylabel('Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex'); ylim([0,max(BC_States.average_spatial_rainfall)*5]);
         end
     end
 
@@ -130,10 +126,13 @@ if flags.flag_inflow == 1
     else
         tfinal_inflow = length(Inflow_Parameters.time_inflow);
     end
-    plot(gather(Inflow_Parameters.time_inflow(1:tfinal_inflow,1)),gather(Inflow_Parameters.inflow_discharge(1:tfinal_inflow,:)),'LineWidth',1.5','color','black','LineStyle','--'); xlabel('Time (min)','interpreter','latex');
-    ylim([0 max(max(max(gather(outlet_states.outlet_hydrograph))*1.2,max(max(gather(Inflow_Parameters.inflow_discharge)))))]);
-    grid on
-    legend('Outflow','Inflow','Rainfall','interpreter','latex');
+    hold on
+    plot(gather(Inflow_Parameters.time_inflow(1:tfinal_inflow,1)),gather(Inflow_Parameters.inflow_discharge(1:tfinal_inflow,:)),'LineWidth',1.5','color','black','LineStyle','--'); 
+    ylim([0 max(max(max(gather(outlet_states.outlet_hydrograph))*1.2,1.5*max(max(gather(Inflow_Parameters.inflow_discharge)))))]);
+    grid on 
+    if size(Inflow_Parameters.inflow_discharge,2) == 1
+        legend('Outflow','Rainfall','Inflow','interpreter','latex');
+    end
 else
     legend('Outflow','Rainfall','interpreter','latex');
 end
@@ -160,7 +159,7 @@ if flags.flag_obs_gauges == 1
         yyaxis left;
         set(gca,'ycolor',color_plot(1,:))
         plot(gather(running_control.time_hydrograph),gather(outlet_states.outlet_hydrograph),'LineWidth',1.5','color',color_plot(1,:));
-        xlabel('Elapsed Time (min)','Interpreter','latex');
+        xlabel('Elapsed Time [min]','Interpreter','latex');
         ylabel('Q $(\mathrm{m^3/s})$','interpreter','latex'); set(gca,'FontSize',12);
         ylabel('Q $(\mathrm{m^3/s})$','interpreter','latex');
         title('Outlet','FontName','Garamond')
@@ -188,7 +187,7 @@ if flags.flag_obs_gauges == 1
     color_plots = linspecer(gauges.num_obs_gauges);
     set(gcf,'units','inches','position',[3,0,9,5])
     % Stage Hydrograph
-    % plot(gather(running_control.time_hydrograph),gather(wse_outlet_2),'LineWidth',1.5','color','black'); xlabel('Time (min)','interpreter','latex'); ylabel('Flow Discharge $(\mathrm{m^3/s})$','interpreter','latex'); set(gca,'FontSize',12);
+    % plot(gather(running_control.time_hydrograph),gather(wse_outlet_2),'LineWidth',1.5','color','black'); xlabel('Time [min]','interpreter','latex'); ylabel('Flow Discharge $(\mathrm{m^3/s})$','interpreter','latex'); set(gca,'FontSize',12);
     for i = 1:gauges.num_obs_gauges
         if mod(i,3) == 0
             ls = '--';
@@ -209,9 +208,9 @@ if flags.flag_obs_gauges == 1
     if flags.flag_rainfall == 1
         if flags.flag_spatial_rainfall ~=1
             bar(gather(Rainfall_Parameters.time_rainfall),gather(Rainfall_Parameters.intensity_rainfall),'FaceColor',[0 .55 .55],'EdgeColor',[0 .5 .5],'LineWidth',1.5)
-            ylabel('Rainfall Intensity (mm/h)','interpreter','latex');
+            ylabel('Rainfall Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex');
         else
-            ylabel('Mean Rainfall Intensity (mm/h)','interpreter','latex');
+            ylabel('Mean Rainfall Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex');
             plot((gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim)))),gather(BC_States.average_spatial_rainfall),'LineWidth',1.5,'color','blue')
         end
     end
@@ -270,7 +269,7 @@ if flags.flag_obs_gauges == 1 && flags.flag_rainfall == 1
     color_plots = linspecer(gauges.num_obs_gauges);
     set(gcf,'units','inches','position',[3,0,9,5])
     % Stage Hydrograph
-    % plot(gather(running_control.time_hydrograph),gather(wse_outlet_2),'LineWidth',1.5','color','black'); xlabel('Time (min)','interpreter','latex'); ylabel('Flow Discharge $(\mathrm{m^3/s})$','interpreter','latex'); set(gca,'FontSize',12);
+    % plot(gather(running_control.time_hydrograph),gather(wse_outlet_2),'LineWidth',1.5','color','black'); xlabel('Time [min]','interpreter','latex'); ylabel('Flow Discharge $(\mathrm{m^3/s})$','interpreter','latex'); set(gca,'FontSize',12);
     for i = 1:gauges.num_obs_gauges
         if mod(i,3) == 0
             ls = '--';
@@ -286,17 +285,17 @@ if flags.flag_obs_gauges == 1 && flags.flag_rainfall == 1
     end
     % Outlet
     plot(gather(running_control.time_hydrograph),gather(outlet_states.outlet_hydrograph)/(Wshed_Properties.drainage_area/1000/1000),'LineWidth',1.5,'linestyle',ls,'marker','.','color','red');
-    xlabel('Elapsed Time (min)','interpreter','latex'); ylabel('Specific Discharge $(\mathrm{m^3/s/km^2})$','interpreter','latex'); set(gca,'FontSize',12);
+    xlabel('Elapsed Time [min]','interpreter','latex'); ylabel('Specific Discharge $(\mathrm{m^3/s/km^2})$','interpreter','latex'); set(gca,'FontSize',12);
     hold on
     yyaxis right; set(gca,'ydir','reverse','ycolor','black');
     if flags.flag_rainfall == 1
         if flags.flag_spatial_rainfall ~=1
             bar(gather(Rainfall_Parameters.time_rainfall),gather(Rainfall_Parameters.intensity_rainfall),'FaceColor',[0 .55 .55],'EdgeColor',[0 .5 .5],'LineWidth',1.5)
-            ylabel('Rainfall Intensity (mm/h)','interpreter','latex');
+            ylabel('Rainfall Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex');
             ylim([0 max(gather(Rainfall_Parameters.intensity_rainfall))*6])
         else
             bar(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim)),gather(BC_States.average_spatial_rainfall),'FaceColor',[0 .5 .5],'EdgeColor',[0 .55 .55],'LineWidth',1.5);
-            ylabel('Aerial Mean Rainfall Intensity (mm/h)','interpreter','latex');
+            ylabel('Aerial Mean Rainfall Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex');
             hold on
             try
                 er = errorbar(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim)),BC_States.average_spatial_rainfall,Rainfall_Parameters.std_dev(1:(dim),1),Rainfall_Parameters.std_dev(1:(dim),1));
@@ -372,13 +371,12 @@ close all
 
 %% Rating Curve - Specific Cell
 if flags.flag_obs_gauges == 1
+    figure('units','normalized','outerposition',[0 0 1 1])
     color_plot = linspecer(gauges.num_obs_gauges);
     for i = 1:gauges.num_obs_gauges
         if gauges.num_obs_gauges > 5
-            set(gcf,'units','inches','position',[2,0,9,10])
             fsize = 8;
         else
-            set(gcf,'units','inches','position',[2,0,6.5,5])
             fsize = 12;
         end
         if gauges.num_obs_gauges > 3
@@ -407,7 +405,7 @@ if flags.flag_obs_gauges == 1
         fprintf('No rating curge gaugest export, PDF export error')
     end
     saveas(gcf,fullfile(folderName,'Rating_Curve_Gauges.fig'))
-    Rating_Curve_Specifc_Cell = table(gather(running_control.time_hydrograph), gather(gauges.hydrograph_cell),gather(gauges.wse_cell),gather(gauges.depth_cell),'VariableNames',{'Time (min) or Date','Flow Discharge (m3/s)','WSE (m)','Water Depth (m)'});
+    Rating_Curve_Specifc_Cell = table(gather(running_control.time_hydrograph), gather(gauges.hydrograph_cell),gather(gauges.wse_cell),gather(gauges.depth_cell),'VariableNames',{'Time [min] or Date','Flow Discharge (m3/s)','WSE (m)','Water Depth (m)'});
 
     FileName_String = 'Rating_Curve_Gauges';
     FileName = fullfile(folderName,strcat('\',FileName_String,'.csv'));
@@ -420,12 +418,11 @@ close all
 
 %% Hydrographs - Specific Cell
 if flags.flag_obs_gauges == 1
+    figure('units','normalized','outerposition',[0 0 1 1])
     if gauges.num_obs_gauges == 1
-        color_plot = linspecer(2);
-        set(gcf,'units','inches','position',[2,0,6.5,5])
+        color_plot = linspecer(10);
     else
         color_plot = linspecer(gauges.num_obs_gauges);
-        set(gcf,'units','inches','position',[2,0,6.5,10])
     end
     font_size = 12;
     for i = 1:gauges.num_obs_gauges
@@ -442,14 +439,14 @@ if flags.flag_obs_gauges == 1
             subplot(1,1,1)
         end
         yyaxis left;
-        set(gca,'ycolor',color_plot(1,:))
-        plot(gather(running_control.time_hydrograph),gather(gauges.hydrograph_cell(:,i)),'LineWidth',1.5','color',color_plot(1,:));
-        xlabel('Elapsed Time (min)','Interpreter','latex');
+        set(gca,'ycolor',pallete.blue_colors(1,:))
+        plot(gather(running_control.time_hydrograph),gather(gauges.hydrograph_cell(:,i)),'LineWidth',1.5','color',pallete.blue_colors(2,:));
+        xlabel('Elapsed Time [min]','Interpreter','latex');
         ylabel('Q $(\mathrm{m^3/s})$','interpreter','latex'); set(gca,'FontSize',12);
         title(gauges.labels_observed_string{i},'FontName','Garamond')
         yyaxis right
         set(gca,'ycolor',color_plot(2,:))
-        plot(gather(running_control.time_hydrograph),gather(gauges.depth_cell(:,i)),'LineWidth',1.5','linestyle','--','color',color_plot(2,:));
+        plot(gather(running_control.time_hydrograph),gather(gauges.depth_cell(:,i)),'LineWidth',1.5','linestyle','--','color',pallete.red_colors(3,:));
         ylabel('h (m)','interpreter','latex')
         set(gca, 'TickLength', [0.02 0.01]);
         set(gca,'Tickdir','out')
@@ -572,7 +569,7 @@ close all
 %% Water Quality Analysis
 if flags.flag_waterquality == 1
     plot(gather(running_control.time_hydrograph),gather(WQ_States.outet_pollutograph),'LineWidth',1.5,'color','Red','Marker','o') ;
-    xlabel('Time (min)','Interpreter','Latex');
+    xlabel('Time [min]','Interpreter','Latex');
     ylabel('Pol. Concentration (mg/L)','Interpreter','Latex')
     grid on
     hold on
@@ -588,7 +585,7 @@ if flags.flag_waterquality == 1
     box on
     exportgraphics(gcf,fullfile(folderName,'Pollutograph.pdf'),'ContentType','vector')
     saveas(gcf,fullfile(folderName,'Pollutograph.fig'))
-    Outlet_Pollutograph_Data = table(gather(running_control.time_hydrograph),gather(WQ_States.outet_pollutograph),gather(load_wq),'VariableNames',{'Time (min)','Concentration (mg/L)','load (kg/sec)'});
+    Outlet_Pollutograph_Data = table(gather(running_control.time_hydrograph),gather(WQ_States.outet_pollutograph),gather(load_wq),'VariableNames',{'Time [min]','Concentration (mg/L)','load (kg/sec)'});
 
     FileName_String = 'Outlet_Pollutograph_Data';
     FileName = fullfile(folderName,strcat('\',FileName_String,'.csv'));
@@ -599,7 +596,7 @@ if flags.flag_waterquality == 1
     %% Histeresis Effect
     set(gcf,'units','inches','position',[3,3,6,4])
     plot(gather(running_control.time_hydrograph),outlet_states.outlet_hydrograph,'color','black','linewidth',1.5,'marker','*');
-    xlabel('Time (min)','Interpreter','Latex');
+    xlabel('Time [min]','Interpreter','Latex');
     ylabel('Flow Discharge $(\mathrm{m^3/s})$','interpreter','latex')
     yyaxis right
     set(gca,'ycolor','black')
@@ -636,7 +633,7 @@ if flags.flag_waterquality == 1
     %% EMC(Curve)
     plot(gather(running_control.time_hydrograph),WQ_States.EMC_outlet,'LineWidth',1.5,'color','black');
     ylabel('$\mathrm{EMC (mg/L)}$','Interpreter','Latex');
-    xlabel('Elapsed Time (min)','Interpreter','Latex');
+    xlabel('Elapsed Time [min]','Interpreter','Latex');
     set(gca, 'TickLength', [0.02 0.01]);
     set(gca,'Tickdir','out')
     set(gca, 'FontName', 'Garamond', 'FontSize', font_size)
@@ -1239,15 +1236,15 @@ if flags.flag_waterquality == 1
 
     subplot(3,3,7)
     % Hydrographs
-    plot(gather(running_control.time_hydrograph),gather(outlet_states.outlet_hydrograph),'LineWidth',1.5','color','black'); xlabel('Time (min)','interpreter','latex'); ylabel('Flow Discharge $(\mathrm{m^3/s})$','interpreter','latex'); set(gca,'FontSize',size_font);
+    plot(gather(running_control.time_hydrograph),gather(outlet_states.outlet_hydrograph),'LineWidth',1.5','color','black'); xlabel('Time [min]','interpreter','latex'); ylabel('Flow Discharge $(\mathrm{m^3/s})$','interpreter','latex'); set(gca,'FontSize',size_font);
     hold on
     yyaxis right; set(gca,'ydir','reverse','ycolor','black');
     bar(gather(Rainfall_Parameters.time_rainfall),gather(Rainfall_Parameters.intensity_rainfall),'FaceColor',[0 .5 .5],'EdgeColor',[0 .55 .55],'LineWidth',1.5);
-    ylabel('Intensity (mm/h)','interpreter','latex'); ylim([0,max(gather(Rainfall_Parameters.intensity_rainfall)) + 200]);
+    ylabel('Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex'); ylim([0,max(gather(Rainfall_Parameters.intensity_rainfall)) + 200]);
     if flags.flag_inflow == 1
         hold on
         yyaxis left; set(gca,'ydir','normal','ycolor','black');
-        plot(gather(Inflow_Parameters.time_inflow(1:tfinal_inflow,1)),gather(Inflow_Parameters.inflow_discharge(1:tfinal_inflow,:)),'LineWidth',1.5','color','black','LineStyle','--'); xlabel('Time (min)','interpreter','latex');
+        plot(gather(Inflow_Parameters.time_inflow(1:tfinal_inflow,1)),gather(Inflow_Parameters.inflow_discharge(1:tfinal_inflow,:)),'LineWidth',1.5','color','black','LineStyle','--'); xlabel('Time [min]','interpreter','latex');
         grid on
         legend('Outflow','Inflow','Rainfall','interpreter','latex');
     else
@@ -1256,7 +1253,7 @@ if flags.flag_waterquality == 1
     subplot(3,3,8)
     % Load and Pollutograph
     plot(gather(running_control.time_hydrograph),gather(WQ_States.outet_pollutograph),'LineWidth',1.5,'color',[255,140,0]/255) ;
-    xlabel('Time (min)','Interpreter','Latex');
+    xlabel('Time [min]','Interpreter','Latex');
     ylabel('Pol. Concentration (mg/L)','Interpreter','Latex')
     grid on
     hold on
@@ -1276,9 +1273,9 @@ if flags.flag_waterquality == 1
     plot(0:1,0:1,'LineWidth',1,'Color','black','LineStyle','--')
     ylabel('$m/m_{\mathrm{tot}}$','Interpreter','Latex');
     xlabel('$V/V_{\mathrm{tot}}$','Interpreter','Latex');
-    exportgraphics(gcf,fullfile(folderName,'Mapas.png'),'ContentType','image','Colorspace','rgb','Resolution',1200)
-    exportgraphics(gcf,fullfile(folderName,'Mapas.pdf'),'ContentType','vector')
-    saveas(gcf,fullfile(folderName,'Mapas.fig'))
+    % exportgraphics(gcf,fullfile(folderName,'Mapas.png'),'ContentType','image','Colorspace','rgb','Resolution',1200)
+    % exportgraphics(gcf,fullfile(folderName,'Mapas.pdf'),'ContentType','vector')
+    % saveas(gcf,fullfile(folderName,'Mapas.fig'))
 else %%%%%%%%%%%%%%%%%%%%
     % No water quality
     size_font = 12;
@@ -1297,21 +1294,21 @@ else %%%%%%%%%%%%%%%%%%%%
 
     ax4 = subplot(2,2,4);
     % Hidrographs
-    plot(gather(running_control.time_hydrograph),gather(outlet_states.outlet_hydrograph),'LineWidth',1.5','color','black','marker','*'); xlabel('Time (min)','interpreter','latex'); ylabel('Flow Discharge $(\mathrm{m^3/s}$)','interpreter','latex'); set(gca,'FontSize',size_font);
+    plot(gather(running_control.time_hydrograph),gather(outlet_states.outlet_hydrograph),'LineWidth',1.5','color','black','marker','*'); xlabel('Time [min]','interpreter','latex'); ylabel('Flow Discharge $(\mathrm{m^3/s}$)','interpreter','latex'); set(gca,'FontSize',size_font);
     hold on
     yyaxis right; set(gca,'ydir','reverse','ycolor','black');
     if flags.flag_spatial_rainfall ~= 1 && flags.flag_rainfall == 1
         bar(gather(Rainfall_Parameters.time_rainfall),gather(Rainfall_Parameters.intensity_rainfall),'FaceColor',[0 .5 .5],'EdgeColor',[0 .55 .55],'LineWidth',1.5);
-        ylabel('Intensity (mm/h)','interpreter','latex'); ylim([0,max(gather(Rainfall_Parameters.intensity_rainfall)) + 200]);
+        ylabel('Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex'); ylim([0,max(gather(Rainfall_Parameters.intensity_rainfall)) + 200]);
     elseif flags.flag_rainfall == 1
         bar(gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1:(length(BC_States.average_spatial_rainfall)))),gather(BC_States.average_spatial_rainfall),'FaceColor',[0 .5 .5],'EdgeColor',[0 .55 .55],'LineWidth',1.5);
-        ylabel('Intensity (mm/h)','interpreter','latex'); ylim([0,max(gather(BC_States.average_spatial_rainfall)) + 200]);
+        ylabel('Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex'); ylim([0,max(gather(BC_States.average_spatial_rainfall)) + 200]);
     end
     if flags.flag_inflow == 1
         hold on
         yyaxis left; set(gca,'ydir','normal','ycolor','black')
         tfinal_inflow = length(Inflow_Parameters.time_inflow);
-        plot(gather(Inflow_Parameters.time_inflow(1:tfinal_inflow,1)),gather(Inflow_Parameters.inflow_discharge(1:tfinal_inflow,:)),'LineWidth',1.5','color','black','LineStyle','--'); xlabel('Time (min)','interpreter','latex');
+        plot(gather(Inflow_Parameters.time_inflow(1:tfinal_inflow,1)),gather(Inflow_Parameters.inflow_discharge(1:tfinal_inflow,:)),'LineWidth',1.5','color','black','LineStyle','--'); xlabel('Time [min]','interpreter','latex');
         ylim([0 max(max(gather(outlet_states.outlet_hydrograph))*1.2,max(max(gather(Inflow_Parameters.inflow_discharge))))]);
         grid on
         legend('Outflow','Inflow','Rainfall');
@@ -1323,9 +1320,9 @@ else %%%%%%%%%%%%%%%%%%%%
     title('Hydrograph','Interpreter','Latex');
     set(gca,'Tickdir','out')
 
-    exportgraphics(gcf,fullfile(folderName,'Mapas.png'),'ContentType','image','Colorspace','rgb','Resolution',800)
-    exportgraphics(gcf,fullfile(folderName,'Mapas.pdf'),'ContentType','vector')
-    saveas(gcf,fullfile(folderName,'Mapas.fig'))
+    % exportgraphics(gcf,fullfile(folderName,'Mapas.png'),'ContentType','image','Colorspace','rgb','Resolution',800)
+    % exportgraphics(gcf,fullfile(folderName,'Mapas.pdf'),'ContentType','vector')
+    % saveas(gcf,fullfile(folderName,'Mapas.fig'))
 end
 
 %% Input Data Maps
@@ -1382,8 +1379,8 @@ else
     [axis6] = surfplot_maps(DEM_raster,LULC_Properties.C_4,linspecer,'Easting (m)','Northing (m)','$C_4~(-)',no_data_value,idx_nan,4,2,8,size_font);
 
 end
-exportgraphics(gcf,fullfile(folderName,'LULC_Parameters.png'),'ContentType','image','Colorspace','rgb','Resolution',600);
-saveas(gcf,fullfile(folderName,'LULC_Parameters.fig'))
+% exportgraphics(gcf,fullfile(folderName,'LULC_Parameters.png'),'ContentType','image','Colorspace','rgb','Resolution',600);
+% saveas(gcf,fullfile(folderName,'LULC_Parameters.fig'))
 
 close all
 fig=gcf;
@@ -1399,8 +1396,8 @@ dheta = Soil_Properties.teta_sat - Soil_Properties.teta_i;
 % Psi
 [axis3] = surfplot_maps(DEM_raster,Soil_Properties.psi,Spectrum,'Easting (m)','Northing (m)','$\mathrm{\psi~(mm)}    $',no_data_value,idx_nan,1,3,3,size_font);
 
-exportgraphics(gcf,fullfile(folderName,'SOIL_Parameters.png'),'ContentType','image','Colorspace','rgb','Resolution',600);
-saveas(gcf,fullfile(folderName,'SOIL_Parameters.fig'))
+% exportgraphics(gcf,fullfile(folderName,'SOIL_Parameters.png'),'ContentType','image','Colorspace','rgb','Resolution',600);
+% saveas(gcf,fullfile(folderName,'SOIL_Parameters.fig'))
 close all
 
 %% DEM with Rivers
@@ -1454,7 +1451,7 @@ ylabel('Northing (m)','interpreter','latex')
 ax = ancestor(ax2, 'axes');
 ax.XAxis.Exponent = 0;xtickformat('%.0f');
 ax.YAxis.Exponent = 0;ytickformat('%.0f');
-exportgraphics(gcf,fullfile(folderName,'Flow_Accumulation.png'),'ContentType','image','Colorspace','rgb','Resolution',600);
+% exportgraphics(gcf,fullfile(folderName,'Flow_Accumulation.png'),'ContentType','image','Colorspace','rgb','Resolution',600);
 close all
 % 
 % dev=Rainfall_Parameters.std_dev;

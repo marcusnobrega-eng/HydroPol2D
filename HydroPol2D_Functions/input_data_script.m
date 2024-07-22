@@ -22,51 +22,92 @@ if running_control.routing_time < 0
     error('Please make sure Date End is later than Date Begin.')
 end
 
-% Flags
-input_table_flags = table2array(input_table(:,5));
-flags.flag_rainfall = input_table_flags(1);
-flags.flag_abstraction = input_table_flags(2);
-flags.flag_inflow = input_table_flags(3);
-flags.flag_waterbalance = input_table_flags(4);
-flags.flag_waterquality = input_table_flags(5);
-flags.flag_timestep = input_table_flags(6);
-flags.flag_warmup = input_table_flags(7);
-flags.flag_initial_buildup = input_table_flags(8);
-flags.flag_wq_model = input_table_flags(9);
-flags.flag_infiltration = input_table_flags(10);
-flags.flag_critical = input_table_flags(11);
-flags.flag_spatial_rainfall	 = input_table_flags(12);
-flags.flag_D8	= input_table_flags(13);
-flags.flag_diffusive = input_table_flags(14);
-flags.flag_resample = input_table_flags(15);
-flags.flag_smoothening = input_table_flags(16);
-flags.flag_trunk = input_table_flags(17);
-flags.flag_export_maps = input_table_flags(18);
-flags.flag_fill_DEM = input_table_flags(19);
-flags.flag_smooth_cells = input_table_flags(20);
-flags.flag_reduce_DEM = input_table_flags(21);
-flags.flag_ETP = input_table_flags(22);
-flags.flag_obs_gauges = input_table_flags(23);
-flags.flag_GPU = input_table_flags(24);
-flags.flag_single = input_table_flags(25);
-flags.flag_reservoir = input_table_flags(26);
-flags.flag_human_instability = input_table_flags(27);
-flags.flag_input_rainfall_map = input_table_flags(28);
-flags.flag_satellite_rainfall = input_table_flags(29);
-flags.flag_real_time_satellite_rainfall = input_table_flags(30);
-flags.flag_unit_for_forecasting = input_table_flags(31);
-flags.flag_dam_break = input_table_flags(32);
-flags.flag_groundwater_modeling  = input_table_flags(33);
-flags.flag_river_heigth_compensate = input_table_flags(34);
-flags.flag_rainfall_multiple_runs = input_table_flags(35);
-flags.flag_inertial = input_table_flags(36);
-flags.flag_dashboard = input_table_flags(37);
-flags.flag_data_source = input_table_flags(38);
+% --------------- Flags ----------------  %
+input_table_flags = readtable(model_folder,'Sheet','Flags');
+input_table_BC = table2array(input_table_flags(:,2));
+input_table_BC(isnan(input_table_BC)) = [];
 
-% Matricial Variables
-% input_table_matricial = table2array(input_table(:,9));
-% running_control.time_step_matrices = input_table_matricial(1);
-% factor_cells = input_table_matricial(2);
+input_table_Hydro = table2array(input_table_flags(:,5));
+input_table_Hydro(isnan(input_table_Hydro)) = [];
+
+input_table_Performance = table2array(input_table_flags(:,8));
+input_table_Performance(isnan(input_table_Performance)) = [];
+
+input_table_IC = table2array(input_table_flags(:,11));
+input_table_IC(isnan(input_table_IC)) = [];
+
+input_table_DEM_t = table2array(input_table_flags(:,14));
+input_table_DEM_t(isnan(input_table_DEM_t)) = [];
+
+input_table_extra = table2array(input_table_flags(:,17));
+input_table_extra(isnan(input_table_extra)) = [];
+
+% Boundary Condition Flags 
+flags.flag_rainfall = input_table_BC(1);
+flags.flag_spatial_rainfall = input_table_BC(2);
+flags.flag_ETP = input_table_BC(3);
+flags.flag_input_rainfall_map = input_table_BC(4);
+flags.flag_rainfall_multiple_runs = input_table_BC(5);
+flags.flag_data_source = input_table_BC(6);
+flags.flag_inflow = input_table_BC(7);
+flags.flag_satellite_rainfall = input_table_BC(8);
+flags.flag_alternated_blocks = input_table_BC(9);
+flags.flag_huff = input_table_BC(10);
+
+
+% Hydrologic-Hydrodynamic-WQ Flags
+flags.flag_timestep = input_table_Hydro(1);
+flags.flag_infiltration = input_table_Hydro(2);
+flags.flag_critical = input_table_Hydro(3);
+flags.flag_D8 = input_table_Hydro(4);
+flags.flag_diffusive = input_table_Hydro(5);
+flags.flag_inertial = input_table_Hydro(6);
+flags.flag_waterbalance = input_table_Hydro(7);
+flags.flag_waterquality = input_table_Hydro(8);
+flags.flag_reservoir = input_table_Hydro(9);
+flags.flag_wq_model = input_table_Hydro(10);
+flags.flag_groundwater_modeling = input_table_Hydro(11);
+flags.flag_real_time_satellite_rainfall = input_table_Hydro(12);
+flags.flag_dam_break = input_table_Hydro(13);
+flags.flag_human_instability = input_table_Hydro(14);
+flags.flag_boundary = input_table_Hydro(15);
+
+% Performance Flags
+flags.flag_GPU = input_table_Performance(1);
+flags.flag_single = input_table_Performance(2);
+
+% Initial Condition Flags
+flags.flag_warmup = input_table_IC(1);
+flags.flag_initial_buildup = input_table_IC(2);
+
+% DEM Treatment Tools
+flags.flag_resample = input_table_DEM_t(1);
+flags.flag_smoothening = input_table_DEM_t(2);
+flags.flag_trunk = input_table_DEM_t(3);
+flags.flag_fill_DEM = input_table_DEM_t(4);
+flags.flag_smooth_cells = input_table_DEM_t(5);
+flags.flag_reduce_DEM = input_table_DEM_t(6);
+
+% Extra Flags
+flags.flag_export_maps = input_table_extra(1);
+flags.flag_river_heigth_compensation = input_table_extra(2);
+flags.flag_rainfall_multiple_runs = input_table_extra(3);
+flags.flag_data_source = input_table_extra(4);
+flags.flag_dashboard = input_table_extra(5);
+flags.flag_elapsed_time = input_table_extra(6);
+flags.flag_obs_gauges = input_table_extra(7);
+
+% Little Constraints
+if flags.flag_infiltration == 0
+    flags.flag_ETP = 0; 
+    warning('Since no infiltration occurs, HydroPol2D is assuming no evapotranspiration is happening. Please check accordingly.')
+    pause(0.5)
+end
+
+% Volume error
+input_table_error = table2array(input_table(:,5));
+running_control.volume_error = input_table_error(1);
+running_control.factor_reduction = input_table_error(2);
 
 if flags.flag_input_rainfall_map + flags.flag_satellite_rainfall + flags.flag_real_time_satellite_rainfall > 1
     error('Please choose only one type of spatial rainfall data.')
@@ -77,22 +118,21 @@ if flags.flag_inertial == 1 && flags.flag_diffusive == 1
 end
 
 % Watershed Inputs and Cuts
-input_table_watershed_inputs = table2array(input_table(:,12));
+input_table_watershed_inputs = table2array(input_table(:,8));
 outlet_type = input_table_watershed_inputs(1);
 slope_outlet = input_table_watershed_inputs(2);
 n_outlets_data = input_table_watershed_inputs(3);
 Lateral_Groundwater_Flux = input_table_watershed_inputs(4); % m3/s/m
 
 % Maps and Plots Control
-input_table_map_plots = table2array(input_table(:,15));
+input_table_map_plots = table2array(input_table(:,11));
 running_control.record_time_maps = input_table_map_plots(1);
 running_control.record_time_hydrographs = input_table_map_plots(2);
 Pol_min = input_table_map_plots(3);
 depth_wse = input_table_map_plots(4);
 flags.flag_wse = input_table_map_plots(5);
-flags.flag_elapsed_time = input_table_map_plots(6);
-running_control.record_time_spatial_rainfall = input_table_map_plots(7);
-time_save_ETP = input_table_map_plots(8);
+running_control.record_time_spatial_rainfall = input_table_map_plots(6);
+time_save_ETP = input_table_map_plots(7);
 
 if flags.flag_input_rainfall_map == 1
     if running_control.record_time_maps < running_control.record_time_spatial_rainfall
@@ -101,12 +141,12 @@ if flags.flag_input_rainfall_map == 1
 end
 
 % Routing Parameters
-routing_parameters = table2array(input_table(:,18));
+routing_parameters = table2array(input_table(:,14));
 CA_States.depth_tolerance = routing_parameters(1);
 
 
 % River Heigth and Width
-input_table_river = table2array(input_table(:,21));
+input_table_river = table2array(input_table(:,17));
 GIS_data.alfa_1 = input_table_river(1);
 GIS_data.alfa_2 = input_table_river(2);
 GIS_data.beta_1 = input_table_river(3);
@@ -116,14 +156,14 @@ GIS_data.beta_2 = input_table_river(4);
 % GIS_data.yulcorner = input_table_abstraction(6);
 
 % Water Quality Inputs
-input_table_WQ_parameter = table2array(input_table(:,24));
+input_table_WQ_parameter = table2array(input_table(:,20));
 ADD = input_table_WQ_parameter(1);
 min_Bt = input_table_WQ_parameter(2);
 Bmin = input_table_WQ_parameter(3);
 Bmax = input_table_WQ_parameter(4);
 
 % DEM Smoothing, Imposemin & Resample
-input_table_DEM = table2array(input_table(:,28));
+input_table_DEM = table2array(input_table(:,24));
 GIS_data.min_area = input_table_DEM(1);
 GIS_data.tau = input_table_DEM(2);
 GIS_data.K_value = input_table_DEM(3);
@@ -132,7 +172,7 @@ GIS_data.resolution_resample = input_table_DEM(5);
 
 
 % TopoToolbox Folder
-topo_path = table2cell(input_table(1,31));
+topo_path = table2cell(input_table(1,27));
 
 % Human Instability
 if flags.flag_human_instability == 1
@@ -211,16 +251,14 @@ else
 end
 
 % Design Storms
-input_table_design = table2array((input_table(1:9,43)));
-flags.flag_alternated_blocks = input_table_design(1);
-flags.flag_huff = input_table_design(2);
-Design_Storm_Parameters.RP = input_table_design(3); % year
-Design_Storm_Parameters.Rainfall_Duration = input_table_design(4); % min
-Design_Storm_Parameters.K = input_table_design(5); % K
-Design_Storm_Parameters.a = input_table_design(6); % a
-Design_Storm_Parameters.b = input_table_design(7); % b
-Design_Storm_Parameters.c = input_table_design(8); % c
-Design_Storm_Parameters.time_step = input_table_design(9); % min
+input_table_design = table2array((input_table(1:9,39)));
+Design_Storm_Parameters.RP = input_table_design(1); % year
+Design_Storm_Parameters.Rainfall_Duration = input_table_design(2); % min
+Design_Storm_Parameters.K = input_table_design(3); % K
+Design_Storm_Parameters.a = input_table_design(4); % a
+Design_Storm_Parameters.b = input_table_design(5); % b
+Design_Storm_Parameters.c = input_table_design(6); % c
+Design_Storm_Parameters.time_step = input_table_design(7); % min
 
 if flags.flag_huff == 1 && flags.flag_alternated_blocks == 1
     error('Please, enter either Alternated Blocks or Huff hyetograph.')
@@ -228,7 +266,7 @@ end
 
 % Input Rainfall Maps
 if flags.flag_input_rainfall_map == 1
-    input_table_rainfall = ((input_table(2:end,45:46)));
+    input_table_rainfall = ((input_table(2:end,41:42)));
     Input_Rainfall.time = table2array(input_table_rainfall(:,1)); % % min
     Input_Rainfall.num_obs_maps = sum(~isnan(Input_Rainfall.time));
     Input_Rainfall.time = Input_Rainfall.time(1:Input_Rainfall.num_obs_maps);
@@ -382,8 +420,8 @@ for i = 1:Inflow_Parameters.n_stream_gauges
     if flags.flag_resample
         % Do we have to include Resolution/2 in the calculations?
         nonNanCount = sum(~ismissing(input_table_values(1:end,(i-1)*5 + 3)));
-        x_coordinates = round((-DEM_raster.georef.SpatialRef.XWorldLimits(1) + Wshed_Properties.Resolution/2  + Wshed_Properties.Resolution/2 + table2array(input_table_values(1:nonNanCount,(i-1)*5 + 3)))/GIS_data.resolution_resample); % Check R/2
-        y_coordinates = round((DEM_raster.georef.SpatialRef.YWorldLimits(1) - Wshed_Properties.Resolution/2 - table2array(input_table_values(1:nonNanCount,(i-1)*5 + 4)))/GIS_data.resolution_resample);
+        x_coordinates = round((-DEM_raster.georef.SpatialRef.XWorldLimits(1) + table2array(input_table_values(1:nonNanCount,(i-1)*5 + 3)))/GIS_data.resolution_resample); % Check R/2
+        y_coordinates = round((DEM_raster.georef.SpatialRef.YWorldLimits(2) - table2array(input_table_values(1:nonNanCount,(i-1)*5 + 4)))/GIS_data.resolution_resample);
         points = [x_coordinates,y_coordinates];
         if size(points,1) ~= nonNanCount
             warning('Some of the inlet points are located at the same cell. Therefore, we are only considering one of them.')
@@ -393,9 +431,9 @@ for i = 1:Inflow_Parameters.n_stream_gauges
         northing_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,2); 
         Wshed_Properties.n_inlets(:,i) = size(effective_inlets,1);
 
-        easting_inlet_cells(1:nonNanCount,i) = round((-DEM_raster.georef.SpatialRef.XWorldLimits(1)  + table2array(input_table_values(1:nonNanCount,(i-1)*5 + 3)))/GIS_data.resolution_resample); % Check R/2
-        northing_inlet_cells(1:nonNanCount,i) = round((DEM_raster.georef.SpatialRef.YWorldLimits(1) - table2array(input_table_values(1:nonNanCount,(i-1)*5 + 4)))/GIS_data.resolution_resample);
-        Wshed_Properties.n_inlets(:,i) = sum(easting_inlet_cells(1:nonNanCount,i)>=0);
+        easting_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,1);
+        northing_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,2); 
+        Wshed_Properties.n_inlets(:,i) = size(effective_inlets,1);
     else
         % Do we have to include Resolution/2 in the calculations?
         nonNanCount = sum(~ismissing(input_table_values(1:end,(i-1)*5 + 3)));

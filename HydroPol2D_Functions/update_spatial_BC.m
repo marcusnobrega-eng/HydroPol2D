@@ -256,6 +256,8 @@ if flags.flag_ETP == 1
             % 1st data
             if flags.flag_GPU == 1 || flags.flag_single == 1
                 day_of_year = day(extra_parameters.ETP.time_ETP(z2,1),'dayofyear');
+            else
+                day_of_year = day(ETP_Parameters.time_ETP(z2,1),'dayofyear');
             end
             [Hydro_States.ETP] = ETP_model(z2,day_of_year,ETP_Parameters.coordinates_stations(:,1),ETP_Parameters.coordinates_stations(:,2),Spatial_Rainfall_Parameters.x_grid',Spatial_Rainfall_Parameters.y_grid',ETP_Parameters.maxtemp_stations,ETP_Parameters.mintemp_stations,ETP_Parameters.avgtemp_stations,ETP_Parameters.u2_stations,ETP_Parameters.ur_stations,ETP_Parameters.G_stations,ETP_Parameters.DEM_etp,ETP_Parameters.lat,ETP_Parameters.Krs,ETP_Parameters.alfa_albedo_input,idx_nan);
             if nansum(nansum(Hydro_States.ETP)) == 0
@@ -269,7 +271,11 @@ if flags.flag_ETP == 1
             end
             % Maps.Hydro.ETP_save(:,:,z2) = Hydro_States.ETP; % Saving ETP Maps
             Maps.Hydro.ETP_save(:,:,saver_count) = Hydro_States.ETP; % Saving ETP Maps
-            ETR_save(:,:,z2) = Hydro_States.ETR ;
+            if z2 == 1
+                ETR_save(:,:,z2) = Hydro_States.ETP ; % this might be incorrect
+            else
+                ETR_save(:,:,z2) = Hydro_States.ETR ; 
+             end
         end
     end
 end

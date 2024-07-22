@@ -9,18 +9,22 @@
 % clear all
 % load workspace_franquinho.mat
 % save('preprocessing_input.mat');
-format short g
+% load('workspace_inflow.mat');
+% clear all
+% % load('workspace_concentrated_rainfall.mat');
+% load('workspace.mat')
+% format short g
 
 tic 
 k = 1; % time-step counter
 C = 0; % initial infiltration capacity
 t = running_control.min_time_step; % inital time
 time_step = running_control.min_time_step/60; % time-step of the model in min
+saver_count = 1; % starts in 1 but the next pointer should be 2, this is auto fixed when t reach the next time aggregation.
 update_spatial_BC;
 Flooded_Area = 0; % initial flooded area
 velocities.velocity_raster = 0; % initial velocity
 Risk_Area = 0; % initial risk area
-saver_count = 1; % starts in 1 but the next pointer should be 2, this is auto fixed when t reach the next time aggregation.
 store = 1; % (meaning, luis?)
 %flags.flag_inertial = 1; % Using Inertial Model
 t_previous = 0;
@@ -34,12 +38,16 @@ catch_index = 1;
 % ---- Plotting Results in Real-Time ---- %
 % n_snaps = 10; % Number of plots. Time will be divided equally
 % dt_snap = running_control.routing_time/n_snaps; time_snap = [1:1:n_snaps]*dt_snap; z2_snap = 0;
+try
+    delete(ax)
+end
+
 if flags.flag_dashboard == 1
     ax.flags = flags;
     if flags.flag_GPU == 1
-        ax = HydroPol2D_running_dashboard(ax,Maps, zeros(size(DEM_raster.Z)), DEM_raster,extra_parameters.gauges,1,1);
+        ax = HydroPol2D_running_dashboard(ax,Maps, zeros(size(DEM_raster.Z)), DEM_raster,extra_parameters.gauges,BC_States,time_step,Wshed_Properties.Resolution,1,1);
     else
-        ax = HydroPol2D_running_dashboard(ax,Maps, zeros(size(DEM_raster.Z)), DEM_raster, gauges,1,1);
+        ax = HydroPol2D_running_dashboard(ax,Maps,zeros(size(DEM_raster.Z)), DEM_raster, gauges,BC_States,time_step,Wshed_Properties.Resolution,1,1);
     end
 end
 % ---- Main Loop --- %
@@ -225,7 +233,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     water_balance_error_volume = abs(sum(sum(depths.d_t(depths.d_t<0))))*Wshed_Properties.Resolution^2*0.001; % m3
     water_balance_error_mm = water_balance_error_volume/Wshed_Properties.drainage_area*1000; % mm
 
-    if water_balance_error_volume > 0.5 % We need to define better this parameter
+    if water_balance_error_volume > running_control.volume_error % We need to define better this parameter
         factor_time = 1;
         catch_index = catch_index + 1;
         error('Mass balance error too high.')
@@ -299,10 +307,10 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     volume_error = flux_volumes - delta_storage;    
 
     % Introducing the volume error to the inflow cells
-    if flags.flag_inflow == 1
-        mask = logical(Wshed_Properties.inflow_cells);
+    if flags.flag_inflow == 1 && flags.flag_waterbalance == 1
+        mask = Wshed_Properties.inflow_mask;
         if any(any(mask))
-            % depths.d_t(mask) = depths.d_t(mask) - 1000*(volume_error)/sum(sum(mask))/Wshed_Properties.cell_area;
+            depths.d_t(mask) = depths.d_t(mask) - 1000*(volume_error)/sum(sum(mask))/Wshed_Properties.cell_area;
         end
     end
     % Refreshing time-step script
@@ -391,18 +399,19 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     
     % Show Stats
     if flags.flag_waterquality == 1
-        perc______duremain______tsec_______dtmm______infmmhr____CmgL_____dtmWQ___VolErrorm3 = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max((WQ_States.P_conc))), tmin_wq,volume_error]
+        perc__duremain___tsec____dtmm___infmmhr__CmgL___dtmWQ_VolErrorm3 = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max((WQ_States.P_conc))), tmin_wq,volume_error]
     else
         per__duremain__tsec___dtmm__infmmhr__Vmax___VolErrorm3 = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max(velocities.velocity_raster)),volume_error]
     end
 
     catch ME % Reduce the time-step
+        disp(ME.message)
         t = t - time_step; 
         t_previous = t;
         % time_step = time_step/2; % min
         wave_celerity = sqrt(9.81*(max(max(max(depths.d_tot/1000)),max(max(depths.d_p/1000))))); % Using d_p, which is the depth at the end of the time-step
         max_vel = max(max(velocities.velocity_raster));
-        factor = 1/catch_index;
+        factor = 1/catch_index*running_control.factor_reduction;
         new_timestep = factor*(min(Courant_Parameters.alfa_min*Wshed_Properties.Resolution./(max_vel+wave_celerity))); % alpha of 0.4
         % new_timestep = factor*(min(0.25*Wshed_Properties.Resolution./(wave_celerity))); % alpha of 0.4
         
@@ -472,7 +481,7 @@ if flags.flag_GPU == 1
     % Gauges Label
     if flags.flag_obs_gauges == 1
         gauges = structfun(@gather, gauges, 'UniformOutput', false);
-        gauges.labels_observed_string = extra_parameters.gauges.label_observed_string;
+        gauges.labels_observed_string = extra_parameters.gauges.labels_observed_string;
     end
     GIS_data = structfun(@gather, GIS_data, 'UniformOutput', false);
     if flags.flag_human_instability > 0
@@ -525,18 +534,3 @@ if flags.flag_GPU == 1
 end
 
 
-function [M_left,M_right,M_up,M_down,M_NE,M_SE,M_SW,M_NW] = forward_matrices(M,nx,ny,flag_D8)
-    % Generates Forward Matrices of a given Matix
-    M_left = [zeros(ny,1),M(:,1:(nx-1))];
-    M_right = [M(:,(2:(nx))) zeros(ny,1)];
-    M_up = [zeros(1,nx) ; M(1:(ny-1),:)];
-    M_down = [M(2:(ny),:) ; zeros(1,nx)];
-    if flag_D8 == 1
-        % Simulate with D-8 flow direction
-        % --- Adding NE, SE, SW, NW --- %
-        M_NE(2:(ny),1:(nx-1)) = M(1:(ny-1),2:nx); % OK
-        M_SE(1:(ny-1),1:(nx-1)) = M(2:ny,2:nx); % OK
-        M_SW(1:(ny-1),2:(nx)) = M(2:(ny),1:(nx-1)); % OK
-        M_NW(2:ny,2:nx) = M(1:(ny-1),1:(nx-1)); % OK
-    end
-end
