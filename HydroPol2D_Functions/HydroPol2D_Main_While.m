@@ -34,11 +34,12 @@ catch_index = 1;
 % ---- Plotting Results in Real-Time ---- %
 % n_snaps = 10; % Number of plots. Time will be divided equally
 % dt_snap = running_control.routing_time/n_snaps; time_snap = [1:1:n_snaps]*dt_snap; z2_snap = 0;
-if flags.flag_dashboard == 1
-    ax.flags = flags;
-    ax = HydroPol2D_running_dashboard(ax,Maps, zeros(size(DEM_raster.Z)), DEM_raster, ...
-        subsref({gauges, extra_parameters.gauges}, struct('type', '{}', 'subs', {{flags.flag_GPU + 1}})),...
-        1,1);
+if flags.flag_dashboard == 1 ax.flags = flags; 
+    if flags.flag_GPU == 1 
+        ax = HydroPol2D_running_dashboard(ax,Maps, zeros(size(DEM_raster.Z)), DEM_raster,extra_parameters.gauges,1,1); 
+    else 
+        ax = HydroPol2D_running_dashboard(ax,Maps, zeros(size(DEM_raster.Z)), DEM_raster, gauges,1,1); 
+    end 
 end
 % ---- Main Loop --- %
 while t <= (running_control.routing_time + running_control.min_time_step/60) % Running up to the end of the simulation
