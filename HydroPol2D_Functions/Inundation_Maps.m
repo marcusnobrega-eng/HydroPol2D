@@ -116,7 +116,7 @@ for t = 1:tmax
     view(-(t-1)*360/tmax,(t-1)*90/tmax);
     colorbar
     caxis([h_min zmax]);
-    colormap(terrain_ramp)
+    colormap(Terrain_RAS)
     box on
     hold on
     title('Elevation','Interpreter','Latex','FontSize',12)
@@ -251,7 +251,7 @@ for t = 1:f:length(running_control.time_records)
     view(0,90);
     colorbar
     caxis([z1min z1max]);
-    colormap(Spectrum)
+    colormap(WSE_RAS)
     k = colorbar;
     ylabel(k,'WSE (m)','Interpreter','Latex','FontSize',12)
     xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
@@ -302,7 +302,7 @@ for t = 1:f:length(running_control.time_records)
     view(0,90);
     colorbar
     caxis([0 z2max]);
-    colormap(Spectrum)
+    colormap(Depth_RAS)
     k = colorbar;
 
     ylabel(k,'Depths (m)','Interpreter','Latex','FontSize',12)
@@ -1236,7 +1236,7 @@ if flags.flag_waterquality == 1
         view(0,90);
         c = colorbar;
         caxis([zmin zmax]);
-        colormap(terrain_ramp)
+        colormap(Velocity_RAS)
         k = colorbar;
         ylabel(k,'Log-scale Mass of pollutant ($\mathrm{g/m^2}$)','Interpreter','Latex','FontSize',12)
         xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)

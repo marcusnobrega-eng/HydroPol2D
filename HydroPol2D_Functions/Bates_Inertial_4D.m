@@ -5,21 +5,10 @@ function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,
 %                 e-mail:marcusnobrega.engcivil@gmail.com         %
 %                           September 2021                        %
 %                                                                 %
-%                 Last Updated: 7 July, 2022                      %
+%                 Last Updated: 26 July, 2024                     %
 %                                                                 %
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
-% --------------------- ATTENTION ------------------------------- %
-
-% Matrix matrix_store is actually used to store all arrays, not necessarily
-% delta_h
-
 %§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
-%   -----  DESCRIPTION  -----
-%   This function estimates the transfered volume from a cell to the
-%   neighbour cells using a weigthing approach in terms of the available
-%   volume in the neighbour cells
-%§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
-% ---------------% Finding Nans or Values Below a Threshold  % ---------------%
 if isgpuarray(cell_area)
     d_t_min = gpuArray(d_tolerance/1000); % m
     ny = gpuArray(size(z,1));
@@ -36,7 +25,8 @@ h_min = d_t_min;
 % --------------- Notation  % ---------------%
 %   <-I-> (left right up down) = [left ; right ; up; down]
 % --------------- Cell Depth and Water surface Elevation  % ---------------%
-depth_cell = 0.5*(d_tot + d_p);
+% depth_cell = 0.5*(d_tot + d_p);
+depth_cell = d_p;
 % depth_cell = (d_tot);
 depth_cell = max(depth_cell/1000,0); % meters (fixing zero values)
 
@@ -53,13 +43,6 @@ matrix_store(:,:,4) = [y(1:(ny-1),:) - y(2:(ny),:); y(end,:)]; % down
 %% ---------------- Hf (Effective Depth for Calculations) ----------- %
 % max(wse,wsei) - max(z,zi) - Old Way
 Hf = 0*matrix_store;
-% Hf(:,:,1) = [y(:,1) - z(:,1), max(y(:,2:(nx)), y(:,1:(nx-1))) - max(z(:,2:(nx)), z(:,1:(nx-1)))]; % left
-% Hf(:,:,2) = [max(y(:,1:(nx-1)), y(:,2:(nx))) - max(z(:,1:(nx-1)), z(:,2:(nx))), y(:,end) - z(:,end)]; % right
-% Hf(:,:,3) = [y(1,:) - z(1,:); max(y(2:(ny),:), y(1:(ny-1),:)) - max(z(2:(ny),:), z(1:(ny-1),:))]; % up
-% Hf(:,:,4) = [max(y(1:(ny-1),:), y(2:(ny),:)) - max(z(1:(ny-1),:), z(2:(ny),:)); y(end,:) - z(end,:)]; % down
-% Hf(:,:,5) = y - z;
-
-% wse(i) - wse(i+1) - max(z,zi)
 Hf(:,:,1) = [y(:,1) - z(:,1), max(y(:,2:(nx)) , y(:,1:(nx-1))) - max(z(:,2:(nx)), z(:,1:(nx-1)))]; % left
 Hf(:,:,2) = [max(y(:,1:(nx-1)) , y(:,2:(nx))) - max(z(:,1:(nx-1)), z(:,2:(nx))), y(:,end) - z(:,end)]; % right
 Hf(:,:,3) = [y(1,:) - z(1,:); max(y(2:(ny),:) , y(1:(ny-1),:)) - max(z(2:(ny),:), z(1:(ny-1),:))]; % up
@@ -93,8 +76,6 @@ end
 [matrix_store(:,1,1),matrix_store(:,end,2),matrix_store(1,:,3),matrix_store(end,:,4)] = deal(0);
 
 % matrix_store(logical(matrix_store < h_min | isnan(matrix_store))) = 0;
-% ---------------% Available Volumes  % ---------------%
-%slope
 matrix_store(:,:,1:4) = matrix_store(:,:,1:4)/Resolution; % Calculating the slopes
 matrix_store(:,:,5) = matrix_store(:,:,5)/Resolution;
 
@@ -112,42 +93,40 @@ g = 9.81;
 outflow_prev = outflow;
 outflow = (outflow_prev - g*Hf*dt.*matrix_store)./ ...
           (1 + g*dt.*roughness_cell.^2.*abs(outflow_prev)./(Hf.^(7/3))); % m2 per sec (Hf can be simplified)
-% Outlet Normal Flow
-% outflow(:,:,5) = 1./roughness_cell.*depth_cell.^(5/3).*(-matrix_store(:,:,5)).^(0.5); % m2 per sec at outlet
 
 %% Eliminating Surplus Velocities at Wet-Dry Interfaces
 % Left 
-% idx = Hf(:,:,1) > artificial_depth & [Hf(:,1:(end-1),1),zeros(size(depth_cell,1),1)] == artificial_depth;
-% interface_flow = outflow(:,:,1);
-% depth = Hf(:,:,1);
-% if any(any(idx)) 
-%     interface_flow(idx) = depth(idx).*sqrt(g*depth(idx)); % m2 per sec
-%     outflow(:,:,1) = interface_flow;   
-% end
-% % Right
-% idx = Hf(:,:,2) > artificial_depth & [zeros(size(depth_cell,1),1), Hf(:,2:(end),2)] == artificial_depth;
-% interface_flow = outflow(:,:,2);
-% depth = Hf(:,:,2);
-% if any(any(idx))
-%     interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
-%     outflow(:,:,2) = interface_flow;
-% end
-% % Up
-% idx = Hf(:,:,3) > artificial_depth & [zeros(1,size(depth_cell,2));Hf(1:(end-1),:,3)] == artificial_depth;
-% interface_flow = outflow(:,:,3);
-% depth = Hf(:,:,3);
-% if any(any(idx))
-%     interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
-%     outflow(:,:,3) = interface_flow;
-% end
-% % Down
-% idx = Hf(:,:,4) > artificial_depth & [Hf(2:(end),:,4);zeros(1,size(depth_cell,2))] == artificial_depth;
-% interface_flow = outflow(:,:,4);
-% depth = Hf(:,:,4);
-% if any(any(idx))
-%     interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
-%     outflow(:,:,4) = interface_flow;
-% end
+idx = Hf(:,:,1) > artificial_depth & [Hf(:,1:(end-1),1),zeros(size(depth_cell,1),1)] == artificial_depth;
+interface_flow = outflow(:,:,1);
+depth = Hf(:,:,1);
+if any(any(idx)) 
+    interface_flow(idx) = depth(idx).*sqrt(g*depth(idx)); % m2 per sec
+    outflow(:,:,1) = interface_flow;   
+end
+% Right
+idx = Hf(:,:,2) > artificial_depth & [zeros(size(depth_cell,1),1), Hf(:,2:(end),2)] == artificial_depth;
+interface_flow = outflow(:,:,2);
+depth = Hf(:,:,2);
+if any(any(idx))
+    interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
+    outflow(:,:,2) = interface_flow;
+end
+% Up
+idx = Hf(:,:,3) > artificial_depth & [zeros(1,size(depth_cell,2));Hf(1:(end-1),:,3)] == artificial_depth;
+interface_flow = outflow(:,:,3);
+depth = Hf(:,:,3);
+if any(any(idx))
+    interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
+    outflow(:,:,3) = interface_flow;
+end
+% Down
+idx = Hf(:,:,4) > artificial_depth & [Hf(2:(end),:,4);zeros(1,size(depth_cell,2))] == artificial_depth;
+interface_flow = outflow(:,:,4);
+depth = Hf(:,:,4);
+if any(any(idx))
+    interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
+    outflow(:,:,4) = interface_flow;
+end
 
 %% Limiting outflow to critical velocity
 if flag_critical == 1
@@ -156,7 +135,8 @@ if flag_critical == 1
 end
 
 outflow = Resolution*outflow/(Resolution^2)*1000*3600; % mm per hour
-% Taking out negative values
+% Taking out negative values because negative flows will be acounted in the
+% main while
 outflow(outflow<0) = 0;
 outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;
 outflow(mask) = 0;

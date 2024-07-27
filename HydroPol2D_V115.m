@@ -42,7 +42,5 @@ HydroPol2D_preprocessing
 HydroPol2D_Main_While; % Runs the Main While Loop of the Model
 
 %% Post-Processing Results
-clear all
-load('workspace.mat')
 close all
 post_processing

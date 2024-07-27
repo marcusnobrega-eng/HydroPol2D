@@ -1,6 +1,7 @@
 function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_States,time_step,Resolution,first_time,layer)
     % Runnning dashboard
     mask = isnan(DEM_raster.Z);
+    
     try 
         if first_time ==1
             disp('Starting HydroPol2D_running_dashboard');
@@ -13,7 +14,7 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
             ax.app = app;
             app.flags = ax.flags;
 
-            [Spectrum,depth_ramp,terrain_ramp,blue_ramp,blues_2] = coloramps(); % Run coloramp function
+            [Spectrum,depth_ramp,terrain_ramp,blue_ramp,Depths_RAS,pallete,Depth_RAS,Terrain_RAS,Velocity_RAS,WSE_RAS]            
             %Store the inditial data into the multiarrays, depths, rainfall,
             %% Creating the custom basemap
             basemapName = "openstreetmap";
@@ -107,7 +108,7 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
                 ax.ax_i.YAxis.Exponent = 0; ax.ax_i.YAxis.TickLabelFormat = '%.0f';
                 ax.ax_i.YAxis.TickLabelRotation = 90;
                 ax.ax_i.YAxis.TickValues = ax.ax_d.YAxis.TickValues(1:2:end);
-                colormap(ax.ax_i,blue_ramp); hh = colorbar(ax.ax_i);  hh.TickDirection = 'out';
+                colormap(ax.ax_i,WSE_RAS); hh = colorbar(ax.ax_i);  hh.TickDirection = 'out';
 
                 ax.ax_C = app.UIAxes_3;
                 bm_C = mapshow(ax.ax_C, A, RA, "AlphaData",0.35);hold(ax.ax_C, 'on');
@@ -136,7 +137,7 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
                 ax.ax_f.YAxis.Exponent = 0; ax.ax_f.YAxis.TickLabelFormat = '%.0f';
                 ax.ax_f.YAxis.TickLabelRotation = 90;
                 ax.ax_f.YAxis.TickValues = ax.ax_f.YAxis.TickValues(1:2:end);
-                colormap(ax.ax_f,blue_ramp);hh = colorbar(ax.ax_f);  hh.TickDirection = 'out';
+                colormap(ax.ax_f,Velocity_RAS);hh = colorbar(ax.ax_f);  hh.TickDirection = 'out';
 
             end
             if ax.flags.flag_reservoir == 1
@@ -145,7 +146,7 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
                 bm_bc = mapshow(ax.ax_bc, A, RA, "AlphaData",0.35);hold(ax.ax_bc, 'on');
                 ax.monitor_bc = pcolor(ax.ax_bc,ax.y_grid,ax.x_grid,F_d);
                 set(ax.monitor_bc,'EdgeColor', 'none');
-                colormap(ax.ax_bc,blues_2);hh = colorbar(ax.ax_bc);  hh.TickDirection = 'out';
+                colormap(ax.ax_bc,Depths_RAS);hh = colorbar(ax.ax_bc);  hh.TickDirection = 'out';
                 shp_bc = mapshow(ax.ax_bc,S_p,'FaceColor','n');hold(ax.ax_bc, 'on');
                 set(ax.ax_bc,'FontName','Garamond');
                 ax.ax_bc.XAxis.Exponent = 0; ax.ax_bc.XAxis.TickLabelFormat = '%.0f';
@@ -234,7 +235,7 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
 
             ax.monitor_d = pcolor(ax.ax_d,ax.y_grid,ax.x_grid,F_d);
             set(ax.monitor_d,'EdgeColor', 'none');
-            colormap(ax.ax_d,blues_2); hh = colorbar(ax.ax_d); hh.TickDirection = "out";  hh.TickDirection = 'out';
+            colormap(ax.ax_d,Depths_RAS); hh = colorbar(ax.ax_d); hh.TickDirection = "out";  hh.TickDirection = 'out';
             ax.monitor_r = pcolor(ax.ax_r,ax.y_grid,ax.x_grid,F_r); 
             set(ax.monitor_r,'EdgeColor', 'none'); 
             colormap(ax.ax_r,Spectrum);hh = colorbar(ax.ax_r);   hh.TickDirection = 'out';

@@ -3,8 +3,7 @@ close all
 simulation_time = toc;
 
 %% Coloramp
-[Spectrum,depth_ramp,terrain_ramp,blue_ramp,blues_2,pallete] = coloramps(); % Run coloramp function
-
+[Spectrum,Depth_RAS,Terrain_RAS_ramp,blue_ramp,blues_2,pallete,Depth_RAS,Terrain_RAS,Velocity_RAS,WSE_RAS] = coloramps();
 
 %% Creating Modeling Results Folder
 % Create the folder name
@@ -1218,21 +1217,21 @@ fig.OuterPosition=[0 0 1 1];
 size_font = 10;
 if flags.flag_waterquality == 1
     size_font = 12;
-    [axis1] = surfplot_maps(DEM_raster,depths.dmax_final/1000,terrain_ramp,'Easting (m)','Northing (m)','Depth (m)',no_data_value,idx_nan,3,3,1,size_font);
+    [axis1] = surfplot_maps(DEM_raster,depths.dmax_final/1000,Depth_RAS,'Easting (m)','Northing (m)','Depth (m)',no_data_value,idx_nan,3,3,1,size_font);
     min_washed = 1e-4;
     % Tot_Washed
     % Min_Washed
     z = WQ_States.Tot_Washed;
     z(z<=min_washed)=nan;
-    [axis2] = surfplot_maps(DEM_raster,z,terrain_ramp,'Easting (m)','Northing (m)','Total Washed Mass (kg)',no_data_value,idx_nan,3,3,2,size_font);
+    [axis2] = surfplot_maps(DEM_raster,z,Spectrum,'Easting (m)','Northing (m)','Total Washed Mass (kg)',no_data_value,idx_nan,3,3,2,size_font);
     % Infiltration
-    [axis3] = surfplot_maps(DEM_raster,Soil_Properties.I_t,terrain_ramp,'Easting (m)','Northing (m)','Infiltration (mm)',no_data_value,idx_nan,3,3,3,size_font);
+    [axis3] = surfplot_maps(DEM_raster,Soil_Properties.I_t,WSE_RAS,'Easting (m)','Northing (m)','Infiltration (mm)',no_data_value,idx_nan,3,3,3,size_font);
     % Velocity
-    [axis4] = surfplot_maps(DEM_raster,velocities.vmax_final,terrain_ramp,'Easting (m)','Northing (m)','Max. Velocity (m/s)',no_data_value,idx_nan,3,3,4,size_font);
+    [axis4] = surfplot_maps(DEM_raster,velocities.vmax_final,Velocity_RAS,'Easting (m)','Northing (m)','Max. Velocity (m/s)',no_data_value,idx_nan,3,3,4,size_font);
     % B_f
-    [axis5] = surfplot_maps(DEM_raster,Maps.WQ_States.Pol_mass_map(:,:,end)/Wshed_Properties.cell_area*1000,terrain_ramp,'Easting (m)','Northing (m)','Pollutant Mass at the end ($\mathrm{g/m^2}$)',no_data_value,idx_nan,3,3,5,size_font);
+    [axis5] = surfplot_maps(DEM_raster,Maps.WQ_States.Pol_mass_map(:,:,end)/Wshed_Properties.cell_area*1000,Velocity_RAS,'Easting (m)','Northing (m)','Pollutant Mass at the end ($\mathrm{g/m^2}$)',no_data_value,idx_nan,3,3,5,size_font);
     % Concentration
-    [axis6] = surfplot_maps(DEM_raster,Maps.WQ_States.Pol_mass_map(:,:,end)/Wshed_Properties.cell_area*1000,terrain_ramp,'Easting (m)','Northing (m)','Pollutant Mass at the end ($\mathrm{mg/L}$)',no_data_value,idx_nan,3,3,6,size_font);
+    [axis6] = surfplot_maps(DEM_raster,Maps.WQ_States.Pol_mass_map(:,:,end)/Wshed_Properties.cell_area*1000,Spectrum,'Easting (m)','Northing (m)','Pollutant Mass at the end ($\mathrm{mg/L}$)',no_data_value,idx_nan,3,3,6,size_font);
 
     subplot(3,3,7)
     % Hydrographs
@@ -1280,7 +1279,7 @@ else %%%%%%%%%%%%%%%%%%%%
     % No water quality
     size_font = 12;
     no_data_value = nan;
-    [axis1] = surfplot_maps(DEM_raster,depths.dmax_final/1000,depth_ramp,'Easting (m)','Northing (m)','Maximum Depth (m)',no_data_value,idx_nan,2,2,1,size_font);
+    [axis1] = surfplot_maps(DEM_raster,depths.dmax_final/1000,Depth_RAS,'Easting (m)','Northing (m)','Maximum Depth (m)',no_data_value,idx_nan,2,2,1,size_font);
 
     %%% Infiltration
 
@@ -1290,7 +1289,7 @@ else %%%%%%%%%%%%%%%%%%%%
 
     %%%% Velocity
     size_font = 12;
-    [axis3] = surfplot_maps(DEM_raster,velocities.vmax_final,terrain_ramp,'Easting (m)','Northing (m)','Max. Velocity (m/s)',no_data_value,idx_nan,2,2,3,size_font);
+    [axis3] = surfplot_maps(DEM_raster,velocities.vmax_final,Velocity_RAS,'Easting (m)','Northing (m)','Max. Velocity (m/s)',no_data_value,idx_nan,2,2,3,size_font);
 
     ax4 = subplot(2,2,4);
     % Hidrographs
@@ -1335,7 +1334,7 @@ fig.OuterPosition=[0 0 1 1];
 
 % MAIN INPUT MAPS
 size_font = 12;
-[axis1] = surfplot_maps(DEM_raster,Elevation_Properties.elevation_cell,terrain_ramp,'Easting (m)','Northing (m)','Elevation (m)',no_data_value,idx_nan,1,3,1,size_font);
+[axis1] = surfplot_maps(DEM_raster,Elevation_Properties.elevation_cell,Terrain_RAS_ramp,'Easting (m)','Northing (m)','Elevation (m)',no_data_value,idx_nan,1,3,1,size_font);
 
 % --- LULC --- %
 size_font = 12;
@@ -1356,12 +1355,12 @@ fig.OuterPosition=[0 0 1 1];
 
 % --- Manning --- %
 if flags.flag_waterquality ~= 1
-    [axis1] = surfplot_maps(DEM_raster,LULC_Properties.roughness,terrain_ramp,'Easting (m)','Northing (m)','$\mathrm{n~(sm^{-1/3})}    $',no_data_value,idx_nan,4,2,1,size_font);
+    [axis1] = surfplot_maps(DEM_raster,LULC_Properties.roughness,Terrain_RAS_ramp,'Easting (m)','Northing (m)','$\mathrm{n~(sm^{-1/3})}    $',no_data_value,idx_nan,4,2,1,size_font);
 
     % --- h0 --- %
     [axis2] = surfplot_maps(DEM_raster,LULC_Properties.h_0,linspecer,'Easting (m)','Northing (m)','Classification',no_data_value,idx_nan,4,2,2,size_font);
 else
-    [axis1] = surfplot_maps(DEM_raster,LULC_Properties.roughness,terrain_ramp,'Easting (m)','Northing (m)','$\mathrm{n~(sm^{-1/3})}$',no_data_value,idx_nan,4,2,3,size_font);
+    [axis1] = surfplot_maps(DEM_raster,LULC_Properties.roughness,Terrain_RAS_ramp,'Easting (m)','Northing (m)','$\mathrm{n~(sm^{-1/3})}$',no_data_value,idx_nan,4,2,3,size_font);
 
     % --- h0 --- %
     [axis2] = surfplot_maps(DEM_raster,LULC_Properties.h_0,linspecer,'Easting (m)','Northing (m)','Classification',no_data_value,idx_nan,4,2,4,size_font);
@@ -1461,7 +1460,7 @@ close all
 % streamflow=outlet_states.outlet_hydrograph;
 % save('outlet_data.mat',"dev","rainfall_time","rainfall","streamflow_time","streamflow")
 
-clearvars a_grid area_cells area_km2 b_grid baseFileName C cm color_plot color_plots depth_accumulation depth_ramp elevation f FileName FileName_String filePattern FolderName font_size frame fsize fullFileName h h_max h_min i idx2 idx3 idx_depth idx_i_a idx_wse im imind labels_depth labels_gauges ls max_depth max_h max_inf max_v MS myFolder no_data_value nx_max ny_max Out_Conc points raster_exportion raster_exportion_percentage s size_font t t_max t_previous t_save t_store t_title theFiles topo_path x_grid xbrgin xend xmax y_grid ybegin yend ymax z z1 z2 zmax zmin
+clearvars a_grid area_cells area_km2 b_grid baseFileName C cm color_plot color_plots depth_accumulation Depth_RAS elevation f FileName FileName_String filePattern FolderName font_size frame fsize fullFileName h h_max h_min i idx2 idx3 idx_depth idx_i_a idx_wse im imind labels_depth labels_gauges ls max_depth max_h max_inf max_v MS myFolder no_data_value nx_max ny_max Out_Conc points raster_exportion raster_exportion_percentage s size_font t t_max t_previous t_save t_store t_title theFiles topo_path x_grid xbrgin xend xmax y_grid ybegin yend ymax z z1 z2 zmax zmin
 
 %% Deleting temporary files
 
