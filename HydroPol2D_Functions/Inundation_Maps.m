@@ -112,6 +112,9 @@ for t = 1:tmax
     set(kk,'LineStyle','none');
     set(gca,'XTickLabel',x_grid)
     set(gca,'YTickLabel',y_grid)
+    if h_min == zmax
+        zmax = h_min + 0.5;
+    end
     axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) h_min zmax])
     view(-(t-1)*360/tmax,(t-1)*90/tmax);
     colorbar

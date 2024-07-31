@@ -42,7 +42,7 @@ input_table_DEM_t(isnan(input_table_DEM_t)) = [];
 input_table_extra = table2array(input_table_flags(:,17));
 input_table_extra(isnan(input_table_extra)) = [];
 
-% Boundary Condition Flags 
+% Boundary Condition Flags
 flags.flag_rainfall = input_table_BC(1);
 flags.flag_spatial_rainfall = input_table_BC(2);
 flags.flag_ETP = input_table_BC(3);
@@ -53,6 +53,7 @@ flags.flag_inflow = input_table_BC(7);
 flags.flag_satellite_rainfall = input_table_BC(8);
 flags.flag_alternated_blocks = input_table_BC(9);
 flags.flag_huff = input_table_BC(10);
+flags.flag_stage_hydrograph = input_table_BC(11);
 
 
 % Hydrologic-Hydrodynamic-WQ Flags
@@ -71,6 +72,7 @@ flags.flag_real_time_satellite_rainfall = input_table_Hydro(12);
 flags.flag_dam_break = input_table_Hydro(13);
 flags.flag_human_instability = input_table_Hydro(14);
 flags.flag_boundary = input_table_Hydro(15);
+flags.flag_numerical_scheme = input_table_Hydro(16);
 
 % Performance Flags
 flags.flag_GPU = input_table_Performance(1);
@@ -99,7 +101,7 @@ flags.flag_obs_gauges = input_table_extra(7);
 
 % Little Constraints
 if flags.flag_infiltration == 0
-    flags.flag_ETP = 0; 
+    flags.flag_ETP = 0;
     warning('Since no infiltration occurs, HydroPol2D is assuming no evapotranspiration is happening. Please check accordingly.')
     pause(0.5)
 end
@@ -192,7 +194,7 @@ elseif flags.flag_human_instability == 3
     Human_Instability.gravity = table2array(human_table(2,10)); % m/s2
     Human_Instability.mu = table2array(human_table(3,10)); % friction coefficient
     Human_Instability.Cd = table2array(human_table(4,10));
-    Human_Instability.m_c_m = table2array(human_table(5,10)); 
+    Human_Instability.m_c_m = table2array(human_table(5,10));
     Human_Instability.y_c_m = table2array(human_table(6,10));
     Human_Instability.m_t_m = table2array(human_table(7,10));
     Human_Instability.y_t_m = table2array(human_table(8,10));
@@ -208,9 +210,9 @@ elseif flags.flag_human_instability == 3
     Human_Instability.y_a_f = table2array(human_table(18,10));
     Human_Instability.m_o_f = table2array(human_table(19,10));
     Human_Instability.y_o_f = table2array(human_table(20,10));
-    Human_Instability.w_c_m = sqrt((Human_Instability.m_c_m*16)/(3*pi()*Human_Instability.ro_water*Human_Instability.y_c_m)); 
+    Human_Instability.w_c_m = sqrt((Human_Instability.m_c_m*16)/(3*pi()*Human_Instability.ro_water*Human_Instability.y_c_m));
     Human_Instability.d_c_m = Human_Instability.w_c_m/2;
-    Human_Instability.w_t_m = sqrt((Human_Instability.m_t_m*16)/(3*pi()*Human_Instability.ro_water*Human_Instability.y_t_m)); 
+    Human_Instability.w_t_m = sqrt((Human_Instability.m_t_m*16)/(3*pi()*Human_Instability.ro_water*Human_Instability.y_t_m));
     Human_Instability.d_t_m = Human_Instability.w_t_m/2;
     Human_Instability.w_a_m = sqrt((Human_Instability.m_a_m*16)/(3*pi()*Human_Instability.ro_water*Human_Instability.y_a_m));
     Human_Instability.d_a_m = Human_Instability.w_a_m/2;
@@ -218,7 +220,7 @@ elseif flags.flag_human_instability == 3
     Human_Instability.d_o_m = Human_Instability.w_o_m/2;
     Human_Instability.w_c_f = sqrt((Human_Instability.m_c_f*16)/(3*pi()*Human_Instability.ro_water*Human_Instability.y_c_f));
     Human_Instability.d_c_f = Human_Instability.w_c_f/2;
-    Human_Instability.w_t_f = sqrt((Human_Instability.m_t_f*16)/(3*pi()*Human_Instability.ro_water*Human_Instability.y_t_f)); 
+    Human_Instability.w_t_f = sqrt((Human_Instability.m_t_f*16)/(3*pi()*Human_Instability.ro_water*Human_Instability.y_t_f));
     Human_Instability.d_t_f = Human_Instability.w_t_f/2;
     Human_Instability.w_a_f = sqrt((Human_Instability.m_a_f*16)/(3*pi()*Human_Instability.ro_water*Human_Instability.y_a_f));
     Human_Instability.d_a_f = Human_Instability.w_a_f/2;
@@ -286,14 +288,14 @@ end
 
 if flags.flag_satellite_rainfall == 1
     time_maps = 60; % Only valid for 1h maps
-    Input_Rainfall.time = (0:60:running_control.routing_time); % time in minutes  
+    Input_Rainfall.time = (0:60:running_control.routing_time); % time in minutes
     Input_Rainfall.num_obs_maps = sum(~isnan(Input_Rainfall.time));
     Input_Rainfall.time = Input_Rainfall.time(1:Input_Rainfall.num_obs_maps);
 
     flags.flag_spatial_rainfall = 1;
     flags.flag_rainfall = 1;
     flags.flag_real_time_satellite_rainfall = 0;
-    flags.flag_input_rainfall_map = 0;      
+    flags.flag_input_rainfall_map = 0;
 elseif flags.flag_real_time_satellite_rainfall == 1
     time_maps = 60; % Only valid for 1h maps
     Input_Rainfall.time = (0:60:360); % time in minutes, set up for 6 hours until save a register
@@ -303,7 +305,7 @@ elseif flags.flag_real_time_satellite_rainfall == 1
     flags.flag_spatial_rainfall = 1;
     flags.flag_rainfall = 1;
     flags.flag_satellite_rainfall = 0;
-    % flags.flag_input_rainfall_map = 0;   
+    % flags.flag_input_rainfall_map = 0;
 end
 
 %%%%%%%%%%%%%% LULC DATA %%%%%%%%%%%%%%%%%%%
@@ -342,21 +344,21 @@ if flags.flag_rainfall == 1 && flags.flag_alternated_blocks ~= 1 && flags.flag_h
         path = strcat(path.path,'\','Modeling_Results');
         input_table = readall(spreadsheetDatastore('rainfalls_cc.xlsx'));
         for i = 1:length(input_table.Properties.VariableNames)
-           if sum(input_table.Properties.VariableNames{i}(1:4) == 'time') > 1
-               if sum(find(ismember(ls(path), input_table.Properties.VariableNames(i))))>1
-                   continue
-               else
-                   name_time = input_table.Properties.VariableNames{i};
-                   mkdir(strcat(path,'\',name_time));
-                   Rainfall_Parameters.name_time = i;
-                   break
-               end
-           end
+            if sum(input_table.Properties.VariableNames{i}(1:4) == 'time') > 1
+                if sum(find(ismember(ls(path), input_table.Properties.VariableNames(i))))>1
+                    continue
+                else
+                    name_time = input_table.Properties.VariableNames{i};
+                    mkdir(strcat(path,'\',name_time));
+                    Rainfall_Parameters.name_time = i;
+                    break
+                end
+            end
         end
         % change the date format
         input_table.(input_table.Properties.VariableNames{name_time})=datetime(input_table.(input_table.Properties.VariableNames{name_time}),'InputFormat','yyyy-MM-dd HH:mm:ss');
         column_time = find(strcmpi(input_table.Properties.VariableNames, input_table.Properties.VariableNames{name_time}));
-        column_rain = column_time + 1; 
+        column_rain = column_time + 1;
         % Gathering data
         temp_rain = table2array(input_table(:,column_rain));
         temp_time = table2array(input_table(:,column_time));
@@ -382,7 +384,7 @@ elseif flags.flag_alternated_blocks == 1 && flags.flag_input_rainfall_map ~= 1 &
     Rainfall_Parameters.time_step_rainfall = Design_Storm_Parameters.time_step; % min
     Rainfall_Parameters.rainfall_duration = Rainfall_Parameters.time_rainfall(end); % min
     % Routing Time >= Rainfall Duration
-    running_control.routing_time = max(running_control.routing_time,Rainfall_Parameters.rainfall_duration);    
+    running_control.routing_time = max(running_control.routing_time,Rainfall_Parameters.rainfall_duration);
 elseif flags.flag_huff == 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_spatial_rainfall ~= 1 && flags.flag_real_time_satellite_rainfall ~= 1 && flags.flag_satellite_rainfall ~= 1
     % Run Huff Model
     [Rainfall_Parameters.time_rainfall,Rainfall_Parameters.intensity_rainfall,~] = Huff_Curves(Design_Storm_Parameters.Rainfall_Duration(end), Design_Storm_Parameters.time_step, Design_Storm_Parameters.K,Design_Storm_Parameters.a,Design_Storm_Parameters.b,Design_Storm_Parameters.c,Design_Storm_Parameters.RP,1);
@@ -391,76 +393,135 @@ elseif flags.flag_huff == 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_
     Rainfall_Parameters.time_step_rainfall = Design_Storm_Parameters.time_step; % min
     Rainfall_Parameters.rainfall_duration = Rainfall_Parameters.time_rainfall(end); % min
     % Routing Time >= Rainfall Duration
-    running_control.routing_time = max(running_control.routing_time,Rainfall_Parameters.rainfall_duration);    
+    running_control.routing_time = max(running_control.routing_time,Rainfall_Parameters.rainfall_duration);
 end
 
 % Load TopoToolBox Tools
 addpath(genpath(char(topo_path)));
 
-% Inflow
-input_table = readtable('Inflow_Hydrograph.xlsx');
-input_table_labels = input_table(1:2,:);
-input_table_values = (input_table(3:end,:));
-% --- Convert Everything to String
-input_table_values = convertvars(input_table_values,[1:1:size(input_table_values,2)],'string');
-% --- Converting Everything to Double
-input_table_values = convertvars(input_table_values,[1:1:size(input_table_values,2)],'double');
+%%% ---- Inflow Hydrograph ---- %%%
+    input_table = readtable('Inflow_Hydrograph.xlsx');
+    input_table_labels = input_table(1:2,:);
+    input_table_values = (input_table(3:end,:));
+    % --- Convert Everything to String
+    input_table_values = convertvars(input_table_values,[1:1:size(input_table_values,2)],'string');
+    % --- Converting Everything to Double
+    input_table_values = convertvars(input_table_values,[1:1:size(input_table_values,2)],'double');
 
-n_inflows_max = 50;
-for i = 1:n_inflows_max
-    Inflow_Parameters.inflow_discharge(:,i) = table2array(input_table(3:end,(i-1)*5 + 2));
-end
-Inflow_Parameters.n_stream_gauges = sum(sum(Inflow_Parameters.inflow_discharge(1,:)>=0)); % Number of stream gauges
+    n_inflows_max = 50;
+    for i = 1:n_inflows_max
+        Inflow_Parameters.inflow_discharge(:,i) = table2array(input_table(3:end,(i-1)*5 + 2));
+    end
+    Inflow_Parameters.n_stream_gauges = sum(sum(Inflow_Parameters.inflow_discharge(1,:)>=0)); % Number of stream gauges
 
-%Prealocating array for relative coordinates of inlets
-easting_inlet_cells = nan(n_inflows_max,n_inflows_max);
-northing_inlet_cells = nan(n_inflows_max,n_inflows_max);
+    %Prealocating array for relative coordinates of inlets
+    Inflow_Parameters.easting_inlet_cells = nan(n_inflows_max,n_inflows_max);
+    Inflow_Parameters.northing_inlet_cells = nan(n_inflows_max,n_inflows_max);
 
-for i = 1:Inflow_Parameters.n_stream_gauges
-    if flags.flag_resample
-        % Do we have to include Resolution/2 in the calculations?
-        nonNanCount = sum(~ismissing(input_table_values(1:end,(i-1)*5 + 3)));
-        x_coordinates = round((-DEM_raster.georef.SpatialRef.XWorldLimits(1) + table2array(input_table_values(1:nonNanCount,(i-1)*5 + 3)))/GIS_data.resolution_resample); % Check R/2
-        y_coordinates = round((DEM_raster.georef.SpatialRef.YWorldLimits(2) - table2array(input_table_values(1:nonNanCount,(i-1)*5 + 4)))/GIS_data.resolution_resample);
-        points = [x_coordinates,y_coordinates];
-        if size(points,1) ~= nonNanCount
-            warning('Some of the inlet points are located at the same cell. Therefore, we are only considering one of them.')
+    for i = 1:Inflow_Parameters.n_stream_gauges
+        if flags.flag_resample
+            % Do we have to include Resolution/2 in the calculations?
+            nonNanCount = sum(~ismissing(input_table_values(1:end,(i-1)*5 + 3)));
+            x_coordinates = round((-DEM_raster.georef.SpatialRef.XWorldLimits(1) + table2array(input_table_values(1:nonNanCount,(i-1)*5 + 3)))/GIS_data.resolution_resample); % Check R/2
+            y_coordinates = round((DEM_raster.georef.SpatialRef.YWorldLimits(2) - table2array(input_table_values(1:nonNanCount,(i-1)*5 + 4)))/GIS_data.resolution_resample);
+            points = [x_coordinates,y_coordinates];
+            if size(points,1) ~= nonNanCount
+                warning('Some of the inlet points are located at the same cell. Therefore, we are only considering one of them.')
+            end
+            effective_inlets = unique(points,'rows','stable');
+            Inflow_Parameters.easting_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,1);
+            Inflow_Parameters.northing_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,2);
+            Wshed_Properties.n_inlets(:,i) = size(effective_inlets,1);
+
+            Inflow_Parameters.easting_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,1);
+            northing_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,2);
+            Inflow_Parameters.Wshed_Properties.n_inlets(:,i) = size(effective_inlets,1);
+        else
+            % Do we have to include Resolution/2 in the calculations?
+            nonNanCount = sum(~ismissing(input_table_values(1:end,(i-1)*5 + 3)));
+            x_coordinates = round((-GIS_data.xulcorner  + table2array(input_table_values(1:nonNanCount,(i-1)*5 + 3)))/Wshed_Properties.Resolution);
+            y_coordinates = round((GIS_data.yulcorner - table2array(input_table_values(1:nonNanCount,(i-1)*5 + 4)))/Wshed_Properties.Resolution); % Check R/2
+            points = [x_coordinates,y_coordinates];
+            if size(points,1) ~= nonNanCount
+                warning('Some of the inlet points are located at the same cell. Therefore, we are only considering one of them.')
+            end
+            effective_inlets = unique(points,'rows','stable');
+            Inflow_Parameters.easting_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,1);
+            Inflow_Parameters.northing_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,2);
+            Wshed_Properties.n_inlets(:,i) = size(effective_inlets,1);
         end
-        effective_inlets = unique(points,'rows','stable');
-        easting_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,1);
-        northing_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,2); 
-        Wshed_Properties.n_inlets(:,i) = size(effective_inlets,1);
 
-        easting_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,1);
-        northing_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,2); 
-        Wshed_Properties.n_inlets(:,i) = size(effective_inlets,1);
-    else
-        % Do we have to include Resolution/2 in the calculations?
-        nonNanCount = sum(~ismissing(input_table_values(1:end,(i-1)*5 + 3)));
-        x_coordinates = round((-GIS_data.xulcorner  + table2array(input_table_values(1:nonNanCount,(i-1)*5 + 3)))/Wshed_Properties.Resolution);
-        y_coordinates = round((GIS_data.yulcorner - table2array(input_table_values(1:nonNanCount,(i-1)*5 + 4)))/Wshed_Properties.Resolution); % Check R/2
-        points = [x_coordinates,y_coordinates];
-        if size(points,1) ~= nonNanCount
-            warning('Some of the inlet points are located at the same cell. Therefore, we are only considering one of them.')
+    end
+    Inflow_Parameters.n_stream_obs = sum(sum(Inflow_Parameters.inflow_discharge(:,1)>=0)); % Number of stream data per gauge
+    Inflow_Parameters.time_inflow = table2array(input_table(3:Inflow_Parameters.n_stream_obs,1)); % min
+    Inflow_Parameters.time_step_inflow = (table2array(input_table(4,1)) - table2array(input_table(3,1))); % min
+
+    if flags.flag_inflow == 1
+        if Wshed_Properties.n_inlets == 0
+            error('Please, insert the inlet coordinate(s) in the Inflow_Hydrograph.xlsx file')
         end
-        effective_inlets = unique(points,'rows','stable');
-        easting_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,1);
-        northing_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,2); 
-        Wshed_Properties.n_inlets(:,i) = size(effective_inlets,1);
     end
 
-end
-Inflow_Parameters.n_stream_obs = sum(sum(Inflow_Parameters.inflow_discharge(:,1)>=0)); % Number of stream data per gauge
-Inflow_Parameters.time_inflow = table2array(input_table(3:Inflow_Parameters.n_stream_obs,1)); % min
-Inflow_Parameters.time_step_inflow = (table2array(input_table(4,1)) - table2array(input_table(3,1))); % min
-
-if flags.flag_inflow == 1
-    if Wshed_Properties.n_inlets == 0
-        error('Please, insert the inlet coordinate(s) in the Inflow_Hydrograph.xlsx file')
+    if flags.flag_inflow == 1 && flags.flag_stage_hydrograph == 1
+        error('There is no way to enter both boundary conditions (inflow and stage-hydrograph). Choose one or none of them.')
     end
-end
+%%% ---- Stage Hydrograph ---- %%%
+    input_table = readtable('Stage_Hydrograph.xlsx');
+    input_table_labels = input_table(1:2,:);
+    input_table_values = (input_table(3:end,:));
+    % --- Convert Everything to String
+    input_table_values = convertvars(input_table_values,[1:1:size(input_table_values,2)],'string');
+    % --- Converting Everything to Double
+    input_table_values = convertvars(input_table_values,[1:1:size(input_table_values,2)],'double');
 
-% Entering a boundary condition for rainfall if design storms are used
+    n_stage_max = 50;
+    for i = 1:n_stage_max
+        Stage_Parameters.stage(:,i) = table2array(input_table(3:end,(i-1)*5 + 2));
+    end
+    Stage_Parameters.n_stage_gauges = sum(sum(Stage_Parameters.stage(1,:)>=0)); % Number of stream gauges
+
+    %Prealocating array for relative coordinates of inlets
+    Stage_Parameters.easting_inlet_cells = nan(n_stage_max,n_stage_max);
+    Stage_Parameters.northing_inlet_cells = nan(n_stage_max,n_stage_max);
+
+    for i = 1:Stage_Parameters.n_stage_gauges
+        if flags.flag_resample
+            % Do we have to include Resolution/2 in the calculations?
+            nonNanCount = sum(~ismissing(input_table_values(1:end,(i-1)*5 + 3)));
+            x_coordinates = round((-DEM_raster.georef.SpatialRef.XWorldLimits(1) + table2array(input_table_values(1:nonNanCount,(i-1)*5 + 3)))/GIS_data.resolution_resample); % Check R/2
+            y_coordinates = round((DEM_raster.georef.SpatialRef.YWorldLimits(2) - table2array(input_table_values(1:nonNanCount,(i-1)*5 + 4)))/GIS_data.resolution_resample);
+            points = [x_coordinates,y_coordinates];
+            if size(points,1) ~= nonNanCount
+                warning('Some of the inlet points are located at the same cell. Therefore, we are only considering one of them.')
+            end
+            effective_inlets = unique(points,'rows','stable');
+            Stage_Parameters.easting_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,1);
+            Stage_Parameters.northing_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,2);
+            Wshed_Properties.n_inlets_stage(:,i) = size(effective_inlets,1);
+
+            Stage_Parameters.easting_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,1);
+            Stage_Parameters.northing_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,2);
+            Wshed_Properties.n_inlets_stage(:,i) = size(effective_inlets,1);
+        else
+            % Do we have to include Resolution/2 in the calculations?
+            nonNanCount = sum(~ismissing(input_table_values(1:end,(i-1)*5 + 3)));
+            x_coordinates = round((-GIS_data.xulcorner  + table2array(input_table_values(1:nonNanCount,(i-1)*5 + 3)))/Wshed_Properties.Resolution);
+            y_coordinates = round((GIS_data.yulcorner - table2array(input_table_values(1:nonNanCount,(i-1)*5 + 4)))/Wshed_Properties.Resolution); % Check R/2
+            points = [x_coordinates,y_coordinates];
+            if size(points,1) ~= nonNanCount
+                warning('Some of the inlet points are located at the same cell. Therefore, we are only considering one of them.')
+            end
+            effective_inlets = unique(points,'rows','stable');
+            Stage_Parameters.easting_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,1);
+            Stage_Parameters.northing_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,2);
+            Wshed_Properties.n_inlets_stage(:,i) = size(effective_inlets,1);
+        end
+
+    end
+    Stage_Parameters.n_stage_obs = sum(sum(Stage_Parameters.stage(:,1)>=0)); % Number of stream data per gauge
+    Stage_Parameters.time_stage = table2array(input_table(3:Stage_Parameters.n_stage_obs,1)); % min
+    Stage_Parameters.time_step_stage = (table2array(input_table(4,1)) - table2array(input_table(3,1))); % min
+%  Entering a boundary condition for rainfall if design storms are used
 if flags.flag_huff == 1 || flags.flag_alternated_blocks == 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_real_time_satellite_rainfall == 0 && flags.flag_satellite_rainfall == 0
     flags.flag_satellite_rainfall = 0;
     flags.flag_real_time_satellite_rainfall = 0;
@@ -486,16 +547,16 @@ if flags.flag_reservoir == 1
     Reservoir_Data.x_us = table2array(input_table(:,2));
     Reservoir_Data.y_us = table2array(input_table(:,3));
     Reservoir_Data.k1 = table2array(input_table(:,4));
-	Reservoir_Data.h1 = table2array(input_table(:,5));
-	Reservoir_Data.k2 = table2array(input_table(:,6));
-	Reservoir_Data.x_ds1 = table2array(input_table(:,7));
+    Reservoir_Data.h1 = table2array(input_table(:,5));
+    Reservoir_Data.k2 = table2array(input_table(:,6));
+    Reservoir_Data.x_ds1 = table2array(input_table(:,7));
     Reservoir_Data.y_ds1 = table2array(input_table(:,8));
     Reservoir_Data.k3 = table2array(input_table(:,9));
     Reservoir_Data.h2 = table2array(input_table(:,10));
     Reservoir_Data.k4 = table2array(input_table(:,11));
     Reservoir_Data.x_ds2 = table2array(input_table(:,12));
     Reservoir_Data.y_ds2 = table2array(input_table(:,13));
-   
+
 end
 
 clear input_table

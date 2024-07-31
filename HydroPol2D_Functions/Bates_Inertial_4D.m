@@ -25,8 +25,8 @@ h_min = d_t_min;
 % --------------- Notation  % ---------------%
 %   <-I-> (left right up down) = [left ; right ; up; down]
 % --------------- Cell Depth and Water surface Elevation  % ---------------%
-% depth_cell = 0.5*(d_tot + d_p);
-depth_cell = d_p;
+depth_cell = 0.5*(d_tot + d_p);
+% depth_cell = d_p;
 % depth_cell = (d_tot);
 depth_cell = max(depth_cell/1000,0); % meters (fixing zero values)
 
@@ -43,13 +43,21 @@ matrix_store(:,:,4) = [y(1:(ny-1),:) - y(2:(ny),:); y(end,:)]; % down
 %% ---------------- Hf (Effective Depth for Calculations) ----------- %
 % max(wse,wsei) - max(z,zi) - Old Way
 Hf = 0*matrix_store;
-Hf(:,:,1) = [y(:,1) - z(:,1), max(y(:,2:(nx)) , y(:,1:(nx-1))) - max(z(:,2:(nx)), z(:,1:(nx-1)))]; % left
-Hf(:,:,2) = [max(y(:,1:(nx-1)) , y(:,2:(nx))) - max(z(:,1:(nx-1)), z(:,2:(nx))), y(:,end) - z(:,end)]; % right
-Hf(:,:,3) = [y(1,:) - z(1,:); max(y(2:(ny),:) , y(1:(ny-1),:)) - max(z(2:(ny),:), z(1:(ny-1),:))]; % up
-Hf(:,:,4) = [max(y(1:(ny-1),:) , y(2:(ny),:)) - max(z(1:(ny-1),:), z(2:(ny),:)); y(end,:) - z(end,:)]; % down
+% Hf(:,:,1) = [y(:,1) - z(:,1), max(y(:,2:(nx)) , y(:,1:(nx-1))) - max(z(:,2:(nx)), z(:,1:(nx-1)))]; % left
+% Hf(:,:,2) = [max(y(:,1:(nx-1)) , y(:,2:(nx))) - max(z(:,1:(nx-1)), z(:,2:(nx))), y(:,end) - z(:,end)]; % right
+% Hf(:,:,3) = [y(1,:) - z(1,:); max(y(2:(ny),:) , y(1:(ny-1),:)) - max(z(2:(ny),:), z(1:(ny-1),:))]; % up
+% Hf(:,:,4) = [max(y(1:(ny-1),:) , y(2:(ny),:)) - max(z(1:(ny-1),:), z(2:(ny),:)); y(end,:) - z(end,:)]; % down
+% Hf(:,:,5) = y - z;
+
+Hf(:,:,1) = [nan*zeros(ny,1), max(y(:,2:(nx)) , y(:,1:(nx-1))) - max(z(:,2:(nx)), z(:,1:(nx-1)))]; % left
+Hf(:,:,2) = [max(y(:,1:(nx-1)) , y(:,2:(nx))) - max(z(:,1:(nx-1)), z(:,2:(nx))), nan*zeros(ny,1)]; % right
+Hf(:,:,3) = [nan*zeros(1,nx);  max(y(2:(ny),:) , y(1:(ny-1),:)) - max(z(2:(ny),:), z(1:(ny-1),:))]; % up
+Hf(:,:,4) = [max(y(1:(ny-1),:) , y(2:(ny),:)) - max(z(1:(ny-1),:), z(2:(ny),:)); nan*zeros(1,nx)]; % down
 Hf(:,:,5) = y - z;
 
-mask = logical((Hf <= d_t_min) + (repmat(depth_cell,1,1,5) <= h_min));
+% mask = logical((Hf <= d_t_min));
+mask = logical(0*(Hf <= d_t_min));
+% mask = logical((Hf <= d_t_min) + (repmat(depth_cell,1,1,5) <= h_min));
 % Artificial Depth
 artificial_depth = 0;
 Hf(mask) = artificial_depth; % No outflow from cells with very low depth
@@ -137,7 +145,7 @@ end
 outflow = Resolution*outflow/(Resolution^2)*1000*3600; % mm per hour
 % Taking out negative values because negative flows will be acounted in the
 % main while
-outflow(outflow<0) = 0;
+% outflow(outflow<0) = 0;
 outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;
 outflow(mask) = 0;
 
@@ -175,6 +183,7 @@ if flag_reservoir == 1
         end
 	end
 end
+
 qout_left = matrix_store(:,:,1);
 qout_right = matrix_store(:,:,2);
 qout_up = matrix_store(:,:,3);

@@ -3,6 +3,31 @@
 % required
 % Developer: Marcus Nobrega, Ph.D.
 
+%% Stage-Hydrograph Boundary Condition
+if flags.flag_stage_hydrograph == 1
+    for z = 1:Stage_Parameters.n_stage_gauges
+        z1 = find(Stage_Parameters.time_stage > t_previous,1,'first'); % begin of the time-step
+        z2 = find(Stage_Parameters.time_stage <= t,1,'last'); % end of the time-step
+        if isempty(z1)
+            z1 = 1;
+        end
+        if isempty(z2) || z2 < z1
+            z2 = z1;
+        end
+        stage_depth(z,1) = Stage_Parameters.stage(z2,z);
+    end
+end
+
+% Stage Boundary Condition
+if flags.flag_stage_hydrograph == 1
+    BC_States.inflow = zeros(size(Elevation_Properties.elevation_cell,1),size(Elevation_Properties.elevation_cell,2)); % This is to solve spatially, don't delete
+    for i = 1:Stage_Parameters.n_stage_gauges
+        stage_cells = Wshed_Properties.stage_mask(:,:,i);
+        depths.d_t(logical(Wshed_Properties.stage_mask(:,:,i))) = 1000*stage_depth(i,1)*stage_cells(stage_cells == 1); % mm
+    end
+end
+
+
 %% Inflows for next time-step
 % Agregating Inflows to the New Time-step
 if flags.flag_inflow > 0
@@ -274,8 +299,8 @@ if flags.flag_ETP == 1
             if z2 == 1
                 ETR_save(:,:,z2) = Hydro_States.ETP ; % this might be incorrect
             else
-                ETR_save(:,:,z2) = Hydro_States.ETR ; 
-             end
+                ETR_save(:,:,z2) = Hydro_States.ETR ;
+            end
         end
     end
 end

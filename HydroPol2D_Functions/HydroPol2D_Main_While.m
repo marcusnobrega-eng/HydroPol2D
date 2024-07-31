@@ -13,11 +13,14 @@
 % clear all
 % % load('workspace_concentrated_rainfall.mat');
 % load('workspace.mat')
+% clear all
 % format short g
-
+% load workspace_analytical_n_0.005.mat
+% load workspace_analytical_n_0.01.mat
+% load workspace_analytical.mat
 tic 
 k = 1; % time-step counter
-C = 0; % initial infiltration capacity
+C = 0; % initial infiltration capacity  
 t = running_control.min_time_step; % inital time
 time_step = running_control.min_time_step/60; % time-step of the model in min
 saver_count = 1; % starts in 1 but the next pointer should be 2, this is auto fixed when t reach the next time aggregation.
@@ -39,7 +42,11 @@ catch_index = 1;
 % n_snaps = 10; % Number of plots. Time will be divided equally
 % dt_snap = running_control.routing_time/n_snaps; time_snap = [1:1:n_snaps]*dt_snap; z2_snap = 0;
 try
-    delete(ax)
+    delete(ax.app)
+end
+
+if flags.flag_obs_gauges ~= 1
+    gauges = [];
 end
 
 if flags.flag_dashboard == 1
@@ -182,10 +189,14 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical);
         else
             % -------------------- Local Inertial Formulation ----------------%
+            % [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf] = ...
+            %     Bates_Inertial_4D(Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
+            %     flags.flag_reservoir,Elevation_Properties.elevation_cell,...
+            %     depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical);
             [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf] = ...
-                Bates_Inertial_4D(Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
+                Bates_Enhanced_4D(flags.flag_numerical_scheme,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
                 flags.flag_reservoir,Elevation_Properties.elevation_cell,...
-                depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical);
+                depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical);            
         end
     end
 
@@ -227,7 +238,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     flow_rate.qin_t(idx3) = 0; % No flow at these cells
 
     % Mass Balance Equation (outflow already taken)
-    depths.d_t = depths.d_t + flow_rate.qin_t*time_step/60;
+    depths.d_t = depths.d_t + 0*flow_rate.qin_t*time_step/60;
 
     % Water Balance Error
     water_balance_error_volume = abs(sum(sum(depths.d_t(depths.d_t<0))))*Wshed_Properties.Resolution^2*0.001; % m3
@@ -291,7 +302,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     else
         inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area ;
         BC_States.inflow_volume = inflow_vol + BC_States.inflow_volume; % check future
-    end
+    end   
 
     % Storage Calculation
     previous_storage = current_storage;
@@ -412,8 +423,8 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         wave_celerity = sqrt(9.81*(max(max(max(depths.d_tot/1000)),max(max(depths.d_p/1000))))); % Using d_p, which is the depth at the end of the time-step
         max_vel = max(max(velocities.velocity_raster));
         factor = 1/catch_index*running_control.factor_reduction;
-        new_timestep = factor*(min(Courant_Parameters.alfa_min*Wshed_Properties.Resolution./(max_vel+wave_celerity))); % alpha of 0.4
-        % new_timestep = factor*(min(0.25*Wshed_Properties.Resolution./(wave_celerity))); % alpha of 0.4
+        % new_timestep = factor*(min(Courant_Parameters.alfa_min*Wshed_Properties.Resolution./(max_vel+wave_celerity))); % alpha of 0.4
+        new_timestep = factor*(min(0.4*Wshed_Properties.Resolution./(wave_celerity))); % alpha of 0.4
         
         % dt_water_balance = min(min(depths.d_p/1000*Wshed_Properties.cell_area./(CA_States.I_tot_end_cell/(time_step*60)))); % sec
         dt_water_balance = new_timestep;        
@@ -434,6 +445,10 @@ end
 % Cloasing the dashboard
 if flags.flag_dashboard == 1
     delete(ax.app)
+end
+
+for ii = 1:5
+    zzz(:,ii) = 1/1000*Maps.Hydro.d(5,:,ii)';
 end
 % Saving the last modeled data
 Maps.Hydro.d=Maps.Hydro.d(:,:,1:saver_count);

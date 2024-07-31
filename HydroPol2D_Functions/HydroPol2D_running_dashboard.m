@@ -14,7 +14,7 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
             ax.app = app;
             app.flags = ax.flags;
 
-            [Spectrum,depth_ramp,terrain_ramp,blue_ramp,Depths_RAS,pallete,Depth_RAS,Terrain_RAS,Velocity_RAS,WSE_RAS]            
+            [Spectrum,depth_ramp,terrain_ramp,blue_ramp,Depths_RAS,pallete,Depth_RAS,Terrain_RAS,Velocity_RAS,WSE_RAS] = coloramps();        
             %Store the inditial data into the multiarrays, depths, rainfall,
             %% Creating the custom basemap
             basemapName = "openstreetmap";
@@ -270,8 +270,10 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
             % UTM Coordinates
             % Convert the string arrays to character vectors
             char_vector_cell = {};
-            for i = 1:numel(gauges.labels_observed_string)
-                char_vector_cell = [char_vector_cell; char(gauges.labels_observed_string{i})];
+            try
+                for i = 1:numel(gauges.labels_observed_string)
+                    char_vector_cell = [char_vector_cell; char(gauges.labels_observed_string{i})];
+                end
             end
             ax.gauges = char_vector_cell;
             % Assign the modified cell array to ax_list.Items
