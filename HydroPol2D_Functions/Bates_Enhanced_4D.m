@@ -5,10 +5,12 @@ function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,Vol_Flux,outflo
 %                 e-mail:marcusnobrega.engcivil@gmail.com         %
 %                           September 2021                        %
 %                                                                 %
-%                 Last Updated: 26 July, 2024                     %
+%                 Last Updated: 31 July, 2024                     %
 %                                                                 %
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
+
+%%% Domain Dimensions
 if isgpuarray(cell_area)
     d_t_min = gpuArray(d_tolerance/1000); % m
     ny = gpuArray(size(z,1));
@@ -22,44 +24,47 @@ end
 h_min = d_t_min;
 
 % --------------- Notation  % ---------------%
-%   <-I-> (left right up down) = [left ; right ; up; down]
+%   <-matrix3D-> (left right up down) = [left ; right ; up; down]
 % --------------- Cell Depth and Water surface Elevation  % ---------------%
-depth_cell = 0.5*(d_tot + d_p);
-% depth_cell = d_p;
-% depth_cell = (d_tot);
+depth_cell = 0.5*(d_tot + d_p); % This is important when inflow hydrograph is simulated
 depth_cell = max(depth_cell/1000,0); % meters (fixing zero values)
 
+% Water Surface Elevation [m]
 y = z + depth_cell;
 
 
 %% --------------- Slope for all cell boundaries % ---------------%
-matrix_store(:,:,1) = [nan*y(:,1), y(:,2:(nx)) - y(:,1:(nx-1))]; % left (cell - left)
-matrix_store(:,:,2) = [y(:,2:(nx)) - y(:,1:(nx-1)), nan*y(:,end)]; % right (right - cell)
-matrix_store(:,:,3) = [nan*y(1,:); y(1:(ny-1),:) - y(2:(ny),:)]; % up (up - cell)
-matrix_store(:,:,4) = [y(1:(ny-1),:) - y(2:(ny),:); nan*y(end,:)]; % down (cell - down)
+nan_col = nan*y(:,1); nan_row = nan*y(1,:);
+% % x-x 
+% matrix_store(:,:,1) = [nan_col, y(:,1:(nx-1)) - y(:,2:(nx))]/Resolution;       % Left
+% matrix_store(:,:,2) = [y(:,1:(nx-1)) - y(:,2:nx),nan_col]/Resolution;          % Right
+% 
+% % y-y
+% matrix_store(:,:,3) = [nan_row; y(2:ny,:) - y(1:(ny-1),:)]/Resolution;         % Up
+% matrix_store(:,:,4) = [y(2:(ny),:) - y(1:(ny-1),:); nan_row]/Resolution;       % Down
 
+% x-x
+% matrix_store(:,:,1) = [nan_col, y(:,1:(nx-1)) - y(:,2:(nx))]/Resolution;       % Left
+% matrix_store(:,:,2) = [y(:,2:nx) - y(:,1:(nx-1)),nan_col]/Resolution;          % Right
+% 
+% % y-y
+% matrix_store(:,:,3) = [nan_row; y(2:ny,:) - y(1:(ny-1),:)]/Resolution;         % Up
+% matrix_store(:,:,4) = [y(1:(ny-1),:) - y(2:(ny),:); nan_row]/Resolution;       % Down
 
-%% ---------------- Hf (Effective Depth for Calculations) ----------- %
-% max(wse,wsei) - max(z,zi) - Old Way
-Hf = 0*matrix_store;
-Hf(:,:,1) = [nan*zeros(ny,1), max(y(:,2:(nx)) , y(:,1:(nx-1))) - max(z(:,2:(nx)), z(:,1:(nx-1)))]; % left
-Hf(:,:,2) = [max(y(:,1:(nx-1)) , y(:,2:(nx))) - max(z(:,1:(nx-1)), z(:,2:(nx))), nan*zeros(ny,1)]; % right
-Hf(:,:,3) = [nan*zeros(1,nx);  max(y(2:(ny),:) , y(1:(ny-1),:)) - max(z(2:(ny),:), z(1:(ny-1),:))]; % up
-Hf(:,:,4) = [max(y(1:(ny-1),:) , y(2:(ny),:)) - max(z(1:(ny-1),:), z(2:(ny),:)); nan*zeros(1,nx)]; % down
-Hf(:,:,5) = y - z;
+% x-x
+matrix_store(:,:,1) = [nan_col, y(:,1:(nx-1)) - y(:,2:nx)]/Resolution;
+matrix_store(:,:,2) = [y(:,2:nx) - y(:,1:(nx-1)), nan_col]/Resolution;
 
-% mask = logical((Hf <= d_t_min));
-mask = logical((Hf <= h_min));
-% mask = logical((Hf <= d_t_min) + (repmat(depth_cell,1,1,5) <= h_min));
-% Artificial Depth
-artificial_depth = 0;
-Hf(mask) = artificial_depth; % No outflow from cells with very low depth
+% y-y
+matrix_store(:,:,3) = [nan_row; y(1:(ny-1),:) - y(2:ny,:)]/Resolution;
+matrix_store(:,:,4) = [y(2:ny,:) - y(1:(ny-1),:); nan_row]/Resolution;
+
 
 % --------------- Outlet Calculations  % ---------------%
 if outlet_type == 1
     S_0 = slope_outlet; % Normal slope
     % V = h * area
-    matrix_store(:,:,5) = (S_0*Resolution*outlet_index); % Normal slope depth difference
+    matrix_store(:,:,5) = (S_0*outlet_index); % Normal slope depth difference
 else
     S_0 = zeros(size(z));
     for i = 1:length(row_outlet)
@@ -68,34 +73,30 @@ else
         col = col_outlet(i); % Col of outlet
         S_0(row,col) = (depth_cell(row,col).^(-1/6)).*sqrt(9.81).*roughness_cell(row,col); % Critical Slope
     end
-    matrix_store(:,:,5) = (S_0*Resolution);
+    matrix_store(:,:,5) = (S_0);
 end
+%% ---------------- Hf (Effective Water Depth for Flow) ----------- %
+Hf = 0*matrix_store;
+Hf(:,:,1) = [nan*zeros(ny,1), max(y(:,2:(nx)) , y(:,1:(nx-1))) - max(z(:,2:(nx)), z(:,1:(nx-1)))]; % left
+Hf(:,:,2) = [max(y(:,1:(nx-1)) , y(:,2:(nx))) - max(z(:,1:(nx-1)), z(:,2:(nx))), nan*zeros(ny,1)]; % right
 
+Hf(:,:,3) = [nan*zeros(1,nx);  max(y(2:(ny),:) , y(1:(ny-1),:)) - max(z(2:(ny),:), z(1:(ny-1),:))]; % up
+Hf(:,:,4) = [max(y(1:(ny-1),:) , y(2:(ny),:)) - max(z(1:(ny-1),:), z(2:(ny),:)); nan*zeros(1,nx)]; % down
+Hf(:,:,5) = y - z; % For the outlet, we assume the water depth only
 
-% ---------------% Domain Borders  % ---------------%
-% These only applied when we are modeling a rectangular grid watershed
-% [matrix_store(:,1,1),matrix_store(:,end,2),matrix_store(1,:,3),matrix_store(end,:,4)] = deal(0);
+% Low depth cells are considered an artificial depth
+mask = logical((Hf <= h_min));
+% Artificial Depth
+artificial_depth = 0;
+Hf(mask) = artificial_depth; % No outflow from cells with very low depth
 
-% matrix_store(logical(matrix_store < h_min | isnan(matrix_store))) = 0;
-matrix_store(:,:,1:4) = matrix_store(:,:,1:4)/Resolution; % Calculating the slopes
-matrix_store(:,:,5) = matrix_store(:,:,5)/Resolution;
-
-
-% Matrix_store is the wse gradient from cell i to cell i +1
-% such that matrix_store = (wse(i) - wse(i+1) ) / dx
-% by definition it should be the opposite in Bates Formulation, so we multiply by -1
-% matrix_store = matrix_store;
-%% Bates Formulation
+%% Local-Inertial Formulation
 outflow = outflow/1000/3600*Resolution^2/Resolution; % m2 per sec. It comes from mm/h
 dt = time_step*60; % time-step in seconds
 % q_t_dt = [q_t - g h dt (wse grad)] / (1 + g h dt n^2 q_t / h^(10/3))
 % q_t is in m2/s, all other variables are in international units
 g = 9.81;
 outflow_prev = outflow;
-% --- Old Way --- %
-% outflow = (outflow_prev - g*Hf*dt.*matrix_store)./ ...
-%          (1 + g*dt.*roughness_cell.^2.*abs(outflow_prev)./(Hf.^(7/3))); % m2 per sec (Hf can be simplified)
-
 [outflow] = Inertial_Solver(flag_numerical_scheme,outflow_prev,dt,Hf,matrix_store,roughness_cell,Resolution);
 %% Eliminating Surplus Velocities at Wet-Dry Interfaces
 % Left 
@@ -136,22 +137,18 @@ if flag_critical == 1
     critical_velocity = Hf.*sqrt(g*Hf);
     outflow = min(outflow,critical_velocity);
 end
-
 outflow = Resolution*outflow/(Resolution^2)*1000*3600; % mm per hour
-% Taking out negative values because negative flows will be acounted in the
-% main while
-% outflow(outflow<0) = 0;
+% Treating Domain Issues
 outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;
-outflow(mask) = 0;
+% outflow(mask) = 0; % 
 
 %% Intercell Volume
-% Vol_Flux = dt*sum(1/1000*1/3600*outflow,3)*Resolution^2; % Total outflow in m3
-Vol_Flux = ((outflow(:,:,1) - outflow(:,:,2)) + (outflow(:,:,3) - outflow(:,:,4)))*dt/1000*1/3600*Resolution^2; % Be careful here. It might be the opposite for for y direction
+% Vol_Flux = ((outflow(:,:,1) - outflow(:,:,2)) + (outflow(:,:,3) - outflow(:,:,4)))*dt/1000*1/3600*Resolution^2; % Be careful here. It might be the opposite for for y direction
+Vol_Flux = -sum(outflow,3)*dt/1000*1/3600*Resolution^2;
 % matrix_store now becomes outflow
 matrix_store = outflow; % mm per hour
 
 %% Reservoir Boundary Condition - We are assuming that all flow drains
-% towards the spillway
 if flag_reservoir == 1   
 	for ii = 1:length(reservoir_y)
         if ~isnan(yds1(ii))
@@ -179,7 +176,8 @@ if flag_reservoir == 1
         end
 	end
 end
- 
+
+%% Output Fluxes
 qout_left = matrix_store(:,:,1);
 qout_right = matrix_store(:,:,2);
 qout_up = matrix_store(:,:,3);

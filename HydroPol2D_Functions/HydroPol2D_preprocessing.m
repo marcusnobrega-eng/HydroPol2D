@@ -606,7 +606,7 @@ FileName = fullfile(folderName,strcat('\',FileName_String));
 try
     shapewrite(MS,FileName);
 catch ME
-   error('The threshold for flow accumulation might be too high to create a stream network.')
+   warning('The threshold for flow accumulation might be too high to create a stream network.')
 end
 
 

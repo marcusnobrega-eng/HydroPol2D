@@ -18,6 +18,11 @@
 % load workspace_analytical_n_0.005.mat
 % load workspace_analytical_n_0.01.mat
 % load workspace_analytical.mat
+clear all
+% load workspace_analytical_horizontal_100_4000.mat;
+load workspace_analytical_vertical_4000_100.mat;
+flags.flag_numerical_scheme = 3;
+flags.flag_dashboard = 0;
 tic 
 k = 1; % time-step counter
 C = 0; % initial infiltration capacity  
@@ -29,7 +34,7 @@ Flooded_Area = 0; % initial flooded area
 velocities.velocity_raster = 0; % initial velocity
 Risk_Area = 0; % initial risk area
 store = 1; % (meaning, luis?)
-%flags.flag_inertial = 1; % Using Inertial Model
+flags.flag_inertial = 1; % Using Inertial Model
 t_previous = 0;
 factor_time = 0;
 max_dt = running_control.max_time_step;
@@ -448,7 +453,8 @@ if flags.flag_dashboard == 1
 end
 
 for ii = 1:5
-    zzz(:,ii) = 1/1000*Maps.Hydro.d(5,:,ii)';
+    zzz(:,ii) = flip(1/1000*Maps.Hydro.d(:,5,ii));
+    % zzz(:,ii) = (1/1000*Maps.Hydro.d(5,:,ii));    
 end
 % Saving the last modeled data
 Maps.Hydro.d=Maps.Hydro.d(:,:,1:saver_count);
