@@ -1,9 +1,10 @@
 %% Main HydroPol2D While Loop
-% Developer: Marcus Nobrega
-% Date 5/21/2023
+% Developer: Marcus Nobrega, Ph.D.
+% Date 8/01/2024
 % Goal - Run the main modeling process of the model
 
 % Loading Input File in case you want to avoid doing all preprocessing
+% ----- A few Examples ---- %
 % clear all
 % load workspace_14_de_julho.mat
 % clear all
@@ -18,11 +19,11 @@
 % load workspace_analytical_n_0.005.mat
 % load workspace_analytical_n_0.01.mat
 % load workspace_analytical.mat
-clear all
 % load workspace_analytical_horizontal_100_4000.mat;
+clear all
+addpath Testing_Workspaces\
 load workspace_analytical_vertical_4000_100.mat;
-flags.flag_numerical_scheme = 3;
-flags.flag_dashboard = 0;
+
 tic 
 k = 1; % time-step counter
 C = 0; % initial infiltration capacity  
@@ -46,6 +47,7 @@ catch_index = 1;
 % ---- Plotting Results in Real-Time ---- %
 % n_snaps = 10; % Number of plots. Time will be divided equally
 % dt_snap = running_control.routing_time/n_snaps; time_snap = [1:1:n_snaps]*dt_snap; z2_snap = 0;
+
 try
     delete(ax.app)
 end
@@ -243,7 +245,11 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     flow_rate.qin_t(idx3) = 0; % No flow at these cells
 
     % Mass Balance Equation (outflow already taken)
-    depths.d_t = depths.d_t + 0*flow_rate.qin_t*time_step/60;
+    if flags.flag_inertial == 1
+        depths.d_t = depths.d_t + 0*flow_rate.qin_t*time_step/60; % All balance is inside the model
+    else
+        depths.d_t = depths.d_t + flow_rate.qin_t*time_step/60;
+    end
 
     % Water Balance Error
     water_balance_error_volume = abs(sum(sum(depths.d_t(depths.d_t<0))))*Wshed_Properties.Resolution^2*0.001; % m3
@@ -290,47 +296,11 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     running_control.delta_time_save = running_control.time_save - running_control.time_save_previous;
     running_control.time_save_previous = running_control.time_save;
     running_control.actual_record_timestep = ceil((t*60)/running_control.time_step_change);
-
-    % Runoff Coefficient Calculation
-    BC_States.outflow_volume  = nansum(nansum(outlet_states.outlet_flow))/1000*Wshed_Properties.cell_area/3600*time_step*60 + BC_States.outflow_volume ;
-    if flags.flag_spatial_rainfall == 1
-        if flags.flag_inflow == 1
-            inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + ...
-                         nansum(nansum(BC_States.delta_p_agg))/1000*Wshed_Properties.cell_area;
-        else
-            inflow_vol = nansum(nansum(nansum(nansum(BC_States.delta_p_agg))/1000*Wshed_Properties.cell_area));
-        end
-            BC_States.inflow_volume = inflow_vol + BC_States.inflow_volume; % m3        
-    elseif flags.flag_spatial_rainfall ~= 1 && flags.flag_inflow == 1
-        inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area;
-        BC_States.inflow_volume = inflow_vol +  BC_States.inflow_volume; % check future
-    else
-        inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area ;
-        BC_States.inflow_volume = inflow_vol + BC_States.inflow_volume; % check future
-    end   
-
-    % Storage Calculation
-    previous_storage = current_storage;
-    current_storage = nansum(nansum(Wshed_Properties.cell_area*depths.d_t/1000)); % m3
-    if flags.flag_infiltration == 0
-        Hydro_States.f = zeros(size(outlet_states.outlet_flow,1),size(outlet_states.outlet_flow,2));
-    end    
-    % dS/dt = Qin - Qout = Rain + Inflow - Outflow - infiltration
-    delta_storage = current_storage - previous_storage;
-    outflow_flux = nansum(nansum(outlet_states.outlet_flow))/1000*Wshed_Properties.cell_area/3600 + ...
-                    nansum(nansum(Hydro_States.f/1000/3600*Wshed_Properties.cell_area)); % m3 per sec
-    flux_volumes = inflow_vol - outflow_flux*time_step*60; % dt(Qin - Qout) m3
-    volume_error = flux_volumes - delta_storage;    
-
-    % Introducing the volume error to the inflow cells
-    if flags.flag_inflow == 1 && flags.flag_waterbalance == 1
-        mask = Wshed_Properties.inflow_mask;
-        if any(any(mask))
-            depths.d_t(mask) = depths.d_t(mask) - 1000*(volume_error)/sum(sum(mask))/Wshed_Properties.cell_area;
-        end
-    end
     % Refreshing time-step script
     refreshing_timestep;
+
+    %% Mass Balance Check
+    mass_balance_check
     
     %% Updating Boundary Conditions
     update_spatial_BC; % Updating rainfall and etr B.C.
@@ -443,7 +413,6 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         depths.d_t = depths.d_p;
         Soil_Properties.I_t = Soil_Properties.I_p;
         update_spatial_BC
-        % outflow_bates = outflow_prev; % Not actually necessary anymore
     end    
 end
 
@@ -452,10 +421,6 @@ if flags.flag_dashboard == 1
     delete(ax.app)
 end
 
-for ii = 1:5
-    zzz(:,ii) = flip(1/1000*Maps.Hydro.d(:,5,ii));
-    % zzz(:,ii) = (1/1000*Maps.Hydro.d(5,:,ii));    
-end
 % Saving the last modeled data
 Maps.Hydro.d=Maps.Hydro.d(:,:,1:saver_count);
 if flags.flag_infiltration == 1

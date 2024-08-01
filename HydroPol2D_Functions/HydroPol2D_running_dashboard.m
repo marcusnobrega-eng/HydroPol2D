@@ -14,7 +14,7 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
             ax.app = app;
             app.flags = ax.flags;
 
-            [Spectrum,depth_ramp,terrain_ramp,blue_ramp,Depths_RAS,pallete,Depth_RAS,Terrain_RAS,Velocity_RAS,WSE_RAS] = coloramps();        
+            [Spectrum,depth_ramp,terrain_ramp,blue_ramp,blues_2,pallete,Depth_RAS,Terrain_RAS,Velocity_RAS,WSE_RAS] = coloramps();        
             %Store the inditial data into the multiarrays, depths, rainfall,
             %% Creating the custom basemap
             basemapName = "openstreetmap";
@@ -146,7 +146,7 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
                 bm_bc = mapshow(ax.ax_bc, A, RA, "AlphaData",0.35);hold(ax.ax_bc, 'on');
                 ax.monitor_bc = pcolor(ax.ax_bc,ax.y_grid,ax.x_grid,F_d);
                 set(ax.monitor_bc,'EdgeColor', 'none');
-                colormap(ax.ax_bc,Depths_RAS);hh = colorbar(ax.ax_bc);  hh.TickDirection = 'out';
+                colormap(ax.ax_bc,Depth_RAS);hh = colorbar(ax.ax_bc);  hh.TickDirection = 'out';
                 shp_bc = mapshow(ax.ax_bc,S_p,'FaceColor','n');hold(ax.ax_bc, 'on');
                 set(ax.ax_bc,'FontName','Garamond');
                 ax.ax_bc.XAxis.Exponent = 0; ax.ax_bc.XAxis.TickLabelFormat = '%.0f';
@@ -235,13 +235,13 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
 
             ax.monitor_d = pcolor(ax.ax_d,ax.y_grid,ax.x_grid,F_d);
             set(ax.monitor_d,'EdgeColor', 'none');
-            colormap(ax.ax_d,Depths_RAS); hh = colorbar(ax.ax_d); hh.TickDirection = "out";  hh.TickDirection = 'out';
+            colormap(ax.ax_d,Depth_RAS); hh = colorbar(ax.ax_d); hh.TickDirection = "out";  hh.TickDirection = 'out';
             ax.monitor_r = pcolor(ax.ax_r,ax.y_grid,ax.x_grid,F_r); 
             set(ax.monitor_r,'EdgeColor', 'none'); 
             colormap(ax.ax_r,Spectrum);hh = colorbar(ax.ax_r);   hh.TickDirection = 'out';
             ax.monitor_v = pcolor(ax.ax_v,ax.y_grid,ax.x_grid,F_v); 
             set(ax.monitor_v,'EdgeColor', 'none');
-            colormap(ax.ax_v,depth_ramp);hh = colorbar(ax.ax_v); 
+            colormap(ax.ax_v,Velocity_RAS);hh = colorbar(ax.ax_v); 
 
             shp_d = mapshow(ax.ax_d,S_p,'FaceColor','n');hold(ax.ax_d, 'on');
             shp_r = mapshow(ax.ax_r,S_p,'FaceColor','n');hold(ax.ax_r, 'on');

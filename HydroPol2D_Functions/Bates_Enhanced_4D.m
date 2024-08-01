@@ -1,4 +1,4 @@
-function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,Vol_Flux,outflow,Hf] = Bates_Enhanced_4D(flag_numerical_scheme,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical)
+function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf] = Bates_Enhanced_4D(flag_numerical_scheme,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical)
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %                                                                 %
 %                 Produced by Marcus Nobrega Gomes Junior         %
@@ -24,7 +24,9 @@ end
 h_min = d_t_min;
 
 % --------------- Notation  % ---------------%
-%   <-matrix3D-> (left right up down) = [left ; right ; up; down]
+%   <-matrix3D-> (left right up down) = [left ; right ; up; down] going
+%   outside of the cell
+
 % --------------- Cell Depth and Water surface Elevation  % ---------------%
 depth_cell = 0.5*(d_tot + d_p); % This is important when inflow hydrograph is simulated
 depth_cell = max(depth_cell/1000,0); % meters (fixing zero values)
@@ -32,24 +34,8 @@ depth_cell = max(depth_cell/1000,0); % meters (fixing zero values)
 % Water Surface Elevation [m]
 y = z + depth_cell;
 
-
 %% --------------- Slope for all cell boundaries % ---------------%
 nan_col = nan*y(:,1); nan_row = nan*y(1,:);
-% % x-x 
-% matrix_store(:,:,1) = [nan_col, y(:,1:(nx-1)) - y(:,2:(nx))]/Resolution;       % Left
-% matrix_store(:,:,2) = [y(:,1:(nx-1)) - y(:,2:nx),nan_col]/Resolution;          % Right
-% 
-% % y-y
-% matrix_store(:,:,3) = [nan_row; y(2:ny,:) - y(1:(ny-1),:)]/Resolution;         % Up
-% matrix_store(:,:,4) = [y(2:(ny),:) - y(1:(ny-1),:); nan_row]/Resolution;       % Down
-
-% x-x
-% matrix_store(:,:,1) = [nan_col, y(:,1:(nx-1)) - y(:,2:(nx))]/Resolution;       % Left
-% matrix_store(:,:,2) = [y(:,2:nx) - y(:,1:(nx-1)),nan_col]/Resolution;          % Right
-% 
-% % y-y
-% matrix_store(:,:,3) = [nan_row; y(2:ny,:) - y(1:(ny-1),:)]/Resolution;         % Up
-% matrix_store(:,:,4) = [y(1:(ny-1),:) - y(2:(ny),:); nan_row]/Resolution;       % Down
 
 % x-x
 matrix_store(:,:,1) = [nan_col, y(:,1:(nx-1)) - y(:,2:nx)]/Resolution;
@@ -58,7 +44,6 @@ matrix_store(:,:,2) = [y(:,2:nx) - y(:,1:(nx-1)), nan_col]/Resolution;
 % y-y
 matrix_store(:,:,3) = [nan_row; y(1:(ny-1),:) - y(2:ny,:)]/Resolution;
 matrix_store(:,:,4) = [y(2:ny,:) - y(1:(ny-1),:); nan_row]/Resolution;
-
 
 % --------------- Outlet Calculations  % ---------------%
 if outlet_type == 1
@@ -140,10 +125,8 @@ end
 outflow = Resolution*outflow/(Resolution^2)*1000*3600; % mm per hour
 % Treating Domain Issues
 outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;
-% outflow(mask) = 0; % 
 
 %% Intercell Volume
-% Vol_Flux = ((outflow(:,:,1) - outflow(:,:,2)) + (outflow(:,:,3) - outflow(:,:,4)))*dt/1000*1/3600*Resolution^2; % Be careful here. It might be the opposite for for y direction
 Vol_Flux = -sum(outflow,3)*dt/1000*1/3600*Resolution^2;
 % matrix_store now becomes outflow
 matrix_store = outflow; % mm per hour
@@ -187,4 +170,7 @@ outlet_flow = matrix_store(:,:,5);
 %% ---------------% Final depth at the cell % ---------------%
 d_t = d_tot + Vol_Flux/cell_area*1000; % final depth in mm; 
 
+%% ---------------% Total Flow that Leaves the Cell ----------- %
+mask = outflow; mask(mask<0) = 0;
+I_tot_end_cell = sum(mask,3)*dt/1000*1/3600*Resolution^2;
 end
