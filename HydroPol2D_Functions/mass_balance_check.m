@@ -5,20 +5,27 @@
 
 % Runoff Coefficient Calculation
 BC_States.outflow_volume  = nansum(nansum(outlet_states.outlet_flow))/1000*Wshed_Properties.cell_area/3600*time_step*60 + BC_States.outflow_volume ;
+if flags.flag_stage_hydrograph == 1
+    % inflow_stage = sum(sum(stage_cells*Wshed_Properties.cell_area.*(stage_depth - stage_depth_previous))); % m3
+    inflow_stage = sum(sum(stage_cells*Wshed_Properties.cell_area.*(stage_depth - stage_depth_previous))) + ...
+                    sum(sum(CA_States.I_tot_end_cell(stage_cells)));
+else
+    inflow_stage = 0;
+end
 if flags.flag_spatial_rainfall == 1
     if flags.flag_inflow == 1
         inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + ...
-            nansum(nansum(BC_States.delta_p_agg))/1000*Wshed_Properties.cell_area;
+            nansum(nansum(BC_States.delta_p_agg))/1000*Wshed_Properties.cell_area + inflow_stage;
     else
-        inflow_vol = nansum(nansum(nansum(nansum(BC_States.delta_p_agg))/1000*Wshed_Properties.cell_area));
+        inflow_vol = nansum(nansum(nansum(nansum(BC_States.delta_p_agg))/1000*Wshed_Properties.cell_area)) + inflow_stage;
     end
     BC_States.inflow_volume = inflow_vol + BC_States.inflow_volume; % m3
 elseif flags.flag_spatial_rainfall ~= 1 && flags.flag_inflow == 1
-    inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area;
+    inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area + inflow_stage;
     BC_States.inflow_volume = inflow_vol +  BC_States.inflow_volume; % check future
 else
-    inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area ;
-    BC_States.inflow_volume = inflow_vol + BC_States.inflow_volume; % check future
+    inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + BC_States.delta_p_agg/1000*Wshed_Properties.drainage_area + inflow_stage ;
+    BC_States.inflow_volume = inflow_vol  + BC_States.inflow_volume; % check future
 end
 
 % Storage Calculation
@@ -33,6 +40,10 @@ outflow_flux = nansum(nansum(outlet_states.outlet_flow))/1000*Wshed_Properties.c
     nansum(nansum(Hydro_States.f/1000/3600*Wshed_Properties.cell_area)); % m3 per sec
 flux_volumes = inflow_vol - outflow_flux*time_step*60; % dt(Qin - Qout) m3
 volume_error = flux_volumes - delta_storage;
+
+if abs(volume_error) > 0.1
+    ttt = 1;
+end
 
 % Introducing the volume error to the inflow cells
 if flags.flag_inflow == 1 && flags.flag_waterbalance == 1

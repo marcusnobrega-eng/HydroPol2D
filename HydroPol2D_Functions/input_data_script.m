@@ -73,6 +73,9 @@ flags.flag_dam_break = input_table_Hydro(13);
 flags.flag_human_instability = input_table_Hydro(14);
 flags.flag_boundary = input_table_Hydro(15);
 flags.flag_numerical_scheme = input_table_Hydro(16);
+flags.flag_outlet_type = input_table_Hydro(17);
+flags.flag_adaptive_timestepping = input_table_Hydro(18);
+
 
 % Performance Flags
 flags.flag_GPU = input_table_Performance(1);
@@ -121,10 +124,15 @@ end
 
 % Watershed Inputs and Cuts
 input_table_watershed_inputs = table2array(input_table(:,8));
-outlet_type = input_table_watershed_inputs(1);
-slope_outlet = input_table_watershed_inputs(2);
-n_outlets_data = input_table_watershed_inputs(3);
-Lateral_Groundwater_Flux = input_table_watershed_inputs(4); % m3/s/m
+% outlet_type = input_table_watershed_inputs(1);
+if flags.flag_outlet_type == 1
+    outlet_type = 1;
+else
+    outlet_type = 2;
+end
+slope_outlet = input_table_watershed_inputs(1);
+n_outlets_data = input_table_watershed_inputs(2);
+Lateral_Groundwater_Flux = input_table_watershed_inputs(3); % m3/s/m
 
 % Maps and Plots Control
 input_table_map_plots = table2array(input_table(:,11));

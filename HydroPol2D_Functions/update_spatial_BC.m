@@ -14,13 +14,17 @@ if flags.flag_stage_hydrograph == 1
         if isempty(z2) || z2 < z1
             z2 = z1;
         end
+        if k == 1
+            stage_depth_previous = 0;
+        else
+            stage_depth_previous = stage_depth;
+        end
         stage_depth(z,1) = Stage_Parameters.stage(z2,z);
     end
 end
 
 % Stage Boundary Condition
 if flags.flag_stage_hydrograph == 1
-    BC_States.inflow = zeros(size(Elevation_Properties.elevation_cell,1),size(Elevation_Properties.elevation_cell,2)); % This is to solve spatially, don't delete
     for i = 1:Stage_Parameters.n_stage_gauges
         stage_cells = Wshed_Properties.stage_mask(:,:,i);
         depths.d_t(logical(Wshed_Properties.stage_mask(:,:,i))) = 1000*stage_depth(i,1)*stage_cells(stage_cells == 1); % mm

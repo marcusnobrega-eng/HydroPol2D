@@ -1519,23 +1519,27 @@ Plot_Initial_Maps; % Script to plot initial maps
         dim2 = size(Elevation_Properties.elevation_cell,2);
         if flags.flag_D8 == 1
             dim3 = 9;
+            dim3_ = 5;
         else
             dim3 = 5;
+            dim3_ = 3; % Now bates has 3 dimensions
         end
         wse_slope_zeros = gpuArray(zeros(dim1,dim2,dim3));
         Distance_Matrix = gpuArray(zeros(dim1,dim2));
-        outflow_bates = gpuArray(zeros(dim1,dim2,dim3));
+        outflow_bates = gpuArray(zeros(dim1,dim2,dim3_));
     else
         dim1 = size(Elevation_Properties.elevation_cell,1);
         dim2 = size(Elevation_Properties.elevation_cell,2);
         if flags.flag_D8 == 1
             dim3 = 9;
+            dim3_ = 5;
         else
             dim3 = 5;
+            dim3_ = 3;
         end 
         wse_slope_zeros = (zeros(dim1,dim2,dim3));
         Distance_Matrix = (zeros(dim1,dim2));
-        outflow_bates = (zeros(dim1,dim2,dim3));
+        outflow_bates = (zeros(dim1,dim2,dim3_));
     end
 
 
