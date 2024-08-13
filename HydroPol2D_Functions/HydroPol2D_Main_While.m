@@ -401,7 +401,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         wave_celerity = sqrt(9.81*(max(max(max(depths.d_tot/1000)),max(max(depths.d_p/1000))))); % Using d_p and d_tot
         max_vel = max(max(velocities.velocity_raster));
         factor = 1/catch_index/running_control.factor_reduction;
-        if flag_adaptive_timestepping == 1
+        if flags.flag_adaptive_timestepping == 1
             new_timestep = factor*(min(Courant_Parameters.alfa_min*Wshed_Properties.Resolution./(wave_celerity))); % alpha of 0.4
         else
             new_timestep = factor*(min(Courant_Parameters.alfa_min*Wshed_Properties.Resolution./(max_vel+wave_celerity))); % alpha of 0.4
