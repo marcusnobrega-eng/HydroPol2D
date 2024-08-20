@@ -161,7 +161,16 @@ if flags.flag_rainfall > 0
             % Read Geotiff
             % input_rainfall = GRIDobj(Input_Rainfall.labels_Directory{z2_input}{1});
             try
-                [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input}{1}),'CoordinateSystemType','geographic');
+                [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input}{1}),'CoordinateSystemType','geographic');                % Filtering Non-physical values and extreme wrong values
+                if max(max(input_rainfall)) > 300 % Very unlikely to have a value like this
+                    warning('Rainfall values larger than 300 mm/h. We are neglecting this raster and collecting the previous one for this time-step.')
+                    [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input - 1}{1}),'CoordinateSystemType','geographic');                
+                elseif isnan(sum(input_rainfall(~idx_nan)))
+                    warning('Rainfall has nan values inside of the domain. Using the previous rainfall as input for this time-step.')
+                    [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input - 1}{1}),'CoordinateSystemType','geographic');                                    
+                end
+                % No negative rainfall
+                input_rainfall = max(input_rainfall,0); % No negative values                  
                 % Reproject the coordinates from EPSG:4326 to EPSG:3857
                 rR.GeographicCRS=geocrs(4326);
                 if rR.CellExtentInLatitude ~= GIS_data.resolution_resample
@@ -197,6 +206,51 @@ if flags.flag_rainfall > 0
             BC_States.delta_p_agg = input_rainfall*time_step/60; % mm
             % BC_States.average_spatial_rainfall(z2_input,1) = mean(input_rainfall(input_rainfall>=0));
             rainfall_spatial_aggregation(:,:,Rainfall_Parameters.index_aggregation) = gather(input_rainfall); % Saving high resolution map
+        else
+            if k == 1 % Very first time-step
+                try
+                [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{1,:}),'CoordinateSystemType','geographic');
+                % Filtering Non-physical values and extreme wrong values
+                if max(max(input_rainfall)) > 300   % Very unlikely to have a value like this
+                    error('Rainfall values larger than 300 mm/h. We are neglecting this raster and collecting the previous one for this time-step.')
+                elseif isnan(sum(input_rainfall(~idx_nan)))
+                    error('Rainfall has nan values inside of the domain. Please fix it.')
+                end
+                input_rainfall = max(input_rainfall,0); % No negative values
+                
+                % Reproject the coordinates from EPSG:4326 to EPSG:3857
+                rR.GeographicCRS=geocrs(4326);
+                if flags.flag_resample
+                    if rR.CellExtentInLatitude ~= GIS_data.resolution_resample
+                        input_rainfall = raster_cutter(DEM_raster,rR,input_rainfall,1);
+                    end
+                else
+                    if rR.CellExtentInLatitude ~= DEM_raster.cellsize
+                        input_rainfall = raster_cutter(DEM_raster,rR,input_rainfall,1);
+                    end
+                end
+            catch
+                [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{1,:}));
+                % Filtering Non-physical values and extreme wrong values
+                if max(max(input_rainfall)) > 300 % Very unlikely to have a value like this
+                    error('Rainfall values larger than 300 mm/h. We are neglecting this raster and collecting the previous one for this time-step.')
+                end
+                % No negative rainfall
+                input_rainfall = max(input_rainfall,0); % No negative values                
+                if flags.flag_resample
+                    if rR.CellExtentInWorldX ~= GIS_data.resolution_resample
+                        input_rainfall = raster_cutter(DEM_raster,rR,input_rainfall,0);
+                    end
+                else
+                    if rR.CellExtentInWorldX ~= DEM_raster.cellsize
+                        input_rainfall = raster_cutter(DEM_raster,rR,input_rainfall,0);
+                    end
+                end
+            end
+
+               input_rainfall = input_rainfall.Z; % Only the values                
+               BC_States.delta_p_agg = input_rainfall*time_step/60; % mm
+            end
         end
     elseif flags.flag_input_rainfall_map == 0 && flags.flag_satellite_rainfall == 1 && flags.flag_real_time_satellite_rainfall ~= 1
         % Satellite Rainfall

@@ -75,6 +75,8 @@ flags.flag_boundary = input_table_Hydro(15);
 flags.flag_numerical_scheme = input_table_Hydro(16);
 flags.flag_outlet_type = input_table_Hydro(17);
 flags.flag_adaptive_timestepping = input_table_Hydro(18);
+flags.flag_neglect_infiltration_river = input_table_Hydro(19);
+flags.flag_subgrid = input_table_Hydro(20);
 
 
 % Performance Flags
@@ -132,7 +134,7 @@ else
 end
 slope_outlet = input_table_watershed_inputs(1);
 n_outlets_data = input_table_watershed_inputs(2);
-Lateral_Groundwater_Flux = input_table_watershed_inputs(3); % m3/s/m
+% Lateral_Groundwater_Flux = input_table_watershed_inputs(3); % m3/s/m
 
 % Maps and Plots Control
 input_table_map_plots = table2array(input_table(:,11));
@@ -155,12 +157,13 @@ routing_parameters = table2array(input_table(:,14));
 CA_States.depth_tolerance = routing_parameters(1);
 
 
-% River Heigth and Width
+% River Heigth and Width (Deactivated. Now it is spatially distributed)
 input_table_river = table2array(input_table(:,17));
 GIS_data.alfa_1 = input_table_river(1);
 GIS_data.alfa_2 = input_table_river(2);
 GIS_data.beta_1 = input_table_river(3);
 GIS_data.beta_2 = input_table_river(4);
+LULC_Parameters.River_Manning = input_table_river(5);
 
 % GIS_data.xulcorner = input_table_abstraction(5);
 % GIS_data.yulcorner = input_table_abstraction(6);
@@ -261,7 +264,7 @@ else
 end
 
 % Design Storms
-input_table_design = table2array((input_table(1:9,39)));
+input_table_design = table2array((input_table(1:9,45)));
 Design_Storm_Parameters.RP = input_table_design(1); % year
 Design_Storm_Parameters.Rainfall_Duration = input_table_design(2); % min
 Design_Storm_Parameters.K = input_table_design(3); % K
@@ -276,7 +279,7 @@ end
 
 % Input Rainfall Maps
 if flags.flag_input_rainfall_map == 1
-    input_table_rainfall = ((input_table(2:end,41:42)));
+    input_table_rainfall = ((input_table(2:end,47:48)));
     Input_Rainfall.time = table2array(input_table_rainfall(:,1)); % % min
     Input_Rainfall.num_obs_maps = sum(~isnan(Input_Rainfall.time));
     Input_Rainfall.time = Input_Rainfall.time(1:Input_Rainfall.num_obs_maps);

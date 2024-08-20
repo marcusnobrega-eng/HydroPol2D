@@ -284,7 +284,7 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
             ax.DEM_s1=size(DEM_raster.Z,1); ax.DEM_s2=size(DEM_raster.Z,2);
             % Update plots
             idx_g = Maps.Hydro.d([1:1:size(DEM_raster.Z,1)],[1:1:size(DEM_raster.Z,2)],layer);
-            idx_g(idx_g <= 50) = NaN;  
+            idx_g(idx_g <= 10) = NaN;  
             idx_g(mask) = nan;
             set(ax.monitor_d, 'CData', idx_g/1000);
             if ax.flags.flag_reservoir == 1

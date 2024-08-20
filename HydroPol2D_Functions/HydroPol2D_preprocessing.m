@@ -219,7 +219,7 @@ end
 % Observed Gauges
 if flags.flag_obs_gauges ==1
     input_table = readtable(model_folder);
-    input_table_observed = (input_table(2:end,33:35));
+    input_table_observed = (input_table(2:end,33:42));
     obs_gauges = table2array(input_table_observed(:,1)); % Indexes
     gauges.num_obs_gauges = sum(~isnan(obs_gauges));
     gauges.easting_obs_gauges_absolute = table2array(input_table_observed(1:gauges.num_obs_gauges,2)); % Easting Coordinates
@@ -227,7 +227,14 @@ if flags.flag_obs_gauges ==1
     % --- Converting coordinates to local coordinates in pixels
     gauges.easting_obs_gauges = round((-GIS_data.xulcorner + gauges.easting_obs_gauges_absolute)/Wshed_Properties.Resolution);
     gauges.northing_obs_gauges = round((GIS_data.yulcorner - gauges.northing_obs_gauges_absolute)/Wshed_Properties.Resolution);
-    
+    % ---- Morphometric Information --- %
+    GIS_data.alfa_1 = table2array(input_table_observed(1:gauges.num_obs_gauges,5));
+    GIS_data.alfa_2 = table2array(input_table_observed(1:gauges.num_obs_gauges,6));
+    GIS_data.beta_1 = table2array(input_table_observed(1:gauges.num_obs_gauges,7));
+    GIS_data.beta_2 = table2array(input_table_observed(1:gauges.num_obs_gauges,8));
+    Lateral_Groundwater_Flux = table2array(input_table_observed(1:gauges.num_obs_gauges,10));  
+    River_Manning = table2array(input_table_observed(1:gauges.num_obs_gauges,9));  
+
     % Getting the labels
     labels_observed = (input_table(2:(2+gauges.num_obs_gauges-1),36));
     if flags.flag_obs_gauges == 1
@@ -421,7 +428,7 @@ if flags.flag_ETP == 1
     % Preallocating Arrays
     % Maps.Hydro.ETP_save = zeros(size(dem,1),size(dem,2),ETP_Parameters.n_obs_ETP); % Maps of ET
     Maps.Hydro.ETP_save = zeros(size(dem,1),size(dem,2),saver_memory_maps);
-    Maps.Hydro.ETR_save = Maps.Hydro.ETP_save;
+    Maps.Hydro.ETR_save = zeros(size(dem,1),size(dem,2),saver_memory_maps);
     % ---- Loop ETP --- %
     for i = 1:ETP_Parameters.n_max_etp_stations
         try
@@ -530,29 +537,47 @@ if flags.flag_smooth_cells == 1
     close all
 end
 
-%% Decrese Elevations in Creeks
-if flags.flag_reduce_DEM
+%% Decrese Elevations in Creeks 
+    % Flow directio 8D raster
     FD = FLOWobj(DEM_raster); % Flow direction
+    % Flow accumulation
     As  = flowacc(FD); % Flow Accumulation
+    % Area of each cell in km2
     Wshed_Properties.fac_area = As.Z*(Wshed_Properties.cell_area/1000/1000); % km2
-    idx_facc = Wshed_Properties.fac_area <= GIS_data.min_area;
-
-    % B
-    B = GIS_data.beta_1*Wshed_Properties.fac_area.^(GIS_data.beta_2);
-    H = GIS_data.alfa_1*Wshed_Properties.fac_area.^(GIS_data.alfa_2);
+    % Mask with flow accumulation larger than the threshold
+    idx_facc = Wshed_Properties.fac_area >= GIS_data.min_area;
+    % Drainage Basins of each gauge
+    % for ii = 1:gauges.num_obs_gauges    
+    %    L = drainagebasins(FD,gauges.northing_obs_gauges(ii),gauges.easting_obs_gauges(ii)); 
+    % end
+    
+    % River Width (only using the first entry)
+    B = GIS_data.beta_1(1)*Wshed_Properties.fac_area.^(GIS_data.beta_2(1));
+    
+    % River Heigth (only using the first entry)
+    H = GIS_data.alfa_1(1)*Wshed_Properties.fac_area.^(GIS_data.alfa_2(1));
+    
+    % River inbank area
     Flow_Area = B.*H; % m2
-    H_abg = Flow_Area/Wshed_Properties.Resolution;
-    if max(max(H_abg)) > 10^2
-        error('Be careful. The decreasing in the DEM to consider the water depths are larger than 100 m. You may change the parameters.')
+    
+    % River width raster
+    Wshed_Properties.River_Width = B;
+    
+    % River height raster
+    Wshed_Properties.River_Depth = H;
+   
+    % Reducing Elevation in creeks (if flag reduce DEM is used and subgrid
+    % is deactivated
+    if flags.flag_reduce_DEM == 1 && flags.flag_subgrid == 1
+        H_abg = Flow_Area/Wshed_Properties.Resolution;
+        if max(max(H_abg)) > 10^2
+            error('Be careful. The decreasing in the DEM to consider the water depths are larger than 100 m. You may change the parameters.')
+        end        
+        DEM_raster.Z = DEM_raster.Z - H_abg; % [m]
     end
-    H_abg(idx_facc) = 0;
-
-    % Reducing Elevation in creeks
-    DEM_raster.Z = DEM_raster.Z - H_abg; % [m]
 
     % New Data
     dem = DEM_raster.Z;
-end
 
 %% DEM Smoothening
 if flags.flag_smoothening == 1
@@ -560,7 +585,7 @@ if flags.flag_smoothening == 1
 end
 
 %% Imposing Minimum Slope - If Required
-if flags.flag_diffusive ~= 1
+if flags.flag_diffusive ~= 1 && flags.flag_inertial == 1
     % Impose Mininum Slope
     if flags.flag_smoothening ~=1 % We don't have a S, so we need to calculate it
         FD = FLOWobj(DEM_raster);
@@ -573,7 +598,6 @@ if flags.flag_diffusive ~= 1
     DEM_raster = DEM_new;
     %     imagesc(DEM_DIFF); colorbar; % if you want to plot
 end
-
 %% Slope Map
 SLP = arcslope(DEM_raster);
 close all
@@ -632,34 +656,36 @@ end
 close all
 
 %% Drainage Basins
-% D = drainagebasins(FD);
-% imageschs(DEM_raster,shufflelabel(D))
-% area_km2 = GIS_data.min_area;
-% area_cells = area_km2./((DEM_raster.cellsize/1000)^2); % pixels
-% imagesc(DEM_raster);
-% hold on
-% S = STREAMobj(FD,'minarea',area_cells); % Flow accumulation
-% if ~isempty(S)
-%     plot(S,'linewidth',2,'color','red');
-%     plot(trunk(S),'linewidth',2,'color','red');
-%     D = drainagebasins(FD,S);
-%     imageschs(DEM_raster,shufflelabel(D))
-% end
+D = drainagebasins(FD);
+imageschs(DEM_raster,shufflelabel(D))
+area_km2 = GIS_data.min_area;
+area_cells = area_km2./((DEM_raster.cellsize/1000)^2); % pixels
+imagesc(DEM_raster);
+hold on
+S = STREAMobj(FD,'minarea',area_cells); % Flow accumulation
+if ~isempty(S)
+    plot(S,'linewidth',2,'color','red');
+    plot(trunk(S),'linewidth',2,'color','red');
+    D = drainagebasins(FD,S);
+    imageschs(DEM_raster,shufflelabel(D))
+end
 
-% hold on
-%
-% plot(S,'linewidth',2,'color','red');% area_km2 = 500; % km2
-% area_cells = area_km2./((DEM_raster.cellsize/1000)^2); % pixels
-% imagesc(DEM_raster);
-% hold on
-% S = STREAMobj(FD,'minarea',area_cells); % Flow accumulation
-% plot(S,'linewidth',2,'color','red');
-%
+hold on
+
+plot(S,'linewidth',2,'color','red');% area_km2 = 500; % km2
+area_cells = area_km2./((DEM_raster.cellsize/1000)^2); % pixels
+imagesc(DEM_raster);
+hold on
+S = STREAMobj(FD,'minarea',area_cells); % Flow accumulation
+plot(S,'linewidth',2,'color','red');
+
 % D = drainagebasins(FD,S);
-% imageschs(DEM_raster,shufflelabel(D))
-% hold on
-%
-% plot(S,'linewidth',2,'color','red');
+% D = drainagebasins(FD,gauges.easting_obs_gauges_absolute(2),gauges.northing_obs_gauges(2))
+
+imageschs(DEM_raster,shufflelabel(D))
+hold on
+
+plot(S,'linewidth',2,'color','red');
 
 
 %% Outlet Locations
@@ -1195,12 +1221,11 @@ zzz = size(elevation);
 xmax = zzz(2);
 ymax = zzz(1);
 
-%% Locally Reducing Manning of River Networks
-if flags.flag_reduce_DEM == 1
-    LULC_Properties.roughness(idx_facc) = 1*LULC_Properties.roughness(idx_facc);
-    LULC_Properties.h_0(idx_facc) = 0;
+%% Neglecting infiltration in rivers
+if flags.flag_neglect_infiltration_river == 1
+    LULC_Properties.h_0(idx_facc) = 0; % No initial abstraction in rivers
+    Soil_Properties.ksat(idx_facc) = 0; % No infiltration in rivers
 end
-
 %% Conversion of inflow into the time-step of calculations
 if flags.flag_inflow == 1
     inflow_length = size(Inflow_Parameters.inflow_hydrograph_rate,1); % Number of interval
@@ -1393,7 +1418,6 @@ if flags.flag_rainfall == 1 && flags.flag_spatial_rainfall == 1 && flags.flag_in
             end
         end
     end
-
     input_rainfall = input_rainfall.Z; % Only the values
     Maps.Hydro.spatial_rainfall_maps(:,:,1) = input_rainfall;
     BC_States.delta_p_agg = input_rainfall*time_step/60; % mm
@@ -1451,6 +1475,7 @@ BC_States.outflow_volume = 0;
 BC_States.inflow_volume = 0;
 CA_States.I_tot_end_cell = zeros(size(spatial_domain)); % Attention here
 Hydro_States.ETP = zeros(size(DEM));
+Hydro_States.ETR = zeros(size(DEM));
 
 % Inflows Boundary Condition
 if flags.flag_inflow == 1
@@ -1527,6 +1552,10 @@ Plot_Initial_Maps; % Script to plot initial maps
         wse_slope_zeros = gpuArray(zeros(dim1,dim2,dim3));
         Distance_Matrix = gpuArray(zeros(dim1,dim2));
         outflow_bates = gpuArray(zeros(dim1,dim2,dim3_));
+        Qc = gpuArray(zeros(dim1,dim2,dim3_ - 1));
+        Qf = gpuArray(zeros(dim1,dim2,dim3_ - 1));
+        Qci = gpuArray(zeros(dim1,dim2,dim3_ - 1));
+        Qfi = gpuArray(zeros(dim1,dim2,dim3_ - 1));
     else
         dim1 = size(Elevation_Properties.elevation_cell,1);
         dim2 = size(Elevation_Properties.elevation_cell,2);
@@ -1540,6 +1569,10 @@ Plot_Initial_Maps; % Script to plot initial maps
         wse_slope_zeros = (zeros(dim1,dim2,dim3));
         Distance_Matrix = (zeros(dim1,dim2));
         outflow_bates = (zeros(dim1,dim2,dim3_));
+        Qc = (zeros(dim1,dim2,dim3_ - 1));
+        Qf = (zeros(dim1,dim2,dim3_ - 1));
+        Qci = (zeros(dim1,dim2,dim3_ - 1));
+        Qfi = (zeros(dim1,dim2,dim3_ - 1));       
     end
 
 
@@ -1554,6 +1587,9 @@ min_soil_moisture = 5*(double(Soil_Properties.I_0>0));
 min_soil_moisture(Soil_Properties.I_0==0) = 0.01;
 min_soil_moisture(idx_nan) = nan;
 C = 0; k = 1; Rainfall_Parameters.index_aggregation = 1;
+
+% Imposing min_soil_moisture to all cells bellow the threshold
+Soil_Properties.I_0 = max(Soil_Properties.I_0,min_soil_moisture);
 
 %% Imposing that we are not doing automatic calibration
 flags.flag_automatic_calibration = 0;
@@ -1657,11 +1693,18 @@ if flags.flag_groundwater_modeling == 1
     FD = FLOWobj(DEM_raster); % Flow direction
     As  = flowacc(FD); % Flow Accumulation
     Wshed_Properties.fac_area = As.Z*(Wshed_Properties.cell_area/1000/1000); % km2
-    idx_rivers = Wshed_Properties.fac_area >= GIS_data.min_area;  % Logical Matrix with 1 being pixels with rivers   
 else
     Lateral_Groundwater_Flux = 0; % m3/s/km of river
-    idx_rivers = zeros(size(DEM_raster.Z));
 end
+idx_rivers = Wshed_Properties.fac_area >= GIS_data.min_area;  % Logical Matrix with 1 being pixels with rivers   
+Wshed_Properties.idx_rivers = idx_rivers;
+
+%% Characterizing River Roughness
+% Inbank Manning (only using the first entry)
+Wshed_Properties.Inbank_Manning = LULC_Properties.roughness; % Only first entry used
+Wshed_Properties.Inbank_Manning(idx_rivers) = River_Manning(1); % Only first entry used
+% Overbank Manning (assuming the same of the LULC) )
+Wshed_Properties.Overbank_Manning = LULC_Properties.roughness; % Can be altered
 
 %% Dam Break Parameters
 % If dam breaking is simulated
@@ -1688,7 +1731,7 @@ end
 %% Clearing Variables
 
 % clearvars  -except register saver_memory_maps idx_rivers rainfall_spatial_aggregation model_folder Input_Rainfall Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters GIS_data Inflow_Parameters ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties topo_path idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx	ny	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	teta_i_fulldomain	teta_sat	teta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person
-clearvars  -except Stage_Parameters register saver_memory_maps extra_parameters Lateral_Groundwater_Flux idx_rivers min_soil_moisture rainfall_spatial_aggregation model_folder Input_Rainfall Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters GIS_data Inflow_Parameters ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties topo_path idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx	ny	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	teta_i_fulldomain	teta_sat	teta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person outflow_bates
+clearvars  -except Stage_Parameters Qc Qf Qci Qfi register saver_memory_maps extra_parameters Lateral_Groundwater_Flux idx_rivers min_soil_moisture rainfall_spatial_aggregation model_folder Input_Rainfall Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters GIS_data Inflow_Parameters ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties topo_path idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx	ny	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	teta_i_fulldomain	teta_sat	teta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person outflow_bates
 
 
 %% Converting Arrays to GPU Arrays, if required

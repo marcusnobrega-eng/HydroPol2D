@@ -1,7 +1,10 @@
+
+
 %% Main HydroPol2D While Loop
 % Developer: Marcus Nobrega, Ph.D.
-% Date 10/08/2024
-% Goal - Create an emsemble forecast analysis
+% Date 8/01/2024
+% Goal - Run the main modeling process of the model
+
 
 % Loading Input File in case you want to avoid doing all preprocessing
 % ----- A few Examples ---- %
@@ -33,71 +36,119 @@
 % flags.flag_waterbalance = 0;
 
 
-
-% ------------- Ensemble Input Data ----------------- %
 number_of_particles = [];
 index_particle = [];
 maximum_depths = [];
 outputs = [];
+
 
 % Dam-Break Ensemble
 number_of_particles = 100; % Number of particles
 
 for index_particle = 1:number_of_particles
 
-clear all except maximum_depths outputs number_of_particles index_particle
+clearvars -except maximum_depths outputs number_of_particles index_particle
+
+W0 = 6722.4; % m
+B0 = 390; % m
+h0 = 40; % m
 
 % Workspace
-load workspace_dam
+load dam_7851_v2.mat
 
 % ---- Simulation Parameters ---- %
 % Depth
-depth_avg = 2;
-depth_std = 2/3;
+load depth_prob.csv
+depth_values = depth_prob(:,1);
+depth_avg = mean(depth_values);
+depth_std = std(depth_values);
 depth = depth_avg + gaussian_noise(0,depth_std^2,1,1);
+depth = min(depth,40);
+depth = max(depth,1);
 
 % Breach 
-breach_avg = 10;
-breach_std = 10/3;
+breach_values =  B0*[0.01737318	0.020328239	0.056435147	0.061310287	0.073648767	0.073790775	0.095946092	0.129602619	0.159341199	0.164855578	0.196553591	0.216339854	0.258530921	0.262544857	0.266097011	0.308607427	0.323276409	0.375379393	0.444948424	0.473665784	0.473970137	0.880988622	0.963544974	0.970884264];
+breach_avg = mean(breach_values);
+breach_std = std(breach_values);
 breach = breach_avg + gaussian_noise(0,breach_std^2,1,1);
+breach = max(breach,2);
+breach = min(breach,B0);
 
 % Manning
-avg_manning = 0.035;
-manning_std = 0.035/3;
-manning = avg_manning + gaussian_noise(0,manning_std^2,1,1);
+% avg_manning = 0.035;
+% manning_std = 0.15*avg_manning;
+% manning = avg_manning + gaussian_noise(0,manning_std^2,1,1);
+% manning = min(manning,0.1);
+% manning = max(manning,0.015);
 
-% Assigning the new manning in the domain
-LULC_Properties.roughness = manning*ones(size(LULC_Properties.roughness,1), size(LULC_Properties.roughness,2));
-LULC_Properties.roughness(isnan(DEM_raster.Z)) = nan;
+
+LULC_emsemble = [2 5 7];
+avg_manning = [0.04 0.03 0.025];
+manning_std = 0.15*avg_manning;
+
+
+k = 0;
+for i = 1:LULC_Properties.n_lulc % 8 types of LULC
+    % Only Roughness and h_0
+    if ~isempty(find(i == LULC_emsemble))
+        k = k + 1;
+        manning(k) = avg_manning(k) + gaussian_noise(0,manning_std(k)^2,1,1);
+        LULC_Properties.roughness(LULC_Properties.idx_lulc(:,:,i)) = manning(k); % assigning values for roughness at impervious areas
+    end
+end
+
+manning = min(manning,0.1);
+manning = max(manning,0.015);
+
+% % Assigning the new manning in the domain
+% LULC_Properties.roughness = manning*ones(size(LULC_Properties.roughness,1), size(LULC_Properties.roughness,2));
+% LULC_Properties.roughness(isnan(DEM_raster.Z)) = nan;
 
 %  Probabilities
 
 % Depth Probability
-depth_intervals = [0.1	1	2	3	4	5	6	7	8	9	10	11	12	13	14	15	16	17	18	19	20]; % [m]
-depth_probabilities_distribution = [0.05	0.075	0.1	0.25	0.28	0.35	0.45	0.5	0.52	0.75	0.78	0.83	0.84	0.845	0.849	0.92	0.93	0.94	0.96	0.98	0.99];
-idx = find(depth <= depth_intervals,1,'first');
-depth_probability = depth_probabilities_distribution(idx);
+depth_probability = normpdf(depth,depth_avg,depth_std);
+% depth_probabilities_distribution = depth_prob(:,2);
+% idx = find(depth <= depth_intervals,1,'first');
+% if isempty(idx)
+%     idx = length(depth_probabilities_distribution);
+% end
+% depth_probability = depth_probabilities_distribution(idx);
 
 % Breach Probability
-breach_intervals = [0.25 0.5 0.75 1]*B0; % [m]
-breach_probabilities_distribution = [0.55 0.33 0.01 0.11];
-idx = find(breach <= breach_intervals,1,'first');
-breach_probability = breach_probabilities_distribution(idx);
+% breach_intervals = [0.25 0.5 0.75 1]*B0; % [m]
+% breach_probabilities_distribution = [0.55 0.33 0.01 0.11];
+% idx = find(breach <= breach_intervals,1,'first');
+% if isempty(idx)
+%     idx = length(breach_probabilities_distribution);
+% end
+% breach_probability = breach_probabilities_distribution(idx);
+
+breach_probability = normpdf(breach,breach_avg,breach_std);
 
 % Manning Probability
-manning_probability = normcdf(manning,avg_manning,manning_std); % Normally distributed
+manning_probability = normpdf(manning,avg_manning,manning_std); % Normally distributed
 
 % Joint Probability
-joint_probability = depth_probability*breach_probability*manning_probability;
+for ii = 1:length(manning_probability)
+    if ii == 1
+        joint_probability = depth_probability*breach_probability*manning_probability(ii);
+    else
+        joint_probability = joint_probability*manning_probability(ii);
+    end
+end
 
 %  --------------- Inflow Hydrograph ------------------ %
-W0 = 1000; % m
-B0 = 100; % m
-h0 = 20; % m
 
-Inflow_Parameters.time_step_inflow = 0.1; % minutes
+Inflow_Parameters.time_step_inflow = 1; % minutes
 
-[time_min,flow_m3_s] = breach_hydrograph(depth,W0,B0,breach,Inflow_Parameters.time_step_inflow,running_control.routing_time,0,[],[]);
+% CAV
+depth_area = @(h)(5.1409*h^2 + 278.06*h - 376.2); % m3
+depth_volume = @(h)(209509*h^2 - 1*10^(6)*h + 2*10^6); % m3
+
+[time_min,flow_m3_s] = breach_hydrograph_CAV(depth,W0,breach,Inflow_Parameters.time_step_inflow,running_control.routing_time,0,[],[],depth_area,depth_volume);
+
+%[time_min,flow_m3_s] = breach_hydrograph(depth,W0,B0,breach,Inflow_Parameters.time_step_inflow,running_control.routing_time,0,[],[]);
 
 Inflow_Parameters.time_inflow = time_min;
 
@@ -112,7 +163,7 @@ if flags.flag_inflow == 1
     end
 end
 
-Inflow_Parameters.inflow_hydrograph_rate = Inflow_Parameters.inflow_discharge./(sum(sum(Wshed_Properties.inflow_mask))*Resolution^2)*1000*3600; % mm/h
+Inflow_Parameters.inflow_hydrograph_rate = Inflow_Parameters.inflow_discharge./(sum(sum(Wshed_Properties.inflow_mask))*Wshed_Properties.Resolution^2)*1000*3600; % mm/h
 
 Inflow_Parameters.inflow_hydrograph_rate = Inflow_Parameters.inflow_hydrograph_rate*flags.flag_inflow;
 
@@ -121,7 +172,7 @@ if flags.flag_inflow == 1
     inflow_discretized = zeros(size(Inflow_Parameters.inflow_hydrograph_rate,2),ceil(inflow_length*Inflow_Parameters.time_step_inflow/running_control.time_step_model)); % Preallocating
     for z = 1:Inflow_Parameters.n_stream_gauges
         for i =1:((inflow_length)*Inflow_Parameters.time_step_inflow/running_control.time_step_model)
-            inflow_discretized(z,i) = Inflow_Parameters.inflow_hydrograph_rate(ceil((round(i*running_control.time_step_model/Inflow_Parameters.time_step_inflow,12))),z); % Discretized into moldel's time-step
+            inflow_discretized(z,i) = Inflow_Parameters.inflow_hydrograph_rate(ceil(i*running_control.time_step_model/Inflow_Parameters.time_step_inflow),z); % Discretized into moldel's time-step
         end
     end
 end
@@ -148,6 +199,7 @@ t_previous = 0;
 factor_time = 0;
 max_dt = running_control.max_time_step;
 current_storage = nansum(nansum(Wshed_Properties.cell_area*depths.d_t/1000)); % m3
+flag_adaptive_timestepping = 1;
 if flags.flag_inertial == 1
     outflow_prev = outflow_bates;
 end
@@ -625,7 +677,7 @@ if flags.flag_GPU == 1
 end
 
 % Saving what I need
-maximum_depths(:,:,index_particle) = Maps.Hydro.dmax_final;
+maximum_depths(:,:,index_particle) = depths.dmax_final/1000;
 outputs(index_particle,:) = [depth, breach, manning, joint_probability];
 end
 

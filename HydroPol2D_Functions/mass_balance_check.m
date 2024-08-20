@@ -32,18 +32,22 @@ end
 previous_storage = current_storage;
 current_storage = nansum(nansum(Wshed_Properties.cell_area*depths.d_t/1000)); % m3
 if flags.flag_infiltration == 0
-    Hydro_States.f = zeros(size(outlet_states.outlet_flow,1),size(outlet_states.outlet_flow,2));
+    inf_volume = 0;
 end
 % dS/dt = Qin - Qout = Rain + Inflow - Outflow - infiltration
 delta_storage = current_storage - previous_storage;
-outflow_flux = nansum(nansum(outlet_states.outlet_flow))/1000*Wshed_Properties.cell_area/3600 + ...
-    nansum(nansum(Hydro_States.f/1000/3600*Wshed_Properties.cell_area)); % m3 per sec
-flux_volumes = inflow_vol - outflow_flux*time_step*60; % dt(Qin - Qout) m3
+outflow_vol = nansum(nansum(outlet_states.outlet_flow))/1000/3600*Wshed_Properties.cell_area*time_step*60 + ...
+    inf_volume; % m3 per sec
+flux_volumes = inflow_vol - outflow_vol; % dt(Qin - Qout) m3
 volume_error = flux_volumes - delta_storage;
 
-if abs(volume_error) > 0.1
-    ttt = 1;
-end
+% if inflow_vol ~= 0
+%     if abs(volume_error)/inflow_vol*100 > 1
+%         factor_time = 1;
+%         catch_index = catch_index  + 1;
+%         error('Mass balance error larger than 10%')
+%     end
+% end
 
 % Introducing the volume error to the inflow cells
 if flags.flag_inflow == 1 && flags.flag_waterbalance == 1

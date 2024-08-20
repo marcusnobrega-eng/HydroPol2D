@@ -1,4 +1,5 @@
-function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf] = Local_Inertial_Model_D4(flag_numerical_scheme,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical)
+function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf,Qc,Qf,Qci,Qfi] = Local_Inertial_Model_D4(flag_numerical_scheme,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical,flag_subgrid,nc,nf,River_Width, River_Depth, idx_rivers,Qc_prev,Qf_prev,Qci_prev,Qfi_prev)
+
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %                                                                 %
 %                 Produced by Marcus Nobrega Gomes Junior         %
@@ -21,7 +22,7 @@ else
     nx = size(z,2);  
 end
 % ---------------% Adding minimum slope to do calculations % ---------------%
-h_min = d_t_min;
+h_min = 0;  % In cases where inflow is being modeling, this value has to be 0
 
 % --------------- Notation  % ---------------%
 %   <-matrix3D-> (left right up down) = [left ; right ; up; down] going
@@ -29,7 +30,7 @@ h_min = d_t_min;
 
 % --------------- Cell Depth and Water surface Elevation  % ---------------%
 % depth_cell = 0.5*(d_tot + d_p); % This is important when inflow hydrograph is simulated
-depth_cell = d_p;
+depth_cell = d_tot;
 % depth_cell = d_p;
 depth_cell = max(depth_cell/1000,0); % meters (fixing zero values)
 
@@ -73,7 +74,7 @@ Hf(isnan(matrix_store)) = 0;
 % end
 
 % Low depth cells are considered an artificial depth
-mask = logical(0*(Hf < h_min/1000));
+mask = logical((Hf < h_min) + depth_cell < h_min);
 % Artificial Depth
 artificial_depth = 0;
 Hf(mask) = artificial_depth; % No outflow from cells with very low depth
@@ -83,11 +84,37 @@ outflow = outflow/1000/3600*Resolution^2/Resolution; % m2 per sec. It comes from
 dt = time_step*60; % time-step in seconds
 g = 9.81;
 outflow_prev = outflow;
-% -------------- Inertial Solver ------------- %
-[outflow] = Inertial_Solver(flag_numerical_scheme,outflow_prev,dt,Hf,matrix_store,roughness_cell,Resolution,idx_nan);
+if flag_subgrid ~= 1
+    % -------------- Inertial Solver ------------- %
+    [outflow] = Inertial_Solver(flag_numerical_scheme,outflow_prev,dt,Hf,matrix_store,roughness_cell,Resolution,idx_nan);
+    % Treating Domain Issues
+    outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;
+end
 
-% Treating Domain Issues
-outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;
+% Sub-grid channels
+% Treatment using sub-grid approach for channels
+if flag_subgrid == 1
+    % All cells have sub-grid channels and floodplains following the same
+    % roughness coefficients of the 2D domain
+    % Only the original formulation is considered in this case
+    [Q,Qc,Qf,Qci,Qfi] = subgrid_channel(depth_cell, River_Width, z, z - River_Depth, Resolution, nc, nf, Qc_prev, Qf_prev,Qci_prev,Qfi_prev,g,dt,idx_rivers);
+    outflow = Q/Resolution;
+    % Treating Domain Issues
+    outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;        
+else
+    % We are modeling using the original coarse grid approach with
+    % different numerical schemes
+    Qc = 0;
+    Qf = 0;
+    Qci = 0;
+    Qfi = 0;
+    Q = 0;
+    % -------------- Inertial Solver ------------- %
+    [outflow] = Inertial_Solver(flag_numerical_scheme,outflow_prev,dt,Hf,matrix_store,roughness_cell,Resolution,idx_nan);
+    % Treating Domain Issues
+    outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;    
+end
+
 
 %% Intercell Volume
 % 1 - Right (Negative)
@@ -169,11 +196,6 @@ if flag_reservoir == 1
 end
 
 %% Output Fluxes
-% qout_left = -matrix_store(:,:,1); % See the signals following the convention
-% qout_right = matrix_store(:,:,2);
-% qout_up = matrix_store(:,:,3);
-% qout_down = -matrix_store(:,:,4);
-
 qout_left = -[zeros(ny,1), matrix_store(:,:,1)]; % See the signals following the convention
 qout_right = [matrix_store(:,:,1)];
 qout_up = matrix_store(:,:,2);
@@ -186,8 +208,11 @@ qout_down = -[matrix_store(2:end,:,2); zeros(1,nx)];
 % d_tot = d_p + rainfall, inflow or anything else
 d_t = d_tot + Vol_Flux/cell_area*1000 ; % final depth in mm
 
-if min(min(d_t)) < 0
-    ttt = 1;
+lost_mass = abs(sum(sum(d_t(d_t<0))))*cell_area;
+d_t(d_t<0) = 0;
+
+if lost_mass > 0.1*sum(sum(d_t))*cell_area
+    warning('Lost mass too high.')
 end
 
 % Outlet Flow
@@ -213,14 +238,13 @@ Hf_outlet(mask_outlet) = max(d_t(mask_outlet),0)/1000; % meters
 Hf(:,:,3) = Hf_outlet;
 
 % Outlet Mass Balance
-outlet_flow = min(1000*3600*1/(Resolution)*1./roughness_cell.*Hf(:,:,3).^(5/3).*abs(S_0).^(0.5),(d_t)/(time_step/60)); % mm/h 
+outlet_flow = 1./roughness_cell.*Resolution.*Hf(:,:,3).^(5/3).*abs(S_0).^(0.5)./(Resolution^2)*1000*3600; % mm/h
+outlet_flow = min(outlet_flow,max((d_t-1000*h_min),0)/(time_step/60));
 outlet_flow(~mask_outlet) = 0;
 
 % Final Depth
 d_t = d_t  - outlet_flow*(time_step/60); % final depth in mm
-if min(min(d_t)) < 0
-    ttt = 1;
-end
+
 %% ---------------% Total Flow that Leaves the Cell ----------- %
 mask = outflow; mask(mask<0) = 0; % We want to get only outflow flux per cell
 I_tot_end_cell = sum(mask,3)*dt/1000*1/3600*Resolution^2; % m3
