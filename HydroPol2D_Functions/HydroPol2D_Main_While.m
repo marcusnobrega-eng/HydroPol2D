@@ -64,7 +64,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         if flags.flag_infiltration == 1
             % Hydro_States.i_a = (BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix ...
             %                  + BC_States.inflow + depths.d_0 - Hydro_States.ETP/24)./(time_step/60); % Inflow rate [mm/h]
-            Hydro_States.i_a = (depths.d_0)./(time_step/60); % Inflow rate [mm/h]            
+            Hydro_States.i_a = (depths.d_0.*~LULC_Properties.idx_imp)./(time_step/60); % Inflow rate [mm/h]            
             C = Soil_Properties.ksat.*(1 +  ...
                                       ((depths.d_0 + Soil_Properties.psi).*(Soil_Properties.teta_sat -  ...
                                       Soil_Properties.teta_i))./Soil_Properties.I_0); % matrix form of Infiltration Capacity [mm/h]
@@ -100,7 +100,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             % Effective precipitation - Green-Ampt(1911)
             % Hydro_States.i_a = (BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix +  ...
             %                     BC_States.inflow + depths.d_p - Hydro_States.ETP/24)./(time_step/60);  % Inflow rate [mm/h]  
-            Hydro_States.i_a = (depths.d_p)./(time_step/60);  % Inflow rate [mm/h]             
+            Hydro_States.i_a = (depths.d_p.*~LULC_Properties.idx_imp)./(time_step/60);  % Inflow rate [mm/h]             
             C = Soil_Properties.ksat.*(1 + ((depths.d_p + ...
                                        Soil_Properties.psi).*(Soil_Properties.teta_sat - Soil_Properties.teta_i))./Soil_Properties.I_p); % matrix form of Infiltration Capacity [mm/h]
             Non_C_idx = Soil_Properties.I_t > Soil_Properties.Lu*1000; % Cells that exceed the top layer infiltrated depth
@@ -412,7 +412,11 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         if catch_index > 1
             running_control.max_time_step = new_timestep*1.5; % Assuming a smaller max time-step to avoid large integrations
         end
-        new_timestep = min(new_timestep,running_control.max_time_step); % sec
+        if k == 1
+            new_timestep = time_step*running_control.min_time_step; % sec
+        else
+            new_timestep = min(new_timestep,running_control.max_time_step); % sec
+        end
         time_step = new_timestep/60; % min
         t = t + time_step;
         depths.d_t = depths.d_p;
