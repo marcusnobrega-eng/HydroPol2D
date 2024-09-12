@@ -11,6 +11,8 @@ function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
 
+
+
 %%% Domain Dimensions
 if isgpuarray(cell_area)
     d_t_min = gpuArray(d_tolerance/1000); % m
@@ -30,8 +32,8 @@ h_min = 0;  % In cases where inflow is being modeling, this value has to be 0
 
 % --------------- Cell Depth and Water surface Elevation  % ---------------%
 % depth_cell = 0.5*(d_tot + d_p); % This is important when inflow hydrograph is simulated
-depth_cell = d_tot;
-% depth_cell = d_p;
+% depth_cell = d_tot;
+depth_cell = d_p;
 depth_cell = max(depth_cell/1000,0); % meters (fixing zero values)
 
 % Water Surface Elevation [m]
@@ -74,7 +76,7 @@ Hf(isnan(matrix_store)) = 0;
 % end
 
 % Low depth cells are considered an artificial depth
-mask = logical((Hf < h_min) + depth_cell < h_min);
+mask = logical((Hf < h_min));
 % Artificial Depth
 artificial_depth = 0;
 Hf(mask) = artificial_depth; % No outflow from cells with very low depth
@@ -84,12 +86,6 @@ outflow = outflow/1000/3600*Resolution^2/Resolution; % m2 per sec. It comes from
 dt = time_step*60; % time-step in seconds
 g = 9.81;
 outflow_prev = outflow;
-if flag_subgrid ~= 1
-    % -------------- Inertial Solver ------------- %
-    [outflow] = Inertial_Solver(flag_numerical_scheme,outflow_prev,dt,Hf,matrix_store,roughness_cell,Resolution,idx_nan);
-    % Treating Domain Issues
-    outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;
-end
 
 % Sub-grid channels
 % Treatment using sub-grid approach for channels
@@ -208,12 +204,13 @@ qout_down = -[matrix_store(2:end,:,2); zeros(1,nx)];
 % d_tot = d_p + rainfall, inflow or anything else
 d_t = d_tot + Vol_Flux/cell_area*1000 ; % final depth in mm
 
-lost_mass = abs(sum(sum(d_t(d_t<0))))*cell_area;
+lost_mass = 1/1000*abs(sum(sum(d_t(d_t<0))))*cell_area;
+if lost_mass > 0.1*cell_area
+    error('Lost mass too high.')
+end
 d_t(d_t<0) = 0;
 
-if lost_mass > 0.1*sum(sum(d_t))*cell_area
-    warning('Lost mass too high.')
-end
+
 
 % Outlet Flow
 % --------------- Outlet Calculations  % ---------------%
@@ -242,8 +239,21 @@ outlet_flow = 1./roughness_cell.*Resolution.*Hf(:,:,3).^(5/3).*abs(S_0).^(0.5)./
 outlet_flow = min(outlet_flow,max((d_t-1000*h_min),0)/(time_step/60));
 outlet_flow(~mask_outlet) = 0;
 
+% Mass Balance Check
+% Current Stored Volume
+current_volume = nansum(nansum(d_tot/1000))*cell_area;
+% Final Stored Volume
+final_volume = nansum(nansum(d_t/1000))*cell_area;
+
+error = current_volume - final_volume;
+if error > 10
+    ttt = 1;
+end
+
 % Final Depth
 d_t = d_t  - outlet_flow*(time_step/60); % final depth in mm
+
+
 
 %% ---------------% Total Flow that Leaves the Cell ----------- %
 mask = outflow; mask(mask<0) = 0; % We want to get only outflow flux per cell

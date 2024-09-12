@@ -47,15 +47,46 @@
 % flags.flag_outlet_type = 2;
 % flags.flag_boundary = 0;
 % flags.flag_critical = 1;
-% flags.flag_dashboard = 0;
+% flags.flag_dashboard = 1;
 % flags.flag_infiltration = 1;
 % flags.flag_infiltration = 0;
 % running_control.volume_error = 10000;
-% flags.flag_subgrid = 1; % CHECK LATER
+% flags.flag_subgrid = 0; % CHECK LATER
 % flags.flag_numerical_scheme = 1;
 % Wshed_Properties.Overbank_Manning = LULC_Properties.roughness;
 % Soil_Properties.ksat = ones(size(Soil_Properties.ksat))*0.1;
 
+
+
+% clear all
+% addpath Testing_Workspaces\
+% load workspace_inflow_aricanduva.mat
+% % Only for the workspace aricanduva
+% Qc = zeros(size(idx_nan,1),size(idx_nan,2),2);
+% Qf = Qc;
+% Qci = Qc;
+% Qfi = Qc;
+% Q = Qc;
+% Hydro_States.ETR = Hydro_States.ETP;
+% Wshed_Properties.Inbank_Manning = 0.035;
+% flags.flag_numerical_scheme = 2;
+% flags.flag_reservoir = 1;
+% flags.flag_boundary = 1;
+% flags.flag_dashboard = 1;
+% t_store = 1;
+% % running_control.max_time_step = 1*60;
+% % Courant.Parameters.alfa_min = 0.1;
+% % flags.flag_infiltration = 1;
+% % flags.flag_outlet_type = 2;
+% % flags.flag_boundary = 0;
+% % flags.flag_critical = 1;
+% flags.flag_dashboard = 1;
+% flags.flag_numerical_scheme = 2;
+% flags.flag_inertial = 1;
+% % flags.flag_infiltration = 0;
+% % running_control.volume_error = 10000;
+% flags.flag_subgrid = 0; % CHECK LATER
+% Wshed_Properties.Overbank_Manning = LULC_Properties.roughness;
 % --------------- Initializing Main While ---------------- %
 tic
 k = 1; % time-step counter
@@ -313,6 +344,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         t_previous = t;
         wave_celerity = sqrt(9.81*(max(max(max(depths.d_tot/1000)),max(max(depths.d_p/1000))))); % Using d_p and d_tot
         max_vel = max(max(velocities.velocity_raster));
+        catch_index = catch_index + 1;
         factor = 1/catch_index/running_control.factor_reduction;
         if flags.flag_adaptive_timestepping == 1
             new_timestep = factor*(min(Courant_Parameters.alfa_min*Wshed_Properties.Resolution./(wave_celerity))); % alpha of 0.4

@@ -77,7 +77,8 @@ flags.flag_outlet_type = input_table_Hydro(17);
 flags.flag_adaptive_timestepping = input_table_Hydro(18);
 flags.flag_neglect_infiltration_river = input_table_Hydro(19);
 flags.flag_subgrid = input_table_Hydro(20);
-
+flags.flag_subgrid = input_table_Hydro(20);
+flags.flag_spatial_albedo = input_table_Hydro(21);
 
 % Performance Flags
 flags.flag_GPU = input_table_Performance(1);
@@ -145,6 +146,8 @@ depth_wse = input_table_map_plots(4);
 flags.flag_wse = input_table_map_plots(5);
 running_control.record_time_spatial_rainfall = input_table_map_plots(6);
 time_save_ETP = input_table_map_plots(7);
+Krs_ETP = input_table_map_plots(8);
+albedo = input_table_map_plots(9);
 
 if flags.flag_input_rainfall_map == 1
     if running_control.record_time_maps < running_control.record_time_spatial_rainfall

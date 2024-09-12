@@ -23,7 +23,7 @@ topo_path = string(table2cell(input_table(1,27)));
 addpath(genpath(char(topo_path)));
 
 % Load Model Functions
-HydroPol2D_tools = char(table2cell(input_table(9,27)));
+HydroPol2D_tools = char(table2cell(input_table(10,27)));
 addpath(genpath(char(HydroPol2D_tools)));
 
 % Input Data Paths
@@ -33,6 +33,7 @@ SOIL_path = char(table2cell(input_table(5,27)));
 Warmup_Depth_path = char(table2cell(input_table(6,27)));
 Initial_Buildup_path = char(table2cell(input_table(7,27)));
 Initial_Soil_Moisture_path = char(table2cell(input_table(8,27)));
+Albedo_Path = char(table2cell(input_table(9,27)));
 
 % Rasters
 fname_LULC = LULC_path; fname_DEM = DEM_path;
@@ -406,8 +407,17 @@ end
 %% ------------ ETP Matrices ------------ %%
 if flags.flag_ETP == 1
     % We are running ETP
-    ETP_Parameters.Krs = 0.16; % Parameter
-    ETP_Parameters.alfa_albedo_input = 0.23; % Parameter
+    ETP_Parameters.Krs = Krs_ETP*ones(ny,nx); % Parameter
+    idx_nan = isnan(DEM);
+    ETP_Parameters.Krs(idx_nan) = nan;
+    if flags.flag_spatial_albedo == 1
+        Albedo_Values = GRIDobj(Albedo_Path);
+        ETP_Parameters.alfa_albedo_input = Albedo_Values.Z; % Spatially varied
+        ETP_Parameters.alfa_albedo_input(idx_nan) = nan;
+    else
+        ETP_Parameters.alfa_albedo_input = albedo*ones(ny,nx); % Parameter
+        ETP_Parameters.alfa_albedo_input(idx_nan) = nan;
+    end
     input_table = readtable('ETP_input_data.xlsx');
     % Observations
     n_obs_ETP = min(size(input_table,1) - 2,days(date_end - date_begin));
