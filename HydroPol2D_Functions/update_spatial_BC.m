@@ -3,6 +3,35 @@
 % required
 % Developer: Marcus Nobrega, Ph.D.
 
+%% Stage-Hydrograph Boundary Condition
+if flags.flag_stage_hydrograph == 1
+    for z = 1:Stage_Parameters.n_stage_gauges
+        z1 = find(Stage_Parameters.time_stage > t_previous,1,'first'); % begin of the time-step
+        z2 = find(Stage_Parameters.time_stage <= t,1,'last'); % end of the time-step
+        if isempty(z1)
+            z1 = 1;
+        end
+        if isempty(z2) || z2 < z1
+            z2 = z1;
+        end
+        if k == 1
+            stage_depth_previous = 0;
+        else
+            stage_depth_previous = stage_depth;
+        end
+        stage_depth(z,1) = Stage_Parameters.stage(z2,z);
+    end
+end
+
+% Stage Boundary Condition
+if flags.flag_stage_hydrograph == 1
+    for i = 1:Stage_Parameters.n_stage_gauges
+        stage_cells = Wshed_Properties.stage_mask(:,:,i);
+        depths.d_t(logical(Wshed_Properties.stage_mask(:,:,i))) = 1000*stage_depth(i,1)*stage_cells(stage_cells == 1); % mm
+    end
+end
+
+
 %% Inflows for next time-step
 % Agregating Inflows to the New Time-step
 if flags.flag_inflow > 0
@@ -132,7 +161,16 @@ if flags.flag_rainfall > 0
             % Read Geotiff
             % input_rainfall = GRIDobj(Input_Rainfall.labels_Directory{z2_input}{1});
             try
-                [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input}{1}),'CoordinateSystemType','geographic');
+                [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input}{1}),'CoordinateSystemType','geographic');                % Filtering Non-physical values and extreme wrong values
+                if max(max(input_rainfall)) > 300 % Very unlikely to have a value like this
+                    warning('Rainfall values larger than 300 mm/h. We are neglecting this raster and collecting the previous one for this time-step.')
+                    [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input - 1}{1}),'CoordinateSystemType','geographic');                
+                elseif isnan(sum(input_rainfall(~idx_nan)))
+                    warning('Rainfall has nan values inside of the domain. Using the previous rainfall as input for this time-step.')
+                    [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input - 1}{1}),'CoordinateSystemType','geographic');                                    
+                end
+                % No negative rainfall
+                input_rainfall = max(input_rainfall,0); % No negative values                  
                 % Reproject the coordinates from EPSG:4326 to EPSG:3857
                 rR.GeographicCRS=geocrs(4326);
                 if rR.CellExtentInLatitude ~= GIS_data.resolution_resample
@@ -168,6 +206,51 @@ if flags.flag_rainfall > 0
             BC_States.delta_p_agg = input_rainfall*time_step/60; % mm
             % BC_States.average_spatial_rainfall(z2_input,1) = mean(input_rainfall(input_rainfall>=0));
             rainfall_spatial_aggregation(:,:,Rainfall_Parameters.index_aggregation) = gather(input_rainfall); % Saving high resolution map
+        else
+            if k == 1 % Very first time-step
+                try
+                [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{1,:}),'CoordinateSystemType','geographic');
+                % Filtering Non-physical values and extreme wrong values
+                if max(max(input_rainfall)) > 300   % Very unlikely to have a value like this
+                    error('Rainfall values larger than 300 mm/h. We are neglecting this raster and collecting the previous one for this time-step.')
+                elseif isnan(sum(input_rainfall(~idx_nan)))
+                    error('Rainfall has nan values inside of the domain. Please fix it.')
+                end
+                input_rainfall = max(input_rainfall,0); % No negative values
+                
+                % Reproject the coordinates from EPSG:4326 to EPSG:3857
+                rR.GeographicCRS=geocrs(4326);
+                if flags.flag_resample
+                    if rR.CellExtentInLatitude ~= GIS_data.resolution_resample
+                        input_rainfall = raster_cutter(DEM_raster,rR,input_rainfall,1);
+                    end
+                else
+                    if rR.CellExtentInLatitude ~= DEM_raster.cellsize
+                        input_rainfall = raster_cutter(DEM_raster,rR,input_rainfall,1);
+                    end
+                end
+            catch
+                [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{1,:}));
+                % Filtering Non-physical values and extreme wrong values
+                if max(max(input_rainfall)) > 300 % Very unlikely to have a value like this
+                    error('Rainfall values larger than 300 mm/h. We are neglecting this raster and collecting the previous one for this time-step.')
+                end
+                % No negative rainfall
+                input_rainfall = max(input_rainfall,0); % No negative values                
+                if flags.flag_resample
+                    if rR.CellExtentInWorldX ~= GIS_data.resolution_resample
+                        input_rainfall = raster_cutter(DEM_raster,rR,input_rainfall,0);
+                    end
+                else
+                    if rR.CellExtentInWorldX ~= DEM_raster.cellsize
+                        input_rainfall = raster_cutter(DEM_raster,rR,input_rainfall,0);
+                    end
+                end
+            end
+
+               input_rainfall = input_rainfall.Z; % Only the values                
+               BC_States.delta_p_agg = input_rainfall*time_step/60; % mm
+            end
         end
     elseif flags.flag_input_rainfall_map == 0 && flags.flag_satellite_rainfall == 1 && flags.flag_real_time_satellite_rainfall ~= 1
         % Satellite Rainfall
@@ -256,6 +339,8 @@ if flags.flag_ETP == 1
             % 1st data
             if flags.flag_GPU == 1 || flags.flag_single == 1
                 day_of_year = day(extra_parameters.ETP.time_ETP(z2,1),'dayofyear');
+            else
+                day_of_year = day(ETP_Parameters.time_ETP(z2,1),'dayofyear');
             end
             [Hydro_States.ETP] = ETP_model(z2,day_of_year,ETP_Parameters.coordinates_stations(:,1),ETP_Parameters.coordinates_stations(:,2),Spatial_Rainfall_Parameters.x_grid',Spatial_Rainfall_Parameters.y_grid',ETP_Parameters.maxtemp_stations,ETP_Parameters.mintemp_stations,ETP_Parameters.avgtemp_stations,ETP_Parameters.u2_stations,ETP_Parameters.ur_stations,ETP_Parameters.G_stations,ETP_Parameters.DEM_etp,ETP_Parameters.lat,ETP_Parameters.Krs,ETP_Parameters.alfa_albedo_input,idx_nan);
             if nansum(nansum(Hydro_States.ETP)) == 0
@@ -269,7 +354,11 @@ if flags.flag_ETP == 1
             end
             % Maps.Hydro.ETP_save(:,:,z2) = Hydro_States.ETP; % Saving ETP Maps
             Maps.Hydro.ETP_save(:,:,saver_count) = Hydro_States.ETP; % Saving ETP Maps
-            ETR_save(:,:,z2) = Hydro_States.ETR ;
+            if z2 == 1
+                ETR_save(:,:,z2) = Hydro_States.ETP ; % this might be incorrect
+            else
+                ETR_save(:,:,z2) = Hydro_States.ETR ;
+            end
         end
     end
 end

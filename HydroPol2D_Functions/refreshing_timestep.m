@@ -9,7 +9,7 @@
 if running_control.delta_time_save > 0 || k == 1 % First time-step
     if flags.flag_timestep == 0
         if flags.flag_inertial ~= 1 % If it is not inertial
-            flow_depth = depths.d_t; % Depth in which velocities will be calculated (mm) 
+            flow_depth = depths.d_t; % Depth in which velocities will be calculated (mm)
             flow_depth(depths.d_t < CA_States.depth_tolerance) = 1e12; % Smaller depths won't alter velocities
             velocities.vel_left = (flow_rate.qout_left_t/1000/3600)*Wshed_Properties.Resolution^2./(Wshed_Properties.Resolution*flow_depth/1000); % m/s
             velocities.vel_right = (flow_rate.qout_right_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth/1000); % m/s
@@ -24,12 +24,14 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
             end
 
         else % Inertial
-            flow_depth = Hf*1000; % Depth in which velocities will be calculated (mm) 
+            flow_depth = Hf*1000; % Depth in which velocities will be calculated (mm)
             flow_depth(flow_depth < CA_States.depth_tolerance) = 1e12; % Smaller depths won't alter velocities
-            velocities.vel_left = (flow_rate.qout_left_t/1000/3600)*Wshed_Properties.Resolution^2./(Wshed_Properties.Resolution*flow_depth(:,:,1)/1000); % m/s
-            velocities.vel_right = (flow_rate.qout_right_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth(:,:,2)/1000); % m/s
-            velocities.vel_up = (flow_rate.qout_up_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth(:,:,3)/1000); % m/s
-            velocities.vel_down = (flow_rate.qout_down_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth(:,:,4)/1000); % m/s
+            % velocities.vel_left = (flow_rate.qout_left_t/1000/3600)*Wshed_Properties.Resolution^2./(Wshed_Properties.Resolution*flow_depth(:,:,1)/1000); % m/s
+            velocities.vel_right = (flow_rate.qout_right_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth(:,:,1)/1000); % m/s
+            velocities.vel_left = -[zeros(ny,1), velocities.vel_right(:,2:end)];
+            velocities.vel_up = (flow_rate.qout_up_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth(:,:,2)/1000); % m/s
+            velocities.vel_down = -[velocities.vel_up(2:end,:); zeros(1,nx)];
+            % velocities.vel_down = (flow_rate.qout_down_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth(:,:,4)/1000); % m/s
 
             if flags.flag_D8 == 1
                 velocities.vel_ne = (flow_rate.qout_ne_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth(:,:,6)/1000); % m/s
@@ -65,19 +67,35 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
             velocities.velocity_vector = [velocities.max_velocity_left, velocities.max_velocity_right, velocities.max_velocity_up, velocities.max_velocity_down];
         end
 
-        velocities.right_component = velocities.vel_right - velocities.vel_left;
-        velocities.up_component = velocities.vel_up - velocities.vel_down;
+
+        if flags.flag_inertial == 1
+            velocities.right_component = 1/2*(velocities.vel_right - velocities.vel_left);
+            velocities.up_component = 1/2*(velocities.vel_up - velocities.vel_down);
+        else
+            velocities.right_component = velocities.vel_right - velocities.vel_left;
+            velocities.up_component = velocities.vel_up - velocities.vel_down;
+        end
         if flags.flag_D8 == 1
-            velocities.right_component = velocities.right_component + ...
-                                         sqrt(2)*(velocities.vel_ne - velocities.vel_sw) + ...
-                                         sqrt(2)*(velocities.vel_se - velocities.vel_nw);
-            velocities.up_component = velocities.up_component + ...
-                                         sqrt(2)*(velocities.vel_ne - velocities.vel_sw) + ...
-                                         -sqrt(2)*(velocities.vel_se - velocities.vel_nw);            
+            if flags.flag_inertial == 1
+                velocities.right_component = velocities.right_component + ...
+                    sqrt(2)*(1/2*(velocities.vel_ne + velocities.vel_sw)) + ...
+                    sqrt(2)*(1/2*(velocities.vel_se + velocities.vel_nw));
+                velocities.up_component = velocities.up_component + ...
+                    sqrt(2)*(1/2*(velocities.vel_ne + velocities.vel_sw)) + ...
+                    -sqrt(2)*(1/2*(velocities.vel_se + velocities.vel_nw));
+            else
+                velocities.right_component = velocities.right_component + ...
+                    sqrt(2)*(velocities.vel_ne - velocities.vel_sw) + ...
+                    sqrt(2)*(velocities.vel_se - velocities.vel_nw);
+                velocities.up_component = velocities.up_component + ...
+                    sqrt(2)*(velocities.vel_ne - velocities.vel_sw) + ...
+                    -sqrt(2)*(velocities.vel_se - velocities.vel_nw);
+            end
+
         end
         velocities.total_velocity = sqrt((velocities.right_component).^2 + (velocities.up_component).^2);
         velocities.max_velocity = max(max(velocities.total_velocity));
-        
+
         % Plotting Velocity Field
         % quiver(X,Y,velocities.right_component,velocities.up_component,'r')
 
@@ -100,7 +118,7 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
         %         pause(0.1)
         %     end
         % end
-        % 
+        %
         % Courant Stability
         if flags.flag_D8 == 1
             Courant_Parameters.factor_grid = sqrt(1/2);
@@ -115,16 +133,18 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
             % Old Solution considering flow velocity
             new_timestep = (Courant_Parameters.factor_grid*Wshed_Properties.Resolution/velocities.max_velocity); % seconds
             Courant_Parameters.time_step_factor = max(Courant_Parameters.alfa_max - Courant_Parameters.slope_alfa*(max(velocities.max_velocity - Courant_Parameters.v_threshold,0)),Courant_Parameters.alfa_min);
-            
+
             Courant_Parameters.alfa_save(running_control.pos_save,1) = Courant_Parameters.time_step_factor;
             new_timestep = new_timestep*Courant_Parameters.alfa_save(running_control.pos_save,1);
             new_timestep = double(min(new_timestep,running_control.max_time_step));
 
             % Bates time-step
-            wave_celerity = sqrt(9.81*max(depths.d_tot,depths.d_t)/1000); % Using d_t, which is the depth at the end of the time-step
-            new_timestep = min(min(Courant_Parameters.alfa_min*Wshed_Properties.Resolution./(velocities.total_velocity + wave_celerity))); % alpha of 0.4
-            % new_timestep = min(min(0.7*Wshed_Properties.Resolution./(wave_celerity))); % alpha of 0.7            
-            new_timestep = min(new_timestep,running_control.max_time_step);
+            wave_celerity = max(sqrt(9.81*max(depths.d_tot,depths.d_t)/1000),1e-10); % Using d_t, which is the depth at the end of the time-step
+            if flags.flag_adaptive_timestepping == 1
+                new_timestep = (min(min((Courant_Parameters.alfa_min*Wshed_Properties.Resolution./(wave_celerity))))); % alpha of 0.4
+            else
+                new_timestep = (min(min((Courant_Parameters.alfa_min*Wshed_Properties.Resolution./(max_vel+wave_celerity))))); % alpha of 0.4
+            end
         elseif velocities.max_velocity < 0
             error('Model instability. Velocities are becoming negative.')
         elseif isnan(velocities.max_velocity)

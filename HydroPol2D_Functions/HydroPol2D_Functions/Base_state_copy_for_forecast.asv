@@ -1,0 +1,12 @@
+function [flag_backup_state,] = Base_state_copy_for_forecast(k,t,t2,t_previous,t_save,t_save_2,t_store,time_calculation_routing,time_step,d_t,I_t)
+    bs_k = k;
+    bs_k = t
+    bs_k = t2
+    bs_k = t_previous
+    bs_k = t_save
+    bs_k = t_
+    bs_k
+    bs_k
+
+    flag_backup_state = 1;
+end

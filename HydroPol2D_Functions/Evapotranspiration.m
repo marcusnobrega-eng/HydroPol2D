@@ -4,7 +4,7 @@
 % Objective:  Developed a 2-D array with the potential evapotranspiration for all cells in a given watershed
 % Bibliography <Marco Antônio Fonseca Conceição. (2006). Roteiro de cálculo da evapotranspiração de referência pelo método de Penman-Monteith-FAO. Circular Técnica - EMBRAPA,(ISSN 1808-6810), 1–8>.
 
-function [ETP] = Evapotranspiration(DEM,Temp,Temp_max,Temp_min,Day_year,lat,U_2_input,U_R_input,Krs,alfa_albedo_input,G_input)
+function [ETP] = Evapotranspiration(DEM,Temp,Temp_max,Temp_min,Day_year,lat,U_2_input,U_R_input,Krs,albedo,G_input)
 %% Input data
 % Change data
 % Temp = 18; % Temperatura média do ar (C)
@@ -16,7 +16,7 @@ function [ETP] = Evapotranspiration(DEM,Temp,Temp_max,Temp_min,Day_year,lat,U_2_
 % Constant data
 % U_2_input = 1.6; % Velocidade do vento a 2m de altura (m/s) - (e.g fixo em 2.0 como default)
 % U_R_input = 81.6; % Umidade relativa do ar (%)
-% alfa_albedo_input = 0.23; % Cultura de referência (grama)
+% albedo = 0.23; % Cultura de referência (grama)
 %a = 0.25;% Coeficiente local para determinação da Radiação solar incidente (e.g fixo em 0.25 como default)
 %b = 0.50; % Coeficiente local para determinação da Radiação solar incidente (e.g fixo em 0.50 como default)
 % Krs = 0.16; % Coeficiente local para determinação da Radiação solar incidente (e.g fixo em 0.16 - regiões continentais, e 0.19 - regiões costeiras, como default).
@@ -36,7 +36,7 @@ Tmax = Temp_max;
 Tmin = Temp_min;
 %% Processing data
 %DEM
-neg_DEM = DEM < 0;
+neg_DEM = DEM < -200;
 high_DEM = DEM > 99999;
 inf_nan_MAPS = isinf(DEM) + isnan(DEM) + neg_DEM + high_DEM; % Logical array
 idx = inf_nan_MAPS > 0;
@@ -53,16 +53,16 @@ Tmin(idx) = nan;
 J = Day_year*ones(n_rows, n_cols);
 J(idx) = nan;
 
-% alfa_albedo
-alfa_albedo = alfa_albedo_input*ones(n_rows, n_cols);
-alfa_albedo(idx) = nan;
+% albedo
+% albedo = albedo*ones(n_rows, n_cols);
+albedo(idx) = nan;
 
 % teta_S_B
 teta_S_B = teta_S_B_input*ones(n_rows, n_cols);
 teta_S_B(idx) = nan;
 
 %% Equations
-% clearvars -except G teta_S_B alfa_albedo U_2 U_R J latitude Rs Tmin Tmax T n_cols n_rows DEM Krs a b
+% clearvars -except G teta_S_B albedo U_2 U_R J latitude Rs Tmin Tmax T n_cols n_rows DEM Krs a b
 
 phi = latitude*pi/180; % latitude (radianos)
 dec_sol = 0.409*sin((2*pi/365)*J-1.39); %Declinação solar (radianos)
@@ -76,9 +76,9 @@ ws = (pi/2)-atan(((-tan(phi)).*tan(dec_sol))./(X.^0.5)); % Ângulo horário ao n
 dr = 1+0.033*cos(((2*pi)/365)*J); % Distância relativa entre a Terra e o Sol (radianos)
 Ra = (118.08/pi)*dr.*(ws.*sin(phi).*sin(dec_sol)+cos(phi).*cos(dec_sol).*sin(ws)); % Radiação solar no topo da atmosfera (MJm^-2/dia)
 %Rs_input = (a+(b*(n/N)))*Ra; % Radiação solar incidente (MJm^-2/dia) calculado em função do número de horas com radiação solar
-Rs_input = Krs*Ra.*sqrt((Tmax-Tmin)); % Radiação solar incidente (MJm^-2/dia) calculado em função da temperatura
+Rs_input = Krs.*Ra.*sqrt((Tmax-Tmin)); % Radiação solar incidente (MJm^-2/dia) calculado em função da temperatura
 Rso = (0.75+2*(10^-5)*DEM).*Ra; % Radiação solar incidente na ausência de nuvens (MJm^-2/dia)
-Rns = (1-alfa_albedo).*Rs_input; %Saldo de radiação de ondas curtas (MJm^-2/dia)
+Rns = (1-albedo).*Rs_input; %Saldo de radiação de ondas curtas (MJm^-2/dia)
 e_s = 0.6108*exp((17.27*T)./(T+237.3)); % Pressão de saturação do vapor (kPa)
 %e_a = e_s.*U_R/100; % Pressão atual de vapor (kPa)
 e_a = 0.61*exp((17.27*Tmin)./(Tmin+237.3)); % Pressão atual de vapor (kPa) quando não se tem U_R
