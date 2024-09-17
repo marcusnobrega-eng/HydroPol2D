@@ -405,7 +405,7 @@ elseif flags.flag_rainfall == 1 && flags.flag_spatial_rainfall ~= 1
 end
 
 %% ------------ ETP Matrices ------------ %%
-if flags.flag_ETP == 1
+if flags.flag_ETP == 1 && flags.flag_input_ETP_map == 0
     % We are running ETP
     ETP_Parameters.Krs = Krs_ETP*ones(ny,nx); % Parameter
     idx_nan = isnan(DEM);
@@ -482,6 +482,16 @@ if flags.flag_ETP == 1
     % ETP_Parameters.idx_cells = ETP_Parameters.double(idx_cells(:));
     ETP_Parameters.lat(ETP_Parameters.neg_DEM) = nan; % Latitude
     ETP_Parameters.lon(ETP_Parameters.neg_DEM) = nan; % Longitude
+elseif flags.flag_input_ETP_map == 1
+    % We are running rainfall with input tiff maps
+    % Observations
+    n_obs = sum((table2array(input_table_transpiration(:,1))>=0)); % Number of observations
+    Spatial_ETP_Parameters.time_step_spatial = (table2array(input_table_evaporation(2,1)) - table2array(input_table_evaporation(1,1)))*1440; % min
+    end_etp = (n_obs-1)*Spatial_ETP_Parameters.time_step_spatial;
+    Spatial_ETP_Parameters.ETP_spatial_duration = 0:running_control.record_time_spatial_etp:(end_etp); % ETP data time in minutes
+    Spatial_ETP_Parameters.ETP_spatial_duration_agg = 0:Spatial_ETP_Parameters.time_step_spatial:(end_etp); % ETP data time in minutes
+    n_spatial_agg = 1 + running_control.record_time_spatial_etp/Spatial_ETP_Parameters.time_step_spatial;
+    etp_spatial_aggregation = zeros(size(dem,1),size(dem,2),n_spatial_agg);
 end
 
 %% ------------ Recording time of outputs (i.e., flows, concentrations ...) ------------
@@ -1400,6 +1410,8 @@ end
 time_step = running_control.min_time_step*60;
 t = time_step_model; % minutes
 
+% Reading first Rainfall tiles
+
 if flags.flag_rainfall == 1 && flags.flag_spatial_rainfall == 1 && flags.flag_input_rainfall_map == 1 && flags.flag_satellite_rainfall == 0 && flags.flag_real_time_satellite_rainfall == 0 % Input Rainfall Maps
     Maps.Hydro.spatial_rainfall_maps = zeros(size(dem,1),size(dem,2),saver_memory_maps); % Maps of Rainfall
     % input_rainfall = GRIDobj(string(Input_Rainfall.labels_Directory{1,:}));
@@ -1433,6 +1445,57 @@ if flags.flag_rainfall == 1 && flags.flag_spatial_rainfall == 1 && flags.flag_in
     BC_States.delta_p_agg = input_rainfall*time_step/60; % mm
     % Spatial_Rainfall_Parameters.rainfall_spatial_duration = Input_Rainfall.time';
     BC_States.average_spatial_rainfall(1,1) = mean(input_rainfall(input_rainfall>=0));
+end
+
+% Reading first ETP tiles
+if flags.flag_input_ETP_map == 1 % Input Rainfall Maps
+    Maps.Hydro.spatial_evaporation_maps = zeros(size(dem,1),size(dem,2),saver_memory_maps); % Maps of Evaporation
+    Maps.Hydro.spatial_transpiration_maps = zeros(size(dem,1),size(dem,2),saver_memory_maps); % Maps of Transpiration
+
+    % input_rainfall = GRIDobj(string(Input_Rainfall.labels_Directory{1,:}));
+    try
+        [input_evaporation,rR] = readgeoraster(string(Input_Evaporation.labels_Directory{1,:}),'CoordinateSystemType','geographic');
+        [input_transpiration,rR] = readgeoraster(string(Input_Transpiration.labels_Directory{1,:}),'CoordinateSystemType','geographic');
+
+        % Reproject the coordinates from EPSG:4326 to EPSG:3857
+        rR.GeographicCRS=geocrs(4326);
+        if flags.flag_resample
+            if rR.CellExtentInLatitude ~= GIS_data.resolution_resample
+                input_evaporation = raster_cutter(DEM_raster,rR,input_evaporation,1);
+                input_transpiration = raster_cutter(DEM_raster,rR,input_transpiration,1);
+            end
+        else
+            if rR.CellExtentInLatitude ~= DEM_raster.cellsize
+                input_evaporation = raster_cutter(DEM_raster,rR,input_evaporation,1);
+                input_transpiration = raster_cutter(DEM_raster,rR,input_transpiration,1);
+            end
+        end
+    catch
+        [input_evaporation,rR] = readgeoraster(string(Input_Evaporation.labels_Directory{1,:}));
+        [input_transpiration,rR] = readgeoraster(string(Input_Transpiration.labels_Directory{1,:}));
+        if flags.flag_resample
+            if rR.CellExtentInWorldX ~= GIS_data.resolution_resample
+                input_evaporation = raster_cutter(DEM_raster,rR,input_evaporation,0);
+                input_transpiration = raster_cutter(DEM_raster,rR,input_transpiration,0);
+            end
+        else
+            if rR.CellExtentInWorldX ~= DEM_raster.cellsize
+                input_evaporation = raster_cutter(DEM_raster,rR,input_evaporation,0);
+                input_transpiration = raster_cutter(DEM_raster,rR,input_transpiration,0);
+            end
+        end
+    end
+    input_evaporation = input_evaporation.Z; % Only the values
+    input_transpiration = input_transpiration.Z; % Only the values
+    Maps.Hydro.spatial_evaporation_maps(:,:,1) = input_evaporation;
+    Maps.Hydro.spatial_transpiration_maps(:,:,1) = input_transpiration;
+
+    BC_States.delta_e_agg = input_evaporation*time_step/60; % mm
+    BC_States.delta_tr_agg = input_transpiration*time_step/60; % mm
+
+    % Spatial_Rainfall_Parameters.rainfall_spatial_duration = Input_Rainfall.time';
+    BC_States.average_spatial_evaporation(1,1) = mean(input_evaporation(input_evaporation>=0));
+    BC_States.average_spatial_transpiration(1,1) = mean(input_transpiration(input_transpiration>=0));
 end
 
 

@@ -54,6 +54,7 @@ flags.flag_satellite_rainfall = input_table_BC(8);
 flags.flag_alternated_blocks = input_table_BC(9);
 flags.flag_huff = input_table_BC(10);
 flags.flag_stage_hydrograph = input_table_BC(11);
+flags.flag_input_ETP_map = input_table_BC(12);
 
 
 % Hydrologic-Hydrodynamic-WQ Flags
@@ -77,8 +78,7 @@ flags.flag_outlet_type = input_table_Hydro(17);
 flags.flag_adaptive_timestepping = input_table_Hydro(18);
 flags.flag_neglect_infiltration_river = input_table_Hydro(19);
 flags.flag_subgrid = input_table_Hydro(20);
-flags.flag_subgrid = input_table_Hydro(20);
-flags.flag_spatial_albedo = input_table_Hydro(21);
+
 
 % Performance Flags
 flags.flag_GPU = input_table_Performance(1);
@@ -148,6 +148,8 @@ running_control.record_time_spatial_rainfall = input_table_map_plots(6);
 time_save_ETP = input_table_map_plots(7);
 Krs_ETP = input_table_map_plots(8);
 albedo = input_table_map_plots(9);
+running_control.record_time_spatial_etp = input_table_map_plots(10);
+
 
 if flags.flag_input_rainfall_map == 1
     if running_control.record_time_maps < running_control.record_time_spatial_rainfall
@@ -300,6 +302,32 @@ else
     Input_Rainfall = [];
 end
 
+% Input transpiration and evaporation Maps
+if flags.flag_input_ETP_map == 1
+    input_table_transpiration = ((input_table(2:end,50:51)));
+    input_table_evaporation = ((input_table(2:end,53:54)));
+    Input_Transpiration.time = table2array(input_table_transpiration(:,1)); % % min
+    Input_Evaporation.time = table2array(input_table_evaporation(:,1)); % % min
+    Input_Transpiration.num_obs_maps = sum(~isnan(Input_Transpiration.time));
+    Input_Evaporation.num_obs_maps = sum(~isnan(Input_Evaporation.time));
+    Input_Transpiration.time = Input_Transpiration.time(1:Input_Transpiration.num_obs_maps);
+    Input_Evaporation.time = Input_Evaporation.time(1:Input_Evaporation.num_obs_maps);
+    input_table_dir_Tr = input_table_transpiration(:,2);
+    input_table_dir_E = input_table_evaporation(:,2);
+    for i = 1:Input_Transpiration.num_obs_maps
+        Input_Transpiration.labels_Directory{i,:} = input_table_dir_Tr{i,:};
+        Input_Evaporation.labels_Directory{i,:} = input_table_dir_E{i,:};
+    end
+    flags.flag_spatial_rainfall = 1;
+    flags.flag_rainfall = 1;
+    flags.flag_real_time_satellite_rainfall = 0;
+    flags.flag_satellite_rainfall = 0;
+    % flags.flag_input_rainfall_map = 0;
+else
+    Input_Transpiration = [];
+    Input_Evaporation = [];
+end
+
 if flags.flag_satellite_rainfall == 1
     time_maps = 60; % Only valid for 1h maps
     Input_Rainfall.time = (0:60:running_control.routing_time); % time in minutes
@@ -319,6 +347,22 @@ elseif flags.flag_real_time_satellite_rainfall == 1
     flags.flag_spatial_rainfall = 1;
     flags.flag_rainfall = 1;
     flags.flag_satellite_rainfall = 0;
+    % flags.flag_input_rainfall_map = 0;
+end
+
+if flags.flag_input_ETP_map == 1
+    time_maps = 1440; % Only valid for 1day maps
+    Input_Transpiration.time = (0:time_maps:running_control.routing_time); % time in minutes
+    Input_Transpiration.num_obs_maps = sum(~isnan(Input_Transpiration.time));
+    Input_Transpiration.time = Input_Transpiration.time(1:Input_Transpiration.num_obs_maps);
+    
+    Input_Evaporation.time = (0:time_maps:running_control.routing_time); % time in minutes
+    Input_Evaporation.num_obs_maps = sum(~isnan(Input_Evaporation.time));
+    Input_Evaporation.time = Input_Evaporation.time(1:Input_Evaporation.num_obs_maps);
+
+    % flags.flag_spatial_rainfall = 1;
+    % flags.flag_rainfall = 1;
+    % flags.flag_real_time_satellite_rainfall = 0;
     % flags.flag_input_rainfall_map = 0;
 end
 
