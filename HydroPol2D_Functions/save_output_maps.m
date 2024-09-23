@@ -63,7 +63,6 @@ if flags.flag_automatic_calibration ~= 1
         if flags.flag_ETP == 1
             Maps.Hydro.ETP_save(:,:,saver_count) = Hydro_States.ETP;
             Maps.Hydro.ETR_save(:,:,saver_count) = Hydro_States.ETR;
-<<<<<<< HEAD
         end
         if flags.flag_waterquality ~= 1
             if flags.flag_dashboard == 1
@@ -81,13 +80,11 @@ if flags.flag_automatic_calibration ~= 1
                 save(strcat('Temporary_Files\save_map_hydro_',num2str(store),'.mat'),'Maps');
                 store = store + 1;
             end
-=======
         end 
         if flags.flag_waterquality == 1
             Maps.WQ_States.Pol_Conc_Map(:,:,saver_count) = WQ_States.P_conc;
             Maps.WQ_States.Pol_Mass_Map(:,:,saver_count) = WQ_States.B_t; % kg
             Maps.WQ_States.Pol_Load_Map(:,:,saver_count) = 1/1000*WQ_States.P_conc.*CA_States.I_tot_end_cell/(time_step*60)/Wshed_Properties.Resolution^2; % kg/s/m2
->>>>>>> 2efb5d90c2c45ea388b6e79fa80db1be8c2939b9
         end
 
     end % Calls the sub

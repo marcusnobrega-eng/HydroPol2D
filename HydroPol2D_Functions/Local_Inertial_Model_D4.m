@@ -245,8 +245,8 @@ current_volume = nansum(nansum(d_tot/1000))*cell_area;
 % Final Stored Volume
 final_volume = nansum(nansum(d_t/1000))*cell_area;
 
-error = current_volume - final_volume;
-if error > 10
+error_vol = current_volume - final_volume;
+if error_vol > 10
     ttt = 1;
 end
 

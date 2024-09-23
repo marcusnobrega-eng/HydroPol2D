@@ -35,6 +35,10 @@ function [rainfall_raster] = raster_cutter(DEM_raster,rR,rr2,n)
         temp = DEM_raster; temp.Z = ~isnan(DEM_raster.Z);
         rainfall_raster = resample(rainfall_raster,DEM_raster);
         rainfall_raster = clip(rainfall_raster,temp);
+        
+        %filtering NaNs and outliers
+        rainfall_raster(isnan(rainfall_raster)) = 0;
+        rainfall_raster(rainfall_raster>300) = 0;
     
     
     elseif n==0
@@ -68,6 +72,10 @@ function [rainfall_raster] = raster_cutter(DEM_raster,rR,rr2,n)
         temp = DEM_raster; temp.Z = ~isnan(DEM_raster.Z);
         rainfall_raster = resample(rainfall_raster,DEM_raster);
         rainfall_raster = clip(rainfall_raster,temp);
+
+        %filtering NaNs and outliers
+        rainfall_raster.Z(isnan(rainfall_raster.Z)) = 0;
+        rainfall_raster.Z(rainfall_raster.Z>300) = 0;
     
     end
 end
