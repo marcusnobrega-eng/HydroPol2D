@@ -203,6 +203,7 @@ if flags.flag_automatic_calibration ~= 1
         end
 
     elseif recording_parameters.delta_record_hydrograph > 0
+        t_store = recording_parameters.actual_record_hydrograph;
         outlet_states.outlet_hydrograph(t_store,1) = nansum(nansum(outlet_states.outlet_flow))/1000*Wshed_Properties.cell_area/3600; % m3/s
         running_control.time_hydrograph(t_store,1) = t;
         outlet_states.depth_outlet(t_store,1) = mean(depths.d_t(idx_outlet));

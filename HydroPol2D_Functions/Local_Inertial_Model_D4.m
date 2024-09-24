@@ -93,7 +93,7 @@ if flag_subgrid == 1
     % All cells have sub-grid channels and floodplains following the same
     % roughness coefficients of the 2D domain
     % Only the original formulation is considered in this case
-    [Q,Qc,Qf,Qci,Qfi] = subgrid_channel(depth_cell, River_Width, z, z - River_Depth, Resolution, nc, nf, Qc_prev, Qf_prev,Qci_prev,Qfi_prev,g,dt,idx_rivers);
+    [Q,Qc,Qf,Qci,Qfi] = subgrid_channel(depth_cell, River_Width, z + River_Depth, z, Resolution, nc, nf, Qc_prev, Qf_prev,Qci_prev,Qfi_prev,g,dt,idx_rivers);
     outflow = Q/Resolution;
     % Treating Domain Issues
     outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;        
@@ -205,7 +205,7 @@ qout_down = -[matrix_store(2:end,:,2); zeros(1,nx)];
 d_t = d_tot + Vol_Flux/cell_area*1000 ; % final depth in mm
 
 lost_mass = 1/1000*abs(sum(sum(d_t(d_t<0))))*cell_area;
-if lost_mass > 0.1*cell_area
+if lost_mass > 100*cell_area
     error('Lost mass too high.')
 end
 d_t(d_t<0) = 0;

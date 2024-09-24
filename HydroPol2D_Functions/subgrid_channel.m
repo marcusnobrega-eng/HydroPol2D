@@ -5,7 +5,6 @@
 % Input:
 % h: flood depth matrix [m]
 % w: river width matrix [m]
-% d: river depth matrix [m]
 % zf: floodplain elevation matrix [m]
 % zc: channel elevation matrix [m]
 % dx: grid resolution [m]
@@ -31,6 +30,7 @@ function [Q,Qc,Qf,Qci,Qfi] = subgrid_channel(h, w, zf, zc,dx, nc, nf, Qc_prev, Q
 
     % --------- Channel Calculations ----------- %
     yc = h + zc; % Channel head [m]
+    yc(isnan(zc)) = nan;
     
     % Cells that are not river change to nan
     % yc(~idx_rivers) = inf;

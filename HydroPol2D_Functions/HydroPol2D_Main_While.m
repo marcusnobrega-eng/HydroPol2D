@@ -88,7 +88,8 @@
 % flags.flag_subgrid = 0; % CHECK LATER
 % Wshed_Properties.Overbank_Manning = LULC_Properties.roughness;
 % --------------- Initializing Main While ---------------- %
-load workspace_amazon.mat
+clear all
+load workspace_mineirinho.mat
 tic
 k = 1; % time-step counter
 C = 0; % initial infiltration capacity

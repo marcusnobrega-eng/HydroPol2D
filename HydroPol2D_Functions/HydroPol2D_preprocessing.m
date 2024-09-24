@@ -144,7 +144,8 @@ Wshed_Properties.Resolution = DEM_raster.cellsize; % m
 input_data_script;  % Load general data, soil, and LULC parameters
 
 %% Check extent for width and depths rasters
-if flags.flag_subgrid
+flags.flag_river_rasters = 0;
+if flags.flag_subgrid && flags.flag_river_rasters
     widths_raster = GRIDobj(widths_path); % Reading river widths
     depths_raster = GRIDobj(depths_path); % Reading river depths
     if sum(size(DEM_raster.Z)) ~= sum(size(widths_raster.Z)) % DEM is larger
@@ -598,13 +599,18 @@ end
     
     % River width raster
     Wshed_Properties.River_Width = B;
+    Wshed_Properties.River_Width(isnan(Wshed_Properties.River_Width)) = 0; 
     
     % River height raster
     Wshed_Properties.River_Depth = H;
+    Wshed_Properties.River_Depth(isnan(Wshed_Properties.River_Depth)) = 0;
 
-    if flags.flag_subgrid
-        Wshed_Properties.River_Width = widths_raster.Z;
-        Wshed_Properties.River_Depth = depths_raster.Z;
+
+    if flags.flag_subgrid && flags.flag_river_rasters
+        Wshed_Properties.River_Width = double(widths_raster.Z);
+        Wshed_Properties.River_Width(isnan(Wshed_Properties.River_Width)) = 0;
+        Wshed_Properties.River_Depth = double(depths_raster.Z);
+        Wshed_Properties.River_Depth(isnan(Wshed_Properties.River_Depth)) = 0;
     end
    
     % Reducing Elevation in creeks (if flag reduce DEM is used and subgrid
@@ -1793,10 +1799,17 @@ Wshed_Properties.idx_rivers = idx_rivers;
 
 %% Characterizing River Roughness
 % Inbank Manning (only using the first entry)
-Wshed_Properties.Inbank_Manning = LULC_Properties.roughness; % Only first entry used
-Wshed_Properties.Inbank_Manning(idx_rivers) = River_Manning(1); % Only first entry used
-% Overbank Manning (assuming the same of the LULC) )
-Wshed_Properties.Overbank_Manning = LULC_Properties.roughness; % Can be altered
+if flags.flag_obs_gauges == 1
+    Wshed_Properties.Inbank_Manning = LULC_Properties.roughness; % Only first entry used
+    Wshed_Properties.Inbank_Manning(idx_rivers) = River_Manning(1); % Only first entry used
+    % Overbank Manning (assuming the same of the LULC) )
+    Wshed_Properties.Overbank_Manning = LULC_Properties.roughness; % Can be altered
+else
+    Wshed_Properties.Inbank_Manning = LULC_Properties.roughness; % Only first entry used
+    Wshed_Properties.Inbank_Manning(idx_rivers) = LULC_Parameters.River_Manning; % Only first entry used
+    % Overbank Manning (assuming the same of the LULC) )
+    Wshed_Properties.Overbank_Manning = LULC_Properties.roughness; % Can be altered
+end
 
 %% Dam Break Parameters
 % If dam breaking is simulated
