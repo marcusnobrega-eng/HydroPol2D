@@ -88,9 +88,9 @@
 % flags.flag_subgrid = 0; % CHECK LATER
 % Wshed_Properties.Overbank_Manning = LULC_Properties.roughness;
 % --------------- Initializing Main While ---------------- %
-clear all
-% % load workspace_mineirinho_warmup.mat
-load workspace_mineirinho_calibration.mat
+% clear all
+% % % load workspace_mineirinho_warmup.mat
+% load workspace_mineirinho_calibration.mat
 
 flags.flag_subgrid = 0;
 flags.flag_dashboard = 1;
