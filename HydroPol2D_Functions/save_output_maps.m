@@ -64,23 +64,6 @@ if flags.flag_automatic_calibration ~= 1
             Maps.Hydro.ETP_save(:,:,saver_count) = Hydro_States.ETP;
             Maps.Hydro.ETR_save(:,:,saver_count) = Hydro_States.ETR;
         end
-        if flags.flag_waterquality ~= 1
-            if flags.flag_dashboard == 1
-                % Updating the data for the dashboard
-                ax.timer = minutes(double(gather(running_control.time_records(recording_parameters.actual_record_state)))) + date_begin;
-                ax.percentage = gather((t)/running_control.routing_time*100);
-                ax = HydroPol2D_running_dashboard(ax, Maps, gather(velocities.velocity_raster), [], ...
-                    [],0,saver_count);
-            end
-            
-            % chaging saver_count
-            saver_count = saver_count+1;
-            if saver_count > 12
-                saver_count = 1;
-                save(strcat('Temporary_Files\save_map_hydro_',num2str(store),'.mat'),'Maps');
-                store = store + 1;
-            end
-        end 
         if flags.flag_waterquality == 1
             Maps.WQ_States.Pol_Conc_Map(:,:,saver_count) = WQ_States.P_conc;
             Maps.WQ_States.Pol_Mass_Map(:,:,saver_count) = WQ_States.B_t; % kg

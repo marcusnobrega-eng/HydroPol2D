@@ -89,7 +89,18 @@
 % Wshed_Properties.Overbank_Manning = LULC_Properties.roughness;
 % --------------- Initializing Main While ---------------- %
 clear all
-load workspace_mineirinho.mat
+% % load workspace_mineirinho_warmup.mat
+load workspace_mineirinho_calibration.mat
+
+flags.flag_subgrid = 0;
+flags.flag_dashboard = 1;
+running_control.min_time_step = 0.001;
+% flags.flag_infiltration = 1;
+% flags.flag_numerical_scheme = 3;
+
+% Courant_Parameters.alfa_min = 0.2
+% running_control.max_time_step = 5;
+
 tic
 k = 1; % time-step counter
 C = 0; % initial infiltration capacity
@@ -339,6 +350,8 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         if tmin_wq < 0 || isnan(tmin_wq) || isinf(tmin_wq)
             error('Instability. in the Water Quality Model.')
         end
+        % surf(depths.d_t); view(0,90); colorbar; colormap("jet")
+        % pause(0.0000001)
 
     catch ME % In case an error occurs in the model
         disp(ME.message)
@@ -371,7 +384,8 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
     end
 end
 
-% Cloasing the dashboard
+
+% Closing the dashboard
 if flags.flag_dashboard == 1
     delete(ax.app)
 end

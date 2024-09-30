@@ -386,7 +386,7 @@ elseif flags.flag_rainfall == 1 && flags.flag_spatial_rainfall == 1 && flags.fla
     %     rainfall_spatial_duration = 0:time_step_spatial:(end_rain); % Rainfall data time in minutes
     Spatial_Rainfall_Parameters.rainfall_spatial_duration = 0:Spatial_Rainfall_Parameters.time_step_spatial:(end_rain); % Rainfall data time in minutes
     Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg = 0:Spatial_Rainfall_Parameters.time_step_spatial:(end_rain); % Rainfall data time in minutes
-    n_spatial_agg = 1 + running_control.record_time_spatial_rainfall/Spatial_Rainfall_Parameters.time_step_spatial;
+    n_spatial_agg = running_control.record_time_spatial_rainfall/Spatial_Rainfall_Parameters.time_step_spatial;
     rainfall_spatial_aggregation = zeros(size(dem,1),size(dem,2),n_spatial_agg);
 
     % Rainfall Data
@@ -590,9 +590,11 @@ end
     
     % River Width (only using the first entry)
     B = GIS_data.beta_1(1)*Wshed_Properties.fac_area.^(GIS_data.beta_2(1));
+    B(~idx_facc) = 0;
     
     % River Heigth (only using the first entry)
     H = GIS_data.alfa_1(1)*Wshed_Properties.fac_area.^(GIS_data.alfa_2(1));
+    H(~idx_facc) = 0;
     
     % River inbank area
     Flow_Area = B.*H; % m2
@@ -600,11 +602,12 @@ end
     % River width raster
     Wshed_Properties.River_Width = B;
     Wshed_Properties.River_Width(isnan(Wshed_Properties.River_Width)) = 0; 
+    Wshed_Properties.River_Width(~idx_facc) = 0;
     
     % River height raster
     Wshed_Properties.River_Depth = H;
     Wshed_Properties.River_Depth(isnan(Wshed_Properties.River_Depth)) = 0;
-
+    Wshed_Properties.River_Depth(~idx_facc) = 0;
 
     if flags.flag_subgrid && flags.flag_river_rasters
         Wshed_Properties.River_Width = double(widths_raster.Z);
@@ -615,7 +618,7 @@ end
    
     % Reducing Elevation in creeks (if flag reduce DEM is used and subgrid
     % is deactivated
-    if flags.flag_reduce_DEM == 1 && flags.flag_subgrid == 1
+    if flags.flag_reduce_DEM == 1 && flags.flag_subgrid ~= 1
         H_abg = Flow_Area/Wshed_Properties.Resolution;
         if max(max(H_abg)) > 10^2
             error('Be careful. The decreasing in the DEM to consider the water depths are larger than 100 m. You may change the parameters.')

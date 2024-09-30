@@ -94,7 +94,7 @@ if flag_subgrid == 1
     % roughness coefficients of the 2D domain
     % Only the original formulation is considered in this case
     [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(depth_cell, River_Width, z + River_Depth, z , Resolution, nc, nf, Qc_prev, Qf_prev,Qci_prev,Qfi_prev,g,dt,idx_rivers);
-    outflow = Q./(C_a/Resolution); % m2/s normalized by flow surface area
+    outflow = Q/(Resolution; % m2/s
     % Treating Domain Issues
     outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;    
 else

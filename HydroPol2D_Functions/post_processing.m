@@ -126,9 +126,9 @@ if flags.flag_inflow == 1
         tfinal_inflow = length(Inflow_Parameters.time_inflow);
     end
     hold on
-    plot(gather(Inflow_Parameters.time_inflow(1:tfinal_inflow,1)),gather(Inflow_Parameters.inflow_discharge(1:tfinal_inflow,:)),'LineWidth',1.5','color','black','LineStyle','--'); 
+    plot(gather(Inflow_Parameters.time_inflow(1:tfinal_inflow,1)),gather(Inflow_Parameters.inflow_discharge(1:tfinal_inflow,:)),'LineWidth',1.5','color','black','LineStyle','--');
     ylim([0 max(max(max(gather(outlet_states.outlet_hydrograph))*1.2,1.5*max(max(gather(Inflow_Parameters.inflow_discharge)))))]);
-    grid on 
+    grid on
     if size(Inflow_Parameters.inflow_discharge,2) == 1
         legend('Outflow','Rainfall','Inflow','interpreter','latex');
     end
@@ -140,7 +140,7 @@ try
 catch
     fprintf('No hydrograph exported, PDF export error')
 end
-    saveas(gcf,fullfile(folderName,'Hydrograph.fig'))
+saveas(gcf,fullfile(folderName,'Hydrograph.fig'))
 close all
 
 %% Stage and Hydrograph at the Outlet
@@ -220,7 +220,7 @@ if flags.flag_obs_gauges == 1
         ylim([0 max(max(gather(BC_States.average_spatial_rainfall)))*6]);
     catch
         ylim([0 10]);
-    end    
+    end
     title('Surface Runoff Depth','interpreter','latex','fontsize',12)
     set(gca, 'TickLength', [0.02 0.01]);
     set(gca,'Tickdir','out')
@@ -235,32 +235,33 @@ if flags.flag_obs_gauges == 1
 end
 
 %% Normalized Discharge %%
+% Rainfall Std Deviation
 zero_matrix = zeros(size(elevation,1),size(elevation,2));
-if flags.flag_obs_gauges == 1 && flags.flag_rainfall == 1
-    % Rainfall Std Deviation
-    if flags.flag_spatial_rainfall == 1
-        store=1;
-        flag_loader=1;
-        rainfall_sum = zeros(size(zero_matrix));
-        for i = 1:length(running_control.time_records)
-            if i > saver_memory_maps*store
-                store = store + 1;
+if flags.flag_spatial_rainfall == 1
+    store=1;
+    flag_loader=1;
+    rainfall_sum = zeros(size(zero_matrix));
+    for i = 1:length(running_control.time_records)
+        if i > saver_memory_maps*store
+            store = store + 1;
+            load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+        else
+            if flag_loader == 1
                 load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
-            else
-                if flag_loader == 1
-                  load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
-                  flag_loader=0;
-                end
+                flag_loader=0;
             end
-            z = Maps.Hydro.spatial_rainfall_maps(:,:,i - ((store-1)*saver_memory_maps));
-            rainfall_sum = rainfall_sum + z;
-            Rainfall_Parameters.std_dev(i,1) = nanstd(z(:));
         end
-        % for i = 1:size(Maps.Hydro.spatial_rainfall_maps,3)
-        %     z = Maps.Hydro.spatial_rainfall_maps(:,:,i);
-        %     Rainfall_Parameters.std_dev(i,1) = nanstd(z(:));
-        % end
+        z = Maps.Hydro.spatial_rainfall_maps(:,:,i - ((store-1)*saver_memory_maps));
+        rainfall_sum = rainfall_sum + z; % mm/h
+        Rainfall_Parameters.std_dev(i,1) = nanstd(z(:));
     end
+    % for i = 1:size(Maps.Hydro.spatial_rainfall_maps,3)
+    %     z = Maps.Hydro.spatial_rainfall_maps(:,:,i);
+    %     Rainfall_Parameters.std_dev(i,1) = nanstd(z(:));
+    % end
+end
+
+if flags.flag_obs_gauges == 1 && flags.flag_rainfall == 1
     % Catchment area of each gauge
     for i = 1:length(gauges.easting_obs_gauges)
         gauges.catchment_area(i,1) = Wshed_Properties.fac_area(gauges.northing_obs_gauges(i,1),gauges.easting_obs_gauges(i,1)); % km2
@@ -308,7 +309,7 @@ if flags.flag_obs_gauges == 1 && flags.flag_rainfall == 1
     labels_depth = gauges.labels_observed_string; labels_depth{gauges.num_obs_gauges+1} = 'Outlet';
     labels_depth{gauges.num_obs_gauges + 2} = 'Rainfall Intensity';
     legend(labels_depth,'FontName','Garamond','FontSize',8,'location','bestoutside')
-    
+
     title('Specific Discharge','interpreter','latex','fontsize',12)
     set(gca, 'TickLength', [0.02 0.01]);
     set(gca,'Tickdir','out')
@@ -543,9 +544,9 @@ if flags.flag_obs_gauges == 1
     shapewrite(MS,FileName);
 
 
-% Example x and y coordinates
-gauges.x_coord_gauges = gauges.easting_obs_gauges_absolute;
-gauges.y_coord_gauges = gauges.northing_obs_gauges_absolute;
+    % Example x and y coordinates
+    gauges.x_coord_gauges = gauges.easting_obs_gauges_absolute;
+    gauges.y_coord_gauges = gauges.northing_obs_gauges_absolute;
 end
 if flags.flag_obs_gauges == 1
     labels_gauges = gauges.labels_observed_string;  % Labels for each point
@@ -651,7 +652,7 @@ end
 if flags.flag_export_maps == 1
     % Delete previous rasters in the folder
     no_data_value = nan;
-    
+
     % Create their own folder
     if flags.flag_waterquality==1
         mkdir(strcat(folderName,'\Water_Quality_Maps'));
@@ -697,7 +698,7 @@ if flags.flag_export_maps == 1
         end
     end
 
-    mkdir(strcat(folderName,'\Water_Depths_Maps'));        
+    mkdir(strcat(folderName,'\Water_Depths_Maps'));
     % Specify the folder where the files live.
     myFolder_wd = strcat(pwd,'\',folderName,'\Water_Depths_Maps\'); % Current folder
     % Check to make sure that folder actually exists.  Warn user if it doesn't.
@@ -795,7 +796,7 @@ if flags.flag_export_maps == 1
         geotiffwrite(FileName,raster_to_export.Z,raster_to_export.georef.SpatialRef,...
             'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
         % Water Quality
-        if flags.flag_waterquality == 1          
+        if flags.flag_waterquality == 1
             if flags.flag_elapsed_time == 1
                 FileName =  strcat('Pollutant_Concentration', num2str(time_map),'min');
             else
@@ -815,7 +816,7 @@ if flags.flag_export_maps == 1
             raster_to_export.Z = raster_exportion; % Putting the right values
             % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
             geotiffwrite(FileName,raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+                'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
         end
         if flags.flag_human_instability == 2
         elseif flags.flag_human_instability == 3
@@ -837,7 +838,7 @@ if flags.flag_export_maps == 1
             raster_exportion(raster_exportion < 0) = no_data_value;
             raster_exportion(raster_exportion==0) = no_data_value;
             geotiffwrite(FileName,raster_exportion,raster_to_export.georef.SpatialRef,...
-            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+                'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
         end
     end
 
@@ -854,7 +855,7 @@ if flags.flag_export_maps == 1
         raster_to_export.Z = raster_exportion; % Putting the right values
         % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
         geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
 
         % Map of Total Washed Mass
         FileName = 'Total_Washed_Mass_Kg';
@@ -868,7 +869,7 @@ if flags.flag_export_maps == 1
         raster_to_export.Z = raster_exportion; % Putting the right values
         % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
         geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
     end
 
     % Points of accumulation of Depths
@@ -882,7 +883,7 @@ if flags.flag_export_maps == 1
     raster_to_export.Z = raster_exportion; % Putting the right values
     % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
     geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-    'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
 
     % Points of accumulation of pollutants
     if flags.flag_waterquality == 1
@@ -900,7 +901,7 @@ if flags.flag_export_maps == 1
         raster_to_export.Z = raster_exportion; % Putting the right values
         % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
         geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
 
         % Final Polutant Mass
         FileName = strcat('Final_Pollutant_Mass_g_m2');
@@ -915,7 +916,7 @@ if flags.flag_export_maps == 1
         raster_to_export.Z = raster_exportion; % Putting the right values
         % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
         geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
     end
     % Maximum Velocity
     zzz = velocities.vmax_final; % m/s
@@ -931,7 +932,7 @@ if flags.flag_export_maps == 1
     raster_to_export.Z = raster_exportion; % Putting the right values
     % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
     geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-    'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
 
     % Risk Map
     if flags.flag_human_instability == 1
@@ -966,7 +967,7 @@ if flags.flag_export_maps == 1
     elseif flags.flag_human_instability == 3
         list={'_cm','_tm','_am','_om','_cf','_tf','_af','_of'};
         risk_summary = table('Size', [1 9], 'VariableNames',{'Risk','risk_cm', 'risk_tm', 'risk_am', 'risk_om', 'risk_cf', 'risk_tf', 'risk_af', 'risk_of'}, ...
-            'VariableTypes', {'string','double', 'double', 'double', 'double', 'double', 'double', 'double', 'double'}); 
+            'VariableTypes', {'string','double', 'double', 'double', 'double', 'double', 'double', 'double', 'double'});
         risk_summary.Risk(1) = 'Slide'; risk_summary.Risk(2) = 'Toppling'; risk_summary.Risk(3) = 'Drawing';
         for k = 1:8
             store=1;
@@ -1020,7 +1021,7 @@ if flags.flag_export_maps == 1
     raster_to_export.Z = raster_exportion; % Putting the right values
     % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
     geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-    'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
 
 
     % Maximum
@@ -1039,7 +1040,7 @@ if flags.flag_export_maps == 1
         raster_to_export.Z = raster_exportion; % Putting the right values
         % Exporting the Map
         geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
 
     else
         raster_exportion = zzz + Elevation_Properties.elevation_cell; % Surface elevation
@@ -1051,7 +1052,7 @@ if flags.flag_export_maps == 1
         raster_to_export.Z = raster_exportion; % Putting the right values
         % Exporting the Map
         geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
     end
 
     % DEM
@@ -1071,7 +1072,7 @@ if flags.flag_export_maps == 1
     raster_to_export.Z = raster_exportion; % Putting the right values
     % Exporting the Map
     geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-    'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
 
     % LULC
     FileName = strcat('Land_Cover_Data');
@@ -1085,7 +1086,7 @@ if flags.flag_export_maps == 1
     raster_to_export.Z = raster_exportion; % Putting the right values
     % Exporting the Map
     geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-    'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
 
     if flags.flag_waterquality == 1
         store=1;
@@ -1118,7 +1119,7 @@ if flags.flag_export_maps == 1
                 raster_to_export.Z = raster_exportion; % Putting the right values
                 % Exporting the Map
                 geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-                'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+                    'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
             end
         end
         % Maximum
@@ -1137,7 +1138,7 @@ if flags.flag_export_maps == 1
         raster_to_export.Z = raster_exportion; % Putting the right values
         % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
         geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
         % Final Pollutant Mass
     end
 end
@@ -1171,9 +1172,9 @@ if flags.flag_waterquality == 0
         'Maximum Outflow (m^3/s)'});
 else
     % Summary_Table = table(round(Wshed_Properties.drainage_area/1000/1000,3),rainfall_vol,round(Wshed_Properties.C_r,2),round(Wshed_Properties.impervious_area/1000/1000,3),round(Wshed_Properties.compactness_coefficient,3),round(Wshed_Properties.circularity_index,3),round(Wshed_Properties.width_SWMM,3),round(Wshed_Properties.form_factor,3),round(simulation_time/60,3),round(1/1000*max(max(Max_depth_d)),round(max(outlet_states.outlet_hydrograph),4),...
-    % round(max(max(Max_Pol_Conc_Map))),1000*(1/Wshed_Properties.cell_area)*round(max(max(WQ_States.B_t(~isinf(WQ_States.B_t)))),4),round(initial_mass/1000,4),round(sum(sum(WQ_States.B_t(~isinf(WQ_States.B_t))))/1000,4),1-round(sum(sum(WQ_States.B_t(~isinf(WQ_States.B_t))))/1000,4)/round(initial_mass/1000,4),round(WQ_States.EMC_outlet(end,1),2),'VariableNames',...   
-    Summary_Table = table(round(Wshed_Properties.drainage_area/1000/1000,3),rainfall_vol,round(Wshed_Properties.C_r,2),round(Wshed_Properties.impervious_area/1000/1000,3),round(Wshed_Properties.compactness_coefficient,3),round(Wshed_Properties.circularity_index,3),round(Wshed_Properties.width_SWMM,3),round(Wshed_Properties.form_factor,3),round(simulation_time/60,3),round(1/1000*max(max(max(Maps.Hydro.d))),2),round(max(outlet_states.outlet_hydrograph),4),... 
-    round(max(max(max(Maps.WQ_States.Pol_Conc_Map))),3),1000*(1/Wshed_Properties.cell_area)*round(max(max(WQ_States.B_t(~isinf(WQ_States.B_t)))),4),round(initial_mass/1000,4),round(sum(sum(WQ_States.B_t(~isinf(WQ_States.B_t))))/1000,4),1-round(sum(sum(WQ_States.B_t(~isinf(WQ_States.B_t))))/1000,4)/round(initial_mass/1000,4),round(WQ_States.EMC_outlet(end,1),2),'VariableNames',...
+    % round(max(max(Max_Pol_Conc_Map))),1000*(1/Wshed_Properties.cell_area)*round(max(max(WQ_States.B_t(~isinf(WQ_States.B_t)))),4),round(initial_mass/1000,4),round(sum(sum(WQ_States.B_t(~isinf(WQ_States.B_t))))/1000,4),1-round(sum(sum(WQ_States.B_t(~isinf(WQ_States.B_t))))/1000,4)/round(initial_mass/1000,4),round(WQ_States.EMC_outlet(end,1),2),'VariableNames',...
+    Summary_Table = table(round(Wshed_Properties.drainage_area/1000/1000,3),rainfall_vol,round(Wshed_Properties.C_r,2),round(Wshed_Properties.impervious_area/1000/1000,3),round(Wshed_Properties.compactness_coefficient,3),round(Wshed_Properties.circularity_index,3),round(Wshed_Properties.width_SWMM,3),round(Wshed_Properties.form_factor,3),round(simulation_time/60,3),round(1/1000*max(max(max(Maps.Hydro.d))),2),round(max(outlet_states.outlet_hydrograph),4),...
+        round(max(max(max(Maps.WQ_States.Pol_Conc_Map))),3),1000*(1/Wshed_Properties.cell_area)*round(max(max(WQ_States.B_t(~isinf(WQ_States.B_t)))),4),round(initial_mass/1000,4),round(sum(sum(WQ_States.B_t(~isinf(WQ_States.B_t))))/1000,4),1-round(sum(sum(WQ_States.B_t(~isinf(WQ_States.B_t))))/1000,4)/round(initial_mass/1000,4),round(WQ_States.EMC_outlet(end,1),2),'VariableNames',...
         {'Drainage area (km2)','Rainfall Vol (mm)','Runoff Coefficient','Impervious Area (km2)','Compactness Coefficient','Circularity index','Equivalent Width (m)','Form Factor','Simulation time (minutes)','Maximum Flood Depth (m)','Maximum Outflow (m^3/s)',...
         'Maximum Concentration (mg/L)','Maximum Stored Mass of Pollutant  (g/m2)','Initial Pollutant Mass  (ton)','Final Pollutant Mass  (ton)','Wash-off Ratio','EMC (mg/L)'});
 end
@@ -1452,7 +1453,7 @@ ax.XAxis.Exponent = 0;xtickformat('%.0f');
 ax.YAxis.Exponent = 0;ytickformat('%.0f');
 % exportgraphics(gcf,fullfile(folderName,'Flow_Accumulation.png'),'ContentType','image','Colorspace','rgb','Resolution',600);
 close all
-% 
+%
 % dev=Rainfall_Parameters.std_dev;
 % rainfall_time=Spatial_Rainfall_Parameters.rainfall_spatial_duration;
 % rainfall=BC_States.average_spatial_rainfall;

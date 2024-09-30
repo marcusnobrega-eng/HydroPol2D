@@ -467,7 +467,7 @@ if flags.flag_spatial_rainfall == 1
     else
         time_step_rainfall = (Spatial_Rainfall_Parameters.rainfall_spatial_duration(2) -Spatial_Rainfall_Parameters.rainfall_spatial_duration(1))/60; % hours
     end
-    rain_total = rainfall_sum*time_step_rainfall; % data comes form post_processing
+    rain_total = rainfall_sum*time_step_rainfall; % data comes from post_processing
     time_total = days(date_end - date_begin);
     title_isoietal = strcat('Cumulative rainfall of',{' '},string(round(time_total,2)),' days ',' from ',{' '},cellstr(date_begin),' to ',{' '},cellstr(date_end));
     idx = isnan(Elevation_Properties.elevation_cell);

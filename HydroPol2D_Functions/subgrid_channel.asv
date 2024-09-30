@@ -30,9 +30,9 @@
 function [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(h, w, zf, zc,dx, nc, nf, Qc_prev, Qf_prev,Qci_prev,Qfi_prev,g,dt,idx_rivers)
 
     % -------- Rivers outside of river domain follow original roughness
-    nc(~idx_rivers) = nf(~idx_rivers);
+    % nc(~idx_rivers) = nf(~idx_rivers);
     % 
-    %w(~idx_rivers) = nan;
+    % w(~idx_rivers) = 0;
 
     % --------- Channel Calculations ----------- %
     yc = h + zc; % Channel head [m]
@@ -54,8 +54,7 @@ function [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(h, w, zf, zc,dx, nc, nf, Qc_pre
 
     % Channel surface area
     C_a = dx^2*ones(size(nf));
-    % inbank_rivers = idx_rivers & h < (zf - zc); % logical mask
-    inbank_rivers = h <= (zf - zc); % logical mask
+    inbank_rivers = idx_rivers & h < (zf - zc); % logical mask
     C_a(inbank_rivers) = dx*w(inbank_rivers); % m2 of surface area    
 
     % Channel Hydraulic Radius
@@ -63,7 +62,7 @@ function [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(h, w, zf, zc,dx, nc, nf, Qc_pre
 
     % Channel Flow
     Qc_prev(:,:,3:4) = Qci_prev; % 3-4 are inclined directions
-    Qc = (Qc_prev - g.*Acflow.*dt.*Sc)./(1 + (g*dt.*nc.^2.*abs(Qc_prev))./(Rc.^(4/3).*Acflow)); % m3/s
+    Qc = (Qc_prev - g.*Acflow.*dt.*Sc)./(1 + g*dt.*nc.^2.*abs(Qc_prev)./(Rc.^(4/3).*Acflow)); % m3/s
     Qc(isnan(Qc)) = 0; % nan to 0
 
     % -------- Floodplain Flow ------------- %
@@ -85,13 +84,15 @@ function [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(h, w, zf, zc,dx, nc, nf, Qc_pre
     Qf_prev(:,:,3:4) = Qfi_prev;
     Qf = ((Qf_prev - g.*hfflood.*dt.*Sf)./(1 + g*dt.*nf.^2.*abs(Qf_prev)./(hfflood.^(7/3)))).*(dx - wc_flow); % m3/s
     Qf(mask) = 0;
-    Qf(isnan(Qf)) = 0; % nan to 0
 
     % Total Flow (Ortogonal Interfaces)
     Q = Qf(:,:,1:2) + Qc(:,:,1:2);
 
     % Inclined Interfaces (NE, SE)
- 
+    % Q(:,:,1) = Q(:,:,1) + sqrt(2)/2*(Qc(:,:,3) + Qc(:,:,4));
+    % Q(:,:,2) = Q(:,:,2) + sqrt(2)/2*(Qc(:,:,3) - Qc(:,:,4));
+    % Q(:,:,1) = Q(:,:,1) + sqrt(2)/2*(Qf(:,:,3) + Qf(:,:,4));
+    % Q(:,:,2) = Q(:,:,2) + sqrt(2)/2*(Qf(:,:,3) - Qf(:,:,4));
 
     % Returning to original size
     Qci = Qc(:,:,3:4);
@@ -102,7 +103,6 @@ function [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(h, w, zf, zc,dx, nc, nf, Qc_pre
 
     % Masks
     Q(isnan(Q)) = 0;
-    Q(repmat(isnan(zf),[1,1,2])) = 0;
     Qc(isnan(Qc)) = 0;
     Qf(isnan(Qf)) = 0;
 
