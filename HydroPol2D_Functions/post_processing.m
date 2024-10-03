@@ -324,6 +324,9 @@ if flags.flag_obs_gauges == 1 && flags.flag_rainfall == 1
     close all
 end
 
+%% Normalized Discharge gauges%%
+Normal_Discharge_gauges
+
 %% Rating Curve - Outlet
 close all
 set(gcf,'units','inches','position',[3,3,6,4])
