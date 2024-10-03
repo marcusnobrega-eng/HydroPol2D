@@ -105,6 +105,10 @@ if flags.flag_rainfall > 0
                 Maps.Hydro.spatial_rainfall_maps(:,:,saver_count) = mean(rainfall_spatial_aggregation,3);
                 zzz = Maps.Hydro.spatial_rainfall_maps(:,:,saver_count);
                 BC_States.average_spatial_rainfall(zz2,1) = mean(zzz(zzz>=0));
+                for i = 1:length(gauges.easting_obs_gauges)
+                    zzzgauges = Maps.Hydro.spatial_rainfall_maps(:,:,saver_count).*subcatchments{1,i};            
+                    BC_States.average_spatial_rainfall_gauges{1,i}(zz2,1) = mean(zzzgauges(zzzgauges>=0));                    
+                end
             end
             BC_States.delta_p_agg = spatial_rainfall/3600*time_step*60; % Matrix of delta P for each pixel
             % Saving Maps for Spatial Aggregation
@@ -162,6 +166,10 @@ if flags.flag_rainfall > 0
                 Maps.Hydro.spatial_rainfall_maps(:,:,saver_count) = mean(rainfall_spatial_aggregation,3);
                 zzz = Maps.Hydro.spatial_rainfall_maps(:,:,saver_count);
                 BC_States.average_spatial_rainfall(zz2,1) = mean(zzz(zzz>=0));
+                for i = 1:length(gauges.easting_obs_gauges)
+                    zzzgauges = Maps.Hydro.spatial_rainfall_maps(:,:,saver_count).*subcatchments{1,i};            
+                    BC_States.average_spatial_rainfall_gauges{1,i}(zz2,1) = mean(zzzgauges(zzzgauges>=0)); 
+                end
             end
             input_rainfall((idx_nan == 0 & isnan(input_rainfall))) = 0;
             % Maps.Hydro.spatial_rainfall_maps(:,:,z2_input) = input_rainfall;
@@ -194,6 +202,10 @@ if flags.flag_rainfall > 0
                     Maps.Hydro.spatial_rainfall_maps(:,:,saver_count) = mean(rainfall_spatial_aggregation,3); % Average in whole duration
                     zzz = Maps.Hydro.spatial_rainfall_maps(:,:,saver_count);
                     BC_States.average_spatial_rainfall(record_map_indice,1) = mean(zzz(zzz>=0));
+                    for i = 1:length(gauges.easting_obs_gauges)
+                        zzzgauges = Maps.Hydro.spatial_rainfall_maps(:,:,saver_count).*subcatchments{1,i};            
+                        BC_States.average_spatial_rainfall_gauges{1,i}(zz2,1) = mean(zzzgauges(zzzgauges>=0));
+                    end
                     Rainfall_Parameters.index_aggregation = 0; % Returning to first rainfall
                 end
 
