@@ -1667,7 +1667,7 @@ if flags.flag_GPU == 1
     flags = structfun(@gpuArray, flags, 'UniformOutput', false);
     % Gauges Label
     if flags.flag_obs_gauges == 1
-        extra_parameters.gauges.label_observed_string = gauges.labels_observed_string;
+        extra_parameters.gauges.labels_observed_string = gauges.labels_observed_string;
         gauges.labels_observed_string = [];
         gauges = structfun(@gpuArray, gauges, 'UniformOutput', false);
     end
