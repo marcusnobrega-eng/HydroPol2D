@@ -476,7 +476,7 @@ if flags.flag_GPU == 1
     % Gauges Label
     if flags.flag_obs_gauges == 1
         gauges = structfun(@gather, gauges, 'UniformOutput', false);
-        gauges.labels_observed_string = extra_parameters.gauges.label_observed_string;
+        gauges.labels_observed_string = extra_parameters.gauges.labels_observed_string;
     end
     GIS_data = structfun(@gather, GIS_data, 'UniformOutput', false);
     if flags.flag_human_instability > 0
