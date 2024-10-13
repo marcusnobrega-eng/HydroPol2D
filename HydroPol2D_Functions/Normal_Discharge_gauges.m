@@ -7,6 +7,15 @@ if flags.flag_obs_gauges == 1 && flags.flag_rainfall == 1
         store=1;
         flag_loader=1;
         for i = 1:length(running_control.time_records)
+            if i > saver_memory_maps*store
+                store = store + 1;
+                load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+            else
+                if flag_loader == 1
+                  load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+                  flag_loader=0;
+                end
+            end
             for j = 1:length(gauges.easting_obs_gauges)
                 zgauges = Maps.Hydro.spatial_rainfall_maps(:,:,i - ((store-1)*saver_memory_maps)).*subcatchments{1,j};
                 Rainfall_Parameters.std_dev_gauges{1,j}(i,1) = nanstd(zgauges(:));
