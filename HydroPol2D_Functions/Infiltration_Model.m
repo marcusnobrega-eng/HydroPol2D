@@ -19,7 +19,7 @@ if k == 1 % First time-step
             Soil_Properties.teta_i))./Soil_Properties.I_0); % matrix form of Infiltration Capacity [mm/h]
         % ---- Green-Ampt ---- %
         % Infiltration rate
-        if time_step*60 < 0.1 % If we are using high resolution time-steps
+        if time_step*60 < 30 % If we are using high resolution time-steps
             % We can approximate the soil infiltration capacity curve 
             Hydro_States.f = min(C,Hydro_States.i_a); % Infiltration Rate            
             % Soil matrix mass balance
@@ -117,7 +117,7 @@ else
         Soil_Properties.idx_T = Soil_Properties.T < 0; % Cells where the replenishing time is reached
         
         % Infiltration rate
-        if time_step*60 < 0.1 % If we are using high resolution time-steps
+        if time_step*60 < 30 % If we are using high resolution time-steps
             % We can approximate the soil infiltration capacity curve 
             Hydro_States.f = min(C,Hydro_States.i_a); % Infiltration rate (mm/hr)
             

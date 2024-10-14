@@ -1886,7 +1886,7 @@ if flags.flag_GPU == 1
         Spatial_Rainfall_Parameters = structfun(@gpuArray, Spatial_Rainfall_Parameters, 'UniformOutput', false);
     end
     % ETP Data
-    if flags.flag_ETP == 1
+    if flags.flag_ETP == 1 && flags.flag_input_ETP_map == 0
         if flags.flag_single ~= 1
             extra_parameters.ETP.time_ETP_begin = ETP_Parameters.time_ETP_begin;
             ETP_Parameters.time_ETP_begin = [];
@@ -1896,7 +1896,11 @@ if flags.flag_GPU == 1
             ETP_Parameters.info = [];
         end
         ETP_Parameters = structfun(@gpuArray, ETP_Parameters, 'UniformOutput', false);
+    elseif flags.flag_ETP == 1 && flags.flag_input_ETP_map == 1
+        
     end
+
+
     % Double Arrays
     % date_begin = gpuArray(date_begin);
     elevation = gpuArray(elevation);

@@ -15,7 +15,7 @@
 % % load('workspace_concentrated_rainfall.mat');
 % load('workspace.mat')
 % clear all
-% format short g
+
 % load workspace_analytical_n_0.005.mat
 % load workspace_analytical_n_0.01.mat
 % load workspace_analytical.mat
@@ -88,8 +88,9 @@
 % flags.flag_subgrid = 0; % CHECK LATER
 % Wshed_Properties.Overbank_Manning = LULC_Properties.roughness;
 % --------------- Initializing Main While ---------------- %
-clear all
-load workspace_mineirinho.mat
+% clear all
+% load workspace_mineirinho.mat
+format short g
 tic
 k = 1; % time-step counter
 C = 0; % initial infiltration capacity

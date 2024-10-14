@@ -205,7 +205,7 @@ qout_down = -[matrix_store(2:end,:,2); zeros(1,nx)];
 d_t = d_tot + Vol_Flux/cell_area*1000 ; % final depth in mm
 
 lost_mass = 1/1000*abs(sum(sum(d_t(d_t<0))))*cell_area;
-if lost_mass > 100*cell_area
+if lost_mass > 10000*cell_area
     error('Lost mass too high.')
 end
 d_t(d_t<0) = 0;

@@ -9,8 +9,7 @@
 %% Pre-Processing
 
 % Clearing All Previous Data
-clear all; clc;
-
+clear all;
 % Adding Paths
 addpath 'Input_Data_Sheets'
 model_folder = 'Input_Data_Sheets\General_Data_HydroPol2D.xlsx';
