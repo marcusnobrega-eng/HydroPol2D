@@ -25,7 +25,7 @@ if k == 1 % First time-step
             % Soil matrix mass balance
             Soil_Properties.I_t = max(Soil_Properties.I_0 +  ...
                                      (Hydro_States.f)*time_step/60,min_soil_moisture); % Extracting ETP from soil. Limiting I_t to the minimum of typically 5 mm        else
-            inf_volume = nansum(nansum(Soil_Properties.I_t - Soil_Properties.I_0))*Wshed_Properties.cell_area; % m3
+            inf_volume = nansum(nansum((Soil_Properties.I_t - Soil_Properties.I_0).*C_a)); % m3
             inf_volume_cell = Soil_Properties.I_t - Soil_Properties.I_0;
             depths.d_p = depths.d_p - inf_volume_cell; % Taking away infiltration prior calculating ETP and other fluxes
         else
@@ -33,7 +33,7 @@ if k == 1 % First time-step
             [Soil_Properties.I_t,Hydro_States.f] = GA_Newton_Raphson(Soil_Properties.I_0,time_step/60 ...
                                                    ,Soil_Properties.ksat,Soil_Properties.psi,Soil_Properties.teta_sat - Soil_Properties.teta_i,depths.d_0,Hydro_States.i_a);
             % Infiltrated Volume
-            inf_volume = 1/1000*nansum(nansum(Soil_Properties.I_t - Soil_Properties.I_0))*Wshed_Properties.cell_area; % m3            
+            inf_volume = 1/1000*nansum(nansum((Soil_Properties.I_t - Soil_Properties.I_0).*C_a)); % m3            
             inf_volume_cell = Soil_Properties.I_t - Soil_Properties.I_p; % mm            
             % Taking away deep percolation
             Soil_Properties.I_t = max(Soil_Properties.I_t,min_soil_moisture);
@@ -117,21 +117,21 @@ else
         Soil_Properties.idx_T = Soil_Properties.T < 0; % Cells where the replenishing time is reached
         
         % Infiltration rate
-        if time_step*60 < 0.1 % If we are using high resolution time-steps
+        if time_step*60 < 5*60 % If we are using high resolution time-steps
             % We can approximate the soil infiltration capacity curve 
             Hydro_States.f = min(C,Hydro_States.i_a); % Infiltration rate (mm/hr)
             
             % Soil matrix mass balance
             Soil_Properties.I_t = max(Soil_Properties.I_p + Hydro_States.f*time_step/60 - Soil_Properties.k_out.*double(Hydro_States.idx_C)*time_step/60,min_soil_moisture);
             inf_volume_cell = Soil_Properties.I_t - Soil_Properties.I_p;
-            inf_volume = 1/1000*nansum(nansum(Soil_Properties.I_t - Soil_Properties.I_p))*Wshed_Properties.cell_area; % m3   
+            inf_volume = 1/1000*nansum(nansum((Soil_Properties.I_t - Soil_Properties.I_p).*C_a)); % m3   
             depths.d_p = depths.d_p - inf_volume_cell; % Taking away infiltration prior calculating ETP and other fluxes
         else
             % We need to solve the implicit GA equation
             [Soil_Properties.I_t,Hydro_States.f] = GA_Newton_Raphson(Soil_Properties.I_p,time_step/60 ...
                                                    ,Soil_Properties.ksat,Soil_Properties.psi,Soil_Properties.teta_sat - Soil_Properties.teta_i,depths.d_p,Hydro_States.i_a);
             % Infiltrated Volume
-            inf_volume = 1/1000*nansum(nansum(Soil_Properties.I_t - Soil_Properties.I_p))*Wshed_Properties.cell_area; % m3
+            inf_volume = 1/1000*nansum(nansum((Soil_Properties.I_t - Soil_Properties.I_p).*C_a)); % m3
             inf_volume_cell = Soil_Properties.I_t - Soil_Properties.I_p; % mm
             % Taking away deep percolation
             Soil_Properties.I_t = max(Soil_Properties.I_t - Soil_Properties.k_out.*double(Hydro_States.idx_C)*time_step/60,min_soil_moisture);
@@ -191,3 +191,22 @@ end
 
 % Effective Precipitation (Available depth at the beginning of the time-step
 depths.d_tot = depths.d_t;
+
+% Correcting depths in case it reach overbanks
+if flags.flag_subgrid == 1 % Maybe we have a change from inbank <-> overbank
+    % Eq. 15 and 16 of A subgrid channel model for simulating river hydraulics andfloodplain inundation over large and data sparse areas
+    % Inbank - Overbank
+    idx = depths.d_tot/1000 > Wshed_Properties.River_Depth & depths.d_p/1000 <= Wshed_Properties.River_Depth & idx_rivers; % Cells in which there is a change from inbank to overbank
+    if sum(sum(idx)) > 0
+        depths.d_tot(idx) = 1000*(depths.d_tot(idx)/1000 - (depths.d_tot(idx)/1000 - Elevation_Properties.elevation_cell(idx) + (Elevation_Properties.elevation_cell(idx) - Wshed_Properties.River_Depth(idx))).*(1 - Wshed_Properties.River_Width(idx)/Wshed_Properties.Resolution)); % mm 
+        C_a(idx) = Wshed_Properties.Resolution^2;
+    end
+    % Overbank - Inbank
+    idx = depths.d_tot/1000 <= Wshed_Properties.River_Depth & depths.d_p/1000 >= Wshed_Properties.River_Depth & idx_rivers; % Cells in which there is a change from overbank to inbank
+    if sum(sum(idx)) > 0
+        factor = depths.d_tot(idx)/1000 - Elevation_Properties.elevation_cell(idx) + (Elevation_Properties.elevation_cell(idx) - Wshed_Properties.River_Depth(idx));
+        depths.d_tot(idx) = 1000*(depths.d_tot(idx)/1000 + (Wshed_Properties.Resolution*(factor))./Wshed_Properties.River_Width(idx) ...
+            - (depths.d_tot(idx)/1000 - Elevation_Properties.elevation_cell(idx) + (Elevation_Properties.elevation_cell(idx) - Wshed_Properties.River_Depth(idx)))); % mm
+        C_a(idx) = Wshed_Properties.River_Width(idx)*Wshed_Properties.Resolution;
+    end 
+end

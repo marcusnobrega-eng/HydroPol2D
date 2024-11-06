@@ -80,7 +80,7 @@ recording_parameters.last_record_hydrograph = recording_parameters.actual_record
 
 if flags.flag_automatic_calibration ~= 1
     if k == 1
-        outlet_states.outlet_hydrograph(1,1) = nansum(nansum(outlet_states.outlet_flow))/1000*Wshed_Properties.cell_area/3600; % m3/s
+        outlet_states.outlet_hydrograph(1,1) = nansum(nansum(outlet_states.outlet_flow.*C_a))/1000/3600; % m3/s
         running_control.time_hydrograph(1,1) = running_control.time_calculation_routing(k,1)/60;
         outlet_states.depth_outlet(1,1) = mean(depths.d_t(idx_outlet));
         % Maximum Flodded Areas
@@ -187,7 +187,7 @@ if flags.flag_automatic_calibration ~= 1
 
     elseif recording_parameters.delta_record_hydrograph > 0
         t_store = recording_parameters.actual_record_hydrograph;
-        outlet_states.outlet_hydrograph(t_store,1) = nansum(nansum(outlet_states.outlet_flow))/1000*Wshed_Properties.cell_area/3600; % m3/s
+        outlet_states.outlet_hydrograph(t_store,1) = nansum(nansum(outlet_states.outlet_flow.*C_a))/1000/3600; % m3/s
         running_control.time_hydrograph(t_store,1) = t;
         outlet_states.depth_outlet(t_store,1) = mean(depths.d_t(idx_outlet));
         % Maximum Flodded Areas
@@ -308,4 +308,4 @@ if flags.flag_automatic_calibration ~= 1
     end
 end
 
-outlet_runoff_volume = nansum(nansum(outlet_states.outlet_flow))*time_step/60*Wshed_Properties.cell_area/Wshed_Properties.drainage_area + outlet_runoff_volume; % mm
+outlet_runoff_volume = nansum(nansum(outlet_states.outlet_flow.*C_a))*time_step/60/Wshed_Properties.drainage_area + outlet_runoff_volume; % mm

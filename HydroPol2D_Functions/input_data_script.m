@@ -78,6 +78,8 @@ flags.flag_outlet_type = input_table_Hydro(17);
 flags.flag_adaptive_timestepping = input_table_Hydro(18);
 flags.flag_neglect_infiltration_river = input_table_Hydro(19);
 flags.flag_subgrid = input_table_Hydro(20);
+flags.flag_spatial_albedo = input_table_Hydro(21);
+flags.flag_river_rasters = input_table_Hydro(22);
 
 
 % Performance Flags

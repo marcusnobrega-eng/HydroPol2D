@@ -32,7 +32,11 @@ if length(topBC) ~=1
 end
 set(gca,'YColor','black');
 plot(x_value,y_values,'Color',c(id_plot,:),'linewidth',2)
-xlabel(['$ ' x_symbol '~[ \mathrm{ ' x_units '}]$'],'Interpreter','latex')
+if ~isempty(x_units)
+    xlabel(['$ ' x_symbol '~[ \mathrm{ ' x_units '}]$'],'Interpreter','latex')
+else
+    xlabel(['$ ' x_symbol,'$'],'Interpreter','latex')
+end
 ylabel(['$ ' symbol '~[ \mathrm{ ' units '}]$'],'Interpreter','latex');
 set(gca,'Fontsize',14)
 set(gca,'FontName','garamond');

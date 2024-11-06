@@ -88,19 +88,16 @@
 % flags.flag_subgrid = 0; % CHECK LATER
 % Wshed_Properties.Overbank_Manning = LULC_Properties.roughness;
 % --------------- Initializing Main While ---------------- %
-% clear all
-% % % load workspace_mineirinho_warmup.mat
-% load workspace_mineirinho_calibration.mat
-
-flags.flag_subgrid = 0;
-flags.flag_dashboard = 1;
-running_control.min_time_step = 0.001;
-% flags.flag_infiltration = 1;
-% flags.flag_numerical_scheme = 3;
-
-% Courant_Parameters.alfa_min = 0.2
-% running_control.max_time_step = 5;
-
+clear all
+% load workspace_mineirinho.mat
+load workspace_square_V4.mat
+flags.flag_subgrid = 1;
+flags.flag_numerical_scheme = 1;
+% running_control.max_time_step = 10;
+% running_control.min_time_step = 10;
+% BC_States.delta_inflow = BC_States.delta_inflow/100;
+% outlet_index(1,6) = 1;
+% running_control.max_time_step = 1;
 tic
 k = 1; % time-step counter
 C = 0; % initial infiltration capacity
@@ -115,7 +112,7 @@ store = 1; % Index for saving maps
 t_previous = 0;
 factor_time = 0;
 max_dt = running_control.max_time_step;
-current_storage = nansum(nansum(Wshed_Properties.cell_area*depths.d_t/1000)); % m3
+previous_storage = nansum(nansum(C_a.*depths.d_t/1000)); % m3
 if flags.flag_inertial == 1
     outflow_prev = outflow_bates;
 end
@@ -186,10 +183,10 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                     depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical);
             else
                 % -------------------- Local Inertial Formulation ----------------%
-                [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf,Qc,Qf,Qci,Qfi] = ...
+                [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf,Qc,Qf,Qci,Qfi,C_a] = ...
                     Local_Inertial_Model_D4(flags.flag_numerical_scheme,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
                     flags.flag_reservoir,Elevation_Properties.elevation_cell,...
-                    depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical,flags.flag_subgrid,Wshed_Properties.Inbank_Manning,Wshed_Properties.Overbank_Manning,Wshed_Properties.River_Width, Wshed_Properties.River_Depth, Wshed_Properties.idx_rivers,Qc,Qf,Qci,Qfi);
+                    depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical,flags.flag_subgrid,Wshed_Properties.Inbank_Manning,Wshed_Properties.Overbank_Manning,Wshed_Properties.River_Width, Wshed_Properties.River_Depth,Qc,Qf,Qci,Qfi,C_a);
             end
         end
 
@@ -240,7 +237,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         else
             catch_index = 1;
             factor_time = factor_time + 1;
-            running_control.max_time_step = min(running_control.max_time_step*(1+0.1*factor_time),max_dt);
+            running_control.max_time_step = min(running_control.max_time_step*(1+0.05*factor_time),max_dt);
         end
         depths.d_t = max(depths.d_t,0);  % Taking away negative masses
 
@@ -268,11 +265,12 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         running_control.time_save_previous = running_control.time_save;
         running_control.actual_record_timestep = ceil((t*60)/running_control.time_step_change);
 
-        % Refreshing time-step script
-        refreshing_timestep;
 
         %% Mass Balance Check
         mass_balance_check
+
+        % Refreshing time-step script
+        refreshing_timestep;
 
         %% Updating Boundary Conditions
         update_spatial_BC; % Updating rainfall and etr B.C.
@@ -350,8 +348,6 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         if tmin_wq < 0 || isnan(tmin_wq) || isinf(tmin_wq)
             error('Instability. in the Water Quality Model.')
         end
-        % surf(depths.d_t); view(0,90); colorbar; colormap("jet")
-        % pause(0.0000001)
 
     catch ME % In case an error occurs in the model
         disp(ME.message)
@@ -370,7 +366,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         dt_water_balance = new_timestep;
         new_timestep = min(new_timestep,dt_water_balance);
         if catch_index > 1
-            running_control.max_time_step = max(new_timestep*1.5,running_control.max_time_step); % Assuming a smaller max time-step to avoid large integrations
+            running_control.max_time_step = min(new_timestep*1.5,running_control.max_time_step); % Assuming a smaller max time-step to avoid large integrations
         end        
         new_timestep = min(new_timestep,running_control.max_time_step); % sec
         if isinf(new_timestep)
@@ -380,12 +376,12 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         t = t + time_step;
         depths.d_t = depths.d_p;
         Soil_Properties.I_t = Soil_Properties.I_p;
+        current_storage = previous_storage;
         update_spatial_BC
     end
 end
 
-
-% Closing the dashboard
+% Cloasing the dashboard
 if flags.flag_dashboard == 1
     delete(ax.app)
 end

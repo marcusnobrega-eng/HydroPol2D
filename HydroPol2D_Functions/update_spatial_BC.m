@@ -59,6 +59,11 @@ if flags.flag_inflow == 1
     BC_States.inflow = zeros(size(Elevation_Properties.elevation_cell,1),size(Elevation_Properties.elevation_cell,2)); % This is to solve spatially, don't delete
     for i = 1:Inflow_Parameters.n_stream_gauges
         BC_States.inflow = BC_States.inflow + BC_States.delta_inflow_agg(i)*Wshed_Properties.inflow_cells(:,:,i); % mm
+        if flags.flag_subgrid == 1
+            % In this case, we need to correct the depths to ensure correct
+            % mass balance
+            BC_States.inflow = BC_States.inflow.*Wshed_Properties.cell_area./(C_a); % Channels can have smaller area
+        end
     end
 end
 
@@ -78,7 +83,8 @@ if flags.flag_rainfall > 0
             BC_States.delta_p_agg = BC_States.delta_p(1,z1)/(time_step_model*60)*time_step*60;  % mm
         end
         if isnan(BC_States.delta_p_agg)
-            error('Nan rainfall')
+            warning('No rainfall data for this time. Assuming as 0 mm/h.')
+            BC_States.delta_p_agg = 0;
         end
     elseif flags.flag_spatial_rainfall == 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_satellite_rainfall ~= 1 && flags.flag_real_time_satellite_rainfall ~= 1
         % Spatial Rainfall
@@ -292,6 +298,9 @@ if flags.flag_rainfall > 0
         end
     end
 end
+
+% Correcting Rainfall Volumes to the sub-grid model
+BC_States.delta_p_agg = BC_States.delta_p_agg.*Wshed_Properties.cell_area./C_a; % Here we assume that all rainfall goes directly to the channel
 
 %% Aggregating ETP for next time-step
 
