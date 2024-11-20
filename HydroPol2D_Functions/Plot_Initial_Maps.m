@@ -299,7 +299,7 @@ caxis([h_min zmax]);
 colormap(jet)
 hold on
 k = colorbar ;
-ylabel(k,'$F_0$ ($\mathrm{m}$)','Interpreter','Latex','FontSize',12)
+ylabel(k,'$F_0$ ($\mathrm{mm}$)','Interpreter','Latex','FontSize',12)
 xlabel(' x (m) ','Interpreter','Latex','FontSize',12)
 ylabel ('y (m) ','Interpreter','Latex','FontSize',12)
 ax = ancestor(ax5, 'axes');

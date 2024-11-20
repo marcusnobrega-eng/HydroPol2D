@@ -195,7 +195,7 @@ store=1;
 flag_loader=1;
 for t = 1:f:length(running_control.time_records)
     clf
-    subplot(2,1,1)
+    ax1 = subplot(2,1,1);
     t_title = running_control.time_records(t);
 
     if t > saver_memory_maps*store
@@ -241,12 +241,12 @@ for t = 1:f:length(running_control.time_records)
             warning('You need matlab 2022 or higher to run basemaps.')
         end
     end
-    surf(x_grid,y_grid,F);
+    surf(ax1,x_grid,y_grid,F);
     shading INTERP;
 
     axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) z1min z1max])
     if flags.flag_elapsed_time == 1
-        title(sprintf('Time(h) = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+        title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
     else
         title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
     end
@@ -254,7 +254,7 @@ for t = 1:f:length(running_control.time_records)
     view(0,90);
     colorbar
     caxis([z1min z1max]);
-    colormap(WSE_RAS)
+    colormap(ax1,WSE_RAS);
     k = colorbar;
     ylabel(k,'WSE (m)','Interpreter','Latex','FontSize',12)
     xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
@@ -269,7 +269,7 @@ for t = 1:f:length(running_control.time_records)
         mapshow(S_p,'FaceColor','n'); hold on;
     end
 
-    subplot(2,1,2)
+    ax2 = subplot(2,1,2);
     % zmax = max(max(max(z2(~isinf(z2)))));
     % zmin = min(min(min(z2)));
     % zmax = max(max(max(z2)));
@@ -293,19 +293,19 @@ for t = 1:f:length(running_control.time_records)
             warning('You need matlab 2022 or higher to run basemaps.')
         end
     end
-    surf(x_grid,y_grid,F);
+    surf(ax2,x_grid,y_grid,F);
     axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) z2min z2max])
 
     shading INTERP;
     if flags.flag_elapsed_time == 1
-        title(sprintf('Time(h) = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+        title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
     else
         title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
     end
     view(0,90);
     colorbar
     caxis([0 z2max]);
-    colormap(Depth_RAS)
+    colormap(ax2,Depth_RAS);
     k = colorbar;
 
     ylabel(k,'Depths (m)','Interpreter','Latex','FontSize',12)
@@ -376,7 +376,7 @@ close all
 %
 %     axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
 %     if flags.flag_elapsed_time == 1
-%         title(sprintf('Time(h) = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+%         title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
 %     else
 %         title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
 %     end
@@ -422,7 +422,7 @@ close all
 %
 %     shading INTERP;
 %     if flags.flag_elapsed_time == 1
-%         title(sprintf('Time(h) = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+%         title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
 %     else
 %         title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
 %     end
@@ -692,7 +692,7 @@ if flags.flag_spatial_rainfall == 1
 
             %
             if flags.flag_elapsed_time == 1
-                title(sprintf('Time(h) = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+                title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
             else
                 title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
             end
@@ -800,7 +800,7 @@ if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_in
 
         %
         if flags.flag_elapsed_time == 1
-            title(sprintf('Time(h) = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+            title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
         else
             title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
         end
@@ -893,7 +893,7 @@ if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_in
 
         %
         if flags.flag_elapsed_time == 1
-            title(sprintf('Time(h) = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+            title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
         else
             title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
         end
@@ -979,7 +979,7 @@ if flags.flag_ETP == 1
 
         %
         if flags.flag_elapsed_time == 1
-            title(sprintf('Time(h) = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+            title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
         else
             title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
         end
@@ -1076,7 +1076,7 @@ if flags.flag_human_instability > 0
         end
 
         if flags.flag_elapsed_time == 1
-            title(sprintf('Time(h) = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+            title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
         else
             title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
         end
@@ -1169,7 +1169,7 @@ if flags.flag_waterquality == 1
 
             shading INTERP;
             if flags.flag_elapsed_time == 1
-                title(sprintf('Time(h) = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+                title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
             else
                 title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
             end
@@ -1232,7 +1232,7 @@ if flags.flag_waterquality == 1
         axis tight
         shading INTERP;
         if flags.flag_elapsed_time == 1
-            title(sprintf('Time(h) = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+            title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
         else
             title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
         end

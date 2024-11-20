@@ -3,7 +3,7 @@ close all
 simulation_time = toc;
 
 %% Coloramp
-[Spectrum,Depth_RAS,Terrain_RAS_ramp,blue_ramp,blues_2,pallete,Depth_RAS,Terrain_RAS,Velocity_RAS,WSE_RAS] = coloramps();
+[Spectrum,Depth_Purple,Terrain_RAS_ramp,blue_ramp,blues_2,pallete,Depth_RAS,Terrain_RAS,Velocity_RAS,WSE_RAS] = coloramps();
 
 %% Creating Modeling Results Folder
 % Create the folder name
