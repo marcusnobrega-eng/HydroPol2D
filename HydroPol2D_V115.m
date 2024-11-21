@@ -12,16 +12,15 @@
 clear all; clc;
 
 % Adding Paths
-addpath 'Input_Data_Sheets'
-model_folder = 'Input_Data_Sheets\General_Data_HydroPol2D_UTSA.xlsx';
+addpath 'Input_Data_Sheets' % Folder where the excel files are available
+model_folder = 'Input_Data_Sheets\General_Data_HydroPol2D.xlsx'; % Name of the main general data
 input_table = readtable(model_folder);
 
 % Load Model Functions
-HydroPol2D_tools = char(table2cell(input_table(12,27)));
+HydroPol2D_tools = char(table2cell(input_table(12,27))); % File path of the model functions
 addpath(genpath(char(HydroPol2D_tools)));
 
-HydroPol2D_preprocessing
-% Pre_Processing_Data
+HydroPol2D_preprocessing % Preprocessing code
 
 %% Sensitivity Analysis
 % Activate this code below to run a sensitivity analysis
