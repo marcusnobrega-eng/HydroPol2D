@@ -3,101 +3,6 @@
 % Date 8/01/2024
 % Goal - Run the main modeling process of the model
 
-% Loading Input File in case you want to avoid doing all preprocessing
-% ----- A few Examples ---- %
-% clear all
-% load workspace_14_de_julho.mat
-% clear all
-% load workspace_franquinho.mat
-% save('preprocessing_input.mat');
-% load('workspace_inflow.mat');
-% clear all
-% % load('workspace_concentrated_rainfall.mat');
-% load('workspace.mat')
-% clear all
-% format short g
-% load workspace_analytical_n_0.005.mat
-% load workspace_analytical_n_0.01.mat
-% load workspace_analytical.mat
-% load workspace_analytical_horizontal_100_4000.mat;
-% clear all
-% load workspace_dam_recortado.mat
-
-% In case you want to manually change some of the model parameters, you
-% can do as follows:
-
-% flags.flag_GPU = 0;
-% running_control.volume_error = 1000;
-% outlet_type = 1;
-% flags.flag_dashboard = 1;
-% flags.flag_waterbalance = 0;
-
-% clear all
-% load workspace_Amazon_1year.mat
-% load workspace_mineirinho_variavel.mat
-% load workspace_sa.mat;
-% load workspace_Amazon_7_days.mat
-% load workspace_Amazon.mat
-% load workspace_Amazon_1day.mat
-% load workspace_Amazon_1month_spatial.mat
-
-% running_control.max_time_step = 15*60;
-% Courant.Parameters.alfa_min = 0.1;
-% flags.flag_infiltration = 1;
-% flags.flag_outlet_type = 2;
-% flags.flag_boundary = 0;
-% flags.flag_critical = 1;
-% flags.flag_dashboard = 1;
-% flags.flag_infiltration = 1;
-% flags.flag_infiltration = 0;
-% running_control.volume_error = 10000;
-% flags.flag_subgrid = 0; % CHECK LATER
-% flags.flag_numerical_scheme = 1;
-% Wshed_Properties.Overbank_Manning = LULC_Properties.roughness;
-% Soil_Properties.ksat = ones(size(Soil_Properties.ksat))*0.1;
-
-
-
-% clear all
-% addpath Testing_Workspaces\
-% load workspace_inflow_aricanduva.mat
-% % Only for the workspace aricanduva
-% Qc = zeros(size(idx_nan,1),size(idx_nan,2),2);
-% Qf = Qc;
-% Qci = Qc;
-% Qfi = Qc;
-% Q = Qc;
-% Hydro_States.ETR = Hydro_States.ETP;
-% Wshed_Properties.Inbank_Manning = 0.035;
-% flags.flag_numerical_scheme = 2;
-% flags.flag_reservoir = 1;
-% flags.flag_boundary = 1;
-% flags.flag_dashboard = 1;
-% t_store = 1;
-% % running_control.max_time_step = 1*60;
-% % Courant.Parameters.alfa_min = 0.1;
-% % flags.flag_infiltration = 1;
-% % flags.flag_outlet_type = 2;
-% % flags.flag_boundary = 0;
-% % flags.flag_critical = 1;
-% flags.flag_dashboard = 1;
-% flags.flag_numerical_scheme = 2;
-% flags.flag_inertial = 1;
-% % flags.flag_infiltration = 0;
-% % running_control.volume_error = 10000;
-% flags.flag_subgrid = 0; % CHECK LATER
-% Wshed_Properties.Overbank_Manning = LULC_Properties.roughness;
-% --------------- Initializing Main While ---------------- %
-clear all
-% load workspace_mineirinho.mat
-load workspace_square_V4.mat
-flags.flag_subgrid = 1;
-flags.flag_numerical_scheme = 1;
-% running_control.max_time_step = 10;
-% running_control.min_time_step = 10;
-% BC_States.delta_inflow = BC_States.delta_inflow/100;
-% outlet_index(1,6) = 1;
-% running_control.max_time_step = 1;
 tic
 k = 1; % time-step counter
 C = 0; % initial infiltration capacity
@@ -132,9 +37,9 @@ end
 if flags.flag_dashboard == 1
     ax.flags = flags;
     if flags.flag_GPU == 1
-        ax = HydroPol2D_running_dashboard(ax,Maps, zeros(size(DEM_raster.Z)), DEM_raster,extra_parameters.gauges,BC_States,time_step,Wshed_Properties.Resolution,1,1);
+        ax = HydroPol2D_running_dashboard(ax,Maps, zeros(size(DEM_raster.Z)), DEM_raster,extra_parameters.gauges,BC_States,time_step,Wshed_Properties.Resolution,1,1,C_a);
     else
-        ax = HydroPol2D_running_dashboard(ax,Maps,zeros(size(DEM_raster.Z)), DEM_raster, gauges,BC_States,time_step,Wshed_Properties.Resolution,1,1);
+        ax = HydroPol2D_running_dashboard(ax,Maps,zeros(size(DEM_raster.Z)), DEM_raster, gauges,BC_States,time_step,Wshed_Properties.Resolution,1,1,C_a);
     end
 end
 

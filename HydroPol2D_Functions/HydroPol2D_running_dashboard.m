@@ -1,4 +1,4 @@
-function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_States,time_step,Resolution,first_time,layer)
+function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_States,time_step,Resolution,first_time,layer,C_a)
     % Runnning dashboard
     mask = isnan(DEM_raster.Z);
     
@@ -86,7 +86,7 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
                 F_r = Maps.Hydro.spatial_rainfall_maps([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],1);
             else
                 if ax.flags.flag_rainfall == 1
-                    F_r = BC_States.delta_p_agg/(time_step/60)*ones(ax.DEM_s1,ax.DEM_s2); % ADD Rainfall here
+                    F_r = BC_States.delta_p_agg.*C_a./(Resolution^2)./(time_step/60).*ones(ax.DEM_s1,ax.DEM_s2); % ADD Rainfall here
                     F_r(mask) = nan;               
                 else
                     F_r = zeros(ax.DEM_s1,ax.DEM_s2);
@@ -300,7 +300,7 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
                 idx_g(idx_g == 0) = NaN;
             else                
                 if ax.flags.flag_rainfall == 1
-                    idx_g = BC_States.delta_p_agg*ones(ax.DEM_s1,ax.DEM_s2)/(time_step/60); % ADD Rainfall here
+                    idx_g = BC_States.delta_p_agg.*C_a./(Resolution^2)./(time_step/60).*ones(ax.DEM_s1,ax.DEM_s2); % ADD Rainfall here
                     idx_g(mask) = nan;
                     idx_g(idx_g == 0) = nan;
                 else

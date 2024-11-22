@@ -279,7 +279,7 @@ if flags.flag_automatic_calibration ~= 1
             ax.timer = minutes(double(gather(running_control.time_records(recording_parameters.actual_record_state)))) + date_begin;
             ax.percentage = gather((t)/running_control.routing_time*100);
             ax = HydroPol2D_running_dashboard(ax, Maps, gather(velocities.velocity_raster), DEM_raster, ...
-                [],BC_States,time_step,Wshed_Properties.Resolution,0,saver_count);
+                [],BC_States,time_step,Wshed_Properties.Resolution,0,saver_count,C_a);
         end
         % changing saver_count
         saver_count = saver_count+1;
