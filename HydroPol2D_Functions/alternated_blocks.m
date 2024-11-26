@@ -27,7 +27,20 @@ function [t,i,P,idf] = alternated_blocks(td,dt,K,a,b,c,RP,flag_plot)
 t = dt:dt:td; % duration in min
 nsteps = length(t); % number of time-steps
 %% 2.0 - Calculate intensity
-idf = K.*(RP^a)./((b + t).^c); % mm/hr
+%idf = K.*(RP^a)./((b + t).^c); % mm/hr
+% The next parameters are for calculation of intensity in the Aricanduva
+% basin. The values were taken from the Hydrographic Basin Book (Caderno de
+% Bacia Hidrográfica) 2022.
+A = 32.77;
+B = 20;
+C = -0.878;
+D = 16.1;
+E = 30;
+F = -0.9306;
+G = -0.4692;
+H = -0.8474;
+
+idf = 60*(A.*(t + B).^C + D.*(t + E).^F.*(G + H*log(log(RP/(RP-1))))); % mm/hr Aricanduva IDF
 P_cum = (idf.*t/60); % mm
 delta_p = zeros(1,length(P_cum));
 for k = 1:(length(P_cum))
