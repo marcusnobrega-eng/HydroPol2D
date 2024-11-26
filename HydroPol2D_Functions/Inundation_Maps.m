@@ -626,8 +626,8 @@ if flags.flag_spatial_rainfall == 1
     set(gcf,'DefaultTextInterpreter','latex')
     if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_input_rainfall_map ~= 1
         close all
-        zmax = Max_rains;
-        zmin = Min_rains;
+        zmax = max(max(Max_rains));
+        zmin = min(min(Min_rains));
         if zmin == zmax
             zmax = zmin + 10; % mm/h
         end
