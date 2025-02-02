@@ -1,4 +1,4 @@
-function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf] = Bates_Inertial_4D(reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical)
+function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf,k1,fcprev_depth] = Bates_Inertial_4D(reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical, controlvs_idx, controlvs_xref, controlvs_yref, controlvs_qref, controlvs_xus, controlvs_yus, flag_controlvs, simulation_time, fuzzycontrol,fcprev_depth)
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %                                                                 %
 %                 Produced by Marcus Nobrega Gomes Junior         %
@@ -166,6 +166,38 @@ I_tot_end_cell = dt*sum(1/1000*1/3600*outflow,3)*Resolution^2; % Total outflow i
 % matrix_store now becomes outflow
 matrix_store = outflow; % mm per hour
 
+%% Control Reservoir Boundary Condition
+% towards the valves
+if flag_controlvs == 1 && flag_reservoir == 1
+if simulation_time > 1 && rem(round(simulation_time),5) ==  0 
+    for ii = 1:length(controlvs_yref)
+        %qbase = controlvs_qref(ii)/(Resolution^2)*1000*3600; %flow reference in mm per hour
+        %flows = outflow(controlvs_yref(ii), controlvs_xref(ii), :);
+        %qtcontrol = sum(flows, 'all'); %flow at the reference cell mm/h
+        dtcontrol = gather(d_tot(controlvs_yus(ii),controlvs_xus(ii))./1000); % Water depth in the cell that has the level indicator (m)
+        dtprev = gather(fcprev_depth(ii));
+        VarWD = dtprev - dtcontrol;
+        operator = fuzzycontrol(ii);
+        
+        k_change = evalfis(operator, [dtcontrol, VarWD]);
+
+        k1(controlvs_idx(ii)) = k_change;  % update the k1 value
+        fcprev_depth(controlvs_idx(ii)) = dtcontrol; %update the previus depths 
+        %%%%%%%% basic rules for the first steps %%%%%%%%%%
+        %{  
+        if dtcontrol > dlim(ii) % verify if the 80 % level limit of the reservior in the entrance points allow to modify the parameters
+            k_change = parameterValues(3); %if the level is greater than the depth limit in the reservior, full open discharge
+        elseif dtcontrol < 0.8*dlim(ii) 
+            k_change = parameterValues(1); %if the current flow is lower than  the reference flow, 0% close valve
+        else
+            k_change = parameterValues(2); %50% open valve
+        k1(controlvs_idx(ii)) = k_change;    
+        end 
+        %}
+    end
+end
+end
+		
 %% Reservoir Boundary Condition - We are assuming that all flow drains
 % towards the spillway
 if flag_reservoir == 1   
