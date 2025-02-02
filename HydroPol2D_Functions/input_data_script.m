@@ -62,6 +62,7 @@ flags.flag_rainfall_multiple_runs = input_table_flags(35);
 flags.flag_inertial = input_table_flags(36);
 flags.flag_dashboard = input_table_flags(37);
 flags.flag_data_source = input_table_flags(38);
+flags.flag_control_vs = input_table_flags(39); %mateo modi
 
 % Matricial Variables
 % input_table_matricial = table2array(input_table(:,9));
@@ -458,6 +459,21 @@ if flags.flag_reservoir == 1
     Reservoir_Data.x_ds2 = table2array(input_table(:,12));
     Reservoir_Data.y_ds2 = table2array(input_table(:,13));
    
+end
+
+% Valve and spillway control data ; %modi mateo
+if flags.flag_control_vs == 1
+    input_table = readtable('Control_VS.xlsx');
+    input_table = rmmissing(input_table); %apply just when you have one value in the table.
+    Control_VS.index = table2array(input_table(:,1));
+    Control_VS.x_ref = table2array(input_table(:,2));
+    Control_VS.y_ref = table2array(input_table(:,3));
+    Control_VS.q_ref = table2array(input_table(:,4));
+	Control_VS.x_us = table2array(input_table(:,5));
+	Control_VS.y_us = table2array(input_table(:,6));
+	Control_VS.k_sup = table2array(input_table(:,7));
+    Control_VS.k_inf = table2array(input_table(:,8));
+    Control_VS.d_lim = table2array(input_table(:,9));
 end
 
 clear input_table
