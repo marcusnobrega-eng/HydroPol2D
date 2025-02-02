@@ -26,20 +26,19 @@ t = dt:dt:td;
 nsteps = length(t);
 
 %% 2. Calculate intensity
-%idf = K.*(RP^a)./((b + t).^c); % Rainfall Intensity for all t durations
+idf = K.*(RP^a)./((b + t).^c); % Rainfall Intensity for all t durations
 % The next parameters are for calculation of intensity in the Aricanduva
 % basin. The values were taken from the Hydrographic Basin Book (Caderno de
 % Bacia Hidrográfica) 2022.
-A = 32.77;
-B = 20;
-C = -0.878;
-D = 16.1;
-E = 30;
-F = -0.9306;
-G = -0.4692;
-H = -0.8474;
-
-idf = 60*(A.*(t + B).^C + D.*(t + E).^F.*(G + H*log(log(RP/(RP-1))))); % mm/hr Aricanduva IDF
+%A = 32.77;
+%B = 20;
+%C = -0.878;
+%D = 16.1;
+%E = 30;
+%F = -0.9306;
+%G = -0.4692;
+%H = -0.8474;
+%idf = 60*(A.*(t + B).^C + D.*(t + E).^F.*(G + H*log(log(RP/(RP-1))))); % mm/hr Aricanduva IDF
 rainfal_volume = idf(end)*td/60; % mm
 delta_t = zeros(1,length(idf));
 for k = 1:(length(idf))
