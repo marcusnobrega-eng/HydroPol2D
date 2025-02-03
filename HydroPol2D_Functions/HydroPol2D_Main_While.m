@@ -101,9 +101,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 Control_VS.prev_depth(i) = depths.d_t(Control_VS.y_us_index(i),Control_VS.x_us_index(i))./1000;
             end    
         else
-            for i = 1:lenght(Control_VS.index)
-                Control_VS.prev_depth(i) = 0;
-            end 
+            Control_VS.prev_depth = []; 
         end
     else
         if flags.flag_infiltration == 1
@@ -184,11 +182,11 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical);
         else
             % -------------------- Local Inertial Formulation ----------------%
-            [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf,Reservoir_Data.k1,Control_VS.prev_depth] = ...
-                Bates_Inertial_4D(Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
+            [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf,Reservoir_Data.k1,Control_VS.prev_depth,Reservoir_Data.k2] = ...
+                Bates_Inertial_4D(Reservoir_Data.index, Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
                 flags.flag_reservoir,Elevation_Properties.elevation_cell,...
-                depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical,...
-                Control_VS.index, Control_VS.x_ref_index, Control_VS.y_ref_index, Control_VS.q_ref, Control_VS.x_us_index, Control_VS.y_us_index, flags.flag_control_vs,t, fis_controller,Control_VS.prev_depth); %modi mateo
+                depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,flags.flag_critical,...
+                Control_VS.index, Control_VS.x_ref_index, Control_VS.y_ref_index, Control_VS.q_ref, Control_VS.x_us_index, Control_VS.y_us_index, flags.flag_control_vs,t, fis_controller,Control_VS.prev_depth, Control_VS.b_culv, Control_VS.k1_culv, Control_VS.k2_culv); %modi mateo
         end
     end
 
