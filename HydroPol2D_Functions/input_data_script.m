@@ -471,9 +471,12 @@ if flags.flag_control_vs == 1
     Control_VS.q_ref = table2array(input_table(:,4));
 	Control_VS.x_us = table2array(input_table(:,5));
 	Control_VS.y_us = table2array(input_table(:,6));
-	Control_VS.k_sup = table2array(input_table(:,7));
-    Control_VS.k_inf = table2array(input_table(:,8));
+	Control_VS.A_sup = table2array(input_table(:,7));
+    Control_VS.A_inf = table2array(input_table(:,8));
     Control_VS.d_lim = table2array(input_table(:,9));
+    Control_VS.b_culv = table2array(input_table(:,10));
+    Control_VS.k1_culv = table2array(input_table(:,11));
+    Control_VS.k2_culv = table2array(input_table(:,12));
 end
 
 clear input_table
