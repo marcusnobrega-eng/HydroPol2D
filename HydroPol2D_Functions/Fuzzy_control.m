@@ -1,4 +1,4 @@
-function[fis_controller] = Fuzzy_control(d_lim,k_inf,k_sup)
+function[fis_controller] = Fuzzy_control(d_lim,A_inf,A_sup)
 
 %%Creation of fuzzy interferance
 
@@ -7,13 +7,13 @@ fis_controller(1:length(d_lim)) = mamfis;
 for i = 1:length(d_lim)
 
 dlimref = d_lim(i); % depth reference per reservior
-kinf = k_inf(i);
-ksup = k_sup(i);
+Ainf = A_inf(i);
+Asup = A_sup(i);
 
 varref = 0.2*dlimref;%variation limit
 percentageStep = 0.20;% Define the percentage step (20%)
-stepSize = percentageStep * (ksup - kinf);% Calculate the step size
-parameterValues = kinf:stepSize:ksup;% Generate the values
+stepSize = percentageStep * (Asup - Ainf);% Calculate the step size
+parameterValues = Ainf:stepSize:Asup;% Generate the values
 
 reservfis = mamfis('Name', 'ReservoirFuzzyController');
 
@@ -23,7 +23,7 @@ reservfis = addInput(reservfis, [-varref, varref], 'Name', 'VarWaterLevel');
 %fis = addInput(fis, [0, max(qbase)], 'Name', 'FlowDifference');
 
 % Definição da variável de saída
-reservfis = addOutput(reservfis, [kinf, ksup], 'Name', 'ValveOpening');
+reservfis = addOutput(reservfis, [Ainf, Asup], 'Name', 'ValveOpening');
 
 % Definir funções de pertinência para a lâmina de água
 reservfis = addMF(reservfis, 'WaterLevel', 'zmf', [0.2*dlimref 0.5*dlimref], 'Name', 'Low');
