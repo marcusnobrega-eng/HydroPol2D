@@ -1,4 +1,4 @@
-function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf,k1,fcprev_depth] = Bates_Inertial_4D(reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical, controlvs_idx, controlvs_xref, controlvs_yref, controlvs_qref, controlvs_xus, controlvs_yus, flag_controlvs, simulation_time, fuzzycontrol,fcprev_depth)
+function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf,k1,fcprev_depth,k2] = Bates_Inertial_4D(reservior_idx,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,flag_critical, controlvs_idx, controlvs_xref, controlvs_yref, controlvs_qref, controlvs_xus, controlvs_yus, flag_controlvs, simulation_time, fuzzycontrol,fcprev_depth,b_culv,k1_culv,k2_culv)
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %                                                                 %
 %                 Produced by Marcus Nobrega Gomes Junior         %
@@ -179,21 +179,19 @@ if simulation_time > 1 && rem(round(simulation_time),5) ==  0
         VarWD = dtprev - dtcontrol;
         operator = fuzzycontrol(ii);
         
-        k_change = evalfis(operator, [dtcontrol, VarWD]);
+        Op_change = evalfis(operator, [dtcontrol, VarWD]);
+
+        if Op_change>dtcontrol
+            k_change = k1_culv(ii); % the structure works as a culvert 
+            k_change2 = k2_culv(ii);
+        else
+            k_change = Op_change; % the structure works as a vertical gate 
+            k_change2 = 0.5;
+        end
 
         k1(controlvs_idx(ii)) = k_change;  % update the k1 value
+        k2(controlvs_idx(ii)) = k_change2; % update the k2 value
         fcprev_depth(controlvs_idx(ii)) = dtcontrol; %update the previus depths 
-        %%%%%%%% basic rules for the first steps %%%%%%%%%%
-        %{  
-        if dtcontrol > dlim(ii) % verify if the 80 % level limit of the reservior in the entrance points allow to modify the parameters
-            k_change = parameterValues(3); %if the level is greater than the depth limit in the reservior, full open discharge
-        elseif dtcontrol < 0.8*dlim(ii) 
-            k_change = parameterValues(1); %if the current flow is lower than  the reference flow, 0% close valve
-        else
-            k_change = parameterValues(2); %50% open valve
-        k1(controlvs_idx(ii)) = k_change;    
-        end 
-        %}
     end
 end
 end
@@ -207,7 +205,18 @@ if flag_reservoir == 1
             dt_h = (time_step)/60; % timestep in hours
             % ---- First Boundary Condition ----- %
             available_volume = 1000*(max(dtsup - h1(ii),0))/dt_h; %  mm/h
-            dh = min(k1(ii)*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
+            if flag_controlvs == 1 && ismember(reservior_idx(ii),controlvs_idx)
+                logicalIndices = (reservior_idx(ii) == controlvs_idx);% Create a logical array where X matches elements in the list
+                positions = find(logicalIndices);% Find the positions where the logical array is true
+                if k1(ii) ~= k1_culv(positions) % it means that the structure works as a gate  
+                    Cdg = (0.62/sqrt(1+(0.62*k1(ii)/dtsup)))*(k1(ii)*b_culv(positions)*sqrt(2*9.81));% adaptative "k1"
+                    dh = min(Cdg*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h; %mm
+                else    
+                    dh = min(k1(ii)*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
+                end
+            else    
+                dh = min(k1(ii)*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
+            end
             I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
             dtsup = dtsup - dh/1000;
             % Refreshing downstream cell
