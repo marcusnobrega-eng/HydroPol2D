@@ -295,7 +295,7 @@ if flags.flag_control_vs == 1 %modi mateo
     Control_VS.y_ref_index = round((GIS_data.yulcorner - Control_VS.y_ref)/Wshed_Properties.Resolution);
     Control_VS.y_us_index = round((GIS_data.yulcorner - Control_VS.y_us)/Wshed_Properties.Resolution);
   
-    [fis_controller] = Fuzzy_control(Control_VS.d_lim,Control_VS.k_inf,Control_VS.k_sup);
+    [fis_controller] = Fuzzy_control(Control_VS.d_lim,Control_VS.A_inf,Control_VS.A_sup);
 
 else
     Control_VS.index = [];
@@ -304,6 +304,9 @@ else
     Control_VS.q_ref = [];
 	Control_VS.x_us_index = [];
 	Control_VS.y_us_index = [];
+    Control_VS.b_culv = [];
+    Control_VS.k1_culv = [];
+    Control_VS.k2_culv = [];
     
     fis_controller = [];
 
