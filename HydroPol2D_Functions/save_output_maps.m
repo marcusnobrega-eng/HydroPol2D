@@ -307,8 +307,8 @@ if flags.flag_automatic_calibration ~= 1
         end
 
          if flags.flag_control_vs == 1 %modi mateo
-             % %save the position of the gate 
-            for i = 1:legnth(Control_VS.index)
+             %save the position of the gate 
+            for i = 1:length(Control_VS.index)
                 if Reservoir_Data.k1(i)/Control_VS.A_sup(i) > 1
                     Control_VS.gatestates(t_store,i) = 1; 
                 else
