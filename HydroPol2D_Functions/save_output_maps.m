@@ -199,6 +199,16 @@ if flags.flag_automatic_calibration ~= 1
         if flags.flag_waterquality == 1
             WQ_States.WQ_States.outet_pollutograph(1,1) = Out_Conc; % Already averaged for all outlet cells
         end
+        if flags.flag_control_vs == 1 %modi mateo
+             % %save the position of the gate 
+            for i = 1:length(Control_VS.index)
+                if Reservoir_Data.k1(i)/Control_VS.A_sup(i) > 1
+                    Control_VS.gatestates(1,i) = 1; 
+                else
+                    Control_VS.gatestates(1,i) = Reservoir_Data.k1(i)/Control_VS.A_sup(i);
+                end
+            end
+        end    
     elseif recording_parameters.delta_record_hydrograph > 0
         t_store = recording_parameters.actual_record_hydrograph;
         outlet_states.outlet_hydrograph(t_store,1) = nansum(nansum(outlet_states.outlet_flow))/1000*Wshed_Properties.cell_area/3600; % m3/s
@@ -283,8 +293,8 @@ if flags.flag_automatic_calibration ~= 1
                     end
                 end
             end
-        end
-
+        end   
+        
         if flags.flag_waterquality == 1
             WQ_States.outet_pollutograph(t_store,1) = Out_Conc;
             % Saving Data of Input Gauges
@@ -295,6 +305,17 @@ if flags.flag_automatic_calibration ~= 1
                 end
             end
         end
+
+         if flags.flag_control_vs == 1 %modi mateo
+             % %save the position of the gate 
+            for i = 1:legnth(Control_VS.index)
+                if Reservoir_Data.k1(i)/Control_VS.A_sup(i) > 1
+                    Control_VS.gatestates(t_store,i) = 1; 
+                else
+                    Control_VS.gatestates(t_store,i) = Reservoir_Data.k1(i)/Control_VS.A_sup(i);
+                end
+            end
+        end 
     end % Calls the sub
 end
 
