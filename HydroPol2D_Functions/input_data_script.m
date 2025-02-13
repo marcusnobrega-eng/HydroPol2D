@@ -477,6 +477,7 @@ if flags.flag_control_vs == 1
     Control_VS.b_culv = table2array(input_table(:,10));
     Control_VS.k1_culv = table2array(input_table(:,11));
     Control_VS.k2_culv = table2array(input_table(:,12));
+    Control_VS.tgate = table2array(input_table(:,13));
 end
 
 clear input_table
