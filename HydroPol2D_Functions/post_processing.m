@@ -422,12 +422,12 @@ end
 close all
 
 %% Gate states %modi mateo
-%if flags.flag_control_vs ==1
- %   gates_states_control = table(gather(running_control.time_hydrograph),gather(Control_VS.gatestates), 'VariableNames',{'Time (min) or Date','Gate state'});
-  %  FileName_String = 'Gate_state';
-   % FileName = fullfile(folderName,strcat('\',FileName_String,'.csv'));
-    %writetable(gates_states_control,FileName);
-%end
+if flags.flag_control_vs ==1
+    gates_states_control = table(gather(running_control.time_hydrograph),gather(Control_VS.gatestates), 'VariableNames',{'Time (min) or Date','Gate state'});
+    FileName_String = 'Gate_state';
+    FileName = fullfile(folderName,strcat('\',FileName_String,'.csv'));
+    writetable(gates_states_control,FileName);
+end
 %% Hydrographs - Specific Cell
 if flags.flag_obs_gauges == 1
     if gauges.num_obs_gauges == 1
