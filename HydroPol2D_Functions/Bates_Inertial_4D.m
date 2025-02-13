@@ -1,4 +1,4 @@
-function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf,k1,fcprev_depth,k2] = Bates_Inertial_4D(reservior_idx,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,flag_critical, controlvs_idx, controlvs_xref, controlvs_yref, controlvs_qref, controlvs_xus, controlvs_yus, flag_controlvs, simulation_time, fuzzycontrol,fcprev_depth,b_culv,k1_culv,k2_culv)
+function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf,k1,fcprev_depth,k2,stepprev] = Bates_Inertial_4D(reservior_idx,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,flag_critical, controlvs_idx, controlvs_xref, controlvs_yref, controlvs_qref, controlvs_xus, controlvs_yus, flag_controlvs, simulation_time, fuzzycontrol,fcprev_depth,b_culv,k1_culv,k2_culv,A_inf,A_sup,stepprev)
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %                                                                 %
 %                 Produced by Marcus Nobrega Gomes Junior         %
@@ -169,17 +169,25 @@ matrix_store = outflow; % mm per hour
 %% Control Reservoir Boundary Condition
 % towards the valves
 if flag_controlvs == 1 && flag_reservoir == 1
-if simulation_time > 1 && rem(round(simulation_time),5) ==  0 
+if simulation_time > 1 && rem(round(simulation_time),5) ==  0 && round(simulation_time)~= stepprev
+    stepprev = round(simulation_time);
     for ii = 1:length(controlvs_yref)
         %qbase = controlvs_qref(ii)/(Resolution^2)*1000*3600; %flow reference in mm per hour
         %flows = outflow(controlvs_yref(ii), controlvs_xref(ii), :);
         %qtcontrol = sum(flows, 'all'); %flow at the reference cell mm/h
-        dtcontrol = gather(d_tot(controlvs_yus(ii),controlvs_xus(ii))./1000); % Water depth in the cell that has the level indicator (m)
+        dtcontrol = gather(max(d_tot(controlvs_yus(ii),controlvs_xus(ii))./1000-h1(ii),0)); % Water depth in the cell that has the level indicator (m)
         dtprev = gather(fcprev_depth(ii));
-        VarWD = dtprev - dtcontrol;
+        VarWD = dtcontrol - dtprev;
         operator = fuzzycontrol(ii);
-        
+
         Op_change = evalfis(operator, [dtcontrol, VarWD]);
+
+        % Define possible discrete steps
+        valid_steps = [0, 0.25, 0.50, 0.75, 1] * (A_sup(ii) - A_inf(ii));
+
+        % Snap to the nearest step
+        [~, idx] = min(abs(valid_steps - Op_change));
+        Op_change = valid_steps(idx);
 
         if Op_change>dtcontrol
             k_change = k1_culv(ii); % the structure works as a culvert 
@@ -234,8 +242,13 @@ if flag_reservoir == 1
             % Refreshing downstream cell
             d_tot(yds2(ii),xds2(ii)) = d_tot(yds2(ii),xds2(ii)) + dh;
         end
-	end
+	    %if 	dh > 26/cell_area*1000*3600*dt_h
+         %   stop = 1
+        %end 
+    end
 end
+  
+
 qout_left = matrix_store(:,:,1);
 qout_right = matrix_store(:,:,2);
 qout_up = matrix_store(:,:,3);
