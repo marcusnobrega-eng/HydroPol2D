@@ -16,7 +16,7 @@ ksup = 4.52;
 %}
 
 if tgate(i) == 0
-    varref = 0.10*dlimref;%variation limit (10%)
+    varref = 0.15*dlimref;%variation limit (15%)
     percentageStep = 0.25;% Define the percentage step (25%)
     stepSize = percentageStep * (Asup - Ainf);% Calculate the step size
     parameterValues = Ainf:stepSize:Asup;% Generate the values
@@ -62,7 +62,30 @@ if tgate(i) == 0
     reservfis = addMF(reservfis, 'ValveOpening', 'linsmf', [parameterValues(4) parameterValues(5)-0.5*stepSize], 'Name', 'Op_100');
     %}
     % Definir as regras fuzzy
+     %Caguacu rules culv
+
+    ruleList = [
+        "If WaterLevel is Low and VarWaterLevel is NH then ValveOpening is Op_25"
+        "If WaterLevel is Low and VarWaterLevel is NL then ValveOpening is Op_25"
+        "If WaterLevel is Low and VarWaterLevel is Z then ValveOpening is Op_25"
+        "If WaterLevel is Low and VarWaterLevel is PL then ValveOpening is Op_50"
+        "If WaterLevel is Low and VarWaterLevel is PH then ValveOpening is Op_50"
+        "If WaterLevel is Medium and VarWaterLevel is NH then ValveOpening is Op_25"
+        "If WaterLevel is Medium and VarWaterLevel is NL then ValveOpening is Op_25"
+        "If WaterLevel is Medium and VarWaterLevel is Z then ValveOpening is Op_25"
+        "If WaterLevel is Medium and VarWaterLevel is PL then ValveOpening is Op_75"
+        "If WaterLevel is Medium and VarWaterLevel is PH then ValveOpening is Op_75"
+        "If WaterLevel is High and VarWaterLevel is NH then ValveOpening is Op_25"
+        "If WaterLevel is High and VarWaterLevel is NL then ValveOpening is Op_50"
+        "If WaterLevel is High and VarWaterLevel is Z then ValveOpening is Op_50"
+        "If WaterLevel is High and VarWaterLevel is PL then ValveOpening is Op_100"
+        "If WaterLevel is High and VarWaterLevel is PH then ValveOpening is Op_100"
     
+    ];
+
+
+
+    %{
     % limo gate
     ruleList = [
         "If WaterLevel is Low and VarWaterLevel is NH then ValveOpening is Op_25"
@@ -82,8 +105,8 @@ if tgate(i) == 0
         "If WaterLevel is High and VarWaterLevel is PH then ValveOpening is Op_100"
     
     ];
-
-
+    %}
+    
     %{
     % AR1 gate
     ruleList = [
@@ -133,7 +156,7 @@ if tgate(i) == 0
     end
     %}
 elseif tgate(i) == 1 %spill gate
-    varref = 0.1*dlimref;%variation limit (10%)
+    varref = 0.15*dlimref;%variation limit (15%)
     percentageStep = 0.25;% Define the percentage step (25%)
     stepSize = percentageStep * (Asup - Ainf);% Calculate the step size
     parameterValues = Ainf:stepSize:Asup;% Generate the values
@@ -150,35 +173,45 @@ elseif tgate(i) == 1 %spill gate
     reservfis = addOutput(reservfis, [Ainf, Asup], 'Name', 'GateOpening');
 
     % Definir funções de pertinência para a lâmina de água
-    reservfis = addMF(reservfis, 'WaterLevel', 'trimf', [0 0.25/2*dlimref 0.25*dlimref], 'Name', 'Low');
-     reservfis = addMF(reservfis, 'WaterLevel', 'trimf', [0.25*dlimref 0.375*dlimref 0.5*dlimref], 'Name', 'MediumL');
+    reservfis = addMF(reservfis, 'WaterLevel', 'linzmf', [0.25/2*dlimref 0.25*dlimref], 'Name', 'Low');
+    reservfis = addMF(reservfis, 'WaterLevel', 'trimf', [0.25*dlimref 0.375*dlimref 0.5*dlimref], 'Name', 'MediumL');
     reservfis = addMF(reservfis, 'WaterLevel', 'trimf', [0.5*dlimref 0.625*dlimref 0.75*dlimref], 'Name', 'MediumH');
-    reservfis = addMF(reservfis, 'WaterLevel', 'trimf', [0.75*dlimref 0.875*dlimref dlimref], 'Name', 'High');
+    reservfis = addMF(reservfis, 'WaterLevel', 'linsmf', [0.75*dlimref 0.875*dlimref], 'Name', 'High');
 
-
+    %{
     % Definir funções de pertinência para a diferença de fluxo
     reservfis = addMF(reservfis, 'VarWaterLevel', 'linzmf', [-0.5*varref 0], 'Name', 'N');
     reservfis = addMF(reservfis, 'VarWaterLevel', 'trapmf', [-0.25*varref -0.1*varref 0.1*varref 0.25*varref], 'Name', 'Z');
     reservfis = addMF(reservfis, 'VarWaterLevel', 'linsmf', [0 0.5*varref], 'Name', 'P');
+    %}
+    % Definir funções de pertinência para a diferença de fluxo
+    reservfis = addMF(reservfis, 'VarWaterLevel', 'zmf', [0 0.5*varref], 'Name', 'N');
+    reservfis = addMF(reservfis, 'VarWaterLevel', 'smf', [0.1*varref 0.5*varref], 'Name', 'P');
 
 
 
     % Definir funções de pertinência para a saída (abertura da válvula)
-    reservfis = addMF(reservfis, 'GateOpening', 'trimf', [parameterValues(1), parameterValues(1), (parameterValues(2)-parameterValues(1))*0.5], 'Name', 'Op_0');
-    reservfis = addMF(reservfis, 'GateOpening', 'trimf', [(parameterValues(2)-parameterValues(1))*0.5, parameterValues(2), parameterValues(2)+(parameterValues(3)-parameterValues(2))*0.5], 'Name', 'Op_25');
-    reservfis = addMF(reservfis, 'GateOpening', 'trimf', [parameterValues(2)+(parameterValues(3)-parameterValues(2))*0.5, parameterValues(3), parameterValues(3)+(parameterValues(3)-parameterValues(2))*0.5], 'Name', 'Op_50');
+    reservfis = addMF(reservfis, 'GateOpening', 'linzmf', [(parameterValues(2)-parameterValues(1))*0.5 parameterValues(2)], 'Name', 'Op_0');
+    reservfis = addMF(reservfis, 'GateOpening', 'trapmf', [(parameterValues(2)-parameterValues(1))*0.5, parameterValues(2)-0.1*stepSize, parameterValues(2)+0.1*stepSize, parameterValues(2)+(parameterValues(3)-parameterValues(2))*0.5], 'Name', 'Op_25');
+    reservfis = addMF(reservfis, 'GateOpening', 'trapmf', [parameterValues(2)+(parameterValues(3)-parameterValues(2))*0.5, parameterValues(3)-0.1*stepSize, parameterValues(3)+0.1*stepSize , parameterValues(3)+(parameterValues(3)-parameterValues(2))*0.5], 'Name', 'Op_50');
     reservfis = addMF(reservfis, 'GateOpening', 'trimf', [parameterValues(3)+(parameterValues(3)-parameterValues(2))*0.5, parameterValues(4), parameterValues(4)+(parameterValues(4)-parameterValues(3))*0.5], 'Name', 'Op_75');
     reservfis = addMF(reservfis, 'GateOpening', 'linsmf', [parameterValues(4) parameterValues(4)+(parameterValues(4)-parameterValues(3))*0.5 ], 'Name', 'Op_100');
 
-    %{
-    reservfis = addMF(reservfis, 'ValveOpening', 'linzmf', [parameterValues(1)+0.5*stepSize parameterValues(2)], 'Name', 'Op_0');
-    reservfis = addMF(reservfis, 'ValveOpening', 'trimf', [parameterValues(1) parameterValues(2) parameterValues(3)], 'Name', 'Op_25');
-    reservfis = addMF(reservfis, 'ValveOpening', 'trimf', [parameterValues(2) parameterValues(3) parameterValues(4)], 'Name', 'Op_50');
-    reservfis = addMF(reservfis, 'ValveOpening', 'trimf', [parameterValues(3) parameterValues(4) parameterValues(5)], 'Name', 'Op_75');
-    reservfis = addMF(reservfis, 'ValveOpening', 'linsmf', [parameterValues(4) parameterValues(5)-0.5*stepSize], 'Name', 'Op_100');
-    %}
     % Definir as regras fuzzy
     
+    %Caguacu rules spill
+    ruleList = [
+        "If WaterLevel is Low and VarWaterLevel is N then GateOpening is Op_0"
+        "If WaterLevel is Low and VarWaterLevel is P then GateOpening is Op_0"
+        "If WaterLevel is MediumL and VarWaterLevel is N then GateOpening is Op_25"
+        "If WaterLevel is MediumL and VarWaterLevel is P then GateOpening is Op_25"
+        "If WaterLevel is MediumH and VarWaterLevel is N then GateOpening is Op_25"
+        "If WaterLevel is MediumH and VarWaterLevel is P then GateOpening is Op_25"
+        "If WaterLevel is High and VarWaterLevel is N then GateOpening is Op_25"
+        "If WaterLevel is High and VarWaterLevel is P then GateOpening is Op_50"
+    ];
+
+    %{
     %Limo rules
     ruleList = [
         "If WaterLevel is Low and VarWaterLevel is N then GateOpening is Op_0"
@@ -193,9 +226,9 @@ elseif tgate(i) == 1 %spill gate
         "If WaterLevel is High and VarWaterLevel is N then GateOpening is Op_25"
         "If WaterLevel is High and VarWaterLevel is Z then GateOpening is Op_50"
         "If WaterLevel is High and VarWaterLevel is P then GateOpening is Op_50"
-        
-    
     ];
+    %}
+
     %{
     % AR1 gata
     ruleList = [
