@@ -175,7 +175,7 @@ if simulation_time > 1 && rem(round(simulation_time),5) ==  0 && round(simulatio
         %qbase = controlvs_qref(ii)/(Resolution^2)*1000*3600; %flow reference in mm per hour
         %flows = outflow(controlvs_yref(ii), controlvs_xref(ii), :);
         %qtcontrol = sum(flows, 'all'); %flow at the reference cell mm/h
-        dtcontrol = gather(max(d_tot(controlvs_yus(ii),controlvs_xus(ii))./1000-h1(ii),0)); % Water depth in the cell that has the level indicator (m)
+        dtcontrol = gather(max((d_tot(controlvs_yus(ii),controlvs_xus(ii))./1000)-h1(ii),0)); % Water depth in the cell that has the level indicator (m)
         dtprev = gather(fcprev_depth(ii));
         VarWD = dtcontrol - dtprev;
         operator = fuzzycontrol(ii);
@@ -188,7 +188,15 @@ if simulation_time > 1 && rem(round(simulation_time),5) ==  0 && round(simulatio
         % Snap to the nearest step
         [~, idx] = min(abs(valid_steps - Op_change));
         Op_change = valid_steps(idx);
-
+        
+        k_change = Op_change; % the structure works as a vertical gate 
+        k_change2 = 0.5;
+        
+        %{
+        if Op_change == 0
+            stop = 1
+        end    
+        
         if Op_change>dtcontrol
             k_change = k1_culv(ii); % the structure works as a culvert 
             k_change2 = k2_culv(ii);
@@ -196,7 +204,7 @@ if simulation_time > 1 && rem(round(simulation_time),5) ==  0 && round(simulatio
             k_change = Op_change; % the structure works as a vertical gate 
             k_change2 = 0.5;
         end
-
+        %}
         k1(controlvs_idx(ii)) = k_change;  % update the k1 value
         k2(controlvs_idx(ii)) = k_change2; % update the k2 value
         fcprev_depth(controlvs_idx(ii)) = dtcontrol; %update the previus depths 
@@ -207,7 +215,7 @@ end
 %% Reservoir Boundary Condition - We are assuming that all flow drains
 % towards the spillway
 if flag_reservoir == 1   
-	for ii = 1:length(reservoir_y)
+    for ii = 1:length(reservoir_y)
         if ~isnan(yds1(ii))
             dtsup = d_tot(reservoir_y(ii),reservoir_x(ii))./1000; % % Water depth in the cell that has the boundary condition (m)
             dt_h = (time_step)/60; % timestep in hours
@@ -216,11 +224,12 @@ if flag_reservoir == 1
             if flag_controlvs == 1 && ismember(reservior_idx(ii),controlvs_idx)
                 logicalIndices = (reservior_idx(ii) == controlvs_idx);% Create a logical array where X matches elements in the list
                 positions = find(logicalIndices);% Find the positions where the logical array is true
-                if k1(ii) ~= k1_culv(positions) % it means that the structure works as a gate  
+                dtsup_controlvs = max(dtsup - h1(ii),0);
+                if k1(ii) ~= k1_culv(positions) && dtsup_controlvs > k1(ii) % it means that the structure works as a gate  
                     Cdg = (0.62/sqrt(1+(0.62*k1(ii)/dtsup)))*(k1(ii)*b_culv(positions)*sqrt(2*9.81));% adaptative "k1"
                     dh = min(Cdg*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h; %mm
-                else    
-                    dh = min(k1(ii)*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
+                else    % it means that the structure works as a culvert or spill
+                    dh = min(k1_culv(ii)*(max(dtsup - h1(ii),0))^k2_culv(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
                 end
             else    
                 dh = min(k1(ii)*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
