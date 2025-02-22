@@ -174,7 +174,7 @@ cell_width = C_a/Resolution; % cell width in m
 % end
 %% Limiting outflow to critical velocity
 if flag_critical == 1
-    critical_velocity = Hf.*sqrt(g*Hf);
+    critical_velocity = Hf(:,:,1:size(outflow,3)).*sqrt(g*Hf(:,:,1:size(outflow,3)));
     outflow = min(outflow,critical_velocity); % m2/s (normalized by flow width)
 end
 outflow_rate = outflow.*(cell_width); % m3/s

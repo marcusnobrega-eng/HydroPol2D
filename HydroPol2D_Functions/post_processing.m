@@ -236,7 +236,7 @@ end
 
 %% Normalized Discharge %%
 % Rainfall Std Deviation
-zero_matrix = zeros(size(elevation,1),size(elevation,2));
+zero_matrix = zeros(size(Elevation_Properties.elevation_cell,1),size(Elevation_Properties.elevation_cell,2));
 if flags.flag_spatial_rainfall == 1
     store=1;
     flag_loader=1;

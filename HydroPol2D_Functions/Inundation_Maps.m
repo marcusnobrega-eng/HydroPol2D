@@ -8,144 +8,245 @@ t_max = running_control.routing_time;
 tfinal = t_max ; %t_max;
 DEM_maps = gather(Elevation_Properties.elevation_cell);
 
-%% Time Data
-if flags.flag_elapsed_time ~=1.
+%% Time Data Processing
+% The following block processes time-related data for different components 
+% of the hydrological-hydrodynamic model, such as spatial rainfall, 
+% evapotranspiration (ETP), and time records. Time values are adjusted 
+% if they are not already in datetime format.
+
+% Check if elapsed time flag is not set
+if flags.flag_elapsed_time ~= 1
+    % If spatial rainfall is enabled, process the spatial rainfall duration
     if flags.flag_spatial_rainfall == 1
+        % Convert rainfall spatial duration to datetime if not already in datetime format
         if ~isdatetime(Spatial_Rainfall_Parameters.rainfall_spatial_duration)
-            Spatial_Rainfall_Parameters.rainfall_spatial_duration = Spatial_Rainfall_Parameters.rainfall_spatial_duration/60/24 + date_begin;
+            % Convert from minutes to days and add start date
+            Spatial_Rainfall_Parameters.rainfall_spatial_duration = ...
+                Spatial_Rainfall_Parameters.rainfall_spatial_duration / 60 / 24 + date_begin;
         end
     end
+
+    % If ETP (Evapotranspiration) is enabled, process the climatologic duration
     if flags.flag_ETP == 1
+        % Convert climatologic spatial duration to datetime if not already in datetime format
         if ~isdatetime(ETP_Parameters.climatologic_spatial_duration)
-            ETP_Parameters.climatologic_spatial_duration = ETP_Parameters.climatologic_spatial_duration/60/24 + date_begin;
+            % Convert from minutes to days and add start date
+            ETP_Parameters.climatologic_spatial_duration = ...
+                ETP_Parameters.climatologic_spatial_duration / 60 / 24 + date_begin;
         end
     end
+
+    % Convert time records to datetime format if not already
     if ~isdatetime(running_control.time_records)
-        running_control.time_records =  double(running_control.time_records/60/24) + date_begin;
+        % Convert from minutes to days and add start date
+        running_control.time_records = ...
+            double(running_control.time_records / 60 / 24) + date_begin;
     end
 end
 
-%% Creating the custom basemap
-basemapName = "openstreetmap";
-url = "c.tile.openstreetmap.org/${z}/${x}/${y}.png";
-url2 = 'a';
-copyright = char(uint8(169));
-attribution = copyright + "OpenStreetMap contributors";
-attribution_2 = "Stadia Maps @ OpenStreetMap contributors";
-addCustomBasemap(basemapName,url,"Attribution",attribution)
+%% Creating the Custom Basemap
+% This section sets up a custom basemap using OpenStreetMap tiles and
+% specifies the attribution for usage in the plot.
 
-% Getting lat and lon from the study area
+% Define basemap name and URL template for OpenStreetMap
+basemapName = "openstreetmap"; % Custom name for the basemap
+url = "c.tile.openstreetmap.org/${z}/${x}/${y}.png"; % URL template for fetching tiles
+url2 = 'a'; % Placeholder, potentially unused
+copyright = char(uint8(169)); % Copyright symbol
+attribution = copyright + "OpenStreetMap contributors"; % Full attribution string
+attribution_2 = "Stadia Maps @ OpenStreetMap contributors"; % Additional attribution info
 
-[lat,lon] = projinv(DEM_raster.georef.SpatialRef.ProjectedCRS,DEM_raster.georef.SpatialRef.XWorldLimits,DEM_raster.georef.SpatialRef.YWorldLimits);
-latlim = [lat(1) lat(2)];
-lonlim = [lon(1) lon(2)];
-% Retriving the basemap image
+% Add the custom basemap to the current figure
+addCustomBasemap(basemapName, url, "Attribution", attribution); 
+% The function 'addCustomBasemap' integrates the basemap into the map with the provided attribution
+
+%% Getting Latitude and Longitude from the Study Area
+% This block extracts the latitude and longitude limits from the georeferencing
+% information of the DEM (Digital Elevation Model) raster. These limits define
+% the geographical extent of the study area based on the projected coordinate system.
+
+% Convert the projected coordinate system to geographic coordinates
+% The 'projinv' function transforms the X and Y world limits of the DEM raster
+% from the projected coordinate system into latitude and longitude (geographic coordinates)
+[lat, lon] = projinv(DEM_raster.georef.SpatialRef.ProjectedCRS, ...
+                     DEM_raster.georef.SpatialRef.XWorldLimits, ...
+                     DEM_raster.georef.SpatialRef.YWorldLimits);
+
+% Define latitude and longitude limits
+latlim = [lat(1), lat(2)]; % Latitude range of the study area (min to max latitude)
+lonlim = [lon(1), lon(2)]; % Longitude range of the study area (min to max longitude)
+
+% These limits can now be used for plotting or other geospatial analysis
+
+
+%% Retrieving the Basemap Image
+% This block attempts to fetch the basemap image based on the latitude and longitude limits.
+
 try
-    [A,RA,attribA] = readBasemapImage(basemapName,latlim,lonlim);
+    % Read the basemap image for the specified geographic limits
+    [A, RA, attribA] = readBasemapImage(basemapName, latlim, lonlim); 
+    % A: The image array of the basemap
+    % RA: The referencing matrix for the basemap
+    % attribA: The attribution information for the basemap image
 catch ME
-    warning('You need matlab 2022a or higher to use basemaps in georeference plots.')
+    % If MATLAB version is below 2022a, warn the user about basemap support
+    warning('You need MATLAB 2022a or higher to use basemaps in georeferenced plots.');
 end
-%% Creating a Shapefile from the DEM as reference
 
-% Creating a binary mask
-binaryMask = ~isnan(DEM_raster.Z);
-boundaries = bwboundaries(binaryMask);
+%% Creating a Shapefile from the DEM as Reference
+% This block generates a shapefile representing the boundaries of valid 
+% (non-NaN) data in the DEM raster. It first creates a binary mask, 
+% then extracts the boundary coordinates, and finally creates a shapefile 
+% in the appropriate coordinate reference system (CRS).
+
+% Create a binary mask where non-NaN values in the DEM are set to 1
+binaryMask = ~isnan(DEM_raster.Z); 
+% Extract the boundaries of the valid (non-NaN) data
+boundaries = bwboundaries(binaryMask); 
+
 % Pre-allocate arrays to store combined X and Y coordinates
 combinedX = [];
 combinedY = [];
 
 % Combine all boundary coordinates into a single array
+% Each boundary (polygon) is stored in 'boundaries' as a cell array
 for k = 1:numel(boundaries)
     boundary = boundaries{k};
-    X = boundary(:, 2);
-    Y = boundary(:, 1);
-    combinedX = [combinedX; X; NaN]; % Add NaN to separate polygons
-    combinedY = [combinedY; Y; NaN]; % Add NaN to separate polygons
+    X = boundary(:, 2); % X-coordinates of the boundary
+    Y = boundary(:, 1); % Y-coordinates of the boundary
+    combinedX = [combinedX; X; NaN]; % Add NaN to separate different polygons
+    combinedY = [combinedY; Y; NaN]; % Add NaN to separate different polygons
 end
+
 % Remove the trailing NaNs at the end (optional)
 combinedX = combinedX(1:end-1);
 combinedY = combinedY(1:end-1);
-% making the geostruct to alocate the shapefile
-% cheking if CRS of the project is on WGS84
+
+% Create a geospatial structure for storing the shapefile data
+% Check if the CRS of the DEM raster is Web Mercator (EPSG:3857)
 web_mercator_crs = projcrs(3857);
-no_plot=0;
-if DEM_raster.georef.SpatialRef.ProjectedCRS.Name ~= web_mercator_crs.Name;
+no_plot = 0; % Flag to check if plotting is required
+if DEM_raster.georef.SpatialRef.ProjectedCRS.Name ~= web_mercator_crs.Name
+    % If CRS is not Web Mercator, skip plotting (no_plot = 1)
     no_plot = 1;
 else
-    S_p = struct('Geometry', 'Polygon', 'BoundingBox', [], 'X', [], 'Y', [], 'fid', 1, 'DN', 0);
-    S_p.BoundingBox = [DEM_raster.georef.SpatialRef.XWorldLimits(1,1), DEM_raster.georef.SpatialRef.YWorldLimits(1,1); DEM_raster.georef.SpatialRef.XWorldLimits(1,2), DEM_raster.georef.SpatialRef.YWorldLimits(1,2)]; % Calculate bounding box for each polygon
-    S_p.X = (DEM_raster.georef.SpatialRef.XWorldLimits(1)  + combinedX * DEM_raster.georef.SpatialRef.CellExtentInWorldX - DEM_raster.georef.SpatialRef.CellExtentInWorldX/2)';
-    S_p.Y = (DEM_raster.georef.SpatialRef.YWorldLimits(2)  - combinedY * DEM_raster.georef.SpatialRef.CellExtentInWorldX + DEM_raster.georef.SpatialRef.CellExtentInWorldX/2)';
+    % Prepare the structure for the shapefile data
+    S_p = struct('Geometry', 'Polygon', ...
+                 'BoundingBox', [], ...
+                 'X', [], ...
+                 'Y', [], ...
+                 'fid', 1, 'DN', 0);  % Initialize the structure fields
+             
+    % Calculate the bounding box of the polygon (study area limits)
+    S_p.BoundingBox = [DEM_raster.georef.SpatialRef.XWorldLimits(1,1), ...
+                       DEM_raster.georef.SpatialRef.YWorldLimits(1,1); ...
+                       DEM_raster.georef.SpatialRef.XWorldLimits(1,2), ...
+                       DEM_raster.georef.SpatialRef.YWorldLimits(1,2)];
+
+    % Adjust the X and Y coordinates based on the DEM's georeferencing
+    % Convert the coordinates from raster grid to world coordinates
+    S_p.X = (DEM_raster.georef.SpatialRef.XWorldLimits(1)  + ...
+             combinedX * DEM_raster.georef.SpatialRef.CellExtentInWorldX - ...
+             DEM_raster.georef.SpatialRef.CellExtentInWorldX / 2)';
+    S_p.Y = (DEM_raster.georef.SpatialRef.YWorldLimits(2)  - ...
+             combinedY * DEM_raster.georef.SpatialRef.CellExtentInWorldX + ...
+             DEM_raster.georef.SpatialRef.CellExtentInWorldX / 2)';
 end
 
 %% Set up HEC-RAS colors
 hec_ras_colors = [52/255 85/255 132/255; 0 1 1; 0 128/255 1; 0 255/255 0; 1 1 0; 1 128/255 0; 1 0 0; 128/255 0 128/255];
 
 %% Plot Elevation Model
-h = figure;
-axis tight manual % this ensures that getframe() returns a consistent size
-FileName_String = 'Elevation_Model.gif';
-FileName = fullfile(folderName,strcat('\',FileName_String));
+%% Plot Elevation Model and Save as GIF
 
-a_grid = Wshed_Properties.Resolution;
-b_grid = Wshed_Properties.Resolution;
-tmax = 10;
+% Set up figure for plotting
+h = figure;
+axis tight manual  % Ensures consistent size for getframe()
+FileName_String = 'Elevation_Model.gif'; % Output file name for GIF
+FileName = fullfile(folderName, FileName_String); % Full path to save the GIF
+
+% Grid resolution and time steps
+grid_resolution = Wshed_Properties.Resolution; % Grid resolution
+tmax = 10;  % Number of frames for the animation (adjust as needed)
+
+% Loop through each time step and generate frames
 for t = 1:tmax
-    % Draw plot
-    z = DEM_maps;
+    % Extract DEM data and define grid dimensions
+    z = DEM_maps; % DEM data
     xmax = length(z(1,:));
-    xend = xmax;
     ymax = length(z(:,1));
-    yend = ymax;
-    xbegin = 1;
-    ybegin = 1;
-    max_h = max(max(max(z)));
-    h_max = round(max_h/10,0)*10*1.05;
-    % UTM Coordinates
-    x_grid = GIS_data.xulcorner + a_grid*[xbegin:1:xend]; y_grid = GIS_data.yulcorner - a_grid*[ybegin:1:yend];
-    %     y_grid = flip(y_grid); % Make sure we plot the graphs properly with y towards vertical top.
-    z(z<=0)=inf;
-    h_min = min(min(z));
-    F = DEM_maps([ybegin:1:yend],[xbegin:1:xend]);
-    zmax = max(max(max(z(~isinf(z)))));
-    kk = surf(x_grid,y_grid,F);
-    set(kk,'LineStyle','none');
-    set(gca,'XTickLabel',x_grid)
-    set(gca,'YTickLabel',y_grid)
-    if h_min == zmax
-        zmax = h_min + 0.5;
-    end
-    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) h_min zmax])
-    view(-(t-1)*360/tmax,(t-1)*90/tmax);
-    colorbar
-    caxis([h_min zmax]);
-    colormap(Terrain_RAS)
-    box on
-    hold on
-    title('Elevation','Interpreter','Latex','FontSize',12)
-    k = colorbar ;
-    ylabel(k,'Elevation (m)','Interpreter','Latex','FontSize',12)
-    xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
-    ylabel ('Northing (m) ','Interpreter','Latex','FontSize',12)
-    zlabel ('Elevation (m)','Interpreter','Latex','FontSize',12)
-    set(gca,'FontName','Garamond')
-    drawnow
-    % Capture the plot as an image
+    
+    % Define UTM coordinates
+    x_grid = GIS_data.xulcorner + grid_resolution * (1:xmax);
+    y_grid = GIS_data.yulcorner - grid_resolution * (1:ymax);
+    
+    % Set values <= 0 in the DEM to infinity (no data)
+    z(z <= 0) = inf;
+    
+    % Define plot range based on DEM values
+    h_min = min(z(~isinf(z))); % Minimum elevation value
+    zmax = max(z(~isinf(z))); % Maximum elevation value
+    zmax = round(zmax / 10, 0) * 10 * 1.05; % Adjust to nearest 10 and scale up
+
+    % Extract the DEM data to be plotted
+    F = DEM_maps(1:ymax, 1:xmax); 
+    
+    % Create the 3D surface plot
+    kk = surf(x_grid, y_grid, F);
+    set(kk, 'LineStyle', 'none'); % Remove grid lines
+    set(gca, 'XTickLabel', x_grid, 'YTickLabel', y_grid);
+    
+    % Adjust axis limits based on DEM range
+    axis([min(x_grid) max(x_grid) min(y_grid) max(y_grid) h_min zmax]);
+    
+    % Set the viewing angle for rotation
+    view_angle = (t - 1) * 360 / tmax; % Smooth rotation effect
+    view(view_angle,(t-1)*90/tmax); % Adjust tilt
+
+    % Color settings
+    colorbar; 
+    caxis([h_min, zmax]); % Set color scale for elevation
+    colormap(Terrain_RAS); % Set terrain colormap
+    
+    % Plot aesthetics
+    box on;
+    title('Elevation', 'Interpreter', 'Latex', 'FontSize', 12);
+    
+    % Axis labels
+    k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out'; % Colorbar for elevation
+    ylabel(k, 'Elevation [m]', 'Interpreter', 'Latex', 'FontSize', 12);
+    xlabel('Easting [m]', 'Interpreter', 'Latex', 'FontSize', 12);
+    ylabel('Northing [m]', 'Interpreter', 'Latex', 'FontSize', 12);
+    zlabel('Elevation [m]', 'Interpreter', 'Latex', 'FontSize', 12);
+    
+    % Set font properties
+    set(gca, 'FontName', 'Garamond', 'FontSize', 12);
+    
+    % Increase border (axis) thickness
+    ax = gca; 
+    ax.LineWidth = 2; % Make axis lines thicker
+    
+    % Update the plot
+    drawnow;
+
+    % Capture the plot as an image frame for GIF
     frame = getframe(h);
     im = frame2im(frame);
-    [imind,cm] = rgb2ind(im,256);
-    % Write to the GIF File
+    [imind, cm] = rgb2ind(im, 256); % Convert to indexed image for GIF
+    
+    % Write to GIF file, append after the first frame
     if t == 1
-        imwrite(imind,cm,FileName,'gif', 'Loopcount',inf);
+        imwrite(imind, cm, FileName, 'gif', 'Loopcount', inf);
     else
-        imwrite(imind,cm,FileName,'gif','WriteMode','append');
+        imwrite(imind, cm, FileName, 'gif', 'WriteMode', 'append');
     end
 end
-clf
+
+% Close the figure after GIF creation
+clf; % Clear figure window
 
 %% Plot Water Surface Elevation and Depths
 % Adjusting the size
-
 
 % Generate video showing water level profile over time
 close all
@@ -228,7 +329,12 @@ for t = 1:f:length(running_control.time_records)
     if isnan(z1min)
         zmin = 0;
     end
-
+    xmax = length(z(1,:));
+    xend = xmax;
+    ymax = length(z(:,1));
+    yend = ymax;
+    xbegin = 1;
+    ybegin = 1;
     F = z1([ybegin:1:yend],[xbegin:1:xend],t - (store-1)*saver_memory_maps);
     F(idx2(:,:,t - (store-1)*saver_memory_maps)) = 0;
     F(F==0)=nan;
@@ -254,13 +360,16 @@ for t = 1:f:length(running_control.time_records)
     view(0,90);
     colorbar
     caxis([z1min z1max]);
-    colormap(ax1,WSE_RAS);
-    k = colorbar;
-    ylabel(k,'WSE (m)','Interpreter','Latex','FontSize',12)
-    xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
-    ylabel (' Northing (m) ','Interpreter','Latex','FontSize',12)
-    zlabel ('WSE (m)','Interpreter','Latex','FontSize',12)
-    set(gca,'FontName','Garamond')
+    colormap(ax1,WSE_RAS)
+    k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out'; k.TickDirection  = 'out';
+    ylabel(k,'WSE [m]','Interpreter','Latex','FontSize',12)
+    xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+    ylabel (' Northing [m] ','Interpreter','Latex','FontSize',12)
+    zlabel ('WSE [m]','Interpreter','Latex','FontSize',12)
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
     ax = ancestor(gca, 'axes');
     ax.XAxis.Exponent = 0;xtickformat('%.0f');
     ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -305,14 +414,17 @@ for t = 1:f:length(running_control.time_records)
     view(0,90);
     colorbar
     caxis([0 z2max]);
-    colormap(ax2,Depth_RAS);
-    k = colorbar;
+    colormap(ax2,Depth_Purple)
+    k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
 
-    ylabel(k,'Depths (m)','Interpreter','Latex','FontSize',12)
-    xlabel('Easting (m) ','Interpreter','Latex','FontSize',12)
-    ylabel ('Northing (m) ','Interpreter','Latex','FontSize',12)
-    zlabel ('WSE (m)','Interpreter','Latex','FontSize',12)
-    set(gca,'FontName','Garamond')
+    ylabel(k,'Depths [m]','Interpreter','Latex','FontSize',12)
+    xlabel('Easting [m] ','Interpreter','Latex','FontSize',12)
+    ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
+    zlabel ('WSE [m]','Interpreter','Latex','FontSize',12)
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
     ax = ancestor(gca, 'axes');
     ax.XAxis.Exponent = 0;xtickformat('%.0f');
     ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -385,11 +497,11 @@ close all
 %     colorbar
 %     caxis([zmin zmax]);
 %     colormap(depth_ramp)
-%     k = colorbar;
-%     ylabel(k,'WSE (m)','Interpreter','Latex','FontSize',12)
-%     xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
-%     ylabel (' Northing (m) ','Interpreter','Latex','FontSize',12)
-%     zlabel ('WSE (m)','Interpreter','Latex','FontSize',12)
+%     k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
+%     ylabel(k,'WSE [m]','Interpreter','Latex','FontSize',12)
+%     xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+%     ylabel (' Northing [m] ','Interpreter','Latex','FontSize',12)
+%     zlabel ('WSE [m]','Interpreter','Latex','FontSize',12)
 %     set(gca,'FontName','Garamond')
 %     ax = ancestor(gca, 'axes');
 %     ax.XAxis.Exponent = 0;xtickformat('%.0f');
@@ -430,12 +542,12 @@ close all
 %     colorbar
 %     caxis([0 zmax]);
 %     colormap(depth_ramp)
-%     k = colorbar;
+%     k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
 %
-%     ylabel(k,'Depths (m)','Interpreter','Latex','FontSize',12)
-%     xlabel('Easting (m) ','Interpreter','Latex','FontSize',12)
-%     ylabel ('Northing (m) ','Interpreter','Latex','FontSize',12)
-%     zlabel ('WSE (m)','Interpreter','Latex','FontSize',12)
+%     ylabel(k,'Depths [m]','Interpreter','Latex','FontSize',12)
+%     xlabel('Easting [m] ','Interpreter','Latex','FontSize',12)
+%     ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
+%     zlabel ('WSE [m]','Interpreter','Latex','FontSize',12)
 %     set(gca,'FontName','Garamond')
 %     ax = ancestor(gca, 'axes');
 %     ax.XAxis.Exponent = 0;xtickformat('%.0f');
@@ -491,19 +603,25 @@ if flags.flag_spatial_rainfall == 1
     colorbar
     caxis([zmin zmax]);
     colormap(Spectrum)
-    k = colorbar;
+    k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
     ylabel(k,'Cumulative Rainfall Volume (mm)','Interpreter','Latex','FontSize',12)
-    xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
-    ylabel ('Northing (m) ','Interpreter','Latex','FontSize',12)
+    xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+    ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
 
     zlabel ('Cumulative Rainfall Volume (mm)','Interpreter','Latex','FontSize',12)
-    set(gca,'FontName','Garamond')
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
 
     box on
     set(gca,'tickdir','out');
     set(gca, 'TickLength', [0.02 0.01]);
     set(gca,'Tickdir','out')
-    set(gca,'FontName','Garamond');
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
     ax = ancestor(gca, 'axes');
     ax.XAxis.Exponent = 0;xtickformat('%.0f');
     ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -561,10 +679,10 @@ end
 %         colorbar
 %         caxis([zmin zmax]);
 %         colormap(linspecer)
-%         k = colorbar;
+%         k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
 %         ylabel(k,'Cumulative Rainfall Volume (mm)','Interpreter','Latex','FontSize',12)
-%         xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
-%         ylabel ('Northing (m) ','Interpreter','Latex','FontSize',12)
+%         xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+%         ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
 % 
 %         zlabel ('Cumulative Rainfall Volume (mm)','Interpreter','Latex','FontSize',12)
 %         if no_plot == 0
@@ -700,19 +818,25 @@ if flags.flag_spatial_rainfall == 1
             colorbar
             caxis([zmin zmax]);
             colormap(Spectrum)
-            k = colorbar;
+            k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
             ylabel(k,'Rainfall (mm/h)','Interpreter','Latex','FontSize',12)
-            xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
-            ylabel ('Northing (m) ','Interpreter','Latex','FontSize',12)
+            xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+            ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
 
             zlabel ('Rainfall (mm/h)','Interpreter','Latex','FontSize',12)
-            set(gca,'FontName','Garamond')
+            set(gca,'FontName','Garamond','FontSize',12)
+            % Increase border (axis) thickness
+            ax = gca;          % Get current axis
+            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
 
             box on
             set(gca,'tickdir','out');
             set(gca, 'TickLength', [0.02 0.01]);
             set(gca,'Tickdir','out')
-            set(gca,'FontName','Garamond');
+            set(gca,'FontName','Garamond','FontSize',12)
+            % Increase border (axis) thickness
+            ax = gca;          % Get current axis
+            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
             ax = ancestor(gca, 'axes');
             ax.XAxis.Exponent = 0;xtickformat('%.0f');
             ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -808,19 +932,25 @@ if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_in
         colorbar
         caxis([zmin zmax]);
         colormap(Spectrum)
-        k = colorbar;
+        k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
         ylabel(k,'Rainfall (mm/h)','Interpreter','Latex','FontSize',12)
-        xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
-        ylabel ('Northing (m) ','Interpreter','Latex','FontSize',12)
+        xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+        ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
 
         zlabel ('Rainfall (mm/h)','Interpreter','Latex','FontSize',12)
-        set(gca,'FontName','Garamond')
+        set(gca,'FontName','Garamond','FontSize',12)
+        % Increase border (axis) thickness
+        ax = gca;          % Get current axis
+        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
 
         box on
         set(gca,'tickdir','out');
         set(gca, 'TickLength', [0.02 0.01]);
         set(gca,'Tickdir','out')
-        set(gca,'FontName','Garamond');
+        set(gca,'FontName','Garamond','FontSize',12)
+        % Increase border (axis) thickness
+        ax = gca;          % Get current axis
+        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
         ax = ancestor(gca, 'axes');
         ax.XAxis.Exponent = 0;xtickformat('%.0f');
         ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -901,18 +1031,24 @@ if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_in
         colorbar
         caxis([zmin zmax]);
         colormap(Spectrum)
-        k = colorbar;
+        k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
         ylabel(k,'Rainfall (mm/h)','Interpreter','Latex','FontSize',12)
-        xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
-        ylabel ('Northing (m) ','Interpreter','Latex','FontSize',12)
+        xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+        ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
         zlabel ('Rainfall (mm/h)','Interpreter','Latex','FontSize',12)
-        set(gca,'FontName','Garamond')
+        set(gca,'FontName','Garamond','FontSize',12)
+        % Increase border (axis) thickness
+        ax = gca;          % Get current axis
+        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
 
         box on
         set(gca,'tickdir','out');
         set(gca, 'TickLength', [0.02 0.01]);
         set(gca,'Tickdir','out')
-        set(gca,'FontName','Garamond');
+        set(gca,'FontName','Garamond','FontSize',12)
+        % Increase border (axis) thickness
+        ax = gca;          % Get current axis
+        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
         ax = ancestor(gca, 'axes');
         ax.XAxis.Exponent = 0;xtickformat('%.0f');
         ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -987,12 +1123,15 @@ if flags.flag_ETP == 1
         colorbar
         caxis([zmin zmax]);
         colormap(Spectrum)
-        k = colorbar;
+        k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
         ylabel(k,'ETP (mm/day)','Interpreter','Latex','FontSize',12)
-        xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
-        ylabel ('Northing (m) ','Interpreter','Latex','FontSize',12)
+        xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+        ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
         zlabel ('ETP (mm/day)','Interpreter','Latex','FontSize',12)
-        set(gca,'FontName','Garamond')
+        set(gca,'FontName','Garamond','FontSize',12)
+        % Increase border (axis) thickness
+        ax = gca;          % Get current axis
+        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
         ax = ancestor(gca, 'axes');
         ax.XAxis.Exponent = 0;xtickformat('%.0f');
         ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -1002,7 +1141,10 @@ if flags.flag_ETP == 1
         set(gca,'tickdir','out');
         set(gca, 'TickLength', [0.02 0.01]);
         set(gca,'Tickdir','out')
-        set(gca,'FontName','Garamond');
+        set(gca,'FontName','Garamond','FontSize',12)
+        % Increase border (axis) thickness
+        ax = gca;          % Get current axis
+        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
         if no_plot == 0
             mapshow(S_p,'FaceColor','n'); hold on;
         end
@@ -1106,12 +1248,15 @@ if flags.flag_human_instability > 0
         s.EdgeColor = 'none';
         caxis([1 8]); % Set the colorbar scale to 1 to 8
 
-        k = colorbar;
-        xlabel(' Easting (m) ','Interpreter','Latex','FontSize',14)
-        ylabel ('Northing (m) ','Interpreter','Latex','FontSize',14)
+        k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
+        xlabel(' Easting [m] ','Interpreter','Latex','FontSize',14)
+        ylabel ('Northing [m] ','Interpreter','Latex','FontSize',14)
         colorbar('Ticks',[1.4,1.6, 2.2,2.4, 3.1,3.3, 4.0,4.2, 4.9,5.1, 5.7,5.9, 6.6,6.8, 7.5,7.7], ...
             'TickLabels',Human_Instability_text.names,'FontSize',13, 'TickLength',0);
-        set(gca,'FontName','Garamond')
+        set(gca,'FontName','Garamond','FontSize',12)
+        % Increase border (axis) thickness
+        ax = gca;          % Get current axis
+        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
         box on
         ax = ancestor(gca, 'axes');
         ax.XAxis.Exponent = 0;xtickformat('%.0f');
@@ -1178,12 +1323,15 @@ if flags.flag_waterquality == 1
             caxis([zmin zmax]);
             colormap(Spectrum)
 
-            k = colorbar;
+            k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
             ylabel(k,'Concentration (mg/L)','Interpreter','Latex','FontSize',12)
-            xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
-            ylabel ('Northing (m) ','Interpreter','Latex','FontSize',12)
+            xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+            ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
             zlabel ('Concentration (mg/L)','Interpreter','Latex','FontSize',12)
-            set(gca,'FontName','Garamond')
+            set(gca,'FontName','Garamond','FontSize',12)
+            % Increase border (axis) thickness
+            ax = gca;          % Get current axis
+            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
             box on
             ax = ancestor(gca, 'axes');
             ax.XAxis.Exponent = 0;xtickformat('%.0f');
@@ -1240,12 +1388,15 @@ if flags.flag_waterquality == 1
         c = colorbar;
         caxis([zmin zmax]);
         colormap(Velocity_RAS)
-        k = colorbar;
+        k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
         ylabel(k,'Log-scale Mass of pollutant ($\mathrm{g/m^2}$)','Interpreter','Latex','FontSize',12)
-        xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
-        ylabel ('Northing (m) ','Interpreter','Latex','FontSize',12)
+        xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+        ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
         zlabel ('Mass of pollutant (kg/m^2)','Interpreter','Latex','FontSize',12)
-        set(gca,'FontName','Garamond')
+        set(gca,'FontName','Garamond','FontSize',12)
+        % Increase border (axis) thickness
+        ax = gca;          % Get current axis
+        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
         box on
         ax = ancestor(gca, 'axes');
         ax.XAxis.Exponent = 0;xtickformat('%.0f');
