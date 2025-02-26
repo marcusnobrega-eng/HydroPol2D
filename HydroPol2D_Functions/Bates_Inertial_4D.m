@@ -225,8 +225,11 @@ if flag_reservoir == 1
                 logicalIndices = (reservior_idx(ii) == controlvs_idx);% Create a logical array where X matches elements in the list
                 positions = find(logicalIndices);% Find the positions where the logical array is true
                 dtsup_controlvs = max(dtsup - h1(ii),0);
+                %if ii > 2 && dtsup_controlvs > 1.8
+                %   stop = 1 % For future signals of depth limits
+                %end   
                 if k1(ii) ~= k1_culv(positions) && dtsup_controlvs > k1(ii) % it means that the structure works as a gate  
-                    Cdg = (0.62/sqrt(1+(0.62*k1(ii)/dtsup)))*(k1(ii)*b_culv(positions)*sqrt(2*9.81));% adaptative "k1"
+                    Cdg = (0.62/sqrt(1+(0.62*k1(ii)/dtsup_controlvs)))*(k1(ii)*b_culv(positions)*sqrt(2*9.81));% adaptative "k1"
                     dh = min(Cdg*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h; %mm
                 else    % it means that the structure works as a culvert or spill
                     dh = min(k1_culv(ii)*(max(dtsup - h1(ii),0))^k2_culv(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
@@ -251,9 +254,6 @@ if flag_reservoir == 1
             % Refreshing downstream cell
             d_tot(yds2(ii),xds2(ii)) = d_tot(yds2(ii),xds2(ii)) + dh;
         end
-	    %if 	dh > 26/cell_area*1000*3600*dt_h
-         %   stop = 1
-        %end 
     end
 end
   
