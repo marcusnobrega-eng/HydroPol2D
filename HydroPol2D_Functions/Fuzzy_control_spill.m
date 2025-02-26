@@ -1,4 +1,4 @@
-function[fis_controller] = Fuzzy_control_spill(d_lim,A_inf,A_sup,tgate)
+function[fis_controller] = Fuzzy_control_spill(d_lim,A_inf,A_sup,tgate,reserv_id)
 
 %%Creation of fuzzy interferance
 
@@ -21,13 +21,11 @@ if tgate(i) == 0
     stepSize = percentageStep * (Asup - Ainf);% Calculate the step size
     parameterValues = Ainf:stepSize:Asup;% Generate the values
 
-
     reservfis = mamfis('Name', 'ReservoirFuzzyController');
 
     % Definição das variáveis de entrada
     reservfis = addInput(reservfis, [0, dlimref], 'Name', 'WaterLevel');
     reservfis = addInput(reservfis, [-varref, varref], 'Name', 'VarWaterLevel');
-    %fis = addInput(fis, [0, max(qbase)], 'Name', 'FlowDifference');
 
     % Definição da variável de saída
     reservfis = addOutput(reservfis, [Ainf, Asup], 'Name', 'ValveOpening');
@@ -37,7 +35,6 @@ if tgate(i) == 0
     reservfis = addMF(reservfis, 'WaterLevel', 'trapmf', [0.2*dlimref 0.4*dlimref 0.6*dlimref 0.8*dlimref], 'Name', 'Medium');
     reservfis = addMF(reservfis, 'WaterLevel', 'linsmf', [0.6*dlimref 0.8*dlimref], 'Name', 'High');
 
-
     % Definir funções de pertinência para a diferença de fluxo
     reservfis = addMF(reservfis, 'VarWaterLevel', 'linzmf', [-0.75*varref -0.5*varref], 'Name', 'NH');
     reservfis = addMF(reservfis, 'VarWaterLevel', 'trapmf', [-0.75*varref -0.5*varref -0.25*varref -0.1*varref], 'Name', 'NL');
@@ -45,89 +42,111 @@ if tgate(i) == 0
     reservfis = addMF(reservfis, 'VarWaterLevel', 'trapmf', [0.1*varref 0.25*varref 0.5*varref 0.75*varref], 'Name', 'PL');
     reservfis = addMF(reservfis, 'VarWaterLevel', 'linsmf', [0.5*varref 0.75*varref], 'Name', 'PH');
 
-
-
-    % Definir funções de pertinência para a saída (abertura da válvula)
+    % Definir funções de pertinência para a saída (abertura da comporta)
     reservfis = addMF(reservfis, 'ValveOpening', 'trimf', [parameterValues(1), parameterValues(1), parameterValues(2)], 'Name', 'Op_0');
     reservfis = addMF(reservfis, 'ValveOpening', 'trimf', [parameterValues(1), parameterValues(2), parameterValues(3)], 'Name', 'Op_25');
     reservfis = addMF(reservfis, 'ValveOpening', 'trimf', [parameterValues(2), parameterValues(3), parameterValues(4)], 'Name', 'Op_50');
     reservfis = addMF(reservfis, 'ValveOpening', 'trimf', [parameterValues(3), parameterValues(4), parameterValues(5)], 'Name', 'Op_75');
     reservfis = addMF(reservfis, 'ValveOpening', 'trimf', [parameterValues(4), parameterValues(5), parameterValues(5)], 'Name', 'Op_100');
 
-    %{
-    reservfis = addMF(reservfis, 'ValveOpening', 'linzmf', [parameterValues(1)+0.5*stepSize parameterValues(2)], 'Name', 'Op_0');
-    reservfis = addMF(reservfis, 'ValveOpening', 'trimf', [parameterValues(1) parameterValues(2) parameterValues(3)], 'Name', 'Op_25');
-    reservfis = addMF(reservfis, 'ValveOpening', 'trimf', [parameterValues(2) parameterValues(3) parameterValues(4)], 'Name', 'Op_50');
-    reservfis = addMF(reservfis, 'ValveOpening', 'trimf', [parameterValues(3) parameterValues(4) parameterValues(5)], 'Name', 'Op_75');
-    reservfis = addMF(reservfis, 'ValveOpening', 'linsmf', [parameterValues(4) parameterValues(5)-0.5*stepSize], 'Name', 'Op_100');
-    %}
-    % Definir as regras fuzzy
-     %Caguacu rules culv
-
-    ruleList = [
-        "If WaterLevel is Low and VarWaterLevel is NH then ValveOpening is Op_25"
-        "If WaterLevel is Low and VarWaterLevel is NL then ValveOpening is Op_25"
-        "If WaterLevel is Low and VarWaterLevel is Z then ValveOpening is Op_25"
-        "If WaterLevel is Low and VarWaterLevel is PL then ValveOpening is Op_50"
-        "If WaterLevel is Low and VarWaterLevel is PH then ValveOpening is Op_50"
-        "If WaterLevel is Medium and VarWaterLevel is NH then ValveOpening is Op_25"
-        "If WaterLevel is Medium and VarWaterLevel is NL then ValveOpening is Op_25"
-        "If WaterLevel is Medium and VarWaterLevel is Z then ValveOpening is Op_25"
-        "If WaterLevel is Medium and VarWaterLevel is PL then ValveOpening is Op_75"
-        "If WaterLevel is Medium and VarWaterLevel is PH then ValveOpening is Op_75"
-        "If WaterLevel is High and VarWaterLevel is NH then ValveOpening is Op_25"
-        "If WaterLevel is High and VarWaterLevel is NL then ValveOpening is Op_50"
-        "If WaterLevel is High and VarWaterLevel is Z then ValveOpening is Op_50"
-        "If WaterLevel is High and VarWaterLevel is PL then ValveOpening is Op_100"
-        "If WaterLevel is High and VarWaterLevel is PH then ValveOpening is Op_100"
+    % Definir as regras fuzzy para o culvert
     
-    ];
-
-
-
-    %{
-    % limo gate
-    ruleList = [
-        "If WaterLevel is Low and VarWaterLevel is NH then ValveOpening is Op_25"
-        "If WaterLevel is Low and VarWaterLevel is NL then ValveOpening is Op_25"
-        "If WaterLevel is Low and VarWaterLevel is Z then ValveOpening is Op_100"
-        "If WaterLevel is Low and VarWaterLevel is PL then ValveOpening is Op_50"
-        "If WaterLevel is Low and VarWaterLevel is PH then ValveOpening is Op_50"
-        "If WaterLevel is Medium and VarWaterLevel is NH then ValveOpening is Op_25"
-        "If WaterLevel is Medium and VarWaterLevel is NL then ValveOpening is Op_50"
-        "If WaterLevel is Medium and VarWaterLevel is Z then ValveOpening is Op_100"
-        "If WaterLevel is Medium and VarWaterLevel is PL then ValveOpening is Op_50"
-        "If WaterLevel is Medium and VarWaterLevel is PH then ValveOpening is Op_50"
-        "If WaterLevel is High and VarWaterLevel is NH then ValveOpening is Op_75"
-        "If WaterLevel is High and VarWaterLevel is NL then ValveOpening is Op_100"
-        "If WaterLevel is High and VarWaterLevel is Z then ValveOpening is Op_100"
-        "If WaterLevel is High and VarWaterLevel is PL then ValveOpening is Op_100"
-        "If WaterLevel is High and VarWaterLevel is PH then ValveOpening is Op_100"
-    
-    ];
-    %}
-    
-    %{
-    % AR1 gate
-    ruleList = [
-        "If WaterLevel is Low and VarWaterLevel is NH then ValveOpening is Op_25"
-        "If WaterLevel is Low and VarWaterLevel is NL then ValveOpening is Op_25"
-        "If WaterLevel is Low and VarWaterLevel is Z then ValveOpening is Op_100"
-        "If WaterLevel is Low and VarWaterLevel is PL then ValveOpening is Op_50"
-        "If WaterLevel is Low and VarWaterLevel is PH then ValveOpening is Op_50"
-        "If WaterLevel is Medium and VarWaterLevel is NH then ValveOpening is Op_25"
-        "If WaterLevel is Medium and VarWaterLevel is NL then ValveOpening is Op_50"
-        "If WaterLevel is Medium and VarWaterLevel is Z then ValveOpening is Op_100"
-        "If WaterLevel is Medium and VarWaterLevel is PL then ValveOpening is Op_50"
-        "If WaterLevel is Medium and VarWaterLevel is PH then ValveOpening is Op_75"
-        "If WaterLevel is High and VarWaterLevel is NH then ValveOpening is Op_75"
-        "If WaterLevel is High and VarWaterLevel is NL then ValveOpening is Op_75"
-        "If WaterLevel is High and VarWaterLevel is Z then ValveOpening is Op_100"
-        "If WaterLevel is High and VarWaterLevel is PL then ValveOpening is Op_100"
-        "If WaterLevel is High and VarWaterLevel is PH then ValveOpening is Op_100"
-    
-    ];
-    %}
+    if reserv_id == 1
+        %AR3 rules culv
+        ruleList = [
+            "If WaterLevel is Low and VarWaterLevel is NH then ValveOpening is Op_25"
+            "If WaterLevel is Low and VarWaterLevel is NL then ValveOpening is Op_25"
+            "If WaterLevel is Low and VarWaterLevel is Z then ValveOpening is Op_25"
+            "If WaterLevel is Low and VarWaterLevel is PL then ValveOpening is Op_50"
+            "If WaterLevel is Low and VarWaterLevel is PH then ValveOpening is Op_50"
+            "If WaterLevel is Medium and VarWaterLevel is NH then ValveOpening is Op_25"
+            "If WaterLevel is Medium and VarWaterLevel is NL then ValveOpening is Op_25"
+            "If WaterLevel is Medium and VarWaterLevel is Z then ValveOpening is Op_25"
+            "If WaterLevel is Medium and VarWaterLevel is PL then ValveOpening is Op_75"
+            "If WaterLevel is Medium and VarWaterLevel is PH then ValveOpening is Op_75"
+            "If WaterLevel is High and VarWaterLevel is NH then ValveOpening is Op_25"
+            "If WaterLevel is High and VarWaterLevel is NL then ValveOpening is Op_50"
+            "If WaterLevel is High and VarWaterLevel is Z then ValveOpening is Op_50"
+            "If WaterLevel is High and VarWaterLevel is PL then ValveOpening is Op_100"
+            "If WaterLevel is High and VarWaterLevel is PH then ValveOpening is Op_100"
+        ]; 
+    elseif reserv_id == 2  
+        %Caguacu rules culv
+        ruleList = [
+            "If WaterLevel is Low and VarWaterLevel is NH then ValveOpening is Op_25"
+            "If WaterLevel is Low and VarWaterLevel is NL then ValveOpening is Op_25"
+            "If WaterLevel is Low and VarWaterLevel is Z then ValveOpening is Op_25"
+            "If WaterLevel is Low and VarWaterLevel is PL then ValveOpening is Op_50"
+            "If WaterLevel is Low and VarWaterLevel is PH then ValveOpening is Op_50"
+            "If WaterLevel is Medium and VarWaterLevel is NH then ValveOpening is Op_25"
+            "If WaterLevel is Medium and VarWaterLevel is NL then ValveOpening is Op_25"
+            "If WaterLevel is Medium and VarWaterLevel is Z then ValveOpening is Op_25"
+            "If WaterLevel is Medium and VarWaterLevel is PL then ValveOpening is Op_75"
+            "If WaterLevel is Medium and VarWaterLevel is PH then ValveOpening is Op_75"
+            "If WaterLevel is High and VarWaterLevel is NH then ValveOpening is Op_25"
+            "If WaterLevel is High and VarWaterLevel is NL then ValveOpening is Op_50"
+            "If WaterLevel is High and VarWaterLevel is Z then ValveOpening is Op_50"
+            "If WaterLevel is High and VarWaterLevel is PL then ValveOpening is Op_100"
+            "If WaterLevel is High and VarWaterLevel is PH then ValveOpening is Op_100"
+        ];
+    elseif reserv_id == 3    
+        % AR1 rules culvert
+        ruleList = [
+            "If WaterLevel is Low and VarWaterLevel is NH then ValveOpening is Op_25"
+            "If WaterLevel is Low and VarWaterLevel is NL then ValveOpening is Op_25"
+            "If WaterLevel is Low and VarWaterLevel is Z then ValveOpening is Op_100"
+            "If WaterLevel is Low and VarWaterLevel is PL then ValveOpening is Op_50"
+            "If WaterLevel is Low and VarWaterLevel is PH then ValveOpening is Op_50"
+            "If WaterLevel is Medium and VarWaterLevel is NH then ValveOpening is Op_25"
+            "If WaterLevel is Medium and VarWaterLevel is NL then ValveOpening is Op_25"
+            "If WaterLevel is Medium and VarWaterLevel is Z then ValveOpening is Op_100"
+            "If WaterLevel is Medium and VarWaterLevel is PL then ValveOpening is Op_50"
+            "If WaterLevel is Medium and VarWaterLevel is PH then ValveOpening is Op_75"
+            "If WaterLevel is High and VarWaterLevel is NH then ValveOpening is Op_75"
+            "If WaterLevel is High and VarWaterLevel is NL then ValveOpening is Op_75"
+            "If WaterLevel is High and VarWaterLevel is Z then ValveOpening is Op_100"
+            "If WaterLevel is High and VarWaterLevel is PL then ValveOpening is Op_100"
+            "If WaterLevel is High and VarWaterLevel is PH then ValveOpening is Op_100"
+        ];
+    elseif reserv_id == 4    
+        % limo culv
+        ruleList = [
+            "If WaterLevel is Low and VarWaterLevel is NH then ValveOpening is Op_25"
+            "If WaterLevel is Low and VarWaterLevel is NL then ValveOpening is Op_25"
+            "If WaterLevel is Low and VarWaterLevel is Z then ValveOpening is Op_25"
+            "If WaterLevel is Low and VarWaterLevel is PL then ValveOpening is Op_50"
+            "If WaterLevel is Low and VarWaterLevel is PH then ValveOpening is Op_50"
+            "If WaterLevel is Medium and VarWaterLevel is NH then ValveOpening is Op_25"
+            "If WaterLevel is Medium and VarWaterLevel is NL then ValveOpening is Op_25"
+            "If WaterLevel is Medium and VarWaterLevel is Z then ValveOpening is Op_50"
+            "If WaterLevel is Medium and VarWaterLevel is PL then ValveOpening is Op_75"
+            "If WaterLevel is Medium and VarWaterLevel is PH then ValveOpening is Op_75"
+            "If WaterLevel is High and VarWaterLevel is NH then ValveOpening is Op_50"
+            "If WaterLevel is High and VarWaterLevel is NL then ValveOpening is Op_50"
+            "If WaterLevel is High and VarWaterLevel is Z then ValveOpening is Op_75"
+            "If WaterLevel is High and VarWaterLevel is PL then ValveOpening is Op_100"
+            "If WaterLevel is High and VarWaterLevel is PH then ValveOpening is Op_100"
+        ];
+    elseif reserv_id == 5    
+        % AR2 rules culvert
+        ruleList = [
+            "If WaterLevel is Low and VarWaterLevel is NH then ValveOpening is Op_25"
+            "If WaterLevel is Low and VarWaterLevel is NL then ValveOpening is Op_25"
+            "If WaterLevel is Low and VarWaterLevel is Z then ValveOpening is Op_25"
+            "If WaterLevel is Low and VarWaterLevel is PL then ValveOpening is Op_50"
+            "If WaterLevel is Low and VarWaterLevel is PH then ValveOpening is Op_50"
+            "If WaterLevel is Medium and VarWaterLevel is NH then ValveOpening is Op_25"
+            "If WaterLevel is Medium and VarWaterLevel is NL then ValveOpening is Op_25"
+            "If WaterLevel is Medium and VarWaterLevel is Z then ValveOpening is Op_25"
+            "If WaterLevel is Medium and VarWaterLevel is PL then ValveOpening is Op_75"
+            "If WaterLevel is Medium and VarWaterLevel is PH then ValveOpening is Op_75"
+            "If WaterLevel is High and VarWaterLevel is NH then ValveOpening is Op_50"
+            "If WaterLevel is High and VarWaterLevel is NL then ValveOpening is Op_50"
+            "If WaterLevel is High and VarWaterLevel is Z then ValveOpening is Op_50"
+            "If WaterLevel is High and VarWaterLevel is PL then ValveOpening is Op_100"
+            "If WaterLevel is High and VarWaterLevel is PH then ValveOpening is Op_100"
+        ];
+    end
 
     for j = 1:length(ruleList)
         reservfis = addRule(reservfis, ruleList(j));
@@ -161,7 +180,6 @@ elseif tgate(i) == 1 %spill gate
     stepSize = percentageStep * (Asup - Ainf);% Calculate the step size
     parameterValues = Ainf:stepSize:Asup;% Generate the values
 
-
     reservfis = mamfis('Name', 'ReservoirFuzzyController');
 
     % Definição das variáveis de entrada
@@ -178,17 +196,9 @@ elseif tgate(i) == 1 %spill gate
     reservfis = addMF(reservfis, 'WaterLevel', 'trimf', [0.5*dlimref 0.625*dlimref 0.75*dlimref], 'Name', 'MediumH');
     reservfis = addMF(reservfis, 'WaterLevel', 'linsmf', [0.75*dlimref 0.875*dlimref], 'Name', 'High');
 
-    %{
-    % Definir funções de pertinência para a diferença de fluxo
-    reservfis = addMF(reservfis, 'VarWaterLevel', 'linzmf', [-0.5*varref 0], 'Name', 'N');
-    reservfis = addMF(reservfis, 'VarWaterLevel', 'trapmf', [-0.25*varref -0.1*varref 0.1*varref 0.25*varref], 'Name', 'Z');
-    reservfis = addMF(reservfis, 'VarWaterLevel', 'linsmf', [0 0.5*varref], 'Name', 'P');
-    %}
     % Definir funções de pertinência para a diferença de fluxo
     reservfis = addMF(reservfis, 'VarWaterLevel', 'zmf', [0 0.5*varref], 'Name', 'N');
     reservfis = addMF(reservfis, 'VarWaterLevel', 'smf', [0.1*varref 0.5*varref], 'Name', 'P');
-
-
 
     % Definir funções de pertinência para a saída (abertura da válvula)
     reservfis = addMF(reservfis, 'GateOpening', 'linzmf', [(parameterValues(2)-parameterValues(1))*0.5 parameterValues(2)], 'Name', 'Op_0');
@@ -197,57 +207,69 @@ elseif tgate(i) == 1 %spill gate
     reservfis = addMF(reservfis, 'GateOpening', 'trimf', [parameterValues(3)+(parameterValues(3)-parameterValues(2))*0.5, parameterValues(4), parameterValues(4)+(parameterValues(4)-parameterValues(3))*0.5], 'Name', 'Op_75');
     reservfis = addMF(reservfis, 'GateOpening', 'linsmf', [parameterValues(4) parameterValues(4)+(parameterValues(4)-parameterValues(3))*0.5 ], 'Name', 'Op_100');
 
-    % Definir as regras fuzzy
+    % Definir as regras fuzzy para o vertedouro
     
-    %Caguacu rules spill
-    ruleList = [
-        "If WaterLevel is Low and VarWaterLevel is N then GateOpening is Op_0"
-        "If WaterLevel is Low and VarWaterLevel is P then GateOpening is Op_0"
-        "If WaterLevel is MediumL and VarWaterLevel is N then GateOpening is Op_25"
-        "If WaterLevel is MediumL and VarWaterLevel is P then GateOpening is Op_25"
-        "If WaterLevel is MediumH and VarWaterLevel is N then GateOpening is Op_25"
-        "If WaterLevel is MediumH and VarWaterLevel is P then GateOpening is Op_25"
-        "If WaterLevel is High and VarWaterLevel is N then GateOpening is Op_25"
-        "If WaterLevel is High and VarWaterLevel is P then GateOpening is Op_50"
-    ];
-
-    %{
-    %Limo rules
-    ruleList = [
-        "If WaterLevel is Low and VarWaterLevel is N then GateOpening is Op_0"
-        "If WaterLevel is Low and VarWaterLevel is Z then GateOpening is Op_25"
-        "If WaterLevel is Low and VarWaterLevel is P then GateOpening is Op_0"
-        "If WaterLevel is MediumL and VarWaterLevel is N then GateOpening is Op_25"
-        "If WaterLevel is MediumL and VarWaterLevel is Z then GateOpening is Op_25"
-        "If WaterLevel is MediumL and VarWaterLevel is P then GateOpening is Op_25"
-        "If WaterLevel is MediumH and VarWaterLevel is N then GateOpening is Op_25"
-        "If WaterLevel is MediumH and VarWaterLevel is Z then GateOpening is Op_25"
-        "If WaterLevel is MediumH and VarWaterLevel is P then GateOpening is Op_50"
-        "If WaterLevel is High and VarWaterLevel is N then GateOpening is Op_25"
-        "If WaterLevel is High and VarWaterLevel is Z then GateOpening is Op_50"
-        "If WaterLevel is High and VarWaterLevel is P then GateOpening is Op_50"
-    ];
-    %}
-
-    %{
-    % AR1 gata
-    ruleList = [
-        "If WaterLevel is Low and VarWaterLevel is N then GateOpening is Op_25"
-        "If WaterLevel is Low and VarWaterLevel is Z then GateOpening is Op_25"
-        "If WaterLevel is Low and VarWaterLevel is P then GateOpening is Op_0"
-        "If WaterLevel is MediumL and VarWaterLevel is N then GateOpening is Op_25"
-        "If WaterLevel is MediumL and VarWaterLevel is Z then GateOpening is Op_25"
-        "If WaterLevel is MediumL and VarWaterLevel is P then GateOpening is Op_25"
-        "If WaterLevel is MediumH and VarWaterLevel is N then GateOpening is Op_25"
-        "If WaterLevel is MediumH and VarWaterLevel is Z then GateOpening is Op_25"
-        "If WaterLevel is MediumH and VarWaterLevel is P then GateOpening is Op_25"
-        "If WaterLevel is High and VarWaterLevel is N then GateOpening is Op_100"
-        "If WaterLevel is High and VarWaterLevel is Z then GateOpening is Op_75"
-        "If WaterLevel is High and VarWaterLevel is P then GateOpening is Op_50"
-        
-    
-    ];
-        %}
+    if reserv_id == 1
+        %AR3 rules spill
+        ruleList = [
+            "If WaterLevel is Low and VarWaterLevel is N then GateOpening is Op_0"
+            "If WaterLevel is Low and VarWaterLevel is P then GateOpening is Op_0"
+            "If WaterLevel is MediumL and VarWaterLevel is N then GateOpening is Op_0"
+            "If WaterLevel is MediumL and VarWaterLevel is P then GateOpening is Op_25"
+            "If WaterLevel is MediumH and VarWaterLevel is N then GateOpening is Op_25"
+            "If WaterLevel is MediumH and VarWaterLevel is P then GateOpening is Op_25"
+            "If WaterLevel is High and VarWaterLevel is N then GateOpening is Op_25"
+            "If WaterLevel is High and VarWaterLevel is P then GateOpening is Op_50"
+        ];
+    elseif reserv_id == 2
+        %Caguacu rules spill
+        ruleList = [
+            "If WaterLevel is Low and VarWaterLevel is N then GateOpening is Op_0"
+            "If WaterLevel is Low and VarWaterLevel is P then GateOpening is Op_0"
+            "If WaterLevel is MediumL and VarWaterLevel is N then GateOpening is Op_25"
+            "If WaterLevel is MediumL and VarWaterLevel is P then GateOpening is Op_25"
+            "If WaterLevel is MediumH and VarWaterLevel is N then GateOpening is Op_25"
+            "If WaterLevel is MediumH and VarWaterLevel is P then GateOpening is Op_25"
+            "If WaterLevel is High and VarWaterLevel is N then GateOpening is Op_25"
+            "If WaterLevel is High and VarWaterLevel is P then GateOpening is Op_50"
+        ];
+    elseif reserv_id == 3
+        %AR1 rules spill
+        ruleList = [
+            "If WaterLevel is Low and VarWaterLevel is N then GateOpening is Op_0"
+            "If WaterLevel is Low and VarWaterLevel is P then GateOpening is Op_0"
+            "If WaterLevel is MediumL and VarWaterLevel is N then GateOpening is Op_0"
+            "If WaterLevel is MediumL and VarWaterLevel is P then GateOpening is Op_0"
+            "If WaterLevel is MediumH and VarWaterLevel is N then GateOpening is Op_25"
+            "If WaterLevel is MediumH and VarWaterLevel is P then GateOpening is Op_25"
+            "If WaterLevel is High and VarWaterLevel is N then GateOpening is Op_25"
+            "If WaterLevel is High and VarWaterLevel is P then GateOpening is Op_50"
+        ];
+    elseif reserv_id == 4    
+        %Limo rules spill
+        ruleList = [
+            "If WaterLevel is Low and VarWaterLevel is N then GateOpening is Op_0"
+            "If WaterLevel is Low and VarWaterLevel is P then GateOpening is Op_0"
+            "If WaterLevel is MediumL and VarWaterLevel is N then GateOpening is Op_0"
+            "If WaterLevel is MediumL and VarWaterLevel is P then GateOpening is Op_25"
+            "If WaterLevel is MediumH and VarWaterLevel is N then GateOpening is Op_25"
+            "If WaterLevel is MediumH and VarWaterLevel is P then GateOpening is Op_25"
+            "If WaterLevel is High and VarWaterLevel is N then GateOpening is Op_25"
+            "If WaterLevel is High and VarWaterLevel is P then GateOpening is Op_50"
+        ];
+    elseif reserv_id == 5
+        %AR2 rules spill
+        ruleList = [
+            "If WaterLevel is Low and VarWaterLevel is N then GateOpening is Op_0"
+            "If WaterLevel is Low and VarWaterLevel is P then GateOpening is Op_0"
+            "If WaterLevel is MediumL and VarWaterLevel is N then GateOpening is Op_0"
+            "If WaterLevel is MediumL and VarWaterLevel is P then GateOpening is Op_25"
+            "If WaterLevel is MediumH and VarWaterLevel is N then GateOpening is Op_0"
+            "If WaterLevel is MediumH and VarWaterLevel is P then GateOpening is Op_25"
+            "If WaterLevel is High and VarWaterLevel is N then GateOpening is Op_25"
+            "If WaterLevel is High and VarWaterLevel is P then GateOpening is Op_50"
+        ];
+    end   
 
     for j = 1:length(ruleList)
         reservfis = addRule(reservfis, ruleList(j));
