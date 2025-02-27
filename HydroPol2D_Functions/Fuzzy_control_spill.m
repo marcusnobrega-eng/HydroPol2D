@@ -51,7 +51,7 @@ if tgate(i) == 0
 
     % Definir as regras fuzzy para o culvert
     
-    if reserv_id == 1
+    if reserv_id(i) == 3
         %AR3 rules culv
         ruleList = [
             "If WaterLevel is Low and VarWaterLevel is NH then ValveOpening is Op_25"
@@ -70,7 +70,7 @@ if tgate(i) == 0
             "If WaterLevel is High and VarWaterLevel is PL then ValveOpening is Op_100"
             "If WaterLevel is High and VarWaterLevel is PH then ValveOpening is Op_100"
         ]; 
-    elseif reserv_id == 2  
+    elseif reserv_id(i) == 4  
         %Caguacu rules culv
         ruleList = [
             "If WaterLevel is Low and VarWaterLevel is NH then ValveOpening is Op_25"
@@ -89,7 +89,7 @@ if tgate(i) == 0
             "If WaterLevel is High and VarWaterLevel is PL then ValveOpening is Op_100"
             "If WaterLevel is High and VarWaterLevel is PH then ValveOpening is Op_100"
         ];
-    elseif reserv_id == 3    
+    elseif reserv_id(i) == 1    
         % AR1 rules culvert
         ruleList = [
             "If WaterLevel is Low and VarWaterLevel is NH then ValveOpening is Op_25"
@@ -108,7 +108,7 @@ if tgate(i) == 0
             "If WaterLevel is High and VarWaterLevel is PL then ValveOpening is Op_100"
             "If WaterLevel is High and VarWaterLevel is PH then ValveOpening is Op_100"
         ];
-    elseif reserv_id == 4    
+    elseif reserv_id(i) == 5    
         % limo culv
         ruleList = [
             "If WaterLevel is Low and VarWaterLevel is NH then ValveOpening is Op_25"
@@ -127,7 +127,7 @@ if tgate(i) == 0
             "If WaterLevel is High and VarWaterLevel is PL then ValveOpening is Op_100"
             "If WaterLevel is High and VarWaterLevel is PH then ValveOpening is Op_100"
         ];
-    elseif reserv_id == 5    
+    elseif reserv_id(i) == 2    
         % AR2 rules culvert
         ruleList = [
             "If WaterLevel is Low and VarWaterLevel is NH then ValveOpening is Op_25"
@@ -209,7 +209,7 @@ elseif tgate(i) == 1 %spill gate
 
     % Definir as regras fuzzy para o vertedouro
     
-    if reserv_id == 1
+    if reserv_id(i) == 3
         %AR3 rules spill
         ruleList = [
             "If WaterLevel is Low and VarWaterLevel is N then GateOpening is Op_0"
@@ -221,7 +221,7 @@ elseif tgate(i) == 1 %spill gate
             "If WaterLevel is High and VarWaterLevel is N then GateOpening is Op_25"
             "If WaterLevel is High and VarWaterLevel is P then GateOpening is Op_50"
         ];
-    elseif reserv_id == 2
+    elseif reserv_id(i) == 4
         %Caguacu rules spill
         ruleList = [
             "If WaterLevel is Low and VarWaterLevel is N then GateOpening is Op_0"
@@ -233,7 +233,7 @@ elseif tgate(i) == 1 %spill gate
             "If WaterLevel is High and VarWaterLevel is N then GateOpening is Op_25"
             "If WaterLevel is High and VarWaterLevel is P then GateOpening is Op_50"
         ];
-    elseif reserv_id == 3
+    elseif reserv_id(i) == 1
         %AR1 rules spill
         ruleList = [
             "If WaterLevel is Low and VarWaterLevel is N then GateOpening is Op_0"
@@ -245,7 +245,7 @@ elseif tgate(i) == 1 %spill gate
             "If WaterLevel is High and VarWaterLevel is N then GateOpening is Op_25"
             "If WaterLevel is High and VarWaterLevel is P then GateOpening is Op_50"
         ];
-    elseif reserv_id == 4    
+    elseif reserv_id(i) == 5    
         %Limo rules spill
         ruleList = [
             "If WaterLevel is Low and VarWaterLevel is N then GateOpening is Op_0"
@@ -257,7 +257,7 @@ elseif tgate(i) == 1 %spill gate
             "If WaterLevel is High and VarWaterLevel is N then GateOpening is Op_25"
             "If WaterLevel is High and VarWaterLevel is P then GateOpening is Op_50"
         ];
-    elseif reserv_id == 5
+    elseif reserv_id(i) == 2
         %AR2 rules spill
         ruleList = [
             "If WaterLevel is Low and VarWaterLevel is N then GateOpening is Op_0"
