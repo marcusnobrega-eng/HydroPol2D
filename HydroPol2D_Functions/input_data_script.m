@@ -62,7 +62,7 @@ flags.flag_timestep = input_table_Hydro(1);
 flags.flag_infiltration = input_table_Hydro(2);
 flags.flag_critical = input_table_Hydro(3);
 flags.flag_D8 = input_table_Hydro(4);
-flags.flag_diffusive = input_table_Hydro(5);
+flags.flag_CA = input_table_Hydro(5);
 flags.flag_inertial = input_table_Hydro(6);
 flags.flag_waterbalance = input_table_Hydro(7);
 flags.flag_waterquality = input_table_Hydro(8);
@@ -80,7 +80,11 @@ flags.flag_neglect_infiltration_river = input_table_Hydro(19);
 flags.flag_subgrid = input_table_Hydro(20);
 flags.flag_spatial_albedo = input_table_Hydro(21);
 flags.flag_river_rasters = input_table_Hydro(22);
-
+flags.flag_baseflow = input_table_Hydro(23);
+flags.flag_kinematic = input_table_Hydro(24);
+flags.flag_diffusive = input_table_Hydro(25);
+flags.flag_DTM = input_table_Hydro(26);
+flags.flag_abstraction = input_table_Hydro(27);
 
 % Performance Flags
 flags.flag_GPU = input_table_Performance(1);
@@ -123,7 +127,7 @@ if flags.flag_input_rainfall_map + flags.flag_satellite_rainfall + flags.flag_re
     error('Please choose only one type of spatial rainfall data.')
 end
 
-if flags.flag_inertial == 1 && flags.flag_diffusive == 1
+if flags.flag_inertial == 1 && flags.CA == 1
     error('Please, add either diffusive or inertial flag.')
 end
 
@@ -171,6 +175,7 @@ GIS_data.alfa_2 = input_table_river(2);
 GIS_data.beta_1 = input_table_river(3);
 GIS_data.beta_2 = input_table_river(4);
 LULC_Parameters.River_Manning = input_table_river(5);
+River_K_coeff = input_table_river(6);
 
 % GIS_data.xulcorner = input_table_abstraction(5);
 % GIS_data.yulcorner = input_table_abstraction(6);
@@ -189,7 +194,7 @@ GIS_data.tau = input_table_DEM(2);
 GIS_data.K_value = input_table_DEM(3);
 GIS_data.sl = input_table_DEM(4);
 GIS_data.resolution_resample = input_table_DEM(5);
-
+GIS_data.slope_DTM = input_table_DEM(6);
 
 % TopoToolbox Folder
 topo_path = table2cell(input_table(1,27));
@@ -197,8 +202,8 @@ topo_path = table2cell(input_table(1,27));
 % Human Instability
 if flags.flag_human_instability == 1
     human_table = readtable('human_risk.xlsx');
-    Human_Instability.mu = table2array(human_table(4,2)); % friction coefficient
-    Human_Instability.Cd = table2array(human_table(3,2));
+    Human_Instability.mu = table2array(human_table(3,2)); % friction coefficient
+    Human_Instability.Cd = table2array(human_table(4,2));
     Human_Instability.ro_person = table2array(human_table(5,2)); % kg/m3
     Human_Instability.weight_person = table2array(human_table(6,2)); % kg
     Human_Instability.height_person = table2array(human_table(7,2)); % meters

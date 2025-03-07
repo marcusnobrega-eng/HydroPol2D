@@ -1,6 +1,6 @@
 %% Main HydroPol2D While Loop
 % Developer: Marcus Nobrega, Ph.D.
-% Date 8/01/2024
+% Date 3/6/2025
 % Goal - Run the main modeling process of the model
 
 tic
@@ -17,18 +17,21 @@ store = 1; % Index for saving maps
 t_previous = 0;
 factor_time = 0;
 max_dt = running_control.max_time_step;
-previous_storage = nansum(nansum(C_a.*depths.d_t/1000)); % m3
+flags.flag_obs_gauges = 0;
+
+% Initial System Storage
+S_c = nansum(nansum(C_a.*Hydro_States.S/1000));
+S_p = nansum(nansum(Wshed_Properties.Resolution.*Wshed_Properties.River_Width.*depths.d_t/1000));
+S_UZ = nansum(nansum(C_a.*Soil_Properties.I_t/1000));
+S_GW = nansum(nansum(C_a.*Soil_Properties.Sy.*(BC_States.h_t - (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth))));
+S_prev = S_c + S_p + S_UZ + S_GW;
+
+% Initial Activation
 if flags.flag_inertial == 1
     outflow_prev = outflow_bates;
 end
 catch_index = 1;
-% ---- Plotting Results in Real-Time ---- %
-% n_snaps = 10; % Number of plots. Time will be divided equally
-% dt_snap = running_control.routing_time/n_snaps; time_snap = [1:1:n_snaps]*dt_snap; z2_snap = 0;
 
-try
-    delete(ax.app)
-end
 
 if flags.flag_obs_gauges ~= 1
     gauges = [];
@@ -46,8 +49,8 @@ end
 % #################### Main Loop (HydroPol2D)  ################ %
 while t <= (running_control.routing_time + running_control.min_time_step/60) % Running up to the end of the simulation
     try
-        % -------------- Infiltration Model --------------- %
-        Infiltration_Model; % Runs the GA model
+        % -------------- Hydrological Model --------------- %
+        Hydrological_Model; % Runs the interception + infiltration + GW routing model
 
         % Preallocating cels for Cellular Automata 
         if flags.flag_D8 == 1 && flags.flag_diffusive == 1
@@ -81,20 +84,34 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             end
         else % 4-D
             % CA
-            if flags.flag_inertial ~= 1
+            if flags.flag_inertial ~= 1 && flags.flag_CA == 1
                 [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell] = ...
                     CA_Routing(Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
                     flags.flag_reservoir,Elevation_Properties.elevation_cell,...
                     depths.d_tot,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,LULC_Properties.h_0,Wshed_Properties.Resolution,CA_States.I_tot_end_cell,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,idx_nan,flags.flag_critical);
             else
+                if flags.flag_diffusive == 1
+                % --------------------- Diffusive Wave Formulation -----%
+                [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf,Qc,Qf,Qci,Qfi,C_a] = ...
+                    Diffusive_Wave_Model_Implicit(flags.flag_numerical_scheme,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
+                    flags.flag_reservoir,Elevation_Properties.elevation_cell,...
+                    depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical,flags.flag_subgrid,Wshed_Properties.Inbank_Manning,Wshed_Properties.Overbank_Manning,Wshed_Properties.River_Width, Wshed_Properties.River_Depth,Qc,Qf,Qci,Qfi,C_a);                
+                elseif flags.flag_kinematic == 1
+                % --------------------- Kinematic Wave Formulation -----%
+                [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf,Qc,Qf,Qci,Qfi,C_a] = ...
+                    Kinematic_Wave_Model(flags.flag_numerical_scheme,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
+                    flags.flag_reservoir,Elevation_Properties.elevation_cell,...
+                    depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical,flags.flag_subgrid,Wshed_Properties.Inbank_Manning,Wshed_Properties.Overbank_Manning,Wshed_Properties.River_Width, Wshed_Properties.River_Depth,Qc,Qf,Qci,Qfi,C_a);                
+                else
                 % -------------------- Local Inertial Formulation ----------------%
                 [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf,Qc,Qf,Qci,Qfi,C_a] = ...
                     Local_Inertial_Model_D4(flags.flag_numerical_scheme,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
                     flags.flag_reservoir,Elevation_Properties.elevation_cell,...
                     depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical,flags.flag_subgrid,Wshed_Properties.Inbank_Manning,Wshed_Properties.Overbank_Manning,Wshed_Properties.River_Width, Wshed_Properties.River_Depth,Qc,Qf,Qci,Qfi,C_a);
+                end
             end
         end
-
+        
         %% Outflows become Inflows for CA
         flow_rate.qin_left_t = [zeros(ny,1),flow_rate.qout_right_t(:,1:(nx-1))];
         flow_rate.qin_right_t = [flow_rate.qout_left_t(:,(2:(nx))) zeros(ny,1)];
@@ -125,9 +142,9 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         flow_rate.qin_t(idx3) = 0; % No flow at these cells
 
         % Mass Balance Equation (outflow already taken)
-        if flags.flag_inertial == 1
+        if flags.flag_inertial == 1 || flags.flag_diffusive == 1 || flags.flag_kinematic == 1
             depths.d_t = depths.d_t + 0*flow_rate.qin_t*time_step/60; % All balance is inside the model
-        else
+        elseif flags.flag_CA == 1
             depths.d_t = depths.d_t + flow_rate.qin_t*time_step/60;
         end
 
@@ -162,6 +179,9 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 error('Brutal instability in B(t). More than 20% difference')
             end
         end
+
+        %% Human Instability Calculations
+        Human_Instability_Module
 
         %% Refreshing Time-step
         running_control.pos_save = ceil((t*60)/running_control.time_step_change);
@@ -227,26 +247,11 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         time_step_save(k,1) = t;
         k = k + 1;
 
-        % Simulating Dams failure
-        % if flags.flag_dam_break
-        %     if depths.d_t(gauges.northing_obs_gauges(1),gauges.easting_obs_gauges(1))/1000 > 24 && flag_break_1 == 1
-        %         for i_breaker = 1:57
-        %             Elevation_Properties.elevation_cell(breakers.northing(i_breaker),breakers.easting(i_breaker)) = Elevation_Properties.elevation_cell(gauges.northing_obs_gauges(1),gauges.easting_obs_gauges(1));
-        %         end
-        %         flag_break_1 = 0;
-        %     elseif depths.d_t(gauges.northing_obs_gauges(10),gauges.easting_obs_gauges(10))/1000 > 10.5 && flag_break_2 == 1
-        %         for i_breaker =58:length(breakers.northing)
-        %             Elevation_Properties.elevation_cell(breakers.northing(i_breaker),breakers.easting(i_breaker)) = Elevation_Properties.elevation_cell(gauges.northing_obs_gauges(10),gauges.easting_obs_gauges(10));
-        %         end
-        %         flag_break_2 = 0;
-        %     end
-        % end
-
         % Show Stats
         if flags.flag_waterquality == 1
             perc__duremain___tsec____dtmm___infmmhr__CmgL___dtmWQ_VolErrorm3 = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max((WQ_States.P_conc))), tmin_wq,volume_error]
         else
-            per__duremain__tsec___dtmm__infmmhr__Vmax___VolErrorm3 = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max(velocities.velocity_raster)),volume_error]
+            perc_t__duremain___tsec____dtmm___infmmhr__CmgL___vel__VolErrorm3 = [(t)/running_control.routing_time*100, round(t/60/24,2), (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max(velocities.velocity_raster)),volume_error]
         end
 
         % Water Quality Instability
@@ -281,14 +286,12 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         t = t + time_step;
         depths.d_t = depths.d_p;
         Soil_Properties.I_t = Soil_Properties.I_p;
-        current_storage = previous_storage;
+        if flags.flag_baseflow == 1
+            BC_States.h_t = BC_States.h_0;
+        end
+        % current_storage = previous_storage;
         update_spatial_BC
     end
-end
-
-% Cloasing the dashboard
-if flags.flag_dashboard == 1
-    delete(ax.app)
 end
 
 % Saving the last modeled data
@@ -391,3 +394,5 @@ if flags.flag_GPU == 1
 end
 
 
+%% Save Workspace for post-processing
+save('modeled_results')

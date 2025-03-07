@@ -13,7 +13,6 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
             ax.ax_list = app.gauges_list;
             ax.app = app;
             app.flags = ax.flags;
-
             [Spectrum,depth_ramp,terrain_ramp,blue_ramp,blues_2,pallete,Depth_RAS,Terrain_RAS,Velocity_RAS,WSE_RAS] = coloramps();        
             %Store the inditial data into the multiarrays, depths, rainfall,
             %% Creating the custom basemap
@@ -124,7 +123,6 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
                 ax.ax_C.YAxis.TickValues = ax.ax_C.YAxis.TickValues(1:2:end);
                 colormap(ax.ax_C,Spectrum);hh = colorbar(ax.ax_C);  hh.TickDirection = 'out';
 
-
                 ax.ax_f = app.UIAxes_5;
                 bm_i = mapshow(ax.ax_f, A, RA, "AlphaData",0.35);hold(ax.ax_f, 'on');
                 F_f = Maps.Hydro.f([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],1);
@@ -140,13 +138,30 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
                 colormap(ax.ax_f,Velocity_RAS);hh = colorbar(ax.ax_f);  hh.TickDirection = 'out';
 
             end
+
+            if ax.flags.flag_baseflow == 1
+                ax.ax_GW = app.GWdepth;
+                bm_i = mapshow(ax.ax_GW, A, RA, "AlphaData",0.35);hold(ax.ax_GW, 'on');
+                GW_depth = Maps.Hydro.GWdepth_save([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],1);
+                GW_depth(mask) = nan;
+                ax.monitor_GW = pcolor(ax.ax_GW,ax.y_grid,ax.x_grid,GW_depth);
+                set(ax.monitor_GW,'EdgeColor', 'none');
+                shp_f = mapshow(ax.ax_GW,S_p,'FaceColor','n');hold(ax.ax_GW, 'on');
+                set(ax.ax_GW,'FontName','Garamond');
+                ax.ax_GW.XAxis.Exponent = 0; ax.ax_GW.XAxis.TickLabelFormat = '%.0f';
+                ax.ax_GW.YAxis.Exponent = 0; ax.ax_GW.YAxis.TickLabelFormat = '%.0f';
+                ax.ax_GW.YAxis.TickLabelRotation = 90;
+                ax.ax_GW.YAxis.TickValues = ax.ax_GW.YAxis.TickValues(1:2:end);
+                colormap(ax.ax_GW,Velocity_RAS);hh = colorbar(ax.ax_GW);  hh.TickDirection = 'out';
+            end
+
             if ax.flags.flag_reservoir == 1
                 ax.ax_bc = app.UIAxes_12;
                 ax.ax_list_bc = app.boundary_list;
                 bm_bc = mapshow(ax.ax_bc, A, RA, "AlphaData",0.35);hold(ax.ax_bc, 'on');
                 ax.monitor_bc = pcolor(ax.ax_bc,ax.y_grid,ax.x_grid,F_d);
                 set(ax.monitor_bc,'EdgeColor', 'none');
-                colormap(ax.ax_bc,Depth_RAS);hh = colorbar(ax.ax_bc);  hh.TickDirection = 'out';
+                colormap(ax.ax_bc,Velocity_RAS);hh = colorbar(ax.ax_bc);  hh.TickDirection = 'out';
                 shp_bc = mapshow(ax.ax_bc,S_p,'FaceColor','n');hold(ax.ax_bc, 'on');
                 set(ax.ax_bc,'FontName','Garamond');
                 ax.ax_bc.XAxis.Exponent = 0; ax.ax_bc.XAxis.TickLabelFormat = '%.0f';
@@ -158,7 +173,7 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
                 ax.ax_ETR = app.UIAxes_7;
                 bm_etr = mapshow(ax.ax_ETR, A, RA, "AlphaData",0.35);hold(ax.ax_ETR, 'on');
                 F_ETR = Maps.Hydro.ETR_save([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],1);
-                F_ETR(mask) = nan;
+                F_ETR(mask) = nan; F_ETR(F_ETR == 0) = nan;
                 ax.monitor_ETR = pcolor(ax.ax_ETR,ax.y_grid,ax.x_grid,F_ETR);
                 set(ax.monitor_ETR,'EdgeColor', 'none');
                 colormap(ax.ax_ETR,Spectrum);hh = colorbar(ax.ax_ETR);  hh.TickDirection = 'out';
@@ -291,9 +306,16 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
                 set(ax.monitor_bc, 'CData', idx_g/1000);
             end
             if ax.flags.flag_ETP == 1
+                F_ETR = Maps.Hydro.ETR_save([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],layer);
+                F_ETR(F_ETR == 0) = nan; 
                 set(ax.monitor_ETP, 'CData', Maps.Hydro.ETP_save([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],layer));
-                set(ax.monitor_ETR, 'CData', Maps.Hydro.ETR_save([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],layer));
+                set(ax.monitor_ETR, 'CData', F_ETR);
             end
+
+            if ax.flags.flag_baseflow == 1
+                set(ax.monitor_GW, 'CData', Maps.Hydro.GWdepth_save([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],layer));                
+            end
+
             % set(ax.monitor_d, 'CData', idx_g, 'YData', ax.x_grid, 'XData', ax.y_grid)
             if ax.flags.flag_spatial_rainfall == 1
                 idx_g = Maps.Hydro.spatial_rainfall_maps([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],layer);                        

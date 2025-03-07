@@ -270,6 +270,9 @@ FileName = fullfile(folderName,strcat('\',FileName_String));
 set(gcf,'units','inches','position',[0,0,7,12])
 set(gcf,'DefaultTextInterpreter','latex')
 
+
+% createMatrixVideo(Maps.Hydro.d, running_control.time_records(1:5), 'test3', 'test2', 14, 'TEST', Terrain_RAS_ramp, 'Test', DEM_raster)
+
 % This is absolutely memory expensive
 % z1 = gather(Maps.Hydro.d)/1000 + DEM_maps;
 % idx2 = Maps.Hydro.d < depths.depth_wse*1000;
@@ -629,18 +632,108 @@ if flags.flag_spatial_rainfall == 1
     if no_plot == 0
         mapshow(S_p,'FaceColor','n'); hold on;
     end
-    exportgraphics(gcf,fullfile(folderName,'Isoietal_Map.png'),'ContentType','image','Colorspace','rgb','Resolution',1200)
-    saveas(gcf,fullfile(folderName,'Isoeital.fig'))
+    exportgraphics(gcf,fullfile(folderName,'Isoietal_Map_Rainfall.png'),'ContentType','image','Colorspace','rgb','Resolution',1200)
+    saveas(gcf,fullfile(folderName,'Isoeital_Rainfall.fig'))
+    close all
+end
+
+
+%% Spatial ETR Isoietal
+% time_step_rainfall = double(time_step_rainfall);
+if flags.flag_ETP == 1
+    close all
+    set(gcf,'units','inches','position',[2,2,6.5,4])
+    if isdatetime(ETP_Parameters.climatologic_spatial_duration(2))
+        time_step_ETR = days(ETP_Parameters.climatologic_spatial_duration(2) -ETP_Parameters.climatologic_spatial_duration(1)); % hours
+    else
+        time_step_ETR = (ETP_Parameters.climatologic_spatial_duration(2) - ETP_Parameters.climatologic_spatial_duration(1))/60; % hours
+    end
+    ETR_Total = ETR_sum*time_step_ETR; % data comes from post_processing
+    time_total = days(date_end - date_begin);
+    title_isoietal = strcat('ETR of',{' '},string(round(time_total,2)),' days ',' from ',{' '},cellstr(date_begin),' to ',{' '},cellstr(date_end));
+    idx = isnan(Elevation_Properties.elevation_cell);
+    ETR_Total(ETR_Total<=0) = nan;
+    ETR_Total(idx) = nan;
+    zmin = min(min(ETR_Total));
+    zmax = max(max(ETR_Total));
+    F = ETR_Total([ybegin:1:yend],[xbegin:1:xend]);
+    if no_plot==0
+        try
+            mapshow(A,RA,"AlphaData",0.45);hold on;
+            mapshow(S_p,'FaceColor','n'); hold on;
+        catch ME
+
+        end
+    end
+    surf(x_grid,y_grid,F);
+    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
+    shading INTERP;
+    title(title_isoietal,'Interpreter','Latex','FontSize',12);
+    colorbar
+    caxis([zmin zmax]);
+    colormap(Spectrum)
+    k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
+    ylabel(k,'ETR Volume (mm)','Interpreter','Latex','FontSize',12)
+    xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+    ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
+
+    zlabel ('ETR Volume (mm)','Interpreter','Latex','FontSize',12)
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+
+    box on
+    set(gca,'tickdir','out');
+    set(gca, 'TickLength', [0.02 0.01]);
+    set(gca,'Tickdir','out')
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax = ancestor(gca, 'axes');
+    ax.XAxis.Exponent = 0;xtickformat('%.0f');
+    ax.YAxis.Exponent = 0;ytickformat('%.0f');
+    view(0,90)
+    if no_plot == 0
+        mapshow(S_p,'FaceColor','n'); hold on;
+    end
+    exportgraphics(gcf,fullfile(folderName,'Isoietal_Map_ETR.png'),'ContentType','image','Colorspace','rgb','Resolution',1200)
+    saveas(gcf,fullfile(folderName,'Isoeital_ETR.fig'))
     close all
 end
 
 %% Dividing the Rainfall into n intervals
+% zero_matrix = zeros(size(Elevation_Properties.elevation_cell,1),size(Elevation_Properties.elevation_cell,2));
+% if flags.flag_ETP == 1
+%     store=1;
+%     flag_loader=1;
+%     ETR_sum = zeros(size(zero_matrix));
+%     for i = 1:length(running_control.time_records)
+%         if i > saver_memory_maps*store
+%             store = store + 1;
+%             load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+%         else
+%             if flag_loader == 1
+%                 load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+%                 flag_loader=0;
+%             end
+%         end
+%         z = Maps.Hydro.ETR_save(:,:,i - ((store-1)*saver_memory_maps));
+%         z(isnan(z)) = 0; % Attention here
+%         ETR_sum = ETR_sum + z; % mm/h
+%         ETP_Parameters.std_dev_ETR(i,1) = nanstd(z(:));
+%     end
+% end
+
+
+
 % if flags.flag_spatial_rainfall == 1
 %     n_plots = 8;
-%     n_rainfall = size(Maps.Hydro.spatial_rainfall_maps*time_step_rainfall,3);
+%     n_rainfall = length(running_control.time_records);
 %     time_step_rainfall_aggregated = floor((n_rainfall/n_plots))*time_step_rainfall;
 %     zmin = 0;
-%     zmax = max(max(max((Maps.Hydro.spatial_rainfall_maps))))*time_step_rainfall_aggregated;
+%     zmax = max(max(rainfall_sum*time_step_rainfall));
 % 
 %     for i = 1:n_plots
 %         subplot(2,n_plots/2,i)
@@ -702,15 +795,20 @@ end
 %         view(0,90)
 %     end
 % end
-close all
+% close all
 %% Spatial Rainfall Video
 % Generate video showing water level profile over time
+
+try 
+    delete('Modeling_Results\Rainfall_Intensities.mp4')
+end
 
 %Calculating general Max and Min
 if flags.flag_spatial_rainfall == 1
     store = 1;
     flag_loader=1;
     for i = 1:length(running_control.time_records)
+        try
         if i > saver_memory_maps*store
             store = store + 1;
             load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');      
@@ -731,6 +829,7 @@ if flags.flag_spatial_rainfall == 1
                     Min_etp = min(Maps.Hydro.ETP_save,[],3);
                 end
             end
+        end
         end
     end
 end
@@ -819,11 +918,11 @@ if flags.flag_spatial_rainfall == 1
             caxis([zmin zmax]);
             colormap(Spectrum)
             k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
-            ylabel(k,'Rainfall (mm/h)','Interpreter','Latex','FontSize',12)
+            ylabel(k,'Rainfall [mm/h]','Interpreter','Latex','FontSize',12)
             xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
             ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
 
-            zlabel ('Rainfall (mm/h)','Interpreter','Latex','FontSize',12)
+            zlabel ('Rainfall [mm/h]','Interpreter','Latex','FontSize',12)
             set(gca,'FontName','Garamond','FontSize',12)
             % Increase border (axis) thickness
             ax = gca;          % Get current axis
@@ -857,7 +956,7 @@ if flags.flag_spatial_rainfall == 1
     close(video);
     close all
 end
-%% Spatial Rainfall GIFS Flag_Spatial_Rainfall
+%% Spatial Rainfall Video
 if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_input_rainfall_map ~= 1
 
     close all
@@ -933,11 +1032,11 @@ if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_in
         caxis([zmin zmax]);
         colormap(Spectrum)
         k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
-        ylabel(k,'Rainfall (mm/h)','Interpreter','Latex','FontSize',12)
+        ylabel(k,'Rainfall [mm/h]','Interpreter','Latex','FontSize',12)
         xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
         ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
 
-        zlabel ('Rainfall (mm/h)','Interpreter','Latex','FontSize',12)
+        zlabel ('Rainfall [mm/h]','Interpreter','Latex','FontSize',12)
         set(gca,'FontName','Garamond','FontSize',12)
         % Increase border (axis) thickness
         ax = gca;          % Get current axis
@@ -1032,10 +1131,10 @@ if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_in
         caxis([zmin zmax]);
         colormap(Spectrum)
         k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
-        ylabel(k,'Rainfall (mm/h)','Interpreter','Latex','FontSize',12)
+        ylabel(k,'Rainfall [mm/h]','Interpreter','Latex','FontSize',12)
         xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
         ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
-        zlabel ('Rainfall (mm/h)','Interpreter','Latex','FontSize',12)
+        zlabel ('Rainfall [mm/h]','Interpreter','Latex','FontSize',12)
         set(gca,'FontName','Garamond','FontSize',12)
         % Increase border (axis) thickness
         ax = gca;          % Get current axis
@@ -1068,97 +1167,443 @@ close(video);
 close all
 
 
-%% Flag_ETP
+%% ETP  Video
+try 
+    delete('Modeling_Results\ETP_Intensities.mp4')
+end
+
+%Calculating general Max and Min
 if flags.flag_ETP == 1
-    % Generate video showing water level profile over time
+    store = 1;
+    flag_loader=1;
+    for i = 1:length(running_control.time_records)
+        try
+        if i > saver_memory_maps*store
+            store = store + 1;
+            load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');      
+            if flags.flag_ETP
+                Max_etp = max(max(Maps.Hydro.ETP_save,[],3),Max_etp);
+                Min_etp = min(min(Maps.Hydro.ETP_save,[],3),Min_etp);
+            end
+        else
+            if flag_loader == 1
+                load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+                flag_loader=0;
+                if flags.flag_ETP
+                    Max_etp = max(Maps.Hydro.ETP_save,[],3);
+                    Min_etp = min(Maps.Hydro.ETP_save,[],3);
+                end
+            end
+        end
+        end
+    end
+end
+
+if flags.flag_ETP == 1
     close all
-    Video_Name = 'ETP_Maps.mp4';
+    Video_Name = 'ETP_Intensities.mp4';
     % Set up video
     video = VideoWriter(fullfile(folderName,Video_Name),'MPEG-4');
     video.FrameRate=2;
     open(video);
     h = figure;
     FileName = fullfile(folderName,strcat('\',FileName_String));
-    set(gcf,'units','inches','position',[0,0,6.5,4])
+    set(gcf,'units','inches','position',[0,0,7,12])
     set(gcf,'DefaultTextInterpreter','latex')
+    if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_input_rainfall_map ~= 1
+        close all
+        zmax = max(max(Max_etp));
+        zmin = min(min(Min_etp));
+        if zmin == zmax
+            zmax = zmin + 10; % mm/h
+        end
+        store = 1;
+        flag_loader=1;
+        for t = 1:1:length(running_control.time_records)
+            clf
+            if t > saver_memory_maps*store
+                store = store + 1;
+                load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+            else
+                if flag_loader == 1
+                    load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+                    flag_loader=0;
+                end
+            end
+            ETP = Maps.Hydro.ETP_save(:,:,t - (store-1)*saver_memory_maps);
+            idx = isnan(Elevation_Properties.elevation_cell);
+            ETP(ETP<=0) = nan;
+            ETP(idx) = nan;
+            spatial_ETP = ETP;
+            if t > size(Spatial_Rainfall_Parameters.rainfall_spatial_duration,2)
+                t_title = Spatial_Rainfall_Parameters.rainfall_spatial_duration(end) + Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg(2);
+                spatial_ETP = zeros(size(Elevation_Properties.elevation_cell));
+                z = spatial_ETP;
+                plot3(Spatial_Rainfall_Parameters.x_coordinate, Spatial_Rainfall_Parameters.y_coordinate,zmax*ones(size(rainfall)), 'r.', 'MarkerSize', 30)
+            else
+                t_title = Spatial_Rainfall_Parameters.rainfall_spatial_duration(t);
+                % Draw plot for d = x.^n
+                z = ETP; %
+                z(idx_nan)=nan;
+            end
+            hold on
+            F = z([ybegin:1:yend],[xbegin:1:xend]);
+            if no_plot==0
+                try
+                    mapshow(A,RA,"AlphaData",0.45);hold on;
+                    mapshow(S_p,'FaceColor','n'); hold on;
+                catch ME
 
-    zmax = max(max(max(Maps.Hydro.ETP_save)));
-    zmin = min(min(min(Maps.Hydro.ETP_save)));
-    if zmin == zmax
-        zmax = zmin + 10; % mm/h
-    end
-    tmax_plot = min(days(date_end - date_begin),((size(Maps.Hydro.ETP_save,3))));
-    for t = 1:tmax_plot
-        clf
-        ETP = Maps.Hydro.ETP_save(:,:,t);
-        idx = isnan(Elevation_Properties.elevation_cell);
-        ETP(ETP<=0) = nan;
-        ETP(idx) = nan;
-        spatial_ETP = ETP;
-        t_title = ETP_Parameters.climatologic_spatial_duration(t);
-        % Draw plot for d = x.^n
-        z = ETP; %
-        z(idx_nan)=nan;
-        hold on
-        F = z([ybegin:1:yend],[xbegin:1:xend]);
-        if no_plot==0
-            try
-                mapshow(A,RA,"AlphaData",0.45);hold on;
+                end
+            end
+            surf(x_grid,y_grid,F);
+            axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
+
+            shading INTERP;
+
+            %
+            if flags.flag_elapsed_time == 1
+                title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+            else
+                title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
+            end
+            view(0,90);
+            colorbar
+            caxis([zmin zmax]);
+            colormap(Spectrum)
+            k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
+            ylabel(k,'ETP [mm/day]','Interpreter','Latex','FontSize',12)
+            xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+            ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
+
+            zlabel ('ETP [mm/day]','Interpreter','Latex','FontSize',12)
+            set(gca,'FontName','Garamond','FontSize',12)
+            % Increase border (axis) thickness
+            ax = gca;          % Get current axis
+            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+
+            box on
+            set(gca,'tickdir','out');
+            set(gca, 'TickLength', [0.02 0.01]);
+            set(gca,'Tickdir','out')
+            set(gca,'FontName','Garamond','FontSize',12)
+            % Increase border (axis) thickness
+            ax = gca;          % Get current axis
+            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+            ax = ancestor(gca, 'axes');
+            ax.XAxis.Exponent = 0;xtickformat('%.0f');
+            ax.YAxis.Exponent = 0;ytickformat('%.0f');
+            hold off
+            if no_plot == 0
                 mapshow(S_p,'FaceColor','n'); hold on;
-            catch ME
+            end
+            box on
+            % Set background color and write to video
+            frame = getframe(gcf);
+            writeVideo(video,frame);
+            hold off
+            clf
+        end
+    end
 
+    % Close video writer
+    close(video);
+    close all
+end
+
+%% ETR  Video
+try 
+    delete('Modeling_Results\ETR_Intensities.mp4')
+end
+
+%Calculating general Max and Min
+if flags.flag_ETP == 1
+    store = 1;
+    flag_loader=1;
+    for i = 1:length(running_control.time_records)
+        try
+        if i > saver_memory_maps*store
+            store = store + 1;
+            load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');      
+            if flags.flag_ETP
+                Max_etr = max(max(Maps.Hydro.ETR_save,[],3),Max_etr);
+                Min_etp = min(min(Maps.Hydro.ETR_save,[],3),Min_etp);
+            end
+        else
+            if flag_loader == 1
+                load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+                flag_loader=0;
+                if flags.flag_ETP
+                    Max_etr = max(Maps.Hydro.ETR_save,[],3);
+                    Min_etr = max(Maps.Hydro.ETR_save,[],3);
+                end
             end
         end
-        surf(x_grid,y_grid,F);
-        axis tight
-        shading INTERP;
-
-        %
-        if flags.flag_elapsed_time == 1
-            title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
-        else
-            title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
         end
-        view(0,90);
-        colorbar
-        caxis([zmin zmax]);
-        colormap(Spectrum)
-        k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
-        ylabel(k,'ETP (mm/day)','Interpreter','Latex','FontSize',12)
-        xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
-        ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
-        zlabel ('ETP (mm/day)','Interpreter','Latex','FontSize',12)
-        set(gca,'FontName','Garamond','FontSize',12)
-        % Increase border (axis) thickness
-        ax = gca;          % Get current axis
-        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
-        ax = ancestor(gca, 'axes');
-        ax.XAxis.Exponent = 0;xtickformat('%.0f');
-        ax.YAxis.Exponent = 0;ytickformat('%.0f');
-
-        drawnow
-        box on
-        set(gca,'tickdir','out');
-        set(gca, 'TickLength', [0.02 0.01]);
-        set(gca,'Tickdir','out')
-        set(gca,'FontName','Garamond','FontSize',12)
-        % Increase border (axis) thickness
-        ax = gca;          % Get current axis
-        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
-        if no_plot == 0
-            mapshow(S_p,'FaceColor','n'); hold on;
-        end
-        box on
-        hold off
-        % Set background color and write to video
-        frame = getframe(gcf);
-        writeVideo(video,frame);
-        clf
     end
 end
-% Close video writer
-close(video);
-close all
+
+if flags.flag_ETP == 1
+    close all
+    Video_Name = 'ETR_Intensities.mp4';
+    % Set up video
+    video = VideoWriter(fullfile(folderName,Video_Name),'MPEG-4');
+    video.FrameRate=2;
+    open(video);
+    h = figure;
+    FileName = fullfile(folderName,strcat('\',FileName_String));
+    set(gcf,'units','inches','position',[0,0,7,12])
+    set(gcf,'DefaultTextInterpreter','latex')
+    if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_input_rainfall_map ~= 1
+        close all
+        zmax = max(max(Max_etr));
+        zmin = min(min(Min_etr));
+        if zmin == zmax
+            zmax = zmin + 10; % mm/h
+        end
+        store = 1;
+        flag_loader=1;
+        for t = 1:1:length(running_control.time_records)
+            clf
+            if t > saver_memory_maps*store
+                store = store + 1;
+                load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+            else
+                if flag_loader == 1
+                    load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+                    flag_loader=0;
+                end
+            end
+            ETR = Maps.Hydro.ETR_save(:,:,t - (store-1)*saver_memory_maps);
+            idx = isnan(Elevation_Properties.elevation_cell);
+            ETR(ETR<=0) = nan;
+            ETR(idx) = nan;
+            spatial_ETR = ETR;
+            if t > size(Spatial_Rainfall_Parameters.rainfall_spatial_duration,2)
+                t_title = Spatial_Rainfall_Parameters.rainfall_spatial_duration(end) + Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg(2);
+                spatial_ETR = zeros(size(Elevation_Properties.elevation_cell));
+                z = spatial_ETR;
+                plot3(Spatial_Rainfall_Parameters.x_coordinate, Spatial_Rainfall_Parameters.y_coordinate,zmax*ones(size(rainfall)), 'r.', 'MarkerSize', 30)
+            else
+                t_title = Spatial_Rainfall_Parameters.rainfall_spatial_duration(t);
+                % Draw plot for d = x.^n
+                z = ETR; %
+                z(idx_nan)=nan;
+            end
+            hold on
+            F = z([ybegin:1:yend],[xbegin:1:xend]);
+            if no_plot==0
+                try
+                    mapshow(A,RA,"AlphaData",0.45);hold on;
+                    mapshow(S_p,'FaceColor','n'); hold on;
+                catch ME
+
+                end
+            end
+            surf(x_grid,y_grid,F);
+            axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
+
+            shading INTERP;
+
+            %
+            if flags.flag_elapsed_time == 1
+                title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+            else
+                title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
+            end
+            view(0,90);
+            colorbar
+            caxis([zmin zmax]);
+            colormap(Spectrum)
+            k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
+            ylabel(k,'ETP [mm/day]','Interpreter','Latex','FontSize',12)
+            xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+            ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
+
+            zlabel ('ETP [mm/day]','Interpreter','Latex','FontSize',12)
+            set(gca,'FontName','Garamond','FontSize',12)
+            % Increase border (axis) thickness
+            ax = gca;          % Get current axis
+            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+
+            box on
+            set(gca,'tickdir','out');
+            set(gca, 'TickLength', [0.02 0.01]);
+            set(gca,'Tickdir','out')
+            set(gca,'FontName','Garamond','FontSize',12)
+            % Increase border (axis) thickness
+            ax = gca;          % Get current axis
+            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+            ax = ancestor(gca, 'axes');
+            ax.XAxis.Exponent = 0;xtickformat('%.0f');
+            ax.YAxis.Exponent = 0;ytickformat('%.0f');
+            hold off
+            if no_plot == 0
+                mapshow(S_p,'FaceColor','n'); hold on;
+            end
+            box on
+            % Set background color and write to video
+            frame = getframe(gcf);
+            writeVideo(video,frame);
+            hold off
+            clf
+        end
+    end
+
+    % Close video writer
+    close(video);
+    close all
+end
+
+%% GW Video
+%% GW Video
+try 
+    delete('Modeling_Results\GW_Depths.mp4')
+end
+
+% Calculating general Max and Min
+if flags.flag_baseflow == 1
+    store = 1;
+    flag_loader = 1;
+    for i = 1:length(running_control.time_records)
+        try
+            Max_gw = zeros(size(elevation));
+            Min_gw = zeros(size(elevation));
+            if i > saver_memory_maps * store
+                store = store + 1;
+                load(strcat('Temporary_Files\save_map_hydro_', num2str(store)), 'Maps');      
+                if flags.flag_ETP
+                    Max_gw = max(max(Maps.Hydro.GWdepth_save, [], 3), Max_gw);
+                    Min_gw = min(min(Maps.Hydro.GWdepth_save, [], 3), Min_gw);
+                end
+            else
+                if flag_loader == 1
+                    load(strcat('Temporary_Files\save_map_hydro_', num2str(store)), 'Maps');
+                    flag_loader = 0;
+                    if flags.baseflow
+                        Max_gw = max(Maps.Hydro.GWdepth_save, [], 3);
+                        Min_gw = max(Maps.Hydro.GWdepth_save, [], 3);
+                    end
+                end
+            end
+        end
+    end
+end
+
+if flags.flag_baseflow == 1
+    close all
+    Video_Name = 'GW_Depths.mp4';
+    
+    % Set up video
+    video = VideoWriter(fullfile(folderName, Video_Name), 'MPEG-4');
+    video.FrameRate = 2;
+    open(video);
+    
+    h = figure;
+    set(gcf, 'units', 'inches', 'position', [0, 0, 10, 7]) % Larger figure size
+    set(gcf, 'DefaultTextInterpreter', 'latex')
+    set(gcf, 'PaperPositionMode', 'auto'); % Ensures high-quality rendering
+
+    if flags.flag_baseflow == 1
+        close all
+        zmax = max(max(Max_gw));
+        zmin = min(min(Min_gw));
+        if zmin == zmax
+            zmax = zmin + 10; % mm/h
+        end
+        store = 1;
+        flag_loader = 1;
+        for t = 1:length(running_control.time_records)
+            clf
+            if t > saver_memory_maps * store
+                store = store + 1;
+                load(strcat('Temporary_Files\save_map_hydro_', num2str(store)), 'Maps');
+            else
+                if flag_loader == 1
+                    load(strcat('Temporary_Files\save_map_hydro_', num2str(store)), 'Maps');
+                    flag_loader = 0;
+                end
+            end
+            GW = Maps.Hydro.GWdepth_save(:, :, t - (store - 1) * saver_memory_maps);
+            idx = isnan(Elevation_Properties.elevation_cell);
+            GW(GW < 0) = nan;
+            GW(idx) = nan;
+            spatial_GW = GW;
+            
+            if t > size(Spatial_Rainfall_Parameters.rainfall_spatial_duration, 2)
+                t_title = Spatial_Rainfall_Parameters.rainfall_spatial_duration(end) + Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg(2);
+                spatial_GW = zeros(size(Elevation_Properties.elevation_cell));
+                z = spatial_GW;
+            else
+                t_title = Spatial_Rainfall_Parameters.rainfall_spatial_duration(t);
+                z = spatial_GW;
+                z(idx_nan) = nan;
+            end
+            
+            hold on
+            F = z([ybegin:1:yend], [xbegin:1:xend]);
+            if no_plot == 0
+                try
+                    mapshow(A, RA, "AlphaData", 0.45); hold on;
+                    mapshow(S_p, 'FaceColor', 'n'); hold on;
+                catch ME
+                end
+            end
+            surf(x_grid, y_grid, F);
+            axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
+            shading INTERP;
+            
+            if flags.flag_elapsed_time == 1
+                title(sprintf('Time [h] = %4.2f', t_title / 60), 'Interpreter', 'Latex', 'FontSize', 14)
+            else
+                title(sprintf(string(t_title)), 'Interpreter', 'Latex', 'FontSize', 14);
+            end
+            view(0, 90);
+            colorbar
+            caxis([zmin zmax]);
+            colormap(Spectrum)
+            k = colorbar; 
+            k.FontName = 'Garamond'; 
+            k.FontSize = 14; 
+            k.TickDirection = 'out';
+            ylabel(k, 'GW [m]', 'Interpreter', 'Latex', 'FontSize', 14)
+            xlabel('Easting [m]', 'Interpreter', 'Latex', 'FontSize', 14)
+            ylabel('Northing [m]', 'Interpreter', 'Latex', 'FontSize', 14)
+            zlabel('GW [m]', 'Interpreter', 'Latex', 'FontSize', 14)
+            set(gca, 'FontName', 'Garamond', 'FontSize', 14)
+
+            % Increase border (axis) thickness
+            ax = gca; 
+            ax.LineWidth = 2;  
+            box on
+            set(gca, 'TickDir', 'out', 'TickLength', [0.02 0.01]);
+            set(gca, 'FontName', 'Garamond', 'FontSize', 14)
+            ax.XAxis.Exponent = 0; xtickformat('%.0f');
+            ax.YAxis.Exponent = 0; ytickformat('%.0f');
+
+            hold off
+            if no_plot == 0
+                mapshow(S_p, 'FaceColor', 'n'); hold on;
+            end
+            box on
+
+            % Save high-resolution frame before writing to video
+            frame_filename = 'temp_frame.png';
+            print(gcf, '-dpng', '-r300', frame_filename); % 300 DPI output
+            frame_img = imread(frame_filename);
+            writeVideo(video, frame_img);
+            delete(frame_filename); % Clean up temporary file
+
+            hold off
+            clf
+        end
+    end
+
+    % Close video writer
+    close(video);
+    close all
+end
+
 
 %% Plot Risk Maps
 % Adjusting the size
@@ -1201,13 +1646,13 @@ if flags.flag_human_instability > 0
         if flags.flag_rainfall == 1
             if flags.flag_spatial_rainfall ~=1
                 plot(gather(Rainfall_Parameters.time_rainfall),gather(Rainfall_Parameters.intensity_rainfall), '-o','LineWidth',2);hold on
-                ylabel(['Rainfall Intensity' newline '(mm/h)'],'interpreter','latex','FontSize',12);
+                ylabel(['Rainfall Intensity' newline '[mm/h]'],'interpreter','latex','FontSize',12);
                 ylim([0 max(gather(Rainfall_Parameters.intensity_rainfall))*1.2])
                 scatter(gather(Rainfall_Parameters.time_rainfall(i)),gather(Rainfall_Parameters.intensity_rainfall(i)),"filled",'MarkerFaceColor',[102 255 102]./255,'SizeData',100,'LineWidth',2.5,'MarkerEdgeColor',[0 0 0])
                 set(gca,'ydir','reverse')
             else
                 % bar(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim)),gather(BC_States.average_spatial_rainfall),'FaceColor',[0 .5 .5],'EdgeColor',[0 .55 .55],'LineWidth',1.5);
-                % ylabel('Aerial Mean Rainfall Intensity (mm/h)','interpreter','latex');
+                % ylabel('Aerial Mean Rainfall Intensity [mm/h]','interpreter','latex');
                 % hold on
                 % er = errorbar(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim)),BC_States.average_spatial_rainfall,Rainfall_Parameters.std_dev(1:(dim),1),Rainfall_Parameters.std_dev(1:(dim),1));
                 % er.Color = [0 0 0];
@@ -1264,6 +1709,14 @@ if flags.flag_human_instability > 0
         hold off
         % Set background color and write to video
         frame = getframe(gcf);
+
+        % Save high-resolution frame before writing to video
+        frame_filename = 'temp_frame.png';
+        print(gcf, '-dpng', '-r300', frame_filename); % 300 DPI output
+        frame_img = imread(frame_filename);
+        writeVideo(video, frame_img);
+        delete(frame_filename); % Clean up temporary file
+
         writeVideo(video,frame);
         box on
         hold off

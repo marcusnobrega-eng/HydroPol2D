@@ -1,19 +1,5 @@
 function [map] = human_risk(flag,v,h,ro,g,mu,cd,slope,m,y,w,d)   
-    if flag == 1
-        Human_Instability.F_person = Human_Instability.weight_person*Human_Instability.gravity; % N
-        % Buyoance
-        Human_Instability.F_buoy = (Human_Instability.width1_person*Human_Instability.width2_person)*h*Human_Instability.ro_water*Human_Instability.gravity; % N
-        % Available Friction
-        Human_Instability.available_friction = Human_Instability.mu*(max(Human_Instability.F_person - Human_Instability.F_buoy,0));
-        % Hydrodynamic Force
-        Human_Instability.hydro_force = max(1/2*(Human_Instability.Cd*Human_Instability.width1_person*h.*v.^2),0);
-        % Risk Factor
-        Human_Instability.risk_t = min(Human_Instability.hydro_force./Human_Instability.available_friction,1);
-        Human_Instability.risk_t(idx_nan) = nan;
-        map = Human_Instability.risk;
-    elseif flag == 2
-        
-    else
+    if flag == 3
         % Person's Geometry for h<y
         sub_temp_1 = h./cosd(slope) < y./2;
         V_s1 = sub_temp_1.*(((2*h.*d^2).*pi())./(cosd(slope).*4));

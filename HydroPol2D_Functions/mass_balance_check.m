@@ -22,13 +22,13 @@ if flags.flag_spatial_rainfall == 1
     if flags.flag_inflow == 1
         if flags.flag_subgrid == 1
             inflow_vol = nansum(nansum(BC_States.inflow.*(C_a)./Wshed_Properties.cell_area/1000*Wshed_Properties.cell_area)) + ...
-            nansum(nansum(BC_States.delta_p_agg))/1000*Wshed_Properties.cell_area + inflow_stage;
+            nansum(nansum(C_a.*BC_States.delta_p_agg))/1000+ inflow_stage;
         else
         inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + ...
-            nansum(nansum(BC_States.delta_p_agg))/1000*Wshed_Properties.cell_area + inflow_stage;
+            nansum(nansum(C_a.*BC_States.delta_p_agg))/1000 + inflow_stage;
         end
     else
-        inflow_vol = nansum(nansum(nansum(nansum(BC_States.delta_p_agg))/1000*Wshed_Properties.cell_area)) + inflow_stage;
+        inflow_vol = nansum(nansum(C_a.*BC_States.delta_p_agg))/1000 + inflow_stage;
     end
     BC_States.inflow_volume = inflow_vol + BC_States.inflow_volume; % m3
 elseif flags.flag_spatial_rainfall ~= 1 && flags.flag_inflow == 1
@@ -39,22 +39,81 @@ else
     BC_States.inflow_volume = inflow_vol  + BC_States.inflow_volume; % check future
 end
 
+P = nansum(nansum(BC_States.delta_p_agg/1000.*C_a)); % m3
+Qin = inflow_vol - nansum(nansum(BC_States.delta_p_agg/1000.*C_a)); % m3
+E_int = nansum(nansum(C_a.*Hydro_States.E_int/1000)); % m3
+ETR = nansum(nansum(C_a.*Hydro_States.ETR/1000*(time_step/60/24))); % m3
+E_ow = nansum(nansum(C_a.*BC_States.delta_E/1000)); % m3
+Qout = nansum(nansum(outlet_states.outlet_flow.*C_a))/1000/3600*time_step*60; % m3
+
+if flags.flag_baseflow ~= 1
+    Qout = Qout + nansum(nansum(recharge_rate.*C_a*time_step*60)); % We are not modeling groundwater, but the recharge rate
+end
+
+S_c = nansum(nansum(C_a.*Hydro_States.S/1000));
+if flags.flag_subgrid == 1
+    S_p = nansum(nansum((Wshed_Properties.Resolution - Wshed_Properties.River_Width).*Wshed_Properties.Resolution.*max((depths.d_t/1000 - Wshed_Properties.River_Depth),0))) + ...
+                      nansum(nansum(Wshed_Properties.Resolution.*Wshed_Properties.River_Width.*depths.d_t/1000));
+else
+    S_p = nansum(nansum(C_a.*depths.d_t/1000));
+end
+S_UZ = nansum(nansum(C_a.*Soil_Properties.I_t/1000));
+S_GW = nansum(nansum(C_a.*Soil_Properties.Sy.*(BC_States.h_t - (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth))));
+
+[dS, fluxes, S_prev, error] = system_mass_balance(P, Qin, E_int, ETR, E_ow, Qout, S_c, S_p, S_UZ, S_GW,S_prev);
+volume_error = error;
+
 if flags.flag_subgrid == 1
     current_storage = nansum(nansum((Wshed_Properties.Resolution - Wshed_Properties.River_Width).*Wshed_Properties.Resolution.*max((depths.d_t/1000 - Wshed_Properties.River_Depth),0))) + ...
-                      nansum(nansum(Wshed_Properties.Resolution.*Wshed_Properties.River_Width.*depths.d_t/1000)); % m3
+                      nansum(nansum(Wshed_Properties.Resolution.*Wshed_Properties.River_Width.*depths.d_t/1000)) + ...
+                      nansum(nansum(C_a.*Soil_Properties.I_t/1000)) + ...
+                      nansum(nansum(C_a.*Hydro_States.S/1000)) + ...
+                      nansum(nansum(C_a.*Soil_Properties.Sy.*(BC_States.h_t - (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth)))); % m3
 else
-    current_storage = nansum(nansum(C_a.*depths.d_t/1000)); % m3
+    current_storage = nansum(nansum(C_a.*depths.d_t/1000)) + ...
+                      nansum(nansum(C_a.*Hydro_States.S/1000)) + ...
+                      nansum(nansum(C_a.*Soil_Properties.I_t/1000)) + ...
+                      nansum(nansum(C_a.*Soil_Properties.Sy.*(BC_States.h_t - (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth)))); % m3
 end
+
+if flags.flag_subgrid == 1
+    current_storage = nansum(nansum((Wshed_Properties.Resolution - Wshed_Properties.River_Width).*Wshed_Properties.Resolution.*max((depths.d_t/1000 - Wshed_Properties.River_Depth),0))) + ...
+                      nansum(nansum(Wshed_Properties.Resolution.*Wshed_Properties.River_Width.*depths.d_t/1000)) + ...
+                      nansum(nansum(C_a.*Soil_Properties.I_t/1000)) + ...
+                      nansum(nansum(C_a.*Hydro_States.S/1000)) + ...
+                      nansum(nansum(C_a.*Soil_Properties.Sy.*(BC_States.h_t - (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth)))); % m3
+else
+    current_storage = nansum(nansum(C_a.*depths.d_t/1000)) + ...
+                      nansum(nansum(C_a.*Hydro_States.S/1000)) + ...
+                      nansum(nansum(C_a.*Soil_Properties.I_t/1000)) + ...
+                      nansum(nansum(C_a.*Soil_Properties.Sy.*(BC_States.h_t - (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth)))); % m3
+end
+
+loss_volume = inf_volume;
 
 if flags.flag_infiltration == 0
     inf_volume = 0;
 end
-% dS/dt = Qin - Qout = Rain + Inflow - Outflow - infiltration
-delta_storage = current_storage - previous_storage;
-outflow_vol = nansum(nansum(outlet_states.outlet_flow.*C_a))/1000/3600*time_step*60 + ...
-    inf_volume; % m3 
-flux_volumes = inflow_vol - outflow_vol; % dt(Qin - Qout) m3
-volume_error = flux_volumes - delta_storage;
+
+% Storage = Canopy Storage, UZ Storage, GW Storage
+% Fluxes: 
+%%% Canopy
+% - Precipitation at the canopy
+% - Evaporation
+%%% Soil surface
+% - Evapotranspiration
+% - Evaporation in open waters
+% dS/dt = inflows - outflow
+
+% delta_storage = current_storage - previous_storage;
+% outflow_vol = nansum(nansum(outlet_states.outlet_flow.*C_a))/1000/3600*time_step*60 + ...
+%                nansum(nansum(C_a.*Hydro_States.ETR/1000*(time_step/60/24))) + ...
+%                nansum(nansum(C_a.*BC_States.delta_E/1000)) + ...
+%                nansum(nansum(C_a.*Hydro_States.E_int)); % m3 
+%                % inf_volume + ...
+% 
+% flux_volumes = inflow_vol - outflow_vol; % dt(Qin - Qout) m3
+% volume_error = flux_volumes - delta_storage;
 
 % if inflow_vol ~= 0
 %     if abs(volume_error)/inflow_vol*100 > 100
@@ -65,7 +124,7 @@ volume_error = flux_volumes - delta_storage;
 % end
 
 % Previous storage
-previous_storage = current_storage;
+% previous_storage = current_storage;
 
 % Introducing the volume error to the inflow cells
 if flags.flag_inflow == 1 && flags.flag_waterbalance == 1

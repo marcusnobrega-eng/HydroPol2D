@@ -32,6 +32,9 @@ if flags.flag_automatic_calibration ~= 1
             Maps.Hydro.ETP_save(:,:,1) = Hydro_States.ETP;
             Maps.Hydro.ETR_save(:,:,1) = Hydro_States.ETR;
         end
+        if flags.flag_baseflow == 1
+            Maps.Hydro.GWdepth_save(:,:,1) = BC_States.h_t - elevation + Soil_Properties.Soil_Depth; % GW depth
+        end
         if flags.flag_waterquality == 1
             Maps.WQ_States.Pol_Conc_Map(:,:,1) = zeros(ny,nx);
             Maps.WQ_States.Pol_Mass_Map(:,:,1) = zeros(ny,nx);
@@ -63,6 +66,9 @@ if flags.flag_automatic_calibration ~= 1
         if flags.flag_ETP == 1
             Maps.Hydro.ETP_save(:,:,saver_count) = Hydro_States.ETP;
             Maps.Hydro.ETR_save(:,:,saver_count) = Hydro_States.ETR;
+        end
+        if flags.flag_baseflow == 1
+            Maps.Hydro.GWdepth_save(:,:,saver_count) = BC_States.h_t - elevation + Soil_Properties.Soil_Depth % GW head
         end
         if flags.flag_waterquality == 1
             Maps.WQ_States.Pol_Conc_Map(:,:,saver_count) = WQ_States.P_conc;

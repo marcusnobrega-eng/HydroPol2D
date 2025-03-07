@@ -3,10 +3,10 @@
 % Goal - Solve PM model spatially
 %
 % Input:
-%
+% 
 % Output:
 % ETP: Interpolated value of ETP for each cell
-function [ETP] = ETP_model(k,day_of_year,x_coordinate,y_coordinate,x_grid,y_grid,maxtemp_stations,mintemp_stations,avgtemp_stations,u2_stations,ur_stations,G_stations,DEM_etp,lat,Krs,alfa_albedo_input,idx_mask)
+function [ETP, Ep] = ETP_model(k,day_of_year,x_coordinate,y_coordinate,x_grid,y_grid,maxtemp_stations,mintemp_stations,avgtemp_stations,u2_stations,ur_stations,G_stations,DEM_etp,lat,Krs,alfa_albedo_input,idx_mask)
 %% Interpolation
 
 % Checking Missing Data
@@ -66,6 +66,8 @@ var_obs = G_stations(k,1:n_stations)';
 [G,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid);
 
 %% Run ETP code
-[ETP] = Evapotranspiration(DEM_etp, avg_temp,max_temp,min_temp,day_of_year,lat,u2, ur, Krs, alfa_albedo_input, G);
+[ETP,Ep] = Evapotranspiration(DEM_etp, avg_temp,max_temp,min_temp,day_of_year,lat,u2, ur, Krs, alfa_albedo_input, G);
 ETP(idx_mask) = nan;
+Ep(idx_mask) = nan; % Evaporation
+
 end

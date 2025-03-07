@@ -141,6 +141,7 @@ if flags.flag_rainfall > 0
                 zzz = Maps.Hydro.spatial_rainfall_maps(:,:,saver_count);
                 BC_States.average_spatial_rainfall(zz2,1) = mean(zzz(zzz>=0));
             end
+            spatial_rainfall(idx_nan) = nan;
             BC_States.delta_p_agg = spatial_rainfall/3600*time_step*60; % Matrix of delta P for each pixel
             % Saving Maps for Spatial Aggregation
             rainfall_spatial_aggregation(:,:,Rainfall_Parameters.index_aggregation) = gather(spatial_rainfall); % Saving high resolution map
@@ -166,28 +167,35 @@ if flags.flag_rainfall > 0
         if z2_input > z1_input
             % Read Geotiff
             % input_rainfall = GRIDobj(Input_Rainfall.labels_Directory{z2_input}{1});
-            try
-                [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input}{1}),'CoordinateSystemType','geographic');                % Filtering Non-physical values and extreme wrong values
-                if max(max(input_rainfall)) > 300 % Very unlikely to have a value like this
-                    warning('Rainfall values larger than 300 mm/h. We are neglecting this raster and collecting the previous one for this time-step.')
-                    [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input - 1}{1}),'CoordinateSystemType','geographic');                
-                elseif isnan(sum(input_rainfall(~idx_nan)))
-                    warning('Rainfall has nan values inside of the domain. Using the previous rainfall as input for this time-step.')
-                    [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input - 1}{1}),'CoordinateSystemType','geographic');                                    
-                end
-                % No negative rainfall
-                input_rainfall = max(input_rainfall,0); % No negative values                  
-                % Reproject the coordinates from EPSG:4326 to EPSG:3857
-                rR.GeographicCRS=geocrs(4326);
-                if rR.CellExtentInLatitude ~= GIS_data.resolution_resample
-                    input_rainfall = raster_cutter(DEM_raster,rR,input_rainfall,1);
-                end
-            catch
+            % try
+            %     [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input}{1}),'CoordinateSystemType','geographic');                % Filtering Non-physical values and extreme wrong values
+            %     if max(max(input_rainfall)) > 300 % Very unlikely to have a value like this
+            %         warning('Rainfall values larger than 300 mm/h. We are neglecting this raster and collecting the previous one for this time-step.')
+            %         [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input - 1}{1}),'CoordinateSystemType','geographic');                
+            %     elseif isnan(sum(input_rainfall(~idx_nan)))
+            %         warning('Rainfall has nan values inside of the domain. Using the previous rainfall as input for this time-step.')
+            %         [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input - 1}{1}),'CoordinateSystemType','geographic');                                    
+            %     end
+            %     % No negative rainfall
+            %     input_rainfall = max(input_rainfall,0); % No negative values                  
+            %     % Reproject the coordinates from EPSG:4326 to EPSG:3857
+            %     rR.GeographicCRS=geocrs(4326);
+            %     if rR.CellExtentInLatitude ~= GIS_data.resolution_resample
+            %         input_rainfall = raster_cutter(DEM_raster,rR,input_rainfall,1);
+            %     end
+            % catch
                 [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input}{1}));
                 if rR.CellExtentInWorldX ~= GIS_data.resolution_resample
                     input_rainfall = raster_cutter(DEM_raster,rR,input_rainfall,0);
+                    if max(max(input_rainfall.Z)) > 300 % Very unlikely to have a value like this
+                        warning('Rainfall values larger than 300 mm/h. We are neglecting this raster and collecting the previous one for this time-step.')
+                        [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input - 1}{1}),'CoordinateSystemType','geographic');                
+                    elseif isnan(sum(input_rainfall.Z(~idx_nan)))
+                        warning('Rainfall has nan values inside of the domain. Using the previous rainfall as input for this time-step.')
+                        [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input - 1}{1}),'CoordinateSystemType','geographic');                                    
+                    end
                 end
-            end
+            % end
 
             if flags.flag_single == 1
                 input_rainfall = single(input_rainfall.Z); % Only the values
@@ -200,6 +208,8 @@ if flags.flag_rainfall > 0
                     input_rainfall = gpuArray(input_rainfall); % Only the values
                 end
             end
+            % input_rainfall = ones(size(elevation,1),size(elevation,2))*5; % DELETE
+            % input_rainfall(idx_nan) = nan;
             if zz2 > zz1 % Saving Maps
                 % Maps.Hydro.spatial_rainfall_maps(:,:,zz2) = mean(rainfall_spatial_aggregation,3); % Average in whole duration
                 % zzz = Maps.Hydro.spatial_rainfall_maps(:,:,zz2);
@@ -209,6 +219,7 @@ if flags.flag_rainfall > 0
             end
             input_rainfall((idx_nan == 0 & isnan(input_rainfall))) = 0;
             % Maps.Hydro.spatial_rainfall_maps(:,:,z2_input) = input_rainfall;
+            input_rainfall(idx_nan) = nan;
             BC_States.delta_p_agg = input_rainfall*time_step/60; % mm
             % BC_States.average_spatial_rainfall(z2_input,1) = mean(input_rainfall(input_rainfall>=0));
             rainfall_spatial_aggregation(:,:,Rainfall_Parameters.index_aggregation) = gather(input_rainfall); % Saving high resolution map
@@ -254,7 +265,8 @@ if flags.flag_rainfall > 0
                 end
             end
 
-               input_rainfall = input_rainfall.Z; % Only the values                
+               input_rainfall = input_rainfall.Z; % Only the values 
+               input_rainfall(idx_nan) = nan;
                BC_States.delta_p_agg = input_rainfall*time_step/60; % mm
             end
         end
@@ -301,6 +313,7 @@ end
 
 % Correcting Rainfall Volumes to the sub-grid model
 BC_States.delta_p_agg = BC_States.delta_p_agg.*Wshed_Properties.cell_area./C_a; % Here we assume that all rainfall goes directly to the channel
+BC_States.delta_p_agg(idx_nan) = nan;
 
 %% Aggregating ETP for next time-step
 
@@ -323,7 +336,9 @@ if flags.flag_ETP == 1 && flags.flag_input_ETP_map ~= 1
             else
                 day_of_year = day(ETP_Parameters.time_ETP(z2,1),'dayofyear');
             end
-            [Hydro_States.ETP] = ETP_model(z2,day_of_year,ETP_Parameters.coordinates_stations(:,1),ETP_Parameters.coordinates_stations(:,2),Spatial_Rainfall_Parameters.x_grid',Spatial_Rainfall_Parameters.y_grid',ETP_Parameters.maxtemp_stations,ETP_Parameters.mintemp_stations,ETP_Parameters.avgtemp_stations,ETP_Parameters.u2_stations,ETP_Parameters.ur_stations,ETP_Parameters.G_stations,ETP_Parameters.DEM_etp,ETP_Parameters.lat,ETP_Parameters.Krs,ETP_Parameters.alfa_albedo_input,idx_nan);
+            [Hydro_States.ETP, Hydro_States.Ep] = ETP_model(z2,day_of_year,ETP_Parameters.coordinates_stations(:,1),ETP_Parameters.coordinates_stations(:,2),Spatial_Rainfall_Parameters.x_grid',Spatial_Rainfall_Parameters.y_grid',ETP_Parameters.maxtemp_stations,ETP_Parameters.mintemp_stations,ETP_Parameters.avgtemp_stations,ETP_Parameters.u2_stations,ETP_Parameters.ur_stations,ETP_Parameters.G_stations,ETP_Parameters.DEM_etp,ETP_Parameters.lat,ETP_Parameters.Krs,ETP_Parameters.alfa_albedo_input,idx_nan);
+            Hydro_States.ETP(isnan(Hydro_States.ETP)) = 0; Hydro_States.ETP(idx_nan) = nan;
+            Hydro_States.Ep(isnan(Hydro_States.Ep)) = 0; Hydro_States.Ep(idx_nan) = nan;
             if nansum(nansum(Hydro_States.ETP)) == 0
                 if saver_count==1
                     Hydro_States.ETP = Maps.Hydro.ETP_save(:,:,12);
@@ -351,7 +366,9 @@ if flags.flag_ETP == 1 && flags.flag_input_ETP_map ~= 1
             else
                 day_of_year = day(ETP_Parameters.time_ETP(z2,1),'dayofyear');
             end
-            [Hydro_States.ETP] = ETP_model(z2,day_of_year,ETP_Parameters.coordinates_stations(:,1),ETP_Parameters.coordinates_stations(:,2),Spatial_Rainfall_Parameters.x_grid',Spatial_Rainfall_Parameters.y_grid',ETP_Parameters.maxtemp_stations,ETP_Parameters.mintemp_stations,ETP_Parameters.avgtemp_stations,ETP_Parameters.u2_stations,ETP_Parameters.ur_stations,ETP_Parameters.G_stations,ETP_Parameters.DEM_etp,ETP_Parameters.lat,ETP_Parameters.Krs,ETP_Parameters.alfa_albedo_input,idx_nan);
+            [Hydro_States.ETP, Hydro_States.Ep] = ETP_model(z2,day_of_year,ETP_Parameters.coordinates_stations(:,1),ETP_Parameters.coordinates_stations(:,2),Spatial_Rainfall_Parameters.x_grid',Spatial_Rainfall_Parameters.y_grid',ETP_Parameters.maxtemp_stations,ETP_Parameters.mintemp_stations,ETP_Parameters.avgtemp_stations,ETP_Parameters.u2_stations,ETP_Parameters.ur_stations,ETP_Parameters.G_stations,ETP_Parameters.DEM_etp,ETP_Parameters.lat,ETP_Parameters.Krs,ETP_Parameters.alfa_albedo_input,idx_nan);
+            Hydro_States.ETP(isnan(Hydro_States.ETP)) = 0; Hydro_States.ETP(idx_nan) = nan;
+            Hydro_States.Ep(isnan(Hydro_States.Ep)) = 0; Hydro_States.Ep(idx_nan) = nan;
             if nansum(nansum(Hydro_States.ETP)) == 0
                 if saver_count==1
                     Hydro_States.ETP = Maps.Hydro.ETP_save(:,:,12);

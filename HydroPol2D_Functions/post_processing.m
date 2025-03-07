@@ -237,7 +237,7 @@ end
 %% Normalized Discharge %%
 % Rainfall Std Deviation
 zero_matrix = zeros(size(Elevation_Properties.elevation_cell,1),size(Elevation_Properties.elevation_cell,2));
-if flags.flag_spatial_rainfall == 1
+if flags.flag_spatial_rainfall == 1 && running_control.record_time_spatial_rainfall
     store=1;
     flag_loader=1;
     rainfall_sum = zeros(size(zero_matrix));
@@ -321,6 +321,32 @@ if flags.flag_obs_gauges == 1 && flags.flag_rainfall == 1
     end
     saveas(gcf,fullfile(folderName,'Specific_Discharge_Gauges.fig'))
     close all
+end
+
+%% Total ETR
+zero_matrix = zeros(size(Elevation_Properties.elevation_cell,1),size(Elevation_Properties.elevation_cell,2));
+if flags.flag_ETP == 1
+    store=1;
+    flag_loader=1;
+    ETR_sum = zeros(size(zero_matrix));
+    for i = 1:length(running_control.time_records)
+        try
+            if i > saver_memory_maps*store
+                store = store + 1;
+                load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+            else
+                if flag_loader == 1
+                    load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+                    flag_loader=0;
+                end
+            end
+            z = Maps.Hydro.spatial_rainfall_maps(:,:,i - ((store-1)*saver_memory_maps));
+            z = Maps.Hydro.ETR_save(:,:,i - ((store-1)*saver_memory_maps));
+            z(isnan(z)) = 0; % Attention here
+            ETR_sum = ETR_sum + z; % mm/24h
+            ETP_Parameters.std_dev_ETR(i,1) = nanstd(z(:));
+        end
+    end
 end
 
 %% Rating Curve - Outlet
@@ -953,6 +979,7 @@ if flags.flag_export_maps == 1
         end
         idx_wse = depths.dmax_final/1000 < depths.depth_wse; % Finding values below the threshold
         % Maximum_Depths
+        zzz = Human_Instability.max_risk; % Value of max risk        
         FileName = strcat('Maximum_Instability_Risk');
         FileName = fullfile(folderName,FileName);
         zzz(isinf(zzz)) = no_data_value;
@@ -993,6 +1020,9 @@ if flags.flag_export_maps == 1
                 risk_summary.(strcat('risk',list{k}))(3) = max(risk_summary.(strcat('risk',list{k}))(3),sum(sum(sum(zzz==3))));
             end
             zzz=zzz_2;
+
+            % Marcus Edit
+            zzz = Human_Instability.max_risk; % Value of max risk
             idx_wse = depths.dmax_final/1000 < depths.depth_wse; % Finding values below the threshold
             % Maximum_Depths
             FileName = strcat(strcat('Maximum_Instability_Risk',list{k}));

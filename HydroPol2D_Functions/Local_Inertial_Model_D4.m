@@ -39,7 +39,7 @@ end
 % River_Depth(5,:) = 1;
 idx_rivers = River_Width > 0; % Rivers are now cells with no zero width 
 % ---------------% Adding minimum slope to do calculations % ---------------%
-h_min = 0;  % In cases where inflow is being modeling, this value has to be 0
+h_min = 1e-6;  % In cases where inflow is being modeling, this value has to be 0
 
 % --------------- Notation  % ---------------%
 %   <-matrix3D-> (left right up down) = [left ; right ; up; down] going
@@ -47,7 +47,7 @@ h_min = 0;  % In cases where inflow is being modeling, this value has to be 0
 
 % --------------- Cell Depth and Water surface Elevation  % ---------------%
 % depth_cell = 0.5*(d_tot + d_p); % This is important when inflow hydrograph is simulated
-depth_cell = d_p;
+depth_cell = d_tot;
 % depth_cell = d_p;
 depth_cell = max(depth_cell/1000,0); % meters (fixing zero values)
 
@@ -85,22 +85,17 @@ matrix_store(:,:,2) = [nan_row; y(1:(end-1),:) - y(2:end,:)]/Resolution; % Up
 %% ---------------- Hf (Effective Water Depth for Flow) ----------- %
 Hf = 0*outflow;
 % x-x 
-% Hf(:,:,1) = [nan_col, max(y(:,2:end),y(:,1:(end-1))) - max(z(:,2:end),z(:,1:(end-1)))]; % left
-% Hf(:,:,2) = [max(y(:,2:nx), y(:,1:(nx-1))) - max(z(:,2:nx), z(:,1:(nx-1))), nan_col]; % right
 Hf(:,:,1) = [max(y(:,2:nx), y(:,1:(nx-1))) - max(z(:,2:nx), z(:,1:(nx-1))), nan_col]; % right
 % y-y
-% Hf(:,:,3) = [nan_row; max(y(1:(end-1),:),y(2:end,:)) - max(z(1:(end-1),:),z(2:end,:))]; % up
 Hf(:,:,2) = [nan_row; max(y(1:(end-1),:),y(2:end,:)) - max(z(1:(end-1),:),z(2:end,:))]; % up
-% Hf(:,:,4) = [max(y(1:(end-1),:), y(2:end,:)) - max(z(1:(end-1),:), z(2:end,:)); nan_row]; % down
-
 Hf(isnan(matrix_store)) = 0;
-
-% if nansum(nansum(Hf(:,2,1) - Hf(:,1,2)))
-%     ttt = 1;
-% end
 
 % Low depth cells are considered an artificial depth
 mask = logical((Hf < h_min));
+mask_depth = depth_cell < h_min;
+
+% New mask
+mask = logical(mask + repmat(mask_depth,1,1,3)); % Fail in depth and fail in Hf
 % Artificial Depth
 artificial_depth = 0;
 Hf(mask) = artificial_depth; % No outflow from cells with very low depth
@@ -174,9 +169,10 @@ cell_width = C_a/Resolution; % cell width in m
 % end
 %% Limiting outflow to critical velocity
 if flag_critical == 1
-    critical_velocity = Hf(:,:,1:size(outflow,3)).*sqrt(g*Hf(:,:,1:size(outflow,3)));
-    outflow = min(outflow,critical_velocity); % m2/s (normalized by flow width)
-end
+    critical_velocity = Hf(:,:,1:size(outflow,3)).*sqrt(9.81*Hf(:,:,1:size(outflow,3))); % m3/s per unit width
+    outflow(outflow > critical_velocity) = critical_velocity(outflow > critical_velocity); % m2/s (normalized by flow width)
+    outflow(outflow < -critical_velocity) = (-1)*critical_velocity(outflow < -critical_velocity); % m2/s (normalized by flow width)
+end 
 outflow_rate = outflow.*(cell_width); % m3/s
 outflow = outflow_rate./(C_a)*1000*3600; % mm per hour
 matrix_store = outflow; % mm per hour
@@ -196,9 +192,6 @@ matrix_store = outflow; % mm per hour
 Vol_Flux = dt*([zeros(ny,1) , outflow_rate(:,1:(nx-1),1)] - outflow_rate(:,:,1) ...
                 - outflow_rate(:,:,2) + [outflow_rate(2:end,:,2); zeros(1,nx)]); % m3
 
-if Vol_Flux(1,5) ~= Vol_Flux(1,7) 
-    ttt = 1;
-end
 
 if flag_subgrid == 1
     % % Adding NE and SE fluxes
@@ -240,7 +233,7 @@ if flag_reservoir == 1
 end
 
 %% Output Fluxes
-qout_left = -[zeros(ny,1), matrix_store(:,:,1)]; % See the signals following the convention
+qout_left = -[zeros(ny,1), matrix_store(:,(1:end-1),1)]; % See the signals following the convention
 qout_right = [matrix_store(:,:,1)];
 qout_up = matrix_store(:,:,2);
 qout_down = -[matrix_store(2:end,:,2); zeros(1,nx)];
@@ -270,25 +263,11 @@ if flag_subgrid == 1 % Maybe we have a change from inbank <-> overbank
 end
 
 lost_mass = 1/1000*abs(sum(sum(d_t(d_t<0).*C_a(d_t<0))));
-% if lost_mass > 0.1*Resolution^2
-%     error('Lost mass too high.')
-% end
+if lost_mass > 0.1*Resolution^2
+    error('Lost mass too high.')
+end
 
 d_t(d_t<0) = 0;
-
-% Mass Balance Check
-% Final Stored Volume
-if flag_subgrid == 1
-    final_volume = nansum(nansum((Resolution - River_Width).*Resolution.*max((d_t/1000 - River_Depth),0))) + ...
-                      nansum(nansum(Resolution.*River_Width.*d_t/1000)); % m3
-else
-    final_volume = nansum(nansum(C_a.*d_t/1000)); % m3
-end
-
-error_vol = current_volume - final_volume;
-if error_vol > 10
-    ttt = 1;
-end
 
 % Outlet Flow
 % --------------- Outlet Calculations  % ---------------%
@@ -316,14 +295,25 @@ Hf(:,:,3) = Hf_outlet;
 outlet_flow = 1./roughness_cell.*cell_width.*Hf(:,:,3).^(5/3).*abs(S_0).^(0.5)./(C_a)*1000*3600; % mm/h
 outlet_flow = min(outlet_flow,max((d_t-1000*h_min),0)/(time_step/60));
 outlet_flow(~mask_outlet) = 0;
-
-if sum(sum(outlet_flow)) > 0
-    ttt = 1;
-end
-
+outflow(:,:,3) = outlet_flow;
 
 % Final Depth
 d_t = d_t  - outlet_flow*(time_step/60); % final depth in mm
+
+% Mass Balance Check
+% Final Stored Volume
+if flag_subgrid == 1
+    final_volume = nansum(nansum((Resolution - River_Width).*Resolution.*max((d_t/1000 - River_Depth),0))) + ...
+                      nansum(nansum(Resolution.*River_Width.*d_t/1000)); % m3
+else
+    final_volume = nansum(nansum(C_a.*d_t/1000)); % m3
+end
+
+error_vol = (final_volume - current_volume) + nansum(nansum(C_a.*1/1000*time_step/60.*outlet_flow));
+if abs(error_vol) > 10
+    ttt = 1;
+end
+
 
 
 

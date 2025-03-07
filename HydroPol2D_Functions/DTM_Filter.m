@@ -1,0 +1,63 @@
+function [dtm_filled, Volume] = DTM_Filter(DEM, Resolution, slope_threshold)
+% DTM_FILTER - Filters a DEM to create a DTM using a slope threshold and bilinear interpolation.
+%
+% Inputs:
+%   DEM             - Digital Elevation Model (matrix of Z values) [m]
+%   Resolution      - Grid resolution [m]
+%   slope_threshold - Maximum slope for bare earth classification [%]
+%
+% Outputs:
+%   dtm_filled - Filtered DTM with non-ground points removed and interpolated [m]
+%   Volume     - Volume difference between the original DEM and the new DTM [m^3]
+%
+% Author: Marcus Nobrega, Ph.D.
+% Date: 2025/03/05
+
+%% Step 1: Compute the slope and identify bare-earth cells
+[dx, dy] = gradient(DEM, Resolution, Resolution); % Compute gradient in x and y
+
+% Convert slope to percentage
+slope_magnitude = sqrt(dx.^2 + dy.^2); 
+slope_percentage = atan(slope_magnitude) * (180 / pi); 
+
+% Create mask for bare-earth cells
+bare_earth_mask = slope_percentage <= slope_threshold;
+
+% Apply mask: Set steep areas to NaN
+dem_filtered = DEM; 
+dem_filtered(~bare_earth_mask) = NaN;
+
+%% Step 2: Prepare for interpolation
+[m, n] = size(dem_filtered);
+[X, Y] = meshgrid(1:n, 1:m);  % Create coordinate grid
+
+% Identify valid points for interpolation
+valid_mask = ~isnan(dem_filtered);
+x_valid = X(valid_mask);
+y_valid = Y(valid_mask);
+z_valid = dem_filtered(valid_mask);
+
+%% Step 3: Bilinear interpolation using 'griddata'
+dtm_filled = griddata(x_valid, y_valid, z_valid, X, Y, 'linear');
+
+% Preserve original NaN locations from the input DEM
+dtm_filled(isnan(DEM)) = NaN;
+
+%% Step 4: Compute volume difference between DEM and DTM
+Volume = nansum(nansum(Resolution^2 * (dtm_filled - DEM)));
+
+% %% Step 5: Plot results
+% figure;
+% subplot(1,2,1);
+% imagesc(DEM);
+% title('Original DEM');
+% colorbar;
+% axis equal tight;
+% 
+% subplot(1,2,2);
+% imagesc(dtm_filled);
+% title('Filtered DTM (Bilinear Interpolation)');
+% colorbar;
+% axis equal tight;
+
+end
