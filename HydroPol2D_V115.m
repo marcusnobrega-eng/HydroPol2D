@@ -13,7 +13,7 @@ clear all; clc;
 
 % Adding Paths
 addpath 'Input_Data_Sheets' % Folder where the excel files are available
-model_folder = 'Input_Data_Sheets\General_Data_HydroPol2D_CG.xlsx'; % Name of the main general data
+model_folder = 'Input_Data_Sheets\General_Data_HydroPol2D.xlsx'; % Name of the main general data
 input_table = readtable(model_folder);
 
 % Load Model Functions

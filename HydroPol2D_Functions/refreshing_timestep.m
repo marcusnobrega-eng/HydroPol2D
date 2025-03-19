@@ -116,8 +116,7 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
         new_timestep = (Courant_Parameters.factor_grid*Wshed_Properties.Resolution/velocities.max_velocity); % seconds
         Courant_Parameters.time_step_factor = max(Courant_Parameters.alfa_max - Courant_Parameters.slope_alfa*(max(velocities.max_velocity - Courant_Parameters.v_threshold,0)),Courant_Parameters.alfa_min);
 
-        Courant_Parameters.alfa_save(running_control.pos_save,1) = Courant_Parameters.time_step_factor;
-        new_timestep = new_timestep*Courant_Parameters.alfa_save(running_control.pos_save,1);
+        new_timestep = new_timestep*Courant_Parameters.time_step_factor;
         new_timestep = double(min(new_timestep,running_control.max_time_step));
 
         % Bates time-step
@@ -148,17 +147,17 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
     % Rounding time-step to min_timestep or max_timestep with the required
     % precision. This is not very interesting, maybe we should delete
     % it
-    running_control.time_calculation_routing(k,1) = new_timestep;
-    running_control.time_calculation_routing(k,1) = max(running_control.time_step_increments*floor(running_control.time_calculation_routing(k,1)/running_control.time_step_increments),running_control.min_time_step);
-    running_control.time_calculation_routing(k,1) = min(running_control.time_calculation_routing(k,1),running_control.max_time_step);
-    time_step = running_control.time_calculation_routing(k,1)/60; % new time-step for the next run
-    if running_control.time_calculation_routing(k,1) == running_control.min_time_step % Check if we reached the minimum time-step
+    running_control.time_calculation_routing = new_timestep;
+    running_control.time_calculation_routing = max(running_control.time_step_increments*floor(running_control.time_calculation_routing/running_control.time_step_increments),running_control.min_time_step);
+    running_control.time_calculation_routing = min(running_control.time_calculation_routing,running_control.max_time_step);
+    time_step = running_control.time_calculation_routing/60; % new time-step for the next run
+    if running_control.time_calculation_routing == running_control.min_time_step % Check if we reached the minimum time-step
         unstable = 1; % If this is 1, it means we possibly had an unstable period at least
     end
 elseif  k == 1
-    running_control.time_calculation_routing(k,1) = time_step*60; % sec
+    running_control.time_calculation_routing = time_step*60; % sec
 else
-    running_control.time_calculation_routing(k,1) = running_control.time_calculation_routing(k-1,1);
+    running_control.time_calculation_routing = time_step*60; % sec
 end
 
 velocities.max_velocity_previous = velocities.max_velocity; % Assigning right velocities

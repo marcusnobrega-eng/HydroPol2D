@@ -3,6 +3,9 @@
 % Date 3/6/2025
 % Goal - Run the main modeling process of the model
 
+clear all
+load workspace_moab_gpu.mat
+
 tic
 k = 1; % time-step counter
 C = 0; % initial infiltration capacity
@@ -16,8 +19,8 @@ Risk_Area = 0; % initial risk area
 store = 1; % Index for saving maps
 t_previous = 0;
 factor_time = 0;
+running_control.max_time_step = 60; % seconds
 max_dt = running_control.max_time_step;
-flags.flag_obs_gauges = 0;
 
 % Initial System Storage
 S_c = nansum(nansum(C_a.*Hydro_States.S/1000));
@@ -34,16 +37,12 @@ catch_index = 1;
 
 
 if flags.flag_obs_gauges ~= 1
-    gauges = [];
+    extra_parameters.gauges = [];
 end
 
 if flags.flag_dashboard == 1
     ax.flags = flags;
-    if flags.flag_GPU == 1
-        ax = HydroPol2D_running_dashboard(ax,Maps, zeros(size(DEM_raster.Z)), DEM_raster,extra_parameters.gauges,BC_States,time_step,Wshed_Properties.Resolution,1,1,C_a);
-    else
-        ax = HydroPol2D_running_dashboard(ax,Maps,zeros(size(DEM_raster.Z)), DEM_raster, gauges,BC_States,time_step,Wshed_Properties.Resolution,1,1,C_a);
-    end
+    ax = HydroPol2D_running_dashboard(ax,Maps, zeros(size(DEM_raster.Z)), DEM_raster,extra_parameters.gauges,BC_States,time_step,Wshed_Properties.Resolution,1,1,C_a);
 end
 
 % #################### Main Loop (HydroPol2D)  ################ %
@@ -212,12 +211,12 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
 
         % Previous Time-step
         if k == 1
-            t_previous = running_control.time_calculation_routing(k,1)/60;
+            t_previous = running_control.time_calculation_routing/60;
         else
             t_previous = t;
         end
         % Current time
-        t_save = t + running_control.time_calculation_routing(k,1)/60;
+        t_save = t + running_control.time_calculation_routing/60;
 
         %% Saving Output Maps
         save_output_maps;
@@ -242,16 +241,16 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         save_automatic_cabralition_outputs;
 
         % Refreshing Time-step
-        t = running_control.time_calculation_routing(k,1)/60 + t;
-        time_step_save(k,2) = running_control.time_calculation_routing(k,1);
-        time_step_save(k,1) = t;
+        t = running_control.time_calculation_routing/60 + t;
+        % time_step_save(k,2) = running_control.time_calculation_routing;
+        % time_step_save(k,1) = t;
         k = k + 1;
 
         % Show Stats
         if flags.flag_waterquality == 1
             perc__duremain___tsec____dtmm___infmmhr__CmgL___dtmWQ_VolErrorm3 = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max((WQ_States.P_conc))), tmin_wq,volume_error]
         else
-            perc_t__duremain___tsec____dtmm___infmmhr__CmgL___vel__VolErrorm3 = [(t)/running_control.routing_time*100, round(t/60/24,2), (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max(velocities.velocity_raster)),volume_error]
+            perc_t__duremain___tsec____dtmm___infmmhr__CmgL___vel__VolErrorm3 = [(t)/running_control.routing_time*100, t/60/24, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max(velocities.velocity_raster)),volume_error]
         end
 
         % Water Quality Instability

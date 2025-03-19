@@ -535,7 +535,9 @@ if flags.flag_ETP == 1 && flags.flag_input_ETP_map == 0
     ETP_Parameters.height = ETP_Parameters.info.Height; % Integer indicating the height of the image in pixels
     ETP_Parameters.width = ETP_Parameters.info.Width; % Integer indicating the width of the image in pixels
     [ETP_Parameters.cols_etp,ETP_Parameters.rows_etp] = meshgrid(1:ETP_Parameters.width,1:ETP_Parameters.height);
-    [ETP_Parameters.x_etp,ETP_Parameters.y_etp] = pix2map(ETP_Parameters.info.RefMatrix, ETP_Parameters.rows_etp, ETP_Parameters.cols_etp); % Map Coordinates
+    R = imref2d(size(ETP_Parameters.DEM_etp),Wshed_Properties.Resolution,Wshed_Properties.Resolution);
+    
+    [ETP_Parameters.x_etp,ETP_Parameters.y_etp] = intrinsicToWorld(R, ETP_Parameters.rows_etp, ETP_Parameters.cols_etp); % Map Coordinates
     [ETP_Parameters.lat,ETP_Parameters.lon] = projinv(ETP_Parameters.info.SpatialRef.ProjectedCRS, ETP_Parameters.x_etp,ETP_Parameters.y_etp); % Latitude and Longitude
     ETP_Parameters.neg_DEM = ETP_Parameters.DEM_etp <= 0;
     ETP_Parameters.DEM_etp(ETP_Parameters.neg_DEM) = nan;
@@ -1480,7 +1482,7 @@ Soil_Properties.I_p = max(Soil_Properties.I_0,min_soil_moisture);
 Soil_Properties.I_t = max(Soil_Properties.I_0,min_soil_moisture);
 
 % ----------------- Initialize Variables -----------------
-time_calculation_routing = zeros(running_control.steps,1);
+time_calculation_routing = 0;
 k = 1; % Start Counter of the While Loop
 recording_parameters.actual_record_state = 1;
 recording_parameters.last_record_maps = 1;

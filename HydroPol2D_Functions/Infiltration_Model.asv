@@ -1,54 +1,64 @@
 % Infiltration Routine
 % Developer: Marcus Nobrega, Ph.D.
 % Goal: Estimate effective precipitation and infiltration at cells domain
-% Date: 8/15/2024
+% Date: 2/22/2025
+% Added recharge calculation. Added 2D boussinesq solution to the
+% groundwater model
 
 
 if k == 1 % First time-step
+    if flags.flag_baseflow == 1
+        h_0 = zeros(size(Elevation_Properties.elevation_cell));
+        h_t = h_0;
+    end
     if flags.flag_infiltration == 1
-        % Hydro_States.i_a = (BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix ...
-        %                  + BC_States.inflow + depths.d_0 - Hydro_States.ETP/24)./(time_step/60); % Inflow rate [mm/h]
-        % Hydro_States.i_a = (depths.d_0 + BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix + BC_States.inflow)./(time_step/60);  % Inflow rate [mm/h]
         Hydro_States.i_a = (depths.d_0)./(time_step/60);  % Inflow rate [mm/h]
-        % Hydro_States.i_a = (depths.d_0 + BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix)./(time_step/60);  % Inflow rate [mm/h]
-
 
         % ---- Forward Explicit Green-Ampt ---- %
         C = Soil_Properties.ksat.*(1 +  ...
             ((depths.d_0 + Soil_Properties.psi).*(Soil_Properties.teta_sat -  ...
             Soil_Properties.teta_i))./Soil_Properties.I_0); % matrix form of Infiltration Capacity [mm/h]
+
         % ---- Green-Ampt ---- %
         % Infiltration rate
-        if time_step*60 < 0.1 % If we are using high resolution time-steps
+        if time_step*60 < 0.1 % If time is smaller enough, use the explicit faster solution
             % We can approximate the soil infiltration capacity curve 
-            Hydro_States.f = min(C,Hydro_States.i_a); % Infiltration Rate            
+            Hydro_States.f = min(C,Hydro_States.i_a); % Infiltration Rate   
+            
             % Soil matrix mass balance
             Soil_Properties.I_t = max(Soil_Properties.I_0 +  ...
                                      (Hydro_States.f)*time_step/60,min_soil_moisture); % Extracting ETP from soil. Limiting I_t to the minimum of typically 5 mm        else
-            inf_volume = nansum(nansum(Soil_Properties.I_t - Soil_Properties.I_0))*Wshed_Properties.cell_area; % m3
+            inf_volume = nansum(nansum((Soil_Properties.I_t - Soil_Properties.I_0).*C_a)); % m3
             inf_volume_cell = Soil_Properties.I_t - Soil_Properties.I_0;
+            depths.d_p = depths.d_p - inf_volume_cell; % Taking away infiltration prior calculating ETP and other fluxes
         else
             % We need to solve the implicit GA equation
             [Soil_Properties.I_t,Hydro_States.f] = GA_Newton_Raphson(Soil_Properties.I_0,time_step/60 ...
                                                    ,Soil_Properties.ksat,Soil_Properties.psi,Soil_Properties.teta_sat - Soil_Properties.teta_i,depths.d_0,Hydro_States.i_a);
             % Infiltrated Volume
-            inf_volume = 1/1000*nansum(nansum(Soil_Properties.I_t - Soil_Properties.I_0))*Wshed_Properties.cell_area; % m3            
+            inf_volume = 1/1000*nansum(nansum((Soil_Properties.I_t - Soil_Properties.I_0).*C_a)); % m3            
             inf_volume_cell = Soil_Properties.I_t - Soil_Properties.I_p; % mm            
             % Taking away deep percolation
             Soil_Properties.I_t = max(Soil_Properties.I_t,min_soil_moisture);
+            depths.d_p = depths.d_p - inf_volume_cell; % Taking away infiltration prior calculating ETP and other fluxes
         end
         if flags.flag_ETP == 1 && flags.flag_input_ETP_map == 1
-            Hydro_States.idx_ETR = Soil_Properties.I_t == min_soil_moisture; % Adopting the minimum depth
+            BC_States.delta_ETR_agg = zeros(size(Hydro_States.ETR));
+            % Real evapotranspiration data
             Hydro_States.ETR  = input_evaporation + input_transpiration; % % Real evapotranspiration [mm/day] using the input data         
+            % Areas with little soil moisture
+            Hydro_States.idx_ETR = and(Soil_Properties.I_t == min_soil_moisture,depths.d_p == 0); % Adopting the minimum depth
             Hydro_States.ETR(isnan(Hydro_States.ETR)) = 0; % Fixing nan values to 0
             Hydro_States.ETR((idx_nan)) = nan; % Cells outside of the domain remain nan
-            idx_soil_available = and(depths.d_p == 0, Soil_Properties.I_t > 0); % Cells with no surface depth and with available soil moisture
-            Hydro_States.ETR(idx_soil_available) =  min(depths.d_p(idx_soil_available)/(time_step/60/24),Hydro_States.ETR(idx_soil_available)); % Limiting to the available soil moisture
-            Hydro_States.ETR((Hydro_States.idx_ETR)) = 0; % Cells with no available soil moisture to evaporate
-            idx_open_water = and(depths.d_p > 0,  Hydro_States.idx_ETR == 1); % Cells with no soil moisture but surface water
-            Hydro_States.ETR((idx_open_water)) = min(depths.d_p(idx_open_water)/(time_step/60/24), Hydro_States.ETR(idx_open_water)); % mm per day
+            % Areas with little soil moisture but surface water
+            idx_open_water =  depths.d_p > 0;
+            Hydro_States.ETR(idx_open_water) =  min((depths.d_p(idx_open_water))/(time_step/60/24),Hydro_States.ETR(idx_open_water)); % Limiting to the available surface water                      
+            BC_States.delta_ETR_agg(idx_open_water) = Hydro_States.ETR(idx_open_water)*(time_step/60/24); % mm
+            idx_soil_available = and(depths.d_p == 0, Soil_Properties.I_t > min_soil_moisture); % Cells with no surface depth and with available soil moisture
+            Hydro_States.ETR(idx_soil_available) =  min((Soil_Properties.I_t(idx_soil_available) - min_soil_moisture(idx_soil_available))/(time_step/60/24),Hydro_States.ETR(idx_soil_available)); % Limiting to the available soil moisture
+            Soil_Properties.I_t(idx_soil_available) = Soil_Properties.I_t(idx_soil_available) - Hydro_States.ETR(idx_soil_available)*(time_step/60/24); % mm in the soil
             Hydro_States.ETP = zeros(size(Soil_Properties.I_t)); % Setting ETP to 0
-            BC_States.delta_ETR_agg = Hydro_States.ETR*(time_step/60/24); % mm
+            BC_States.delta_ETR_agg(idx_soil_available) = 0; % mm (already taken from the soil)
         elseif flags.flag_ETP == 1
             Hydro_States.idx_ETR = Soil_Properties.I_t == min_soil_moisture; % Adopting the minimum depth
             Hydro_States.ETR  = Hydro_States.ETP; % Real evapotranspiration [mm/h]
@@ -110,27 +120,40 @@ else
         Soil_Properties.idx_T = Soil_Properties.T < 0; % Cells where the replenishing time is reached
         
         % Infiltration rate
-        if time_step*60 < 0.1 % If we are using high resolution time-steps
+        if time_step*60 < 5*60 % If we are using high resolution time-steps
             % We can approximate the soil infiltration capacity curve 
             Hydro_States.f = min(C,Hydro_States.i_a); % Infiltration rate (mm/hr)
             
             % Soil matrix mass balance
-            Soil_Properties.I_t = max(Soil_Properties.I_p + Hydro_States.f*time_step/60 - Soil_Properties.k_out.*double(Hydro_States.idx_C)*time_step/60,min_soil_moisture);
+            if flags.flag_baseflow ~= 1
+                Soil_Properties.I_t = max(Soil_Properties.I_p + Hydro_States.f*time_step/60 - Soil_Properties.k_out.*double(Hydro_States.idx_C)*time_step/60,min_soil_moisture);
+            else
+                % Run the linear reservoir model
+                [recharge_rate, Soil_Properties.I_t] = simulate_groundwater_recharge(Hydro_States.f/1000/3600, Soil_Properties.I_p/1000, Soil_Properties.k, dt/60);
+                % Run the 2D Boussinesq Model
+                [h_t, ~, ~, q_exf, q_river] = Boussinesq_2D_explicit(dt*60,Wshed_Properties.Resolution,Wshed_Properties.Resolution,h_0,(Elevation_Properties.elevation_cell - SOIL_Parameters.Soil_Depth), ...
+                                              Soil_Properties.Sy,recharge_rate,Soil_Properties.ksat_gw/1000/3600,idx_rivers,SOIL_Parameters.K_River/1000, ...
+                                              (Elevation_Properties.elevation_cell(idx_rivers) + depths.d_p(idx_rivers)/1000),Elevation_Properties.elevation_cell(idx_rivers),0.5,SOIL_Parameters.Soil_Depth,idx_cells,[],[],idx_cells);                
+                depths.d_p = depths.d_p + time_step*60*(q_river/1000 + q_exf/1000); %  mm considering river iteractions and excess of saturation
+            end
             inf_volume_cell = Soil_Properties.I_t - Soil_Properties.I_p;
-            inf_volume = 1/1000*nansum(nansum(Soil_Properties.I_t - Soil_Properties.I_p))*Wshed_Properties.cell_area; % m3            
+            inf_volume = 1/1000*nansum(nansum((Soil_Properties.I_t - Soil_Properties.I_p).*C_a)); % m3   
+            depths.d_p = depths.d_p - inf_volume_cell; % Taking away infiltration prior calculating ETP and other fluxes
         else
             % We need to solve the implicit GA equation
             [Soil_Properties.I_t,Hydro_States.f] = GA_Newton_Raphson(Soil_Properties.I_p,time_step/60 ...
                                                    ,Soil_Properties.ksat,Soil_Properties.psi,Soil_Properties.teta_sat - Soil_Properties.teta_i,depths.d_p,Hydro_States.i_a);
             % Infiltrated Volume
-            inf_volume = 1/1000*nansum(nansum(Soil_Properties.I_t - Soil_Properties.I_p))*Wshed_Properties.cell_area; % m3
+            inf_volume = 1/1000*nansum(nansum((Soil_Properties.I_t - Soil_Properties.I_p).*C_a)); % m3
             inf_volume_cell = Soil_Properties.I_t - Soil_Properties.I_p; % mm
             % Taking away deep percolation
             Soil_Properties.I_t = max(Soil_Properties.I_t - Soil_Properties.k_out.*double(Hydro_States.idx_C)*time_step/60,min_soil_moisture);
+            depths.d_p = depths.d_p - inf_volume_cell; % Taking away infiltration prior calculating ETP and other fluxes
         end
             
         % Limiting evapotranspiration in soils with low moisture
         if flags.flag_ETP == 1 && flags.flag_input_ETP_map == 1
+            BC_States.delta_ETR_agg = zeros(size(Hydro_States.ETR));
             % Real evapotranspiration data
             Hydro_States.ETR  = input_evaporation + input_transpiration; % % Real evapotranspiration [mm/day] using the input data         
             % Areas with little soil moisture
@@ -140,10 +163,12 @@ else
             % Areas with little soil moisture but surface water
             idx_open_water =  depths.d_p > 0;
             Hydro_States.ETR(idx_open_water) =  min((depths.d_p(idx_open_water))/(time_step/60/24),Hydro_States.ETR(idx_open_water)); % Limiting to the available surface water                      
+            BC_States.delta_ETR_agg(idx_open_water) = Hydro_States.ETR(idx_open_water)*(time_step/60/24); % mm
             idx_soil_available = and(depths.d_p == 0, Soil_Properties.I_t > min_soil_moisture); % Cells with no surface depth and with available soil moisture
-            Hydro_States.ETR(idx_soil_available) =  min((Soil_Properties.I_t - min_soil_moisture)/(time_step/60/24),Hydro_States.ETR(idx_soil_available)); % Limiting to the available soil moisture
+            Hydro_States.ETR(idx_soil_available) =  min((Soil_Properties.I_t(idx_soil_available) - min_soil_moisture(idx_soil_available))/(time_step/60/24),Hydro_States.ETR(idx_soil_available)); % Limiting to the available soil moisture
+            Soil_Properties.I_t(idx_soil_available) = Soil_Properties.I_t(idx_soil_available) - Hydro_States.ETR(idx_soil_available)*(time_step/60/24); % mm in the soil
             Hydro_States.ETP = zeros(size(Soil_Properties.I_t)); % Setting ETP to 0
-            BC_States.delta_ETR_agg = Hydro_States.ETR*(time_step/60/24); % mm
+            BC_States.delta_ETR_agg(idx_soil_available) = 0; % mm (already taken from the soil)
         elseif flags.flag_ETP == 1
             Hydro_States.idx_ETR = Soil_Properties.I_t == min_soil_moisture; % Adopting the minimum depth
             Hydro_States.ETR  = Hydro_States.ETP; % Real evapotranspiration [mm/h]
@@ -157,7 +182,7 @@ else
 
         % Effective Precipitation at Domain Cells
         depths.pef = BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix + ...
-                     BC_States.inflow - inf_volume_cell + idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux ...
+                     BC_States.inflow + idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux ...
                    - BC_States.delta_ETR_agg;
         % depths.pef = BC_States.delta_p_agg.*Wshed_Properties.rainfall_matrix - Hydro_States.f*time_step/60 + idx_rivers*Wshed_Properties.Resolution/1000*Lateral_Groundwater_Flux;
         depths.d_t = depths.d_p + depths.pef; %% ATTENTION HERE
@@ -179,3 +204,23 @@ end
 
 % Effective Precipitation (Available depth at the beginning of the time-step
 depths.d_tot = depths.d_t;
+
+% Correcting depths in case it reach overbanks
+if flags.flag_subgrid == 1 % Maybe we have a change from inbank <-> overbank
+    % Eq. 15 and 16 of A subgrid channel model for simulating river hydraulics andfloodplain inundation over large and data sparse areas
+    % Inbank - Overbank
+    idx = depths.d_tot/1000 > Wshed_Properties.River_Depth & depths.d_p/1000 <= Wshed_Properties.River_Depth & idx_rivers; % Cells in which there is a change from inbank to overbank
+    if sum(sum(idx)) > 0
+        depths.d_tot(idx) = 1000*(depths.d_tot(idx)/1000 - (depths.d_tot(idx)/1000 - Elevation_Properties.elevation_cell(idx) + (Elevation_Properties.elevation_cell(idx) - Wshed_Properties.River_Depth(idx))).*(1 - Wshed_Properties.River_Width(idx)/Wshed_Properties.Resolution)); % mm 
+        C_a(idx) = Wshed_Properties.Resolution^2;
+    end
+    % Overbank - Inbank
+    idx = depths.d_tot/1000 <= Wshed_Properties.River_Depth & depths.d_p/1000 >= Wshed_Properties.River_Depth & idx_rivers; % Cells in which there is a change from overbank to inbank
+    if sum(sum(idx)) > 0
+        factor = depths.d_tot(idx)/1000 - Elevation_Properties.elevation_cell(idx) + (Elevation_Properties.elevation_cell(idx) - Wshed_Properties.River_Depth(idx));
+        depths.d_tot(idx) = 1000*(depths.d_tot(idx)/1000 + (Wshed_Properties.Resolution*(factor))./Wshed_Properties.River_Width(idx) ...
+            - (depths.d_tot(idx)/1000 - Elevation_Properties.elevation_cell(idx) + (Elevation_Properties.elevation_cell(idx) - Wshed_Properties.River_Depth(idx)))); % mm
+        C_a(idx) = Wshed_Properties.River_Width(idx)*Wshed_Properties.Resolution;
+    end 
+end
+

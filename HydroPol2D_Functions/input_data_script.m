@@ -127,7 +127,7 @@ if flags.flag_input_rainfall_map + flags.flag_satellite_rainfall + flags.flag_re
     error('Please choose only one type of spatial rainfall data.')
 end
 
-if flags.flag_inertial == 1 && flags.CA == 1
+if flags.flag_inertial == 1 && flags.flag_CA == 1
     error('Please, add either diffusive or inertial flag.')
 end
 
@@ -500,7 +500,7 @@ addpath(genpath(char(topo_path)));
 
             Inflow_Parameters.easting_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,1);
             northing_inlet_cells(1:size(effective_inlets,1),i) = effective_inlets(:,2);
-            Inflow_Parameters.Wshed_Properties.n_inlets(:,i) = size(effective_inlets,1);
+            Inflow_Parameters.n_inlets(:,i) = size(effective_inlets,1);
         else
             % Do we have to include Resolution/2 in the calculations?
             nonNanCount = sum(~ismissing(input_table_values(1:end,(i-1)*5 + 3)));

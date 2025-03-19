@@ -1,117 +1,71 @@
-% Initialize parameters
-Nx = 100;   % Number of grid points in the x-direction
-Ny = 100;   % Number of grid points in the y-direction
-dx = 1;     % Grid spacing in the x-direction
-dy = 1;     % Grid spacing in the y-direction
-dt = 0.1;   % Time step
-Nt = 1000;  % Number of time steps
-g = 9.81;   % Gravity (m/s^2)
+% Define the bounding box for Arizona (xmin, ymin, xmax, ymax)
+bbox = [113.5, 31.3, 115.0, 37.0];  % Approximate coordinates for Arizona
 
-% Create grid
-x = (1:Nx) * dx;    % x-grid
-y = (1:Ny) * dy;    % y-grid
+% USGS parameter code for river stage (gage height)
+param_code = '00065';  % Gage height
 
-% Initial conditions (water depth and velocity)
-h = ones(Nx, Ny);   % Initial water depth (flat surface)
-u = zeros(Nx, Ny);  % Initial velocity in x-direction
-v = zeros(Nx, Ny);  % Initial velocity in y-direction
+% Construct the URL for the USGS API to get active stations within the bounding box
+url = sprintf(['https://waterservices.usgs.gov/nwis/site/?format=rdb', ...
+               '&bBox=%.4f,%.4f,%.4f,%.4f', ...
+               '&parameterCd=%s&siteStatus=active'], ...
+               bbox(1), bbox(2), bbox(3), bbox(4), param_code);
 
-% Manning's roughness coefficient (example, should be spatially varying)
-n = 0.03 * ones(Nx, Ny);
+% Fetch data from USGS API
+options = weboptions('Timeout', 30);
+dataText = webread(url, options);
 
-% Friction slopes (calculated from the terrain)
-Sfx = zeros(Nx, Ny);  % Friction slope in x-direction (example)
-Sfy = zeros(Nx, Ny);  % Friction slope in y-direction (example)
+% Split the data into lines and remove comments
+lines = splitlines(dataText);
+lines = lines(~startsWith(lines, '#') & ~startsWith(lines, '5s'));
 
-% Construct matrices A_x and B_y
-A_x = construct_matrix_A(Nx, Ny, dx, dt);
-B_y = construct_matrix_B(Nx, Ny, dy, dt, g, n, h, u, v);
-
-% Time-stepping loop
-for t = 1:Nt
-    % Step 1: Solve in the x-direction (momentum equation for u)
-    rhs_x = calculate_rhs_x(h, u, v, dx, dt, g);  % Right-hand side for x-direction
-    u = A_x \ rhs_x;  % Solve for u in the x-direction (implicit)
-
-    % Step 2: Solve in the y-direction (momentum equation for v)
-    rhs_y = calculate_rhs_y(h, u, v, dy, dt, g);  % Right-hand side for y-direction
-    v = B_y \ rhs_y;  % Solve for v in the y-direction (implicit)
-
-    % Step 3: Update the water depth using continuity equation
-    h = update_h(h, u, v, dt, dx, dy);  % Update water depth based on the continuity equation
-    
-    % Plot or store results
-    if mod(t, 100) == 0
-        figure(1);
-        surf(x, y, h);
-        title(['Water Depth at t = ', num2str(t*dt)]);
-        colorbar;
-        pause(0.1);
-    end
+% Check if we have valid data
+if numel(lines) < 3
+    error('No valid data found from USGS API response.');
 end
 
-%% Constructing Matrix A_x (Implicit in x-direction)
-function A_x = construct_matrix_A(Nx, Ny, dx, dt)
-    % Create the sparse matrix for the implicit system in the x-direction (velocity)
-    
-    % Number of unknowns (Nx * Ny)
-    N = Nx * Ny;
-    
-    % Main diagonal and off-diagonals for the system
-    main_diag = 1 + 2 * dt / dx^2 * ones(N, 1);  % Main diagonal
-    left_diag = -dt / dx^2 * ones(N - 1, 1);     % Left diagonal (off by 1)
-    right_diag = -dt / dx^2 * ones(N - 1, 1);    % Right diagonal (off by 1)
-    
-    % Create the sparse matrix A_x using sparse matrix construction
-    A_x = spdiags([left_diag, main_diag, right_diag], [-1, 0, 1], N, N);
+% Extract the header line and split by tab to get the column names
+headerLine = lines{1};
+headers = split(headerLine, '\t');
+
+% Display headers for debugging
+disp('Headers in the response:');
+disp(headers);
+
+% Extract the data rows (station information)
+dataLines = lines(3:end);
+dataFields = cellfun(@(l) split(l, '\t'), dataLines, 'UniformOutput', false);
+
+% Initialize arrays to store station data
+nStations = numel(dataFields);
+site_no = strings(nStations, 1);
+station_name = strings(nStations, 1);
+lat = zeros(nStations, 1);
+lon = zeros(nStations, 1);
+
+% Find the indices of the relevant columns
+latIndex = find(strcmp(headers, 'dec_lat_va'), 1);
+lonIndex = find(strcmp(headers, 'dec_long_va'), 1);
+siteIndex = find(strcmp(headers, 'site_no'), 1);
+nameIndex = find(strcmp(headers, 'station_nm'), 1);
+
+% Check if we have all necessary columns
+if isempty(latIndex) || isempty(lonIndex) || isempty(siteIndex) || isempty(nameIndex)
+    error('Could not find necessary columns in the header.');
 end
 
-%% Constructing Matrix B_y (Implicit in y-direction)
-function B_y = construct_matrix_B(Nx, Ny, dy, dt)
-    % Create the sparse matrix for the implicit system in the y-direction (velocity)
-    
-    % Number of unknowns (Nx * Ny)
-    N = Nx * Ny;
-    
-    % Main diagonal and off-diagonals for the system
-    main_diag = 1 + 2 * dt / dy^2 * ones(N, 1);  % Main diagonal
-    down_diag = -dt / dy^2 * ones(N - Ny, 1);   % Downward diagonal (off by Ny)
-    up_diag = -dt / dy^2 * ones(N - Ny, 1);     % Upward diagonal (off by Ny)
-    
-    % Create the sparse matrix B_y using sparse matrix construction
-    B_y = spdiags([down_diag, main_diag, up_diag], [-Ny, 0, Ny], N, N);
+% Extract the station data
+for i = 1:nStations
+    row = dataFields{i};
+    site_no(i) = row{siteIndex};
+    station_name(i) = row{nameIndex};
+    lat(i) = str2double(row{latIndex});
+    lon(i) = str2double(row{lonIndex});
 end
 
-%% Right-hand side for x-direction (momentum equation for u)
-function rhs_x = calculate_rhs_x(h, u, v, dx, dt, g)
-    % Compute the right-hand side for the x-direction momentum equation
-    rhs_x = zeros(size(h));  % Initialize right-hand side (same size as h)
-    
-    % Calculate the spatial derivatives of q_x = h * u
-    q_x = h .* u;
-    
-    % Central difference approximation for the spatial derivative
-    rhs_x(2:end-1, :) = -dt / dx^2 * (q_x(3:end, :) - q_x(1:end-2, :));
-end
+% Store the data in a table
+stationsTable = table(site_no, station_name, lat, lon, 'VariableNames', {'Site_No', 'Station_Name', 'Latitude', 'Longitude'});
 
-%% Right-hand side for y-direction (momentum equation for v)
-function rhs_y = calculate_rhs_y(h, u, v, dy, dt, g)
-    % Compute the right-hand side for the y-direction momentum equation
-    rhs_y = zeros(size(h));  % Initialize right-hand side (same size as h)
-    
-    % Calculate the spatial derivatives of q_y = h * v
-    q_y = h .* v;
-    
-    % Central difference approximation for the spatial derivative
-    rhs_y(:, 2:end-1) = -dt / dy^2 * (q_y(:, 3:end) - q_y(:, 1:end-2));
-end
+% Save the result to a CSV file
+writetable(stationsTable, 'Arizona_river_stage_stations.csv');
 
-%% Update water depth using continuity equation
-function h_new = update_h(h, u, v, dt, dx, dy)
-    % Update the water depth using the continuity equation
-    % Central difference for spatial derivatives of q_x and q_y
-    q_x = h .* u;
-    q_y = h .* v;
-    
-    h_new = h - dt * ( (q_x(2:end, :) - q_x(1:end-1, :)) / dx + (q_y(:, 2:end) - q_y(:, 1:end-1)) / dy );
-end
+disp(['Found ', num2str(height(stationsTable)), ' USGS river stage stations in Arizona.']);
