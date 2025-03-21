@@ -27,7 +27,7 @@ if DEM_raster.georef.SpatialRef.ProjectedCRS.Name == web_mercator_crs.Name
         [A,RA,attribA] = readBasemapImage(basemapName,latlim,lonlim);
     catch ME
     end
-en
+
     %% Creating a Shapefile from the DEM as reference
 
     % Creating a binary mask

@@ -121,6 +121,7 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
 
         % Bates time-step
         wave_celerity = max(sqrt(9.81*max(depths.d_tot,depths.d_t)/1000),1e-10); % Using d_t, which is the depth at the end of the time-step
+        wave_celerity(isinf(wave_celerity)) = nan;
         if flags.flag_adaptive_timestepping == 1
             new_timestep = (min(min((Courant_Parameters.alfa_min*Wshed_Properties.Resolution./(wave_celerity))))); % alpha of 0.4
         else

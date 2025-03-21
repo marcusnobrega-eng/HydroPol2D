@@ -108,7 +108,7 @@ if flags.flag_automatic_calibration ~= 1
                 gauges.x_cell = gauges.easting_obs_gauges(i); gauges.y_cell = gauges.northing_obs_gauges(i);
                 gauges.wse_cell(1,i) = depths.d_t(gauges.y_cell,gauges.x_cell)/1000 + Elevation_Properties.elevation_cell(gauges.y_cell,gauges.x_cell); % m
                 gauges.depth_cell(1,i) = depths.d_t(gauges.y_cell,gauges.x_cell)/1000; % m
-                gauges.hydrograph_cell(1,i) = CA_States.I_tot_end_cell(gauges.y_cell,gauges.x_cell)/(running_control.time_calculation_routing(k)); % m3/s
+                gauges.hydrograph_cell(1,i) = CA_States.I_tot_end_cell(gauges.y_cell,gauges.x_cell)/(running_control.time_calculation_routing); % m3/s
             end
             if flags.flag_dashboard == 1
                 % for the Dashboard
@@ -214,7 +214,7 @@ if flags.flag_automatic_calibration ~= 1
                 gauges.x_cell = gauges.easting_obs_gauges(i); gauges.y_cell = gauges.northing_obs_gauges(i);
                 gauges.wse_cell(t_store,i)= depths.d_t(gauges.y_cell,gauges.x_cell)/1000 + Elevation_Properties.elevation_cell(gauges.y_cell,gauges.x_cell); % m
                 gauges.depth_cell(t_store,i) = depths.d_t(gauges.y_cell,gauges.x_cell)/1000; % m
-                gauges.hydrograph_cell(t_store,i) = CA_States.I_tot_end_cell(gauges.y_cell,gauges.x_cell)/(running_control.time_calculation_routing(k)); % m3/s
+                gauges.hydrograph_cell(t_store,i) = CA_States.I_tot_end_cell(gauges.y_cell,gauges.x_cell)/(running_control.time_calculation_routing); % m3/s
             end
             if flags.flag_dashboard == 1
                 % for the Dashboard

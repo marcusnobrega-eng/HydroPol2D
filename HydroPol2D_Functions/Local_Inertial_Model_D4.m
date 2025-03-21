@@ -1,4 +1,4 @@
-function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf,Qc,Qf,Qci,Qfi,C_a] = Local_Inertial_Model_D4(flag_numerical_scheme,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical,flag_subgrid,nc,nf,River_Width, River_Depth,Qc_prev,Qf_prev,Qci_prev,Qfi_prev,C_a_prev)
+function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf,Qc,Qf,Qci,Qfi,C_a] = Local_Inertial_Model_D4(flag_numerical_scheme,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical,flag_subgrid,nc,nf,River_Width, River_Depth,Qc_prev,Qf_prev,Qci_prev,Qfi_prev,C_a_prev,Subgrid_Properties,flag_overbanks)
 
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %                                                                 %
@@ -23,20 +23,6 @@ else
     ny = size(z,1);
     nx = size(z,2);  
 end
-% Rivers
-% River_Width = River_Width*0;
-% River_Depth = River_Depth*0;
-% River_Width = ones(ny,nx)*100;
-% River_Depth = ones(ny,nx)*10;
-% River_Width(1,6) = 50;
-% River_Depth(1,6) = 1;
-% z(:,6) = 10;
-% z(1,6) = 10;
-% River_Depth(River_Depth > 0) = 1;
-% River_Width(River_Width > 0) = 50;
-% Adding a tributary
-% River_Width(5,:) = 50;
-% River_Depth(5,:) = 1;
 idx_rivers = River_Width > 0; % Rivers are now cells with no zero width 
 % ---------------% Adding minimum slope to do calculations % ---------------%
 h_min = 1e-6;  % In cases where inflow is being modeling, this value has to be 0
@@ -69,18 +55,10 @@ nan_col = nan*y(:,1); nan_row = nan*y(1,:);
 matrix_store = 0*outflow;
 % South to North and West to East Positive
 % x-x
-% matrix_store(:,:,1) = [nan_col, y(:,2:end) - y(:,1:(end-1))]/Resolution; % Left
-% matrix_store(:,:,2) = [y(:,2:end) - y(:,1:(end-1)), nan_col]/Resolution; % Right
 matrix_store(:,:,1) = [y(:,2:end) - y(:,1:(end-1)), nan_col]/Resolution; % Right
 
 % y-y
-% matrix_store(:,:,3) = [nan_row; y(1:(end-1),:) - y(2:end,:)]/Resolution; % Up
 matrix_store(:,:,2) = [nan_row; y(1:(end-1),:) - y(2:end,:)]/Resolution; % Up
-% matrix_store(:,:,4) = [y(1:(end-1),:) - y(2:end,:); nan_row]/Resolution; % Down
-
-% if nansum(nansum(matrix_store(:,2,1) - matrix_store(:,1,2)))
-%     ttt = 1;
-% end
 
 %% ---------------- Hf (Effective Water Depth for Flow) ----------- %
 Hf = 0*outflow;
@@ -108,7 +86,7 @@ outflow_prev = outflow;
 
 % Sub-grid channels
 % Treatment using sub-grid approach for channels
-if flag_subgrid == 1
+if flag_subgrid == 1 && flag_overbanks == 1
     % All cells have sub-grid channels and floodplains following the same
     % roughness coefficients of the 2D domain
     % Only the original formulation is considered in this case
@@ -117,6 +95,19 @@ if flag_subgrid == 1
     % Treating Domain Issues
     outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;    
     % C_a(isnan(z)) = nan;
+elseif flag_subgrid == 1
+    % We are modeling using the subgrid approach with functions to describe
+    % the hydraulic radius and flow area
+    Qc = 0;
+    Qf = 0;
+    Qci = 0;
+    Qfi = 0;
+    Q = 0;
+    % -------------- Inertial Solver ------------- %
+    [outflow,C_a] = subgrid_channel_functions(depth_cell, River_Width, z - River_Depth,Resolution, nc, Qc_prev,Qci_prev, g, dt, idx_rivers, Subgrid_Properties);
+    % Treating Domain Issues
+    outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;  
+    % C_a(isnan(d_tot)) = nan;
 else
     % We are modeling using the original coarse grid approach with
     % different numerical schemes

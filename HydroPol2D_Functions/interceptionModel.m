@@ -12,7 +12,7 @@ function [S, T, E, F] = interceptionModel(P, Ep, LAI, S_prev, C)
     % S - Updated canopy interception storage (mm)
     % T - Throughfall (mm)
     % E - Evaporation from interception storage (mm)
-    % F: stemflow (mm)
+    % F - stemflow (mm)
 
     % Step 1: Compute Maximum Canopy Storage
     LAI(isnan(LAI)) = 0;
@@ -28,6 +28,9 @@ function [S, T, E, F] = interceptionModel(P, Ep, LAI, S_prev, C)
     % Compute Evaporation
     beta = S_prev ./ S_max;  beta(isnan(beta)) = 0;
     E = beta .* Ep;
+
+    % Constraint at E
+    E = min(E, P + S_prev);
 
     % Compute canopy storage change
     % dS = P - F - E - 0 (Assuming initally no throughfall)

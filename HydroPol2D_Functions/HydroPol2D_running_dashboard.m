@@ -331,7 +331,7 @@ function [ax] = HydroPol2D_running_dashboard(ax,Maps,v_t,DEM_raster,gauges,BC_St
                     idx_g(idx_g == 0) = nan;
                 end      
             end
-            set(ax.monitor_r, 'CData', idx_g);
+            set(ax.monitor_r, 'CData', gather(idx_g));
             % set(ax.monitor_r, 'CData', idx_g, 'YData', ax.x_grid, 'XData', ax.y_grid)
             if ax.flags.flag_infiltration == 1
                 set(ax.monitor_i, 'CData', Maps.Hydro.I_t([1:1:ax.DEM_s1],[1:1:ax.DEM_s2],layer));
