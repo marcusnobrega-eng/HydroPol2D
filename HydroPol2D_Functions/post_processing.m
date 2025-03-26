@@ -1248,7 +1248,7 @@ fig.OuterPosition=[0 0 1 1];
 size_font = 10;
 if flags.flag_waterquality == 1
     size_font = 12;
-    [axis1] = surfplot_maps(DEM_raster,depths.dmax_final/1000,Depth_RAS,'Easting (m)','Northing (m)','Depth (m)',no_data_value,idx_nan,3,3,1,size_font);
+    [axis1] = surfplot_maps(DEM_raster,depths.dmax_final/1000,Spectrum,'Easting (m)','Northing (m)','Depth (m)',no_data_value,idx_nan,3,3,1,size_font);
     min_washed = 1e-4;
     % Tot_Washed
     % Min_Washed
@@ -1303,14 +1303,14 @@ if flags.flag_waterquality == 1
     plot(0:1,0:1,'LineWidth',1,'Color','black','LineStyle','--')
     ylabel('$m/m_{\mathrm{tot}}$','Interpreter','Latex');
     xlabel('$V/V_{\mathrm{tot}}$','Interpreter','Latex');
-    % exportgraphics(gcf,fullfile(folderName,'Mapas.png'),'ContentType','image','Colorspace','rgb','Resolution',1200)
+    exportgraphics(gcf,fullfile(folderName,'Mapas.png'),'ContentType','image','Colorspace','rgb','Resolution',300)
     % exportgraphics(gcf,fullfile(folderName,'Mapas.pdf'),'ContentType','vector')
     % saveas(gcf,fullfile(folderName,'Mapas.fig'))
 else %%%%%%%%%%%%%%%%%%%%
     % No water quality
     size_font = 12;
     no_data_value = nan;
-    [axis1] = surfplot_maps(DEM_raster,depths.dmax_final/1000,Depth_RAS,'Easting (m)','Northing (m)','Maximum Depth (m)',no_data_value,idx_nan,2,2,1,size_font);
+    [axis1] = surfplot_maps(DEM_raster,depths.dmax_final/1000,Spectrum,'Easting (m)','Northing (m)','Maximum Depth (m)',no_data_value,idx_nan,2,2,1,size_font);
 
     %%% Infiltration
 
@@ -1426,7 +1426,7 @@ dheta = Soil_Properties.teta_sat - Soil_Properties.teta_i;
 % Psi
 [axis3] = surfplot_maps(DEM_raster,Soil_Properties.psi,Spectrum,'Easting (m)','Northing (m)','$\mathrm{\psi~(mm)}    $',no_data_value,idx_nan,1,3,3,size_font);
 
-% exportgraphics(gcf,fullfile(folderName,'SOIL_Parameters.png'),'ContentType','image','Colorspace','rgb','Resolution',600);
+exportgraphics(gcf,fullfile(folderName,'SOIL_Parameters.png'),'ContentType','image','Colorspace','rgb','Resolution',150);
 % saveas(gcf,fullfile(folderName,'SOIL_Parameters.fig'))
 close all
 

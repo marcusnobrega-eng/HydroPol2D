@@ -157,7 +157,6 @@ end
 hec_ras_colors = [52/255 85/255 132/255; 0 1 1; 0 128/255 1; 0 255/255 0; 1 1 0; 1 128/255 0; 1 0 0; 128/255 0 128/255];
 
 %% Plot Elevation Model
-%% Plot Elevation Model and Save as GIF
 
 % Set up figure for plotting
 h = figure;
@@ -418,6 +417,165 @@ for t = 1:f:length(running_control.time_records)
     colorbar
     caxis([0 z2max]);
     colormap(ax2,Depth_Purple)
+    k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
+
+    ylabel(k,'Depths [m]','Interpreter','Latex','FontSize',12)
+    xlabel('Easting [m] ','Interpreter','Latex','FontSize',12)
+    ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
+    zlabel ('WSE [m]','Interpreter','Latex','FontSize',12)
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax = ancestor(gca, 'axes');
+    ax.XAxis.Exponent = 0;xtickformat('%.0f');
+    ax.YAxis.Exponent = 0;ytickformat('%.0f');
+    if no_plot == 0
+        mapshow(S_p,'FaceColor','n'); hold on;
+    end
+    box on
+    % Set background color and write to video
+    frame = getframe(gcf);
+    writeVideo(video,frame);
+    hold off
+    clf
+end
+
+% Close video writer    
+close(video);
+close all
+
+%% Plot Water Surface Elevation and Depths
+% Adjusting the size
+
+% Generate video showing water level profile over time
+close all
+
+Video_Name = 'Depths.mp4';
+
+% Set up video
+video = VideoWriter(fullfile(folderName,Video_Name),'MPEG-4');
+% control the framerate
+video.FrameRate = 10;
+open(video);
+
+% Set up HEC-RAS colors
+hec_ras_colors = [52/255 85/255 132/255; 0 1 1; 0 128/255 1; 0 255/255 0; 1 1 0; 1 128/255 0; 1 0 0; 128/255 0 128/255];
+
+h = figure;
+axis tight manual % this ensures that getframe() returns a consistent size
+FileName_String = 'WSE_and_Depths.gif';
+FileName = fullfile(folderName,strcat('\',FileName_String));
+
+set(gcf,'units','inches','position',[0,0,7,12])
+set(gcf,'DefaultTextInterpreter','latex')
+
+
+% createMatrixVideo(Maps.Hydro.d, running_control.time_records(1:5), 'test3', 'test2', 14, 'TEST', Terrain_RAS_ramp, 'Test', DEM_raster)
+
+% This is absolutely memory expensive
+% z1 = gather(Maps.Hydro.d)/1000 + DEM_maps;
+% idx2 = Maps.Hydro.d < depths.depth_wse*1000;
+% z1(z1<=0)=nan;
+% z1(idx2) = nan;
+
+% z1max = max(max(Max_depth.d/1000 + DEM_maps));
+% z1min = min(min(Max_depth.d/1000 + DEM_maps));
+% z1max = max(max(max(Maps.Hydro.d/1000 + DEM_maps)));
+% z1min = min(min(min(Maps.Hydro.d/1000 + DEM_maps)));
+z1max = max(max(Max_depth_d/1000 + DEM_maps)); % data comes from prost_processing
+z1min = min(min(Max_depth_d/1000 + DEM_maps));
+
+z2max = max(max(Max_depth_d/1000)); % data comes from prost_processing
+z2min = min(min(Max_depth_d/1000));
+
+% z2 = gather(Maps.Hydro.d/1000);
+% z2(z2<=0)=nan;
+% z2(idx2)=nan;
+
+targetColor=[0.27 0.47 0.68];
+
+store=1;
+flag_loader=1;
+for t = 1:f:length(running_control.time_records)
+    clf
+    t_title = running_control.time_records(t);
+
+    if t > saver_memory_maps*store
+        store = store + 1;
+        load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+        idx2 = Maps.Hydro.d < depths.depth_wse*1000;
+        z1 = gather(Maps.Hydro.d)/1000 + DEM_maps;
+        z2 = gather(Maps.Hydro.d)/1000;
+        z1(z1<=0)= nan;
+        z1(idx2) = nan;
+        z2(z2<=0)= nan;
+        z2(idx2) = nan;
+    else
+        if flag_loader == 1
+          load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+          flag_loader=0;
+          idx2 = Maps.Hydro.d < depths.depth_wse*1000;
+          z1 = gather(Maps.Hydro.d)/1000 + DEM_maps;
+          z2 = gather(Maps.Hydro.d)/1000;
+          z1(z1<=0)= nan;
+          z1(idx2) = nan;
+          z2(z2<=0)= nan;
+          z2(idx2) = nan;
+        end
+    end
+    
+    if isnan(z1max)
+        zmax = 10;
+    end
+    if isnan(z1min)
+        zmin = 0;
+    end
+    xmax = length(z(1,:));
+    xend = xmax;
+    ymax = length(z(:,1));
+    yend = ymax;
+    xbegin = 1;
+    ybegin = 1;
+    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) z1min z1max])
+    if flags.flag_elapsed_time == 1
+        title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+    else
+        title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
+    end
+
+    if isnan(z2max)
+        z2max = 10;
+    end
+    if isnan(z2min)
+        z2min = 0;
+    end
+    F = z2([ybegin:1:yend],[xbegin:1:xend],t-(store-1)*saver_memory_maps);
+    F(idx2(:,:,t-(store-1)*saver_memory_maps)) = 0;
+    F(F==0)=nan;
+    % F = z2([ybegin:1:yend],[xbegin:1:xend],t);
+    % F(idx2(:,:,t)) = 0;
+    % F(F==0)=nan;
+    if no_plot==0
+        try
+            mapshow(A,RA,"AlphaData",0.25);hold on;
+        catch ME
+            warning('You need matlab 2022 or higher to run basemaps.')
+        end
+    end
+    surf(x_grid,y_grid,F);
+    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) z2min z2max])
+
+    shading INTERP;
+    if flags.flag_elapsed_time == 1
+        title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+    else
+        title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
+    end
+    view(0,90);
+    colorbar
+    caxis([0 z2max]);
+    colormap(Depth_Purple)
     k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
 
     ylabel(k,'Depths [m]','Interpreter','Latex','FontSize',12)
@@ -1455,7 +1613,6 @@ if flags.flag_ETP == 1
     close all
 end
 
-%% GW Video
 %% GW Video
 try 
     delete('Modeling_Results\GW_Depths.mp4')

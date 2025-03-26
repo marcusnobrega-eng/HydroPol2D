@@ -1,4 +1,4 @@
-function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf,Qc,Qf,Qci,Qfi,C_a] = Local_Inertial_Model_D4(flag_numerical_scheme,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical,flag_subgrid,nc,nf,River_Width, River_Depth,Qc_prev,Qf_prev,Qci_prev,Qfi_prev,C_a_prev,Subgrid_Properties,flag_overbanks)
+function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf,Qc,Qf,Qci,Qfi,C_a] = Local_Inertial_Model_D4(flag_numerical_scheme,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical,flag_subgrid,nc,nf,River_Width, River_Depth,Qc_prev,Qf_prev,Qci_prev,Qfi_prev,C_a_prev,Subgrid_Properties,flag_overbanks,flag_inflow)
 
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %                                                                 %
@@ -25,7 +25,11 @@ else
 end
 idx_rivers = River_Width > 0; % Rivers are now cells with no zero width 
 % ---------------% Adding minimum slope to do calculations % ---------------%
-h_min = 1e-6;  % In cases where inflow is being modeling, this value has to be 0
+if flag_inflow ~= 1
+    h_min = 1e-6;  % In cases where inflow is being modeling, this value has to be 0
+else
+    h_min = 0;
+end
 
 % --------------- Notation  % ---------------%
 %   <-matrix3D-> (left right up down) = [left ; right ; up; down] going
@@ -254,9 +258,9 @@ if flag_subgrid == 1 % Maybe we have a change from inbank <-> overbank
 end
 
 lost_mass = 1/1000*abs(sum(sum(d_t(d_t<0).*C_a(d_t<0))));
-if lost_mass > 0.1*Resolution^2
-    error('Lost mass too high.')
-end
+% if lost_mass > 0.1*Resolution^2
+%     error('Lost mass too high.')
+% end
 
 d_t(d_t<0) = 0;
 

@@ -3,6 +3,8 @@
 % Date 3/6/2025
 % Goal - Run the main modeling process of the model
 
+clear all
+load workspace_cg_dam_catchment_downstream.mat
 flags.flag_overbanks = 0;
 tic
 k = 1; % time-step counter
@@ -17,10 +19,11 @@ Risk_Area = 0; % initial risk area
 store = 1; % Index for saving maps
 t_previous = 0;
 factor_time = 0;
-running_control.max_time_step = 60*60; % seconds
+running_control.max_time_step = 3; % seconds
 max_dt = running_control.max_time_step;
 flags.flag_dashboard = 0;
-flags.flag_subgrid = 1;
+flags.flag_subgrid = 0;
+Subgrid_Properties = [];
 
 % Initial System Storage
 S_c = nansum(nansum(C_a.*Hydro_States.S/1000));
@@ -106,7 +109,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf,Qc,Qf,Qci,Qfi,C_a] = ...
                     Local_Inertial_Model_D4(flags.flag_numerical_scheme,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
                     flags.flag_reservoir,Elevation_Properties.elevation_cell,...
-                    depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical,flags.flag_subgrid,Wshed_Properties.Inbank_Manning,Wshed_Properties.Overbank_Manning,Wshed_Properties.River_Width, Wshed_Properties.River_Depth,Qc,Qf,Qci,Qfi,C_a,Subgrid_Properties,flags.flag_overbanks);
+                    depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical,flags.flag_subgrid,Wshed_Properties.Inbank_Manning,Wshed_Properties.Overbank_Manning,Wshed_Properties.River_Width, Wshed_Properties.River_Depth,Qc,Qf,Qci,Qfi,C_a,Subgrid_Properties,flags.flag_overbanks,flags.flag_inflow);
                 end
             end
         end

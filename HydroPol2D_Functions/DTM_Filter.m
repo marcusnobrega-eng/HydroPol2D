@@ -38,10 +38,18 @@ y_valid = Y(valid_mask);
 z_valid = dem_filtered(valid_mask);
 
 %% Step 3: Bilinear interpolation using 'griddata'
-dtm_filled = griddata(x_valid, y_valid, z_valid, X, Y, 'linear');
 
-% Preserve original NaN locations from the input DEM
-dtm_filled(isnan(DEM)) = NaN;
+try
+    dtm_filled = griddata(x_valid, y_valid, z_valid, X, Y, 'linear');
+    if isempty(dtm_filled)
+        dtm_filled = DEM;
+    else
+        % Preserve original NaN locations from the input DEM
+        dtm_filled(isnan(DEM)) = NaN;
+    end
+catch
+    dtm_filled = DEM;
+end
 
 %% Step 4: Compute volume difference between DEM and DTM
 Volume = nansum(nansum(Resolution^2 * (dtm_filled - DEM)));

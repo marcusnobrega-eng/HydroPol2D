@@ -66,6 +66,13 @@ catch
     NDVI_raster = [];
 end
 
+try
+    Albedo_raster = GRIDobj(Albedo_Path);
+catch
+    Albedo_raster = [];
+end
+
+
 
 % Checking CRS
 try
@@ -115,7 +122,7 @@ SOIL_raster.georef.SpatialRef.ProjectedCRS = crs_save;
 % end
 if sum(size(DEM_raster.Z)) == sum(size(LULC_raster.Z)) && sum(size(DEM_raster.Z)) == sum(size(SOIL_raster.Z))
 else
-    if sum(size(DEM_raster.Z)) >= sum(size(LULC_raster.Z)) && sum(size(DEM_raster.Z)) >= sum(size(SOIL_raster.Z)) % DEM is larger
+    if sum(size(DEM_raster.Z)) > sum(size(LULC_raster.Z)) || sum(size(DEM_raster.Z)) > sum(size(SOIL_raster.Z)) % DEM is larger
         raster_resample = DEM_raster;
         % Resample other two rasters
         % ---- Constraint at LULC Raster
@@ -126,7 +133,7 @@ else
         % SOIL_raster.Z =  round(SOIL_raster.Z); % Only Integers
     end
 
-    if sum(size(SOIL_raster.Z)) >= sum(size(DEM_raster.Z)) && sum(size(SOIL_raster.Z)) >= sum(size(LULC_raster.Z))  % SOIL is larger
+    if sum(size(SOIL_raster.Z)) > sum(size(DEM_raster.Z)) || sum(size(SOIL_raster.Z)) > sum(size(LULC_raster.Z))  % SOIL is larger
         raster_resample = SOIL_raster;
         % Resample other two rasters
         LULC_raster = resample(LULC_raster,raster_resample,'nearest');
@@ -136,7 +143,7 @@ else
         DEM_raster = resample(DEM_raster,raster_resample,'bilinear');
     end
 
-    if sum(size(LULC_raster.Z)) >= sum(size(DEM_raster.Z)) && sum(size(LULC_raster.Z)) >= sum(size(SOIL_raster.Z))  % SOIL is larger
+    if sum(size(LULC_raster.Z)) > sum(size(DEM_raster.Z)) || sum(size(LULC_raster.Z)) > sum(size(SOIL_raster.Z))  % SOIL is larger
         raster_resample = LULC_raster;
         % Resample other two rasters
         % ---- Constraint at SOIL Raster
@@ -147,6 +154,16 @@ else
 
     if baseflow_check == 1 % Case of baseflow simulation
         DTB_raster = resample(DTB_raster,raster_resample,'bilinear');
+    end
+
+    try
+        Albedo_raster = resample(Albedo_raster,raster_resample,'bilinear');
+    end
+    try
+        NDVI_raster = resample(NDVI_raster,raster_resample,'bilinear');
+    end
+    try
+        LAI_raster = resample(LAI_raster,raster_resample,'bilinear');
     end
 
 end
@@ -182,8 +199,8 @@ if flags.flag_subgrid && flags.flag_river_rasters
 end
 
 %% Subgrid Functions
-flags.flag_subgrid = 1;
-flags.flag_resample = 1;
+% flags.flag_subgrid = 1;
+% flags.flag_resample = 1;
 if flags.flag_subgrid == 1 && flags.flag_resample == 1
     [Subgrid_Properties.A_spline, Subgrid_Properties.V_spline, Subgrid_Properties.Rh_east_spline, Subgrid_Properties.Rh_north_spline, Subgrid_Properties.Subgrid_Properties.W_east_spline, Subgrid_Properties.W_north_spline, Subgrid_Properties.A_east_spline, Subgrid_Properties.A_north_spline , Subgrid_Properties.Poly_NSE] = Subgrid_Properties_Function(DEM_raster, GIS_data.resolution_resample, 0.001, 5);
 end
@@ -472,8 +489,7 @@ if flags.flag_ETP == 1 && flags.flag_input_ETP_map == 0
     ETP_Parameters.Krs = Krs_ETP*ones(ny,nx); % Parameter
     idx_nan = isnan(DEM);
     ETP_Parameters.Krs(idx_nan) = nan;
-    if flags.flag_spatial_albedo == 1
-        Albedo_raster = GRIDobj(Albedo_Path);
+    if flags.flag_spatial_albedo == 1        
         if flags.flag_resample == 1
             try 
                 Albedo_raster = resample(Albedo_raster,resolution,'bilinear');
@@ -620,7 +636,7 @@ end
 %% DTM Filter
 flags.flag_DTM = 1;
 if flags.flag_DTM == 1
-    slope_threshold = 7.5; % percentage
+    slope_threshold = GIS_data.slope_DTM; % percentage
     DEM_filtered = DTM_Filter(DEM_raster.Z,Wshed_Properties.Resolution,GIS_data.slope_DTM);
     DEM_raster.Z = DEM_filtered;
 end
@@ -658,7 +674,6 @@ end
 
 %% Decrese Elevations in Creeks 
     % Flow directio 8D raster
-    GIS_data.min_area = 100;
     FD = FLOWobj(DEM_raster); % Flow direction
     % Flow accumulation
     As  = flowacc(FD); % Flow Accumulation
@@ -788,7 +803,7 @@ if flags.flag_obs_gauges == 1
     gauges.x_coord_gauges = gauges.easting_obs_gauges_absolute;
     gauges.y_coord_gauges = gauges.northing_obs_gauges_absolute;
     labels_gauges = gauges.labels_observed_string;  % Labels for each point
-
+w
 
     % Create a shapefile writer
     % shapefile = shapewrite('observed_gauges.shp');
