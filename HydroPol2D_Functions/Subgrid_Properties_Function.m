@@ -1,17 +1,15 @@
-function [A_coeffs, V_coeffs, Rh_east_coeffs, Rh_north_coeffs, W_east_coeffs, W_north_coeffs, A_east_coeffs, A_north_coeffs, Poly_r2] = Subgrid_Properties_Function(DEM_raster, coarse_res, increment_depth, max_depth)
+function [A_coeffs, V_coeffs, Rh_east_coeffs, Rh_north_coeffs, W_east_coeffs, W_north_coeffs, A_east_coeffs, A_north_coeffs, Poly_NSE, invert_el] = Subgrid_Properties_Function(DEM_raster, coarse_res, poly_order)
     % Computes subgrid hydraulic properties: smooth splines for A & V, polynomial fits of order 4 with zero intercept for others.
 
     DEM = DEM_raster.Z;
     cellsize = DEM_raster.cellsize;
     
-    poly_order = 2; % Fixed polynomial order
-
     if mod(coarse_res, cellsize) ~= 0
-        error('Resample the raster to a multiple resolution of the input raster.');
+        warning('Resample the raster to a multiple resolution of the input raster.');
     end
 
     [nrows, ncols] = size(DEM);
-    nrows_coarse = ceil(nrows * cellsize / coarse_res) + 1;
+    nrows_coarse = ceil(nrows * cellsize / coarse_res) + 1; %%%% Probably wrong
     ncols_coarse = ceil(ncols * cellsize / coarse_res) + 1;
 
     V_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order);
@@ -22,8 +20,9 @@ function [A_coeffs, V_coeffs, Rh_east_coeffs, Rh_north_coeffs, W_east_coeffs, W_
     W_north_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order);
     A_east_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order);
     A_north_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order);
+    invert_el = NaN(nrows_coarse, ncols_coarse);
 
-    Poly_r2 = struct('Rh_east', NaN(nrows_coarse, ncols_coarse), ...
+    Poly_NSE = struct('Rh_east', NaN(nrows_coarse, ncols_coarse), ...
                      'Rh_north', NaN(nrows_coarse, ncols_coarse), ...
                      'W_east', NaN(nrows_coarse, ncols_coarse), ...
                      'W_north', NaN(nrows_coarse, ncols_coarse), ...
@@ -60,8 +59,10 @@ function [A_coeffs, V_coeffs, Rh_east_coeffs, Rh_north_coeffs, W_east_coeffs, W_
             north_idx = north_idx(:);
 
             min_DEM = min(sub_DEM(:));
+            invert_el(rowc,colc) = min_DEM; % Invert elevation [m]
             max_Depth = max(sub_DEM(:)) - min_DEM;
-            depths = linspace(1e-6, max_Depth + 1e-6, 100)';
+            depths = linspace(1e-6, max_Depth + 1e-6, 100)'; % Depths [m]
+            elevations = depths + min_DEM; % Elevations [m]
 
             depth_matrix = depths - (sub_DEM(:)' - min_DEM);
             wetted_cells = depth_matrix > 0 & ~isnan(sub_DEM(:)');
@@ -103,14 +104,14 @@ function [A_coeffs, V_coeffs, Rh_east_coeffs, Rh_north_coeffs, W_east_coeffs, W_
             A_north_coeffs(rowc, colc, :) = A_north_c;
 
             % Compute R² for each polynomial fit
-            Poly_r2.A_r2(rowc, colc) = compute_r2(X * A, area);
-            Poly_r2.A_r2(rowc, colc) = compute_r2(X * V, volume);
-            Poly_r2.Rh_east(rowc, colc) = compute_r2(X * Rh_east_c, Rh_east);
-            Poly_r2.Rh_north(rowc, colc) = compute_r2(X * Rh_north_c, Rh_north);
-            Poly_r2.W_east(rowc, colc) = compute_r2(X * W_east_c, width_east);
-            Poly_r2.W_north(rowc, colc) = compute_r2(X * W_north_c, width_north);
-            Poly_r2.A_east(rowc, colc) = compute_r2(X * A_east_c, area_east);
-            Poly_r2.A_north(rowc, colc) = compute_r2(X * A_north_c, area_north);
+            Poly_NSE.A_NSE(rowc, colc) = compute_NSE(X * A, area);
+            Poly_NSE.A_NSE(rowc, colc) = compute_NSE(X * V, volume);
+            Poly_NSE.Rh_east(rowc, colc) = compute_NSE(X * Rh_east_c, Rh_east);
+            Poly_NSE.Rh_north(rowc, colc) = compute_NSE(X * Rh_north_c, Rh_north);
+            Poly_NSE.W_east(rowc, colc) = compute_NSE(X * W_east_c, width_east);
+            Poly_NSE.W_north(rowc, colc) = compute_NSE(X * W_north_c, width_north);
+            Poly_NSE.A_east(rowc, colc) = compute_NSE(X * A_east_c, area_east);
+            Poly_NSE.A_north(rowc, colc) = compute_NSE(X * A_north_c, area_north);
             
             count = count + 1;
             progress = 100*count / total_iterations
@@ -118,6 +119,6 @@ function [A_coeffs, V_coeffs, Rh_east_coeffs, Rh_north_coeffs, W_east_coeffs, W_
     end
 end
 
-function r2 = compute_r2(y_fit, y_obs)
-    r2 = 1 - sum((y_obs - y_fit).^2) / sum((y_obs - mean(y_obs)).^2);
+function NSE = compute_NSE(y_fit, y_obs)
+    NSE = 1 - sum((y_obs - y_fit).^2) / sum((y_obs - mean(y_obs)).^2);
 end

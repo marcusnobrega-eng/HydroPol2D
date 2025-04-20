@@ -23,6 +23,10 @@ else
     ny = size(z,1);
     nx = size(z,2);  
 end
+River_Width(logical(outlet_index)) = 0;
+
+River_Depth(logical(outlet_index)) = 0;
+
 idx_rivers = River_Width > 0; % Rivers are now cells with no zero width 
 % ---------------% Adding minimum slope to do calculations % ---------------%
 if flag_inflow ~= 1
@@ -42,11 +46,19 @@ depth_cell = d_tot;
 depth_cell = max(depth_cell/1000,0); % meters (fixing zero values)
 
 % Current Stored Volume
-if flag_subgrid == 1
-    current_volume = nansum(nansum((Resolution - River_Width).*Resolution.*max((d_tot/1000 - River_Depth),0))) + ...
-                      nansum(nansum(Resolution.*River_Width.*d_tot/1000)); % m3
+if flag_subgrid == 1 && flag_overbanks == 1
+    current_volume = nansum(nansum((Resolution - River_Width).*Resolution.*max((depth_cell - River_Depth),0))) + ...
+                      nansum(nansum(Resolution.*River_Width.*depth_cell)); % m3
 else
-    current_volume = nansum(nansum(C_a_prev.*d_tot/1000)); % m3
+    current_volume = nansum(nansum(C_a_prev.*depth_cell)); % m3
+end
+
+% Constraint at Elevation
+
+if flag_subgrid == 1 && flag_overbanks ~= 1
+    % We are simulating with functions describing hydraulic radius and flow
+    % area
+    z = Subgrid_Properties.invert_el;
 end
 
 
@@ -90,12 +102,16 @@ outflow_prev = outflow;
 
 % Sub-grid channels
 % Treatment using sub-grid approach for channels
+% flag_overbanks = 0; flag_subgrid = 0;
 if flag_subgrid == 1 && flag_overbanks == 1
     % All cells have sub-grid channels and floodplains following the same
     % roughness coefficients of the 2D domain
     % Only the original formulation is considered in this case
-    [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(depth_cell, River_Width, z, z - River_Depth , Resolution, nc, nf, Qc_prev, Qf_prev,Qci_prev,Qfi_prev,g,dt,idx_rivers);
-    outflow = Q./(C_a/Resolution); % m2/s normalized by flow width
+    [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(depth_cell, River_Width, z, z - River_Depth , Resolution, nc, nf, Qc_prev, Qf_prev,Qci_prev,Qfi_prev,g,dt,idx_rivers,outlet_index);
+    % outflow = Q./(C_a/Resolution); % m2/s normalized by flow width
+    % C_a = ones(size(roughness_cell))*Resolution^2; % cell area in m2;
+    cell_width = Resolution; % cell width in m
+    outflow = Q./(cell_width); % m2/s normalized by flow width for the subgrid cell
     % Treating Domain Issues
     outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;    
     % C_a(isnan(z)) = nan;
@@ -112,6 +128,7 @@ elseif flag_subgrid == 1
     % Treating Domain Issues
     outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;  
     % C_a(isnan(d_tot)) = nan;
+    cell_width = C_a/Resolution; % cell width in m
 else
     % We are modeling using the original coarse grid approach with
     % different numerical schemes
@@ -125,10 +142,10 @@ else
     % Treating Domain Issues
     outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;  
     C_a = ones(size(roughness_cell))*Resolution^2; % cell area in m2;
+    cell_width = C_a/Resolution; % cell width in m
     % C_a(isnan(d_tot)) = nan;
 end
 
-cell_width = C_a/Resolution; % cell width in m
 %% Eliminating Surplus Velocities at Wet-Dry Interfaces
 % Left 
 % idx = Hf(:,:,1) > artificial_depth & [Hf(:,2:(end-1),1),zeros(size(depth_cell,1),1)] == artificial_depth;
@@ -168,8 +185,8 @@ if flag_critical == 1
     outflow(outflow > critical_velocity) = critical_velocity(outflow > critical_velocity); % m2/s (normalized by flow width)
     outflow(outflow < -critical_velocity) = (-1)*critical_velocity(outflow < -critical_velocity); % m2/s (normalized by flow width)
 end 
-outflow_rate = outflow.*(cell_width); % m3/s
-outflow = outflow_rate./(C_a)*1000*3600; % mm per hour
+outflow_rate = outflow.*(cell_width); % m3/s (total flux leaving coarse cell)
+outflow = outflow_rate./(cell_area)*1000*3600; % mm per hour (for coarse grid)
 matrix_store = outflow; % mm per hour
 
 %% Intercell Volume
@@ -237,14 +254,15 @@ qout_down = -[matrix_store(2:end,:,2); zeros(1,nx)];
 %% ---------------% Final depth at the cell % ---------------%
 % Cell mass balance
 % d_tot = d_p + rainfall, inflow or anything else
-d_t = d_tot + Vol_Flux./C_a*1000 ; % final depth in mm
+d_t = d_tot + Vol_Flux ./ C_a ; % final depth in mm
 
-if flag_subgrid == 1 % Maybe we have a change from inbank <-> overbank
+if flag_subgrid == 1 && flag_overbanks % Maybe we have a change from inbank <-> overbank
     % Eq. 15 and 16 of A subgrid channel model for simulating river hydraulics andfloodplain inundation over large and data sparse areas
     % Inbank - Overbank
     idx = d_t/1000 > River_Depth & d_p/1000 <= River_Depth & idx_rivers; % Cells in which there is a change from inbank to overbank
     if sum(sum(idx)) > 0
         d_t(idx) = 1000*(d_t(idx)/1000 - (d_t(idx)/1000 - z(idx) + (z(idx) - River_Depth(idx))).*(1 - River_Width(idx)/Resolution)); % mm 
+        [d_t(idx)] = inbank_to_overbank(River_Width(idx),River_Depth(idx),d_t(idx)/1000,Resolution);
         C_a(idx) = Resolution^2;
     end
     % Overbank - Inbank
@@ -253,6 +271,7 @@ if flag_subgrid == 1 % Maybe we have a change from inbank <-> overbank
         factor = d_t(idx)/1000 - z(idx) + (z(idx) - River_Depth(idx));
         d_t(idx) = 1000*(d_t(idx)/1000 + (Resolution*(factor))./River_Width(idx) ...
             - (d_t(idx)/1000 - z(idx) + (z(idx) - River_Depth(idx)))); % mm
+        [d_t(idx)] = overbank_to_inbank(River_Width(idx),River_Depth(idx),d_t(idx)/1000,Resolution);
         C_a(idx) = River_Width(idx)*Resolution;
     end 
 end
@@ -287,27 +306,30 @@ Hf_outlet(mask_outlet) = max(d_t(mask_outlet),0)/1000; % meters
 Hf(:,:,3) = Hf_outlet;
 
 % Outlet Mass Balance
-outlet_flow = 1./roughness_cell.*cell_width.*Hf(:,:,3).^(5/3).*abs(S_0).^(0.5)./(C_a)*1000*3600; % mm/h
+outlet_flow = 1./roughness_cell.*cell_width.*Hf(:,:,3).^(5/3).*abs(S_0).^(0.5)./(cell_area)*1000*3600; % mm/h
 outlet_flow = min(outlet_flow,max((d_t-1000*h_min),0)/(time_step/60));
 outlet_flow(~mask_outlet) = 0;
 outflow(:,:,3) = outlet_flow;
 
 % Final Depth
+% d_t = d_t  - cell_area ./ C_a .* outlet_flow*(time_step/60); % final depth in mm
 d_t = d_t  - outlet_flow*(time_step/60); % final depth in mm
+
 
 % Mass Balance Check
 % Final Stored Volume
-if flag_subgrid == 1
+if flag_subgrid == 1 && flag_overbanks == 1
     final_volume = nansum(nansum((Resolution - River_Width).*Resolution.*max((d_t/1000 - River_Depth),0))) + ...
                       nansum(nansum(Resolution.*River_Width.*d_t/1000)); % m3
 else
     final_volume = nansum(nansum(C_a.*d_t/1000)); % m3
 end
 
-error_vol = (final_volume - current_volume) + nansum(nansum(C_a.*1/1000*time_step/60.*outlet_flow));
+error_vol = (final_volume - current_volume) + nansum(nansum(Resolution^2.*1/1000*time_step/60.*outlet_flow));
 if abs(error_vol) > 10
     ttt = 1;
 end
+
 
 
 
@@ -320,4 +342,12 @@ I_tot_end_cell = abs(sum(mask,3))*dt/1000*1/3600*Resolution^2; % m3
 
 % surf(d_t); view(0,90);  colorbar; colormap('jet')
 % pause(0.00001)
+end
+
+function [h] = inbank_to_overbank(B,H,h_p,R)
+    h = 1000*(B.* H + (R - B).* h_p) ./ R;
+end
+
+function [h] = overbank_to_inbank(B,H,h_p,R)
+    h = 1000*(B .* h_p + (R - B) .* (H - h_p)) ./ B;
 end

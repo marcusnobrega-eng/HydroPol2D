@@ -62,3 +62,56 @@ values = reshape(F0,1,1,length(F0)); % Observed Values in a 3D array
 Fint = sum(W.*values,3)./sum(W,3); % Interpolated Values
 
 end
+
+
+%%%%%%%%%%%%%%%%%%% Another Source Code %%%%%%%%%%%%%%%%%%%%%%%%
+
+% function Fint = idw_function(X0, F0, X, Y, p, rad, L)
+%     % Default input parameters
+%     if nargin < 7
+%         L = 2; % 2nd norm (Euclidean)
+%         if nargin < 6
+%             rad = inf; % Radius of influence is infinity
+%             if nargin < 5
+%                 p = 2; % Normal weight
+%             end
+%         end
+%     end
+% 
+%     % Check if we have GPU arrays
+%     if isgpuarray(X0)
+%         L = gpuArray(L);
+%         p = gpuArray(p);
+%         rad = gpuArray(rad);
+%     end
+% 
+%     % Get the number of points and the number of observations
+%     [nPts, nObs] = size(X0, 1), size(F0, 1);
+%     nMesh = size(X, 1) * size(X, 2); % Total number of mesh points
+% 
+%     % Precompute the absolute distances (avoid looping)
+%     % DeltaX and DeltaY are the differences between the mesh points and observation points
+%     DeltaX = bsxfun(@minus, X, reshape(X0(:, 1), [], 1)); % X mesh points - X0
+%     DeltaY = bsxfun(@minus, Y, reshape(X0(:, 2), [], 1)); % Y mesh points - Y0
+% 
+%     % Compute the distance matrix (vectorized)
+%     DabsL = (abs(DeltaX).^L + abs(DeltaY).^L).^(1/L);
+% 
+%     % Filters: Set values greater than the radius to inf and zero distances to eps
+%     DabsL(DabsL == 0) = eps;
+%     DabsL(DabsL > rad) = inf;
+% 
+%     % Compute the weights (inverse distance to the power p)
+%     W = 1 ./ (DabsL.^p);
+% 
+%     % Reshape the observed values for broadcasting
+%     F0_reshaped = reshape(F0, [1, 1, nObs]);
+% 
+%     % Perform the weighted sum and normalization to get the interpolated values
+%     W_sum = sum(W, 3); % Sum of weights for normalization
+%     W_values = sum(W .* F0_reshaped, 3); % Weighted sum of values
+% 
+%     % Compute the interpolated values (avoid divide by zero errors)
+%     Fint = W_values ./ W_sum;
+%     Fint(W_sum == 0) = NaN; % If no valid weights, assign NaN
+% end

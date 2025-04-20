@@ -1,4 +1,70 @@
-% Evaporation / Evapotranspiration Module
+%% ═══════════════════════════════════════════════════════════════════════
+%  Module: evapotranspirationModule
+%  🛠️ Developer: Marcus Nobrega, Ph.D.
+%  📅 Date: 02/24/2025  (adjust as needed)
+% ─────────────────────────────────────────────────────────────────────────────
+%  ➤ Purpose:
+%      Estimate evaporation and evapotranspiration (ETR) by updating the soil 
+%      and surface water storage. This module calculates the water storage in 
+%      the unsaturated zone (UZ) and surface, applies ETR corrections based on 
+%      soil moisture availability and open water conditions, updates the soil 
+%      moisture mass balance, and computes the mass balance error.
+%
+%  ➤ Inputs:
+%      • elevation         - Elevation matrix (used for domain size and NaN mask)
+%      • C_a               - Cell area (m²) for converting mm to m³
+%      • Soil_Properties   - Structure with soil moisture properties:
+%             - I_t: Soil moisture storage (mm)
+%             - Itp: Soil moisture storage prior to ETR update (mm)
+%             - (min_soil_moisture is used as a lower bound)
+%      • depths            - Structure containing:
+%             - d_t: Surface water depth (mm)
+%             - d_p: Ponded water depth (mm)
+%      • flags             - Structure with control flags:
+%             - flag_ETP: Activates evapotranspiration processes
+%             - flag_input_ETP_map: Use input-based evapotranspiration data
+%      • Hydro_States      - Structure with hydrological states:
+%             - ETR: Evapotranspiration (mm/day) [to be updated]
+%             - ETP: Potential evapotranspiration (mm/day)
+%             - Ep: Evaporation component (mm/day)
+%             - idx_ETR: Logical index for cells with minimal soil moisture
+%      • BC_States         - Structure with boundary conditions:
+%             - delta_E: Evaporation flux (mm/day) [to be updated]
+%      • input_evaporation & input_transpiration:
+%             - Real evapotranspiration data (mm/day)
+%      • LULC_Properties   - Structure with land use/land cover masks:
+%             - idx_imp: Logical mask for impervious areas
+%      • time_step         - Time step (minutes)
+%      • DEM_raster        - Digital Elevation Model structure (provides cellsize)
+%      • idx_nan           - Logical mask for cells with invalid/missing data
+%
+%  ➤ Outputs:
+%      • Updated Soil_Properties.I_t (soil moisture in the soil matrix)
+%      • Updated depths.d_t (surface water depth, mm)
+%      • Hydro_States.ETR  - Computed evapotranspiration (mm/day)
+%      • BC_States.delta_E - Evaporation flux (mm/day)
+%      • S_ETR_t           - Final total water storage in UZ + surface (m³)
+%      • flux_E_ETR        - Net evaporation flux (m³)
+%      • errors(3)         - Mass balance error for ETR (m³), adjusted by DEM cell area
+%
+%  ➤ Process Summary:
+%      1. Compute initial storage S_ETR_0 from soil and surface water.
+%      2. Based on flag_ETP and flag_input_ETP_map, process:
+%           - Real evapotranspiration using input data,
+%           - Open water limitations,
+%           - Soil moisture restrictions.
+%      3. Update soil moisture mass balance accordingly.
+%      4. Compute final storage S_ETR_t, evaporation flux, and mass balance error.
+%
+%  ➤ Notes:
+%      • In impervious areas (LULC_Properties.idx_imp), ETR is set to zero.
+%      • Cells with insufficient soil moisture or open water have special treatment.
+%      • The module calculates a mass balance error to verify conservation of water,
+%        with the error stored in errors(3).
+%      • Adjustments are applied to ensure that soil moisture does not fall below 
+%        a small threshold (set to 1e-16 when needed).
+% ═══════════════════════════════════════════════════════════════════════
+
 
 % Current Reservoir UZ + Surface Storage
 S_UZ_ETR = nansum(nansum(C_a.*Soil_Properties.I_t/1000));
@@ -66,6 +132,11 @@ else
     BC_States.delta_E = zeros(size(elevation,1),size(elevation,2)); BC_States.delta_E(idx_nan) = nan;
 end
 
+% Check on I_t values
+if nanmin(nanmin(Soil_Properties.I_t)) <= 0
+    Soil_Properties.I_t(Soil_Properties.I_t <= 0) = 1e-16;
+end
+
 % Final Reservoir UZ + Surface Storage
 S_UZ_ETR = nansum(nansum(C_a.*Soil_Properties.I_t/1000));
 S_p_ETR = nansum(nansum(C_a.*depths.d_t/1000));
@@ -77,6 +148,8 @@ flux_E_ETR = (-1)*(nansum(nansum(C_a.*BC_States.delta_E/1000)) +  nansum(nansum(
 % Mass balance error
 dS_ETR = (S_ETR_t - S_ETR_0);
 error = dS_ETR - flux_E_ETR;
+
+errors(3) = error*DEM_raster.cellsize^2;
 
 
 

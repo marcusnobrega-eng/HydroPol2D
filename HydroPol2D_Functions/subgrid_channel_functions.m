@@ -39,14 +39,15 @@ function [q,C_a] = subgrid_channel_functions(h, w, zc,dx, nc, Qc_prev,Qci_prev, 
     hfcflow = hf_function(yc,zc,nan_col,nan_row);
 
     % Cells in which channel flow occurs
-    mask = hfcflow <= 0;    
+    mask = hfcflow <= 1e-6;    
         
     % Compute flow width for all cells with their respective h_targets
     h(isnan(h)) = 0;
+    hfcflow(mask) = 0;
 
     [Ac(:,:,1), Ac(:,:,2), hydraulic_radius(:,:,1), hydraulic_radius(:,:,2)] = Compute_Subgrid_Properties_Polynomialwise(Subgrid_Properties.A_east_spline, ...
                                                    Subgrid_Properties.A_north_spline, Subgrid_Properties.Rh_east_spline, Subgrid_Properties.Rh_north_spline, ...
-                                                   h);
+                                                   yc, zc, Subgrid_Properties.invert_el);
 
 
     % Channel Effective Flow Width
@@ -78,7 +79,7 @@ function [q,C_a] = subgrid_channel_functions(h, w, zc,dx, nc, Qc_prev,Qci_prev, 
     % Total Flow (Ortogonal Interfaces)
     Q = Qc(:,:,1:2); Q(:,:,3:4) = zeros(size(h,1),size(h,2),2);
     
-    q = Q./wc_flow; %  flow per unit width
+    q = Q./dx; %  flow per unit width
     q(:,:,3:4) = [];
 
 end
@@ -161,22 +162,27 @@ Rh = max(Rh, 1e-12);
 
 end
 
-function [Area_east, Area_north, Rh_east, Rh_north] = Compute_Subgrid_Properties_Polynomialwise(A_east_coeffs, A_north_coeffs, Rh_east_coeffs, Rh_north_coeffs, Depths)
+function [Area_east, Area_north, Rh_east, Rh_north] = Compute_Subgrid_Properties_Polynomialwise(A_east_coeffs, A_north_coeffs, Rh_east_coeffs, Rh_north_coeffs, yc, zc, invert_el)
     % Computes Area_east, Area_north, Rh_east, Rh_north using stored polynomial coefficients
     % A_east_coeffs, A_north_coeffs, Rh_east_coeffs, Rh_north_coeffs: [nrows x ncols] matrices containing polynomial coefficients.
     % Depths: [nrows x ncols] matrix containing the flow depths at each grid cell.
 
     % Ensure that the polynomial coefficients are in the correct shape for matrix operations
-    [nrows, ncols] = size(Depths);
+    [nrows, ncols] = size(yc);
 
     % Evaluate polynomials across the entire matrix using polyval
-    Area_east = zeros(size(Depths)); Area_north = zeros(size(Depths)); Rh_east = zeros(size(Depths)); Rh_north = zeros(size(Depths));
+    Area_east = zeros(size(yc)); Area_north = zeros(size(yc)); Rh_east = zeros(size(yc)); Rh_north = zeros(size(yc));
 
     for i = 1:size(A_east_coeffs,3)
-        Area_east = Area_east + A_east_coeffs(:,:,i).*Depths.^i;
-        Area_north = Area_north + A_north_coeffs(:,:,i).*Depths.^i;
-        Rh_east = Rh_east + Rh_east_coeffs(:,:,i).*Depths.^i;
-        Rh_north = Rh_north + Rh_north_coeffs(:,:,i).*Depths.^i;
+        % Area_east = Area_east + A_east_coeffs(:,:,i).*(yc - invert_el).^i;
+        % Area_north = Area_north + A_north_coeffs(:,:,i).*(yc - invert_el).^i;
+        % Rh_east = Rh_east + Rh_east_coeffs(:,:,i).*(yc - invert_el).^i;
+        % Rh_north = Rh_north + Rh_north_coeffs(:,:,i).*(yc - invert_el).^i;
+
+        Area_east = Area_east + A_east_coeffs(:,:,i).*(yc - zc).^i;
+        Area_north = Area_north + A_north_coeffs(:,:,i).*(yc - zc).^i;
+        Rh_east = Rh_east + Rh_east_coeffs(:,:,i).*(yc - zc).^i;
+        Rh_north = Rh_north + Rh_north_coeffs(:,:,i).*(yc - zc).^i;
     end
     
     % Area_east = polyval(reshape(A_east_coeffs, nrows * ncols, []), repmat(Depths(:),2)); % Evaluates Area_east for all depths in a vectorized way

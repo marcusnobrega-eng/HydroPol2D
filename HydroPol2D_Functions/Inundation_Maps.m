@@ -162,7 +162,7 @@ hec_ras_colors = [52/255 85/255 132/255; 0 1 1; 0 128/255 1; 0 255/255 0; 1 1 0;
 h = figure;
 axis tight manual  % Ensures consistent size for getframe()
 FileName_String = 'Elevation_Model.gif'; % Output file name for GIF
-FileName = fullfile(folderName, FileName_String); % Full path to save the GIF
+FileName = fullfile('Modeling_Results/', FileName_String); % Full path to save the GIF
 
 % Grid resolution and time steps
 grid_resolution = Wshed_Properties.Resolution; % Grid resolution
@@ -243,6 +243,7 @@ end
 
 % Close the figure after GIF creation
 clf; % Clear figure window
+
 
 %% Plot Water Surface Elevation and Depths
 % Adjusting the size
@@ -603,6 +604,586 @@ end
 % Close video writer    
 close(video);
 close all
+
+%% Subgrid Flood Depths
+% Adjusting the size
+if flags.flag_subgrid == 1 && flags.flag_overbanks ~= 1
+% Generate video showing water level profile over time
+close all
+
+Video_Name = 'Depths_subgrid.mp4';
+
+% Set up video
+video = VideoWriter(fullfile(folderName,Video_Name),'MPEG-4');
+% control the framerate
+video.FrameRate = 10;
+open(video);
+
+% Set up HEC-RAS colors
+hec_ras_colors = [52/255 85/255 132/255; 0 1 1; 0 128/255 1; 0 255/255 0; 1 1 0; 1 128/255 0; 1 0 0; 128/255 0 128/255];
+
+h = figure;
+axis tight manual % this ensures that getframe() returns a consistent size
+
+set(gcf,'units','inches','position',[0,0,7,12])
+set(gcf,'DefaultTextInterpreter','latex')
+
+z1max = max(max(1.2*Max_depth_d/1000 + DEM_maps)); % data comes from prost_processing
+z1min = min(min(1.2*Max_depth_d/1000 + DEM_maps));
+
+z2max = max(max(1.2*Max_depth_d/1000)); % data comes from prost_processing
+z2min = min(min(1.2*Max_depth_d/1000));
+
+% z2 = gather(Maps.Hydro.d/1000);
+% z2(z2<=0)=nan;
+% z2(idx2)=nan;
+
+targetColor=[0.27 0.47 0.68];
+
+store=1;
+flag_loader=1;
+for t = 1:f:length(running_control.time_records)
+    clf
+    t_title = running_control.time_records(t);
+
+    if t > saver_memory_maps*store
+        store = store + 1;
+        load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+        idx2 = Maps.Hydro.d < depths.depth_wse*1000;
+        z1 = gather(Maps.Hydro.d)/1000 + DEM_maps;
+        z2 = gather(Maps.Hydro.d)/1000;
+        z1(z1<=0)= nan;
+        z1(idx2) = nan;
+        z2(z2<=0)= nan;
+        z2(idx2) = nan;
+    else
+        if flag_loader == 1
+          load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+          flag_loader=0;
+          idx2 = Maps.Hydro.d < depths.depth_wse*1000;
+          z1 = gather(Maps.Hydro.d)/1000 + DEM_maps;
+          z2 = gather(Maps.Hydro.d)/1000;
+          z1(z1<=0)= nan;
+          z1(idx2) = nan;
+          z2(z2<=0)= nan;
+          z2(idx2) = nan;
+        end
+    end
+    
+    if isnan(z1max)
+        zmax = 10;
+    end
+    if isnan(z1min)
+        zmin = 0;
+    end
+    if flags.flag_subgrid ~= 1
+        raster_to_export = DEM_raster; % Just to get the properties
+        z2(:,:,t-(store-1)*saver_memory_maps);
+        raster_to_export.Z = z2; % Putting the right values
+    else
+        raster_to_export = DEM_raster_high_resolution; % Just to get the properties
+        wse = z2(:,:,t-(store-1)*saver_memory_maps) + Subgrid_Properties.invert_el; % Water surface elevation considering the invert elevation
+        high_res_flood_map = ProjectFloodMap(DEM_raster_high_resolution, DEM_raster, wse);
+        raster_to_export.Z = high_res_flood_map;
+        x_grid = raster_to_export.refmat(3,1) + [1:1:size(raster_to_export.Z ,2)]*raster_to_export.cellsize;
+        y_grid = raster_to_export.refmat(3,2) - [1:1:size(raster_to_export.Z ,1)]*raster_to_export.cellsize;
+    end
+    
+    xmax = size(raster_to_export.Z,1);
+    xend = xmax;
+    ymax = size(raster_to_export.Z,1);
+    yend = ymax;
+    xbegin = 1;
+    ybegin = 1;
+    
+    if flags.flag_elapsed_time == 1
+        title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+    else
+        title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
+    end
+
+    if isnan(z2max)
+        z2max = 10;
+    end
+    if isnan(z2min)
+        z2min = 0;
+    end
+    F = raster_to_export.Z;
+    F(F == 0) = nan;
+    surf(x_grid,y_grid,F);
+    hold on;
+    if no_plot==0
+        try
+            mapshow(A,RA,"AlphaData",0.25);hold on;
+        catch ME
+            warning('You need matlab 2022 or higher to run basemaps.')
+        end
+    end
+    axis tight
+    shading INTERP;
+    if flags.flag_elapsed_time == 1
+        title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+    else
+        title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
+    end
+    view(0,90);
+    colorbar
+    % caxis([0 z2max]);
+    axis equal
+    colormap(Depth_Purple)
+    k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
+
+    ylabel(k,'Depths [m]','Interpreter','Latex','FontSize',12)
+    xlabel('Easting [m] ','Interpreter','Latex','FontSize',12)
+    ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
+    zlabel ('WSE [m]','Interpreter','Latex','FontSize',12)
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax = ancestor(gca, 'axes');
+    ax.XAxis.Exponent = 0;xtickformat('%.0f');
+    ax.YAxis.Exponent = 0;ytickformat('%.0f');
+    if no_plot == 0
+        mapshow(S_p,'FaceColor','n'); hold on;
+    end
+    box on
+    % Set background color and write to video
+    frame = getframe(gcf);
+    writeVideo(video,frame);
+    hold off
+    clf
+end
+
+% Close video writer    
+close(video);
+close all
+end
+%% Snowpack
+
+if flags.flag_snow_modeling == 1
+% Adjusting the size
+
+% Generate video showing water level profile over time
+close all
+
+Video_Name = 'Snowpack.mp4';
+
+% Set up video
+video = VideoWriter(fullfile(folderName,Video_Name),'MPEG-4');
+% control the framerate
+video.FrameRate = 10;
+open(video);
+
+% Set up HEC-RAS colors
+hec_ras_colors = [52/255 85/255 132/255; 0 1 1; 0 128/255 1; 0 255/255 0; 1 1 0; 1 128/255 0; 1 0 0; 128/255 0 128/255];
+
+h = figure;
+axis tight manual % this ensures that getframe() returns a consistent size
+
+set(gcf,'units','inches','position',[0,0,7,12])
+set(gcf,'DefaultTextInterpreter','latex')
+
+
+% createMatrixVideo(Maps.Hydro.d, running_control.time_records(1:5), 'test3', 'test2', 14, 'TEST', Terrain_RAS_ramp, 'Test', DEM_raster)
+
+% This is absolutely memory expensive
+% z1 = gather(Maps.Hydro.d)/1000 + DEM_maps;
+% idx2 = Maps.Hydro.d < depths.depth_wse*1000;
+% z1(z1<=0)=nan;
+% z1(idx2) = nan;
+
+% z1max = max(max(Max_depth.d/1000 + DEM_maps));
+% z1min = min(min(Max_depth.d/1000 + DEM_maps));
+% z1max = max(max(max(Maps.Hydro.d/1000 + DEM_maps)));
+% z1min = min(min(min(Maps.Hydro.d/1000 + DEM_maps)));
+z1max = 300; % data comes from prost_processing
+z1min = 0;
+
+z2max = 300; % data comes from prost_processing
+z2min = 0;
+
+
+targetColor=[0.27 0.47 0.68];
+
+store=1;
+flag_loader=1;
+for t = 1:f:length(running_control.time_records)
+    clf
+    t_title = running_control.time_records(t);
+
+    if t > saver_memory_maps*store
+        store = store + 1;
+        load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+        idx2 = Maps.Hydro.Snowpack < 0;
+        z1 = gather(Maps.Hydro.Snowpack);
+        z2 = gather(Maps.Hydro.Snowpack);
+        z1(z1<=0)= nan;
+        z1(idx2) = nan;
+        z2(z2<=0)= nan;
+        z2(idx2) = nan;
+    else
+        if flag_loader == 1
+          load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+          flag_loader=0;
+          idx2 = Maps.Hydro.Snowpack < 0;
+          z1 = gather(Maps.Hydro.Snowpack);
+          z2 = gather(Maps.Hydro.Snowpack);
+          z1(z1<=0)= nan;
+          z1(idx2) = nan;
+          z2(z2<=0)= nan;
+          z2(idx2) = nan;
+        end
+    end
+    
+    if isnan(z1max)
+        zmax = 10;
+    end
+    if isnan(z1min)
+        zmin = 0;
+    end
+    xmax = length(z(1,:));
+    xend = xmax;
+    ymax = length(z(:,1));
+    yend = ymax;
+    xbegin = 1;
+    ybegin = 1;
+    axis tight
+    if flags.flag_elapsed_time == 1
+        title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+    else
+        title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
+    end
+
+    if isnan(z2max)
+        z2max = 10;
+    end
+    if isnan(z2min)
+        z2min = 0;
+    end
+    F = z2([ybegin:1:yend],[xbegin:1:xend],t-(store-1)*saver_memory_maps);
+    F(idx2(:,:,t-(store-1)*saver_memory_maps)) = 0;
+    F(F==0)=nan;
+    % F = z2([ybegin:1:yend],[xbegin:1:xend],t);
+    % F(idx2(:,:,t)) = 0;
+    % F(F==0)=nan;
+    if no_plot==0
+        try
+            mapshow(A,RA,"AlphaData",0.25);hold on;
+        catch ME
+            warning('You need matlab 2022 or higher to run basemaps.')
+        end
+    end
+    surf(x_grid,y_grid,F);
+    axis tight
+    shading INTERP;
+    if flags.flag_elapsed_time == 1
+        title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+    else
+        title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
+    end
+    view(0,90);
+    colorbar
+    % caxis([0 z2max]);
+    colormap(Depth_Purple)
+    k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
+
+    ylabel(k,'Snowpack [mm]','Interpreter','Latex','FontSize',12)
+    xlabel('Easting [m] ','Interpreter','Latex','FontSize',12)
+    ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
+    zlabel ('Interception [mm]','Interpreter','Latex','FontSize',12)
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax = ancestor(gca, 'axes');
+    ax.XAxis.Exponent = 0;xtickformat('%.0f');
+    ax.YAxis.Exponent = 0;ytickformat('%.0f');
+    if no_plot == 0
+        mapshow(S_p,'FaceColor','n'); hold on;
+    end
+    box on
+    % Set background color and write to video
+    frame = getframe(gcf);
+    writeVideo(video,frame);
+    hold off
+    clf
+end
+
+% Close video writer    
+close(video);
+close all
+end
+
+%% Maximum Snowdepth
+if flags.flag_snow_modeling == 1
+    close all
+    set(gcf,'units','inches','position',[2,2,6.5,4])
+    time_total = days(date_end - date_begin);
+    title_isoietal = strcat('Max. Snowpack from',{' '},string(round(time_total,2)),' days ',' from ',{' '},cellstr(date_begin),' to ',{' '},cellstr(date_end));
+    idx = isnan(Elevation_Properties.elevation_cell);    
+    max_Hsnow(max_Hsnow<=0) = nan;
+    max_Hsnow(idx) = nan;
+    zmin = min(min(max_Hsnow));
+    zmax = max(max(max_Hsnow));
+    F = max_Hsnow([ybegin:1:yend],[xbegin:1:xend]);
+    if no_plot==0
+        try
+            mapshow(A,RA,"AlphaData",0.45);hold on;
+            mapshow(S_p,'FaceColor','n'); hold on;
+        catch ME
+
+        end
+    end
+    surf(x_grid,y_grid,F);
+    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
+    shading INTERP;
+    title(title_isoietal,'Interpreter','Latex','FontSize',12);
+    colorbar
+    caxis([zmin zmax]);
+    colormap(Spectrum)
+    k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
+    ylabel(k,'Snowpack [mm]','Interpreter','Latex','FontSize',12)
+    xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+    ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
+    zlabel ('Snowpack [mm]','Interpreter','Latex','FontSize',12)
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+
+    box on
+    set(gca,'tickdir','out');
+    set(gca, 'TickLength', [0.02 0.01]);
+    set(gca,'Tickdir','out')
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax = ancestor(gca, 'axes');
+    ax.XAxis.Exponent = 0;xtickformat('%.0f');
+    ax.YAxis.Exponent = 0;ytickformat('%.0f');
+    view(0,90)
+    if no_plot == 0
+        mapshow(S_p,'FaceColor','n'); hold on;
+    end
+    exportgraphics(gcf,fullfile(folderName,'Max_Snowpack.png'),'ContentType','image','Colorspace','rgb','Resolution',300)
+    saveas(gcf,fullfile(folderName,'Max_Snowpack.fig'))
+    close all
+end
+
+%% Maximum GW Depth
+if flags.flag_groundwater_modeling == 1
+    close all
+    set(gcf,'units','inches','position',[2,2,6.5,4])
+    time_total = days(date_end - date_begin);
+    title_isoietal = strcat('Max. GW Depth from',{' '},string(round(time_total,2)),' days ',' from ',{' '},cellstr(date_begin),' to ',{' '},cellstr(date_end));
+    idx = isnan(Elevation_Properties.elevation_cell);    
+    max_GW_depth(max_GW_depth<=0) = nan;
+    max_GW_depth(idx) = nan;
+    zmin = min(min(max_GW_depth));
+    zmax = max(max(max_GW_depth));
+    F = max_GW_depth([ybegin:1:yend],[xbegin:1:xend]);
+    if no_plot==0
+        try
+            mapshow(A,RA,"AlphaData",0.45);hold on;
+            mapshow(S_p,'FaceColor','n'); hold on;
+        catch ME
+
+        end
+    end
+    surf(x_grid,y_grid,F);
+    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
+    shading INTERP;
+    title(title_isoietal,'Interpreter','Latex','FontSize',12);
+    colorbar
+    caxis([zmin zmax]);
+    colormap(Spectrum)
+    k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
+    ylabel(k,'GW Depth [m]','Interpreter','Latex','FontSize',12)
+    xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+    ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
+    zlabel ('GW Depth [m]','Interpreter','Latex','FontSize',12)
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+
+    box on
+    set(gca,'tickdir','out');
+    set(gca, 'TickLength', [0.02 0.01]);
+    set(gca,'Tickdir','out')
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax = ancestor(gca, 'axes');
+    ax.XAxis.Exponent = 0;xtickformat('%.0f');
+    ax.YAxis.Exponent = 0;ytickformat('%.0f');
+    view(0,90)
+    if no_plot == 0
+        mapshow(S_p,'FaceColor','n'); hold on;
+    end
+    exportgraphics(gcf,fullfile(folderName,'Max_GW_Depth.png'),'ContentType','image','Colorspace','rgb','Resolution',300)
+    saveas(gcf,fullfile(folderName,'Max_GW_Depth.fig'))
+    close all
+end
+%% Canopy Storage
+
+if flags.flag_abstraction == 1
+% Adjusting the size
+
+% Generate video showing water level profile over time
+close all
+
+Video_Name = 'Interception.mp4';
+
+% Set up video
+video = VideoWriter(fullfile(folderName,Video_Name),'MPEG-4');
+% control the framerate
+video.FrameRate = 10;
+open(video);
+
+% Set up HEC-RAS colors
+hec_ras_colors = [52/255 85/255 132/255; 0 1 1; 0 128/255 1; 0 255/255 0; 1 1 0; 1 128/255 0; 1 0 0; 128/255 0 128/255];
+
+h = figure;
+axis tight manual % this ensures that getframe() returns a consistent size
+
+set(gcf,'units','inches','position',[0,0,7,12])
+set(gcf,'DefaultTextInterpreter','latex')
+
+
+% createMatrixVideo(Maps.Hydro.d, running_control.time_records(1:5), 'test3', 'test2', 14, 'TEST', Terrain_RAS_ramp, 'Test', DEM_raster)
+
+% This is absolutely memory expensive
+% z1 = gather(Maps.Hydro.d)/1000 + DEM_maps;
+% idx2 = Maps.Hydro.d < depths.depth_wse*1000;
+% z1(z1<=0)=nan;
+% z1(idx2) = nan;
+
+% z1max = max(max(Max_depth.d/1000 + DEM_maps));
+% z1min = min(min(Max_depth.d/1000 + DEM_maps));
+% z1max = max(max(max(Maps.Hydro.d/1000 + DEM_maps)));
+% z1min = min(min(min(Maps.Hydro.d/1000 + DEM_maps)));
+z1max = 300; % data comes from prost_processing
+z1min = 0;
+
+z2max = 300; % data comes from prost_processing
+z2min = 0;
+
+
+targetColor=[0.27 0.47 0.68];
+
+store=1;
+flag_loader=1;
+for t = 1:f:length(running_control.time_records)
+    clf
+    t_title = running_control.time_records(t);
+
+    if t > saver_memory_maps*store
+        store = store + 1;
+        load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+        idx2 = Maps.Hydro.Abstraction < 0;
+        z1 = gather(Maps.Hydro.Abstraction);
+        z2 = gather(Maps.Hydro.Abstraction);
+        z1(z1<=0)= nan;
+        z1(idx2) = nan;
+        z2(z2<=0)= nan;
+        z2(idx2) = nan;
+    else
+        if flag_loader == 1
+          load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+          flag_loader=0;
+          idx2 = Maps.Hydro.Abstraction < 0;
+          z1 = gather(Maps.Hydro.Abstraction);
+          z2 = gather(Maps.Hydro.Abstraction);
+          z1(z1<=0)= nan;
+          z1(idx2) = nan;
+          z2(z2<=0)= nan;
+          z2(idx2) = nan;
+        end
+    end
+    
+    if isnan(z1max)
+        zmax = 10;
+    end
+    if isnan(z1min)
+        zmin = 0;
+    end
+    xmax = length(z(1,:));
+    xend = xmax;
+    ymax = length(z(:,1));
+    yend = ymax;
+    xbegin = 1;
+    ybegin = 1;
+    axis tight
+    if flags.flag_elapsed_time == 1
+        title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+    else
+        title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
+    end
+
+    if isnan(z2max)
+        z2max = 10;
+    end
+    if isnan(z2min)
+        z2min = 0;
+    end
+    F = z2([ybegin:1:yend],[xbegin:1:xend],t-(store-1)*saver_memory_maps);
+    F(idx2(:,:,t-(store-1)*saver_memory_maps)) = 0;
+    F(F==0)=nan;
+    % F = z2([ybegin:1:yend],[xbegin:1:xend],t);
+    % F(idx2(:,:,t)) = 0;
+    % F(F==0)=nan;
+    if no_plot==0
+        try
+            mapshow(A,RA,"AlphaData",0.25);hold on;
+        catch ME
+            warning('You need matlab 2022 or higher to run basemaps.')
+        end
+    end
+    surf(x_grid,y_grid,F);
+    axis tight
+    shading INTERP;
+    if flags.flag_elapsed_time == 1
+        title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+    else
+        title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
+    end
+    view(0,90);
+    colorbar
+    % caxis([0 z2max]);
+    colormap(Depth_Purple)
+    k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
+
+    ylabel(k,'Interception [mm]','Interpreter','Latex','FontSize',12)
+    xlabel('Easting [m] ','Interpreter','Latex','FontSize',12)
+    ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
+    zlabel ('Interception [mm]','Interpreter','Latex','FontSize',12)
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax = ancestor(gca, 'axes');
+    ax.XAxis.Exponent = 0;xtickformat('%.0f');
+    ax.YAxis.Exponent = 0;ytickformat('%.0f');
+    if no_plot == 0
+        mapshow(S_p,'FaceColor','n'); hold on;
+    end
+    box on
+    % Set background color and write to video
+    frame = getframe(gcf);
+    writeVideo(video,frame);
+    hold off
+    clf
+end
+
+% Close video writer    
+close(video);
+close all
+end
+
 %% WSE GIFS
 % %% Plot Water Surface Elevation and Depths
 % % Adjusting the size
@@ -735,11 +1316,7 @@ close all
 if flags.flag_spatial_rainfall == 1
     close all
     set(gcf,'units','inches','position',[2,2,6.5,4])
-    if isdatetime(Spatial_Rainfall_Parameters.rainfall_spatial_duration(2))
-        time_step_rainfall = hours(Spatial_Rainfall_Parameters.rainfall_spatial_duration(2) -Spatial_Rainfall_Parameters.rainfall_spatial_duration(1)); % hours
-    else
-        time_step_rainfall = (Spatial_Rainfall_Parameters.rainfall_spatial_duration(2) -Spatial_Rainfall_Parameters.rainfall_spatial_duration(1))/60; % hours
-    end
+    time_step_rainfall = (Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg (2)-Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg (1))/60; % hours
     rain_total = rainfall_sum*time_step_rainfall; % data comes from post_processing
     time_total = days(date_end - date_begin);
     title_isoietal = strcat('Cumulative rainfall of',{' '},string(round(time_total,2)),' days ',' from ',{' '},cellstr(date_begin),' to ',{' '},cellstr(date_end));
@@ -790,14 +1367,17 @@ if flags.flag_spatial_rainfall == 1
     if no_plot == 0
         mapshow(S_p,'FaceColor','n'); hold on;
     end
-    exportgraphics(gcf,fullfile(folderName,'Isoietal_Map_Rainfall.png'),'ContentType','image','Colorspace','rgb','Resolution',1200)
+    exportgraphics(gcf,fullfile(folderName,'Isoietal_Map_Rainfall.png'),'ContentType','image','Colorspace','rgb','Resolution',300)
     saveas(gcf,fullfile(folderName,'Isoeital_Rainfall.fig'))
     close all
 end
 
 
 %% Spatial ETR Isoietal
-% time_step_rainfall = double(time_step_rainfall);
+% The current version assumes that all maps are extracted in the same
+% resolution. ETP is typically taken daily, so to proper calculate the
+% total mass fluxes, we have to multiply it by the temporal resolution of
+% the maps that are being saved, which is time_step_rainfall
 if flags.flag_ETP == 1
     close all
     set(gcf,'units','inches','position',[2,2,6.5,4])
@@ -806,7 +1386,7 @@ if flags.flag_ETP == 1
     else
         time_step_ETR = (ETP_Parameters.climatologic_spatial_duration(2) - ETP_Parameters.climatologic_spatial_duration(1))/60; % hours
     end
-    ETR_Total = ETR_sum*time_step_ETR; % data comes from post_processing
+    ETR_Total = ETR_sum*time_step_rainfall/24; % Attention here
     time_total = days(date_end - date_begin);
     title_isoietal = strcat('ETR of',{' '},string(round(time_total,2)),' days ',' from ',{' '},cellstr(date_begin),' to ',{' '},cellstr(date_end));
     idx = isnan(Elevation_Properties.elevation_cell);
@@ -831,11 +1411,11 @@ if flags.flag_ETP == 1
     caxis([zmin zmax]);
     colormap(Spectrum)
     k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
-    ylabel(k,'ETR Volume (mm)','Interpreter','Latex','FontSize',12)
+    ylabel(k,'ETR Volume [mm]','Interpreter','Latex','FontSize',12)
     xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
     ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
 
-    zlabel ('ETR Volume (mm)','Interpreter','Latex','FontSize',12)
+    zlabel ('ETR Volume [mm]','Interpreter','Latex','FontSize',12)
     set(gca,'FontName','Garamond','FontSize',12)
     % Increase border (axis) thickness
     ax = gca;          % Get current axis
@@ -856,8 +1436,134 @@ if flags.flag_ETP == 1
     if no_plot == 0
         mapshow(S_p,'FaceColor','n'); hold on;
     end
-    exportgraphics(gcf,fullfile(folderName,'Isoietal_Map_ETR.png'),'ContentType','image','Colorspace','rgb','Resolution',1200)
+    exportgraphics(gcf,fullfile(folderName,'Isoietal_Map_ETR.png'),'ContentType','image','Colorspace','rgb','Resolution',300)
     saveas(gcf,fullfile(folderName,'Isoeital_ETR.fig'))
+    close all
+end
+
+%% Spatial ETP Isoietal
+% The current version assumes that all maps are extracted in the same
+% resolution. ETP is typically taken daily, so to proper calculate the
+% total mass fluxes, we have to multiply it by the temporal resolution of
+% the maps that are being saved, which is time_step_rainfall
+if flags.flag_ETP == 1
+    close all
+    set(gcf,'units','inches','position',[2,2,6.5,4])
+    if isdatetime(ETP_Parameters.climatologic_spatial_duration(2))
+        time_step_ETR = days(ETP_Parameters.climatologic_spatial_duration(2) -ETP_Parameters.climatologic_spatial_duration(1)); % hours
+    else
+        time_step_ETR = (ETP_Parameters.climatologic_spatial_duration(2) - ETP_Parameters.climatologic_spatial_duration(1))/60; % hours
+    end
+    ETP_Total = ETP_sum*time_step_rainfall/24; % Attention here
+    time_total = days(date_end - date_begin);
+    title_isoietal = strcat('ETP of',{' '},string(round(time_total,2)),' days ',' from ',{' '},cellstr(date_begin),' to ',{' '},cellstr(date_end));
+    idx = isnan(Elevation_Properties.elevation_cell);
+    ETP_Total(ETP_Total<=0) = nan;
+    ETP_Total(idx) = nan;
+    zmin = min(min(ETP_Total));
+    zmax = max(max(ETP_Total));
+    F = ETP_Total([ybegin:1:yend],[xbegin:1:xend]);
+    if no_plot==0
+        try
+            mapshow(A,RA,"AlphaData",0.45);hold on;
+            mapshow(S_p,'FaceColor','n'); hold on;
+        catch ME
+
+        end
+    end
+    surf(x_grid,y_grid,F);
+    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
+    shading INTERP;
+    title(title_isoietal,'Interpreter','Latex','FontSize',12);
+    colorbar
+    caxis([zmin zmax]);
+    colormap(Spectrum)
+    k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
+    ylabel(k,'ETP Volume [mm]','Interpreter','Latex','FontSize',12)
+    xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+    ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
+
+    zlabel ('ETP Volume [mm]','Interpreter','Latex','FontSize',12)
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+
+    box on
+    set(gca,'tickdir','out');
+    set(gca, 'TickLength', [0.02 0.01]);
+    set(gca,'Tickdir','out')
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax = ancestor(gca, 'axes');
+    ax.XAxis.Exponent = 0;xtickformat('%.0f');
+    ax.YAxis.Exponent = 0;ytickformat('%.0f');
+    view(0,90)
+    if no_plot == 0
+        mapshow(S_p,'FaceColor','n'); hold on;
+    end
+    exportgraphics(gcf,fullfile(folderName,'Isoietal_Map_ETP.png'),'ContentType','image','Colorspace','rgb','Resolution',300)
+    saveas(gcf,fullfile(folderName,'Isoeital_ETP.fig'))
+    close all
+end
+%% Cumulative Recharge
+if flags.flag_infiltration == 1
+    close all
+    set(gcf,'units','inches','position',[2,2,6.5,4])
+    time_total = days(date_end - date_begin);
+    title_isoietal = strcat('Effective Recharge from',{' '},string(round(time_total,2)),' days ',' from ',{' '},cellstr(date_begin),' to ',{' '},cellstr(date_end));
+    idx = isnan(Elevation_Properties.elevation_cell);
+    Recharge = cumulative_recharge/1000; % Meters of recharge
+    Recharge(Recharge<=0) = nan;
+    Recharge(idx) = nan;
+    zmin = min(min(Recharge));
+    zmax = max(max(Recharge));
+    F = Recharge([ybegin:1:yend],[xbegin:1:xend]);
+    if no_plot==0
+        try
+            mapshow(A,RA,"AlphaData",0.45);hold on;
+            mapshow(S_p,'FaceColor','n'); hold on;
+        catch ME
+
+        end
+    end
+    surf(x_grid,y_grid,F);
+    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
+    shading INTERP;
+    title(title_isoietal,'Interpreter','Latex','FontSize',12);
+    colorbar
+    caxis([zmin zmax]);
+    colormap(Spectrum)
+    k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
+    ylabel(k,'Recharge Volume [m]','Interpreter','Latex','FontSize',12)
+    xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
+    ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
+
+    zlabel ('Recharge Volume [mm]','Interpreter','Latex','FontSize',12)
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+
+    box on
+    set(gca,'tickdir','out');
+    set(gca, 'TickLength', [0.02 0.01]);
+    set(gca,'Tickdir','out')
+    set(gca,'FontName','Garamond','FontSize',12)
+    % Increase border (axis) thickness
+    ax = gca;          % Get current axis
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax = ancestor(gca, 'axes');
+    ax.XAxis.Exponent = 0;xtickformat('%.0f');
+    ax.YAxis.Exponent = 0;ytickformat('%.0f');
+    view(0,90)
+    if no_plot == 0
+        mapshow(S_p,'FaceColor','n'); hold on;
+    end
+    exportgraphics(gcf,fullfile(folderName,'Effective_Recharge.png'),'ContentType','image','Colorspace','rgb','Resolution',300)
+    saveas(gcf,fullfile(folderName,'Recharge.fig'))
     close all
 end
 
@@ -931,11 +1637,11 @@ end
 %         caxis([zmin zmax]);
 %         colormap(linspecer)
 %         k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
-%         ylabel(k,'Cumulative Rainfall Volume (mm)','Interpreter','Latex','FontSize',12)
+%         ylabel(k,'Cumulative Rainfall Volume [mm]','Interpreter','Latex','FontSize',12)
 %         xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
 %         ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
 % 
-%         zlabel ('Cumulative Rainfall Volume (mm)','Interpreter','Latex','FontSize',12)
+%         zlabel ('Cumulative Rainfall Volume [mm]','Interpreter','Latex','FontSize',12)
 %         if no_plot == 0
 %             mapshow(S_p,'FaceColor','n'); hold on;
 %         end
@@ -1574,11 +2280,11 @@ if flags.flag_ETP == 1
             caxis([zmin zmax]);
             colormap(Spectrum)
             k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
-            ylabel(k,'ETP [mm/day]','Interpreter','Latex','FontSize',12)
+            ylabel(k,'ETR [mm/day]','Interpreter','Latex','FontSize',12)
             xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
             ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
 
-            zlabel ('ETP [mm/day]','Interpreter','Latex','FontSize',12)
+            zlabel ('ETR [mm/day]','Interpreter','Latex','FontSize',12)
             set(gca,'FontName','Garamond','FontSize',12)
             % Increase border (axis) thickness
             ax = gca;          % Get current axis
@@ -1717,16 +2423,16 @@ if flags.flag_baseflow == 1
             end
             view(0, 90);
             colorbar
-            caxis([zmin zmax]);
+            % caxis([zmin zmax]);
             colormap(Spectrum)
             k = colorbar; 
             k.FontName = 'Garamond'; 
             k.FontSize = 14; 
             k.TickDirection = 'out';
-            ylabel(k, 'GW [m]', 'Interpreter', 'Latex', 'FontSize', 14)
+            ylabel(k, 'GW Depth [m]', 'Interpreter', 'Latex', 'FontSize', 14)
             xlabel('Easting [m]', 'Interpreter', 'Latex', 'FontSize', 14)
             ylabel('Northing [m]', 'Interpreter', 'Latex', 'FontSize', 14)
-            zlabel('GW [m]', 'Interpreter', 'Latex', 'FontSize', 14)
+            zlabel('GW Depth [m]', 'Interpreter', 'Latex', 'FontSize', 14)
             set(gca, 'FontName', 'Garamond', 'FontSize', 14)
 
             % Increase border (axis) thickness

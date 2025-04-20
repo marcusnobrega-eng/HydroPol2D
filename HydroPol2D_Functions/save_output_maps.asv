@@ -33,9 +33,8 @@ if flags.flag_automatic_calibration ~= 1
             Maps.Hydro.ETR_save(:,:,1) = Hydro_States.ETR;
         end
 
-        % Interception
         if flags.flag_abstraction == 1
-            Maps.Hydro.Abstraction(:,:,1) = Hydro_States.S; 
+            Maps.Hydro.Interception()
         end
         % GW depth
         if flags.flag_baseflow == 1
@@ -77,20 +76,8 @@ if flags.flag_automatic_calibration ~= 1
             Maps.Hydro.ETP_save(:,:,saver_count) = Hydro_States.ETP;
             Maps.Hydro.ETR_save(:,:,saver_count) = Hydro_States.ETR;
         end
-
-        % Groundwater
         if flags.flag_baseflow == 1
-            Maps.Hydro.GWdepth_save(:,:,saver_count) = BC_States.h_t - elevation + Soil_Properties.Soil_Depth; % GW head
-        end
-
-        % Snowpack
-        if flags.flag_snow_modeling == 1
-            Maps.Hydro.Snowpack(:,:,saver_count) = Snow_Properties.H_snow_t; % Snowpack considering its density [mm]
-        end
-
-        % Interception
-        if flags.flag_abstraction == 1
-            Maps.Hydro.Abstraction(:,:,saver_count) = Hydro_States.S; 
+            Maps.Hydro.GWdepth_save(:,:,saver_count) = BC_States.h_t - elevation + Soil_Properties.Soil_Depth % GW head
         end
         if flags.flag_waterquality == 1
             Maps.WQ_States.Pol_Conc_Map(:,:,saver_count) = WQ_States.P_conc;

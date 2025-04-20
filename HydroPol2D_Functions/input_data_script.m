@@ -85,6 +85,9 @@ flags.flag_kinematic = input_table_Hydro(24);
 flags.flag_diffusive = input_table_Hydro(25);
 flags.flag_DTM = input_table_Hydro(26);
 flags.flag_abstraction = input_table_Hydro(27);
+flags.flag_overbanks = input_table_Hydro(28);
+flags.flag_snow_modeling = input_table_Hydro(29);
+flags.flag_WQ_Rasters = input_table_Hydro(30);
 
 % Performance Flags
 flags.flag_GPU = input_table_Performance(1);
@@ -625,3 +628,4 @@ if flags.flag_reservoir == 1
 end
 
 clear input_table
+

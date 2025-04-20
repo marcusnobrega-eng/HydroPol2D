@@ -52,7 +52,7 @@ for i=1:100 % Number of maximum iterations
     x0 = y; % Updating
 end
 
-F_forward = y; % mm / h
+F_forward = max(y,0); % mm / h
 
 % Infiltration Rate
 f = 1/dt*(F_forward - F); % mm / h

@@ -1,4 +1,4 @@
-function [S, T, E, F] = interceptionModel(P, Ep, LAI, S_prev, C)
+function [S, T, E, F, error] = interceptionModel(P, Ep, LAI, S_prev, C)
     % Estimates plant canopy interception following the Rutter Model
     %
     % Inputs:
@@ -47,11 +47,11 @@ function [S, T, E, F] = interceptionModel(P, Ep, LAI, S_prev, C)
     S = min(S,S_max); % Final canopy storage [mm]   
 
     % Mass Balance Check
-    error = nansum(nansum(((S - S_prev) - (P - E - F - T))))/nansum(nansum(P))*100;
+    error = nansum(nansum(((S - S_prev) - (P - E - F - T)))); % m3
 
-    if error > 0.1
-        warning('Mass balance errors in the interception model of %.d (%)',error)
-    end
+    % if error > 0.1
+    %     warning('Mass balance errors in the interception model of %.d (%)',error)
+    % end
     
 
     % Nested function to calculate stemflow

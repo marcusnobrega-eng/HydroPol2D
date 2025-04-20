@@ -7,7 +7,7 @@
 % need to change the time-step
 
 if running_control.delta_time_save > 0 || k == 1 % First time-step
-    if flags.flag_CA ~= 1 % If it is not inertial (CA model)
+    if flags.flag_CA == 1 % If it is not inertial (CA model)
         flow_depth = depths.d_t; % Depth in which velocities will be calculated (mm)
         flow_depth(depths.d_t < CA_States.depth_tolerance) = 1e12; % Smaller depths won't alter velocities
         velocities.vel_left = (flow_rate.qout_left_t/1000/3600)*Wshed_Properties.Resolution^2./(Wshed_Properties.Resolution*flow_depth/1000); % m/s
@@ -24,6 +24,7 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
 
     else % Inertial or diffusive or kinematic
         flow_depth = Hf*1000; % Depth in which velocities will be calculated (mm)
+        depth_timestep = max(flow_depth/1000,[],3); % Depth in which time-step will be calculated (m) 
         flow_depth(flow_depth < CA_States.depth_tolerance) = 1e12; % Smaller depths won't alter velocities
         velocities.vel_right = (flow_rate.qout_right_t/1000/3600)*Wshed_Properties.Resolution./(flow_depth(:,:,1)/1000); % m/s
         velocities.vel_left = -[zeros(ny,1), velocities.vel_right(:,2:end)];
@@ -93,6 +94,9 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
 
     end
     velocities.total_velocity = sqrt((velocities.right_component).^2 + (velocities.up_component).^2);
+
+    % Identifying Stagnant Areas
+    idx_stagnant = velocities.total_velocity < 0.01; % Areas with very low total velocities
     velocities.max_velocity = max(max(velocities.total_velocity));
 
 
@@ -119,13 +123,15 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
         new_timestep = new_timestep*Courant_Parameters.time_step_factor;
         new_timestep = double(min(new_timestep,running_control.max_time_step));
 
-        % Bates time-step
-        wave_celerity = max(sqrt(9.81*max(depths.d_tot,depths.d_t)/1000),1e-10); % Using d_t, which is the depth at the end of the time-step
+        % Bates time-step 
+        % wave_celerity = max(sqrt(9.81*max(depths.d_tot,depths.d_t)/1000),1e-10); % Using d_t, which is the depth at the end of the time-step
+        wave_celerity = max(sqrt(9.81*depth_timestep),1e-10); 
         wave_celerity(isinf(wave_celerity)) = nan;
+        wave_celerity(idx_stagnant) = nan; % Areas with very low velocities might be ponds
         if flags.flag_adaptive_timestepping == 1
-            new_timestep = (min(min((Courant_Parameters.alfa_min*Wshed_Properties.Resolution./(wave_celerity))))); % alpha of 0.4
+            new_timestep = (min(min((Courant_Parameters.alfa_min*Wshed_Properties.Resolution./(wave_celerity)))));
         else
-            new_timestep = (min(min((Courant_Parameters.alfa_min*Wshed_Properties.Resolution./(max_vel+wave_celerity))))); % alpha of 0.4
+            new_timestep = (min(min((Courant_Parameters.alfa_min*Wshed_Properties.Resolution./(max_vel+wave_celerity))))); 
         end
     elseif velocities.max_velocity < 0
         error('Model instability. Velocities are becoming negative.')
@@ -143,6 +149,13 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
         % Adding Water Quality Minimum Time-step
         Courant_Parameters.alfa_wq = 1; % Reduction factor of water quality
         new_timestep = min(Courant_Parameters.alfa_wq*tmin_wq,new_timestep);
+    end
+
+    % If water is stagnant or no wave celerity is found, let's assume the
+    % maximum time-step
+
+    if isnan(new_timestep)
+        new_timestep = running_control.max_time_step;
     end
 
     % Rounding time-step to min_timestep or max_timestep with the required

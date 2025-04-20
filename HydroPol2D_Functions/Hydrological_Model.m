@@ -9,6 +9,9 @@
 % Interception Module
 interception_module
 
+% Snow Module
+Snow_Module
+
 % Evaporation / Evapotranspiration Module
 Evaporation_Evapotranspiration_Module
 
@@ -19,9 +22,6 @@ Infiltration_Module
 Groundwater_Module
 
 % Inflow
-BC_States.inflow(:,150) = BC_States.inflow(:,151);
-BC_States.inflow(:,151) = 0;
-
 depths.d_t = depths.d_t + BC_States.inflow;
 
 % Depths

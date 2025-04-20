@@ -111,7 +111,9 @@ if flag_plot == 1
     set(gca, 'FontName', 'Garamond', 'FontSize', 12)    
     grid on
     box on
-    exportgraphics(gcf,fullfile(folderName,'Quartiles_Huff.pdf'),'ContentType','vector') 
+    try
+        exportgraphics(gcf,fullfile(folderName,'Quartiles_Huff.pdf'),'ContentType','vector') 
+    end
 
     figure % Plotting Cumulative Volumes
     set(gcf,'units','inches','position',[3,3,6.5,4])      

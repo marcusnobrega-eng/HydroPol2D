@@ -27,9 +27,10 @@
 % Qfi = floodplain outflow for NE and SE [m3/s]
 % C_a = river surface area [m2]
 
-function [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(h, w, zf, zc,dx, nc, nf, Qc_prev, Qf_prev,Qci_prev,Qfi_prev,g,dt,idx_rivers)
+function [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(h, w, zf, zc,dx, nc, nf, Qc_prev, Qf_prev,Qci_prev,Qfi_prev,g,dt,idx_rivers, outlet_index)
 
     % -------- Rivers outside of river domain follow original roughness
+    idx_rivers = w > 0; % Rivers are cells that have width larger than the unity now
 
     % --------- Channel Calculations ----------- %
     yc = h + zc; % Channel head [m]
@@ -89,7 +90,8 @@ function [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(h, w, zf, zc,dx, nc, nf, Qc_pre
     hfcflow = hf_function(yc,zc,nan_col,nan_row);
 
     % Cells in which channel flow occurs
-    mask = hfcflow <= 0;    
+    mask = hfcflow <= 0 & repmat(logical(outlet_index),1,1,4) ;
+
     % 
     % % Width flow calculation
     % wc_flow(:,:,1) = [max(w(:,1:(end-1)),(w(:,2:(end)))), nan_col]; % Improve it later
@@ -99,12 +101,14 @@ function [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(h, w, zf, zc,dx, nc, nf, Qc_pre
     
     % Channel Effective Flow Width
     wc_flow = width_function(w,nan_col,nan_row,idx_rivers);
+    wc_flow(isinf(wc_flow)) = 0;
 
     % Channel Flow Area
     Acflow = wc_flow.*hfcflow;
 
     % Channel surface area
     C_a = dx*w;
+    C_a(w == 0) = dx*dx; % Cells that are not rivers
 
     % Channel Hydraulic Radius
     Rc = Acflow./(w + 2*hfcflow);
@@ -113,7 +117,9 @@ function [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(h, w, zf, zc,dx, nc, nf, Qc_pre
     Qc_prev(:,:,3:4) = Qci_prev;
     Qc = (Qc_prev - g.*Acflow.*dt.*Sc)./(1 + g*dt.*nc.^2.*abs(Qc_prev)./(Rc.^(4/3).*Acflow)); % m3/s
     Qc(mask) = 0;
-    Qc(isnan(Qc)) = 0;
+    Qc(isnan(Qc)) = 0; 
+    Qc(isinf(Qc)) = 0;
+    % Qc(repmat(~idx_rivers,1,1,4)) = 0;
     
     % Qc(repmat(~idx_rivers,[1 1 4])) = 0; % Attention    
 
@@ -145,7 +151,7 @@ function [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(h, w, zf, zc,dx, nc, nf, Qc_pre
     % hfflood(1:(end-1),1:(end-1),4) = [max(yf(1:(end-1),2:end), yf(1:(end-1),1:(end-1))) - max(zf(1:(end-1),2:end), zf(1:(end-1),1:(end-1)))];
     
     % Cells in which floodplain flow occurs
-    mask = hfflood <= 0;
+    mask = hfflood <= 0 & repmat(logical(outlet_index),1,1,4);
     
     % Sf(:,:,1) = [(yf(:,2:end) - yf(:,1:(end-1)))/dx,nan_col]; % East
     % Sf(:,:,2) = [nan_row; yf(1:(end-1),:) - yf(2:end,:)]/dx; % North
@@ -157,9 +163,13 @@ function [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(h, w, zf, zc,dx, nc, nf, Qc_pre
 
     % Floodplain Flow
     Qf_prev(:,:,3:4) = Qfi_prev; % This in m3/s    
-    Qf = ((Qf_prev/dx - g.*hfflood.*dt.*Sf)./(1 + g*dt.*nf.^2.*abs(Qf_prev/dx)./(hfflood.^(7/3)))).*(dx - wc_flow); % m3/s
+    Qf = ((Qf_prev./(dx - wc_flow) - g.*hfflood.*dt.*Sf)./ ...
+         (1 + g*dt.*nf.^2.*abs(Qf_prev./ ...
+                                (dx - wc_flow))./(hfflood.^(7/3)))).*(dx - wc_flow); % m3/s
     % Qf(repmat(~idx_rivers,[1 1 4])) = 0; % Attention
     Qf(mask) = 0;
+    Qf(isinf(Qf)) = 0;
+    Qf(isnan(Qf)) = 0;
 
     % Total Flow (Ortogonal Interfaces)
     Q = Qf(:,:,1:2) + Qc(:,:,1:2);
@@ -184,7 +194,12 @@ function [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(h, w, zf, zc,dx, nc, nf, Qc_pre
 
     Q(isinf(Q)) = 0;
     Qc(isinf(Qc)) = 0;
-    Qf(isinf(Qf)) = 0;    
+    Qf(isinf(Qf)) = 0;   
+
+    mask = repmat(isnan(zc),1,1,2);
+    Q(mask) = nan;
+    Qc(mask) = nan;
+    Qf(mask) = nan;
 
     % Q(repmat(~idx_rivers,[1,1,2])) = 0;
     % Qc(repmat(~idx_rivers,[1,1,2])) = 0;

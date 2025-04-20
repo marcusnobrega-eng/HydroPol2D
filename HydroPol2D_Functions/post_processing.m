@@ -323,12 +323,18 @@ if flags.flag_obs_gauges == 1 && flags.flag_rainfall == 1
     close all
 end
 
-%% Total ETR
+%% Total ETR and ETP
+% The current version assumes that all maps are extracted in the same
+% resolution. ETP is typically taken daily, so to proper calculate the
+% total mass fluxes, we have to multiply it by the temporal resolution of
+% the maps that are being saved, which is time_step_rainfall
+
 zero_matrix = zeros(size(Elevation_Properties.elevation_cell,1),size(Elevation_Properties.elevation_cell,2));
 if flags.flag_ETP == 1
     store=1;
     flag_loader=1;
     ETR_sum = zeros(size(zero_matrix));
+    ETP_sum = ETR_sum;
     for i = 1:length(running_control.time_records)
         try
             if i > saver_memory_maps*store
@@ -343,8 +349,15 @@ if flags.flag_ETP == 1
             z = Maps.Hydro.spatial_rainfall_maps(:,:,i - ((store-1)*saver_memory_maps));
             z = Maps.Hydro.ETR_save(:,:,i - ((store-1)*saver_memory_maps));
             z(isnan(z)) = 0; % Attention here
-            ETR_sum = ETR_sum + z; % mm/24h
+            ETR_sum = ETR_sum + z; % mm
             ETP_Parameters.std_dev_ETR(i,1) = nanstd(z(:));
+
+            % Now for ETP
+            z = Maps.Hydro.spatial_rainfall_maps(:,:,i - ((store-1)*saver_memory_maps));
+            z = Maps.Hydro.ETP_save(:,:,i - ((store-1)*saver_memory_maps));
+            z(isnan(z)) = 0; % Attention here
+            ETP_sum = ETP_sum + z; % mm
+            ETP_Parameters.std_dev_ETP(i,1) = nanstd(z(:));
         end
     end
 end
@@ -815,8 +828,15 @@ if flags.flag_export_maps == 1
         end
         % Save Map
         FileName = fullfile(myFolder_wd,FileName);
-        raster_to_export = DEM_raster; % Just to get the properties
-        raster_to_export.Z = raster_exportion; % Putting the right values
+        if flags.flag_subgrid ~= 1
+            raster_to_export = DEM_raster; % Just to get the properties
+            raster_to_export.Z = raster_exportion; % Putting the right values
+        else
+            raster_to_export = DEM_raster_high_resolution; % Just to get the properties
+            wse = raster_exportion + Subgrid_Properties.invert_el; % Water surface elevation considering the invert elevation
+            high_res_flood_map = ProjectFloodMap(DEM_raster_high_resolution, DEM_raster, wse);
+            raster_to_export.Z = high_res_flood_map;
+        end
         % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
         %         SaveAsciiRaster(raster_exportion,Resolution,xllcorner,yllcorner,FileName,no_data_value)
         geotiffwrite(FileName,raster_to_export.Z,raster_to_export.georef.SpatialRef,...
@@ -1053,10 +1073,20 @@ if flags.flag_export_maps == 1
     geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
         'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
 
-
     % Maximum
-    zzz = depths.dmax_final/1000; % m
-    idx_wse = zzz < depths.depth_wse; % Finding values below the threshold
+    if flags.flag_subgrid ~= 1
+        raster_to_export = DEM_raster; % Just to get the properties
+        zzz = depths.dmax_final/1000; % m
+        idx_wse = zzz < depths.depth_wse;
+    else
+        raster_to_export = DEM_raster_high_resolution; % Just to get the properties
+        zzz = depths.dmax_final/1000; % m
+        wse = zzz + Subgrid_Properties.invert_el; % Water surface elevation considering the invert elevation
+        high_res_flood_map = ProjectFloodMap(DEM_raster_high_resolution, DEM_raster, wse);
+        raster_to_export.Z = high_res_flood_map;
+        zzz = raster_to_export.Z;
+        idx_wse = zzz < depths.depth_wse;
+    end
     if flags.flag_wse == 0 % Save only max depth
         % Maximum_Depths
         FileName = strcat('Maximum_Depths');
@@ -1065,8 +1095,6 @@ if flags.flag_export_maps == 1
         zzz(isnan(zzz)) = no_data_value;
         zzz(idx_wse) = no_data_value;
         raster_exportion = zzz;
-
-        raster_to_export = DEM_raster; % Just to get the properties
         raster_to_export.Z = raster_exportion; % Putting the right values
         % Exporting the Map
         geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
@@ -1083,6 +1111,48 @@ if flags.flag_export_maps == 1
         % Exporting the Map
         geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
             'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+    end
+
+    % Maximum Snowpack
+    if flags.flag_snow_modeling == 1
+        zzz = max_Hsnow/1000; % meters of snow 
+        FileName = strcat('Maximum_Snowpack');
+        FileName = fullfile(folderName,FileName);
+        zzz(isinf(zzz)) = no_data_value;
+        zzz(isnan(zzz)) = no_data_value;
+        raster_exportion = zzz;
+        raster_to_export.Z = raster_exportion; % Putting the right values
+        % Exporting the Map
+        geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
+            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)        
+    end
+
+    % Total Infiltration
+    if flags.flag_infiltration == 1
+        zzz = cumulative_infiltration/1000; % meters of infiltrated water
+        FileName = strcat('Cumulative_Infiltration');
+        FileName = fullfile(folderName,FileName);
+        zzz(isinf(zzz)) = no_data_value;
+        zzz(isnan(zzz)) = no_data_value;
+        raster_exportion = zzz;
+        raster_to_export.Z = raster_exportion; % Putting the right values
+        % Exporting the Map
+        geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
+            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)        
+    end
+
+    % Maximum GW Depth
+    if flags.flag_groundwater_modeling == 1
+        zzz = max_GW_depth; % meters of GW depth
+        FileName = strcat('Max_GW_depth');
+        FileName = fullfile(folderName,FileName);
+        zzz(isinf(zzz)) = no_data_value;
+        zzz(isnan(zzz)) = no_data_value;
+        raster_exportion = zzz;
+        raster_to_export.Z = raster_exportion; % Putting the right values
+        % Exporting the Map
+        geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
+            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)        
     end
 
     % DEM

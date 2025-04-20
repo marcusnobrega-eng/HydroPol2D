@@ -1,11 +1,26 @@
-%% Main HydroPol2D While Loop
-% Developer: Marcus Nobrega, Ph.D.
-% Date 3/6/2025
-% Goal - Run the main modeling process of the model
+%% ========================================================================
+%  [HydroPol2D_Main_While]
+%  Developer: Marcus Nobrega, Ph.D.
+%  Date: [04/06/2025]
+% -------------------------------------------------------------------------
+%  Purpose:
+%      [This function combines all internal model functiosn to run HydroPol2D.]
+%
+%  Inputs:
+%      - input1: [You can enter a workspace with your model pre-processed]
+%
+%  Outputs:
+%      - output1: [You can save your workspace with the results of your model]
+%
+%  Notes:
+%      [To proper run the dashboard, you need Matlab 2021 or higher]
+% ========================================================================
 
 clear all
-load workspace_cg_dam_catchment_downstream.mat
-flags.flag_overbanks = 0;
+% load workspace_CG_event.mat
+load workspace_beaver_creek_correct.mat
+% load workspace_CG_event_subgrid_functions.mat
+% flags.flag_overbanks = 1;
 tic
 k = 1; % time-step counter
 C = 0; % initial infiltration capacity
@@ -19,17 +34,31 @@ Risk_Area = 0; % initial risk area
 store = 1; % Index for saving maps
 t_previous = 0;
 factor_time = 0;
-running_control.max_time_step = 3; % seconds
+running_control.max_time_step = 15*60; % seconds
+running_control.min_time_step = 60; % seconds
 max_dt = running_control.max_time_step;
-flags.flag_dashboard = 0;
-flags.flag_subgrid = 0;
-Subgrid_Properties = [];
+flags.flag_dashboard = 1;
+flags.flag_subgrid = 1;
+
+try
+    Subgrid_Properties
+catch
+    Subgrid_Properties = [];
+end
+% Subgrid_Properties = [];
 
 % Initial System Storage
-S_c = nansum(nansum(C_a.*Hydro_States.S/1000));
-S_p = nansum(nansum(Wshed_Properties.Resolution.*Wshed_Properties.River_Width.*depths.d_t/1000));
-S_UZ = nansum(nansum(C_a.*Soil_Properties.I_t/1000));
-S_GW = nansum(nansum(C_a.*Soil_Properties.Sy.*(BC_States.h_t - (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth))));
+S_c = nansum(nansum(Wshed_Properties.Resolution^2.*Hydro_States.S/1000)); % Canopy
+
+if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
+    S_p = nansum(nansum((Wshed_Properties.Resolution - Wshed_Properties.River_Width).*Wshed_Properties.Resolution.*max((depths.d_t/1000 - Wshed_Properties.River_Depth),0))) + ...
+                      nansum(nansum(Wshed_Properties.Resolution.*Wshed_Properties.River_Width.*depths.d_t/1000));
+else
+    S_p = nansum(nansum(Wshed_Properties.Resolution^2.*depths.d_t/1000));
+end
+
+S_UZ = nansum(nansum(Wshed_Properties.Resolution^2.*Soil_Properties.I_t/1000)); % UZ storage
+S_GW = nansum(nansum(Wshed_Properties.Resolution^2.*Soil_Properties.Sy.*(BC_States.h_t - (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth)))); % GW Storage
 S_prev = S_c + S_p + S_UZ + S_GW;
 
 % Initial Activation
@@ -41,17 +70,22 @@ catch_index = 1;
 
 if flags.flag_obs_gauges ~= 1
     extra_parameters.gauges = [];
+else
+    extra_parameters = gauges;
+    extra_parameters.labels_observed_string = [];
 end
 
 if flags.flag_dashboard == 1
     ax.flags = flags;
-    ax = HydroPol2D_running_dashboard(ax,Maps, zeros(size(DEM_raster.Z)), DEM_raster,extra_parameters.gauges,BC_States,time_step,Wshed_Properties.Resolution,1,1,C_a);
+    ax = HydroPol2D_running_dashboard(ax,Maps, zeros(size(DEM_raster.Z)), DEM_raster,gauges,BC_States,time_step,Wshed_Properties.Resolution,1,1,C_a);
 end
 
 % #################### Main Loop (HydroPol2D)  ################ %
 while t <= (running_control.routing_time + running_control.min_time_step/60) % Running up to the end of the simulation
     try
         % -------------- Hydrological Model --------------- %
+        % BC_States.delta_p_agg(BC_States.delta_p_agg >= 0) = 1 * (time_step/60); % 1 mm/h
+       
         Hydrological_Model; % Runs the interception + infiltration + GW routing model
 
         % Preallocating cels for Cellular Automata 
@@ -249,12 +283,62 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         % time_step_save(k,1) = t;
         k = k + 1;
 
-        % Show Stats
+        % Determine output based on water quality flag
         if flags.flag_waterquality == 1
-            perc__duremain___tsec____dtmm___infmmhr__CmgL___dtmWQ_VolErrorm3 = [(t)/running_control.routing_time*100, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max((WQ_States.P_conc))), tmin_wq,volume_error]
+            perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3 = [
+                (t) / running_control.routing_time * 100, ... % Percent completed
+                (toc / ((t) / running_control.routing_time) - toc) / 3600, ... % Time remaining (hours)
+                time_step * 60, ... % Time step in seconds
+                max(max(depths.d_t(~isinf(depths.d_t)))), ... % Max depth
+                max(max(Hydro_States.f)), ... % Max Infiltration Rate 
+                max(max(WQ_States.P_conc)), ... % Max Water Quality Pollutant concentration
+                volume_error];  % Volume error
+
+            % Print formatted output for water quality
+            fprintf('==== Water Quality Stats ====\n');
+            fprintf('Percentage Complete: %.2f%%\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(1));
+            fprintf('Time Remaining: %.2f hours\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(2));
+            fprintf('Time Step Duration: %.0f seconds\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(3));
+            fprintf('Max Depth: %.2f m\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(4));
+            fprintf('Max Inf. Rate: %.2f mm/h\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(5));
+            fprintf('Max Water Quality Concentration: %.2e Cmg/L\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(6));
+            fprintf('Volume Error: %.3f m³\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(7));
         else
-            perc_t__duremain___tsec____dtmm___infmmhr__CmgL___vel__VolErrorm3 = [(t)/running_control.routing_time*100, t/60/24, (toc/((t)/running_control.routing_time) - toc)/3600,time_step*60,max(max(depths.d_t(~isinf(depths.d_t)))),max(max(Hydro_States.f)), max(max(velocities.velocity_raster)),volume_error]
+            perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3 = [
+                (t) / running_control.routing_time * 100, ... % Percentage complete
+                t / 60 / 24, ... % Time in days
+                (toc / ((t) / running_control.routing_time) - toc) / 3600, ... % Time remaining (hours)
+                time_step * 60, ... % Time step in seconds
+                1/1000*max(max(depths.d_t(~isinf(depths.d_t)))), ... % Max depth
+                max(max(Hydro_States.f)), ... % Max Inf Rate
+                velocities.max_velocity, ... %  Max Velocity
+                volume_error];  % Volume error
+
+            % Print formatted output for general model stats
+            fprintf('---- General Model Stats ----\n');
+            fprintf('Percentage Complete: %.2f%%\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(1));
+            fprintf('Time Elapsed: %.2f days\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(2));
+            fprintf('Time Remaining: %.2f hours\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(3));
+            fprintf('Time Step Duration: %.0f seconds\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(4));
+            fprintf('Max Depth: %.2f m\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(5));
+            fprintf('Max Inf Rate: %.2f mm/h\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(6));
+            fprintf('Max Velocity: %.2f m/s\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(7));
+            fprintf('Volume Error: %.3f m³\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(8));
         end
+
+    % Print mass balance errors for each module
+    fprintf('\n==== Mass Balance Errors (in m³) ====\n');
+    fprintf('Interception Module: %.3f m³\n', errors(1));
+    fprintf('Snow Module: %.3f m³\n', errors(2));
+    fprintf('Evaporation / Evapotranspiration Module: %.3f m³\n', errors(3));
+    fprintf('Infiltration Module: %.3f m³\n', errors(4));
+    fprintf('Groundwater Module: %.3f m³\n', errors(5));
+
+        % Add a nice separator after each time-step to make it easy to distinguish
+        fprintf('\n');
+        fprintf('===========================================\n');
+        fprintf('End of Time-Step %d\n', k);
+        fprintf('===========================================\n\n');
 
         % Water Quality Instability
         if tmin_wq < 0 || isnan(tmin_wq) || isinf(tmin_wq)

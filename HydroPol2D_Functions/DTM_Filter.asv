@@ -47,7 +47,7 @@ try
         % Preserve original NaN locations from the input DEM
         dtm_filled(isnan(DEM)) = NaN;
     end
-    dtm_filled(isnan(dtm_filled) & ~isnan(DEM)) = DEM(isnan(dtm_filled) & ~isnan(DEM));
+    dtm_filled(isnan(dtm_filled) && )
 catch
     dtm_filled = DEM;
 end

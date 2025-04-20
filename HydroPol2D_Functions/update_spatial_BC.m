@@ -1,7 +1,82 @@
-% Update Spatial Boundary Conditions
-% Goal: Update boundary conditions and save spatial maps of these, if
-% required
-% Developer: Marcus Nobrega, Ph.D.
+%% ═══════════════════════════════════════════════════════════════════════
+%  Function: update_spatial
+%  🛠️ Developer: Marcus Nobrega, Ph.D.
+%  📅 Date: 03/06/2025
+% ─────────────────────────────────────────────────────────────────────────────
+%  ➤ Purpose:
+%      Update the spatial boundary conditions for the hydrological model.
+%      This function aggregates and updates various forcing data such as:
+%        • Stage hydrograph (water levels)
+%        • Inflow volumes from stream gauges
+%        • Rainfall (from multiple sources: local, spatial, satellite,
+%          and input maps)
+%        • Potential Evapotranspiration (ETP) and related energy balance 
+%          parameters
+%
+%  ➤ Inputs:
+%      • flags: Structure containing boolean flags controlling processes 
+%        (stage, inflow, rainfall, ETP, etc.).
+%      • Stage_Parameters: Structure with stage hydrograph data (e.g., time,
+%        stage values, number of gauges).
+%      • t_previous: Time at the previous time-step.
+%      • t: Current time.
+%      • k: Time-step counter (used to set previous stage depth).
+%      • Wshed_Properties: Watershed properties, including spatial masks and
+%        cell areas.
+%      • Inflow_Parameters: Structure with inflow gauge data.
+%      • BC_States: Structure holding boundary condition states (inflow,
+%        aggregated rainfall, etc.).
+%      • time_step: Duration of the current time-step (in minutes).
+%      • time_step_model: Base model time-step (in minutes).
+%      • running_control: Contains time series data for rainfall and other 
+%        control parameters.
+%      • Spatial_Rainfall_Parameters: Structure with spatial rainfall data,
+%        durations, coordinates, and grids.
+%      • Rainfall_Parameters: Structure controlling rainfall map aggregation.
+%      • GIS_data: Geographic information (e.g., resolution, upper left
+%        corner coordinates).
+%      • DEM_raster: Digital Elevation Model raster structure.
+%      • idx_nan: Logical mask indicating invalid or missing data.
+%      • rainfall_spatial_aggregation: 3D array for saving high-resolution 
+%        spatial rainfall maps.
+%      • saver_count: Counter/index for saving aggregated maps.
+%      • Input_Rainfall: Structure with input rainfall map data and timestamps.
+%      • register, date_begin, date_end: Parameters used for satellite 
+%        rainfall processing.
+%      • ETP_Parameters: Structure with climatological ETP data, station 
+%        coordinates, and related temperature/wind parameters.
+%      • extra_parameters: Additional parameters (e.g., alternative ETP times).
+%      • Input_Evaporation, Input_Transpiration: Structures with input maps 
+%        for evaporation and transpiration.
+%
+%  ➤ Outputs:
+%      • Updates BC_States with:
+%          ○ Aggregated stage depths (in mm)
+%          ○ Aggregated inflows (in mm)
+%          ○ Aggregated rainfall (delta P, in mm/h or mm adjusted for time-step)
+%      • Updates Hydro_States with:
+%          ○ Computed ETP and ETR values
+%          ○ Corrected ETP maps (with NaN handling)
+%      • Updates Maps structure with:
+%          ○ Saved spatial rainfall maps
+%          ○ Saved ETP maps
+%          ○ Saved evaporation and transpiration maps
+%      • Updates ETR_save (aggregated ETR for each time-step)
+%
+%  ➤ Notes:
+%      • Designed to be run within a time-stepping loop.
+%      • Relies on multiple flag variables to selectively activate or bypass
+%        parts of the boundary condition updates.
+%      • Performs unit conversions as needed (e.g., converting stage depths to mm).
+%      • Handles missing or non-physical data by applying defaults (e.g., setting
+%        stage depth to 0 on the first iteration) and issuing warnings for
+%        extreme values (e.g., rainfall > 300 mm/h).
+%      • Uses different data sources based on flag settings (spatial, satellite,
+%        or input rainfall maps).
+%      • For sub-grid modeling, applies corrections for channel area discrepancies.
+% ═══════════════════════════════════════════════════════════════════════
+
+
 
 %% Stage-Hydrograph Boundary Condition
 if flags.flag_stage_hydrograph == 1
@@ -90,12 +165,12 @@ if flags.flag_rainfall > 0
         % Spatial Rainfall
         % Code for Spatial-Varying Rainfall
         % Times of full rainfall dataset
-        z1 = find(Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg <= t_previous,1,'last');
-        z2 = find(Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg <= t,1,'last');
+        z1 = find(Spatial_Rainfall_Parameters.rainfall_spatial_duration <= t_previous,1,'last');
+        z2 = find(Spatial_Rainfall_Parameters.rainfall_spatial_duration <= t,1,'last');
 
         % Times for aggregated rainfall dataset
-        zz1 = find(Spatial_Rainfall_Parameters.rainfall_spatial_duration <= t_previous,1,'last');
-        zz2 = find(Spatial_Rainfall_Parameters.rainfall_spatial_duration <= t,1,'last');
+        zz1 = find(Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg <= t_previous,1,'last');
+        zz2 = find(Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg <= t,1,'last');
 
         if Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg(2)  == Spatial_Rainfall_Parameters.rainfall_spatial_duration(2) % No difference between them, same time-step
             Rainfall_Parameters.index_aggregation = 1; % We save only 1 map
@@ -131,7 +206,7 @@ if flags.flag_rainfall > 0
                 end
 
                 if nansum(nansum(spatial_rainfall)) > 0
-                    sprintf('Rainfall interpolated')
+                    % sprintf('Rainfall interpolated')
                 end
             end
             if zz2 > zz1 % Saving Maps
@@ -312,8 +387,8 @@ if flags.flag_rainfall > 0
 end
 
 % Correcting Rainfall Volumes to the sub-grid model
-BC_States.delta_p_agg = BC_States.delta_p_agg.*Wshed_Properties.cell_area./C_a; % Here we assume that all rainfall goes directly to the channel
-BC_States.delta_p_agg(idx_nan) = nan;
+% BC_States.delta_p_agg = BC_States.delta_p_agg.*Wshed_Properties.cell_area./C_a; % Here we assume that all rainfall goes directly to the channel
+% BC_States.delta_p_agg(idx_nan) = nan;
 
 %% Aggregating ETP for next time-step
 
@@ -329,14 +404,14 @@ if flags.flag_ETP == 1 && flags.flag_input_ETP_map ~= 1
             Hydro_States.ETP = zeros(size(Elevation_Properties.elevation_cell));
             % Maps.Hydro.ETP_save(:,:,z2) = Hydro_States.ETP; % Saving ETP Maps
             Maps.Hydro.ETP_save(:,:,saver_count) = Hydro_States.ETP; % Saving ETP Maps
-            ETR_save(:,:,z2) = Hydro_States.ETR ;
+            ETR_save(:,:,saver_count) = Hydro_States.ETR ;
         elseif  (isempty(z1) && z2 > 0) || z2 > z1 && z2 < length(ETP_Parameters.climatologic_spatial_duration)
             if flags.flag_GPU == 1 || flags.flag_single == 1
                 day_of_year = day(extra_parameters.ETP.time_ETP(z2,1),'dayofyear');
             else
                 day_of_year = day(ETP_Parameters.time_ETP(z2,1),'dayofyear');
             end
-            [Hydro_States.ETP, Hydro_States.Ep] = ETP_model(z2,day_of_year,ETP_Parameters.coordinates_stations(:,1),ETP_Parameters.coordinates_stations(:,2),Spatial_Rainfall_Parameters.x_grid',Spatial_Rainfall_Parameters.y_grid',ETP_Parameters.maxtemp_stations,ETP_Parameters.mintemp_stations,ETP_Parameters.avgtemp_stations,ETP_Parameters.u2_stations,ETP_Parameters.ur_stations,ETP_Parameters.G_stations,ETP_Parameters.DEM_etp,ETP_Parameters.lat,ETP_Parameters.Krs,ETP_Parameters.alfa_albedo_input,idx_nan);
+            [Hydro_States.ETP, Hydro_States.Ep, BC_States.Average_Daily_Temperature, BC_States.wind, BC_States.min_temp] = ETP_model(z2,day_of_year,ETP_Parameters.coordinates_stations(:,1),ETP_Parameters.coordinates_stations(:,2),Spatial_Rainfall_Parameters.x_grid',Spatial_Rainfall_Parameters.y_grid',ETP_Parameters.maxtemp_stations,ETP_Parameters.mintemp_stations,ETP_Parameters.avgtemp_stations,ETP_Parameters.u2_stations,ETP_Parameters.ur_stations,ETP_Parameters.G_stations,ETP_Parameters.DEM_etp,ETP_Parameters.lat,ETP_Parameters.Krs,ETP_Parameters.alfa_albedo_input,idx_nan);
             Hydro_States.ETP(isnan(Hydro_States.ETP)) = 0; Hydro_States.ETP(idx_nan) = nan;
             Hydro_States.Ep(isnan(Hydro_States.Ep)) = 0; Hydro_States.Ep(idx_nan) = nan;
             if nansum(nansum(Hydro_States.ETP)) == 0
@@ -346,7 +421,7 @@ if flags.flag_ETP == 1 && flags.flag_input_ETP_map ~= 1
                     Hydro_States.ETP = Maps.Hydro.ETP_save(:,:,saver_count-1);
                 end
                 Hydro_States.ETP = Maps.Hydro.ETP_save(:,:,z2-1);
-                Hydro_States.ETR  = ETR_save(:,:,z2-1);
+                Hydro_States.ETR  = Hydro_States.ETR_save(:,:,z2-1);
                 if nansum(nansum(Hydro_States.ETP)) == 0
                     warning('No ETP and ETR data. Assuming it equals 0')
                     Hydro_States.ETP = zeros(size(DEM));
@@ -357,7 +432,7 @@ if flags.flag_ETP == 1 && flags.flag_input_ETP_map ~= 1
             end
             % Maps.Hydro.ETP_save(:,:,z2) = Hydro_States.ETP; % Saving ETP Maps
             Maps.Hydro.ETP_save(:,:,saver_count) = Hydro_States.ETP; % Saving ETP Maps
-            ETR_save(:,:,z2) = Hydro_States.ETR ;
+            Maps.Hydro.ETR_save(:,:,saver_count) = Hydro_States.ETR ;
         elseif z1 == 1 && z2 == 1 && k == 1
             % First data. We assume a constant ETP using
             % 1st data
@@ -366,7 +441,7 @@ if flags.flag_ETP == 1 && flags.flag_input_ETP_map ~= 1
             else
                 day_of_year = day(ETP_Parameters.time_ETP(z2,1),'dayofyear');
             end
-            [Hydro_States.ETP, Hydro_States.Ep] = ETP_model(z2,day_of_year,ETP_Parameters.coordinates_stations(:,1),ETP_Parameters.coordinates_stations(:,2),Spatial_Rainfall_Parameters.x_grid',Spatial_Rainfall_Parameters.y_grid',ETP_Parameters.maxtemp_stations,ETP_Parameters.mintemp_stations,ETP_Parameters.avgtemp_stations,ETP_Parameters.u2_stations,ETP_Parameters.ur_stations,ETP_Parameters.G_stations,ETP_Parameters.DEM_etp,ETP_Parameters.lat,ETP_Parameters.Krs,ETP_Parameters.alfa_albedo_input,idx_nan);
+            [Hydro_States.ETP, Hydro_States.Ep, BC_States.Average_Daily_Temperature, BC_States.wind, BC_States.min_temp] = ETP_model(z2,day_of_year,ETP_Parameters.coordinates_stations(:,1),ETP_Parameters.coordinates_stations(:,2),Spatial_Rainfall_Parameters.x_grid',Spatial_Rainfall_Parameters.y_grid',ETP_Parameters.maxtemp_stations,ETP_Parameters.mintemp_stations,ETP_Parameters.avgtemp_stations,ETP_Parameters.u2_stations,ETP_Parameters.ur_stations,ETP_Parameters.G_stations,ETP_Parameters.DEM_etp,ETP_Parameters.lat,ETP_Parameters.Krs,ETP_Parameters.alfa_albedo_input,idx_nan);
             Hydro_States.ETP(isnan(Hydro_States.ETP)) = 0; Hydro_States.ETP(idx_nan) = nan;
             Hydro_States.Ep(isnan(Hydro_States.Ep)) = 0; Hydro_States.Ep(idx_nan) = nan;
             if nansum(nansum(Hydro_States.ETP)) == 0
@@ -376,14 +451,14 @@ if flags.flag_ETP == 1 && flags.flag_input_ETP_map ~= 1
                     Hydro_States.ETP = Maps.Hydro.ETP_save(:,:,saver_count-1);
                 end
                 Hydro_States.ETP = Maps.Hydro.ETP_save(:,:,z2-1);
-                Hydro_States.ETR  = ETR_save(:,:,z2-1);
+                Hydro_States.ETR  = Maps.Hydro.ETR_save(:,:,z2-1);
             end
             % Maps.Hydro.ETP_save(:,:,z2) = Hydro_States.ETP; % Saving ETP Maps
             Maps.Hydro.ETP_save(:,:,saver_count) = Hydro_States.ETP; % Saving ETP Maps
             if z2 == 1
-                ETR_save(:,:,z2) = Hydro_States.ETP ; % this might be incorrect
+                Maps.Hydro.ETR_save(:,:,saver_count) = Hydro_States.ETP ; % this might be incorrect
             else
-                ETR_save(:,:,z2) = Hydro_States.ETR ;
+                Maps.Hydro.ETR_save(:,:,saver_count) = Hydro_States.ETR ;
             end
         end
     end
