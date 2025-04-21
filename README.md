@@ -1,5 +1,8 @@
 # HydroPol2D: Distributed 2D Hydrologic-Hydrodynamic and Water Quality Model
 
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+This project is licensed under the **MIT License** — you are free to use, modify, and distribute this software, provided proper credit is given.
+
 HydroPol2D is an open-source, high-resolution 2D model built in MATLAB for simulating overland flow, infiltration, groundwater-surface water interactions, and pollutant transport. Developed with performance and flexibility in mind, it supports both CPU and GPU computations and can handle diverse forcing conditions such as spatially distributed rainfall, satellite-derived precipitation, design storms, and hydrograph inputs.
 
 The model is particularly suited for urban, peri-urban, and rural catchments in both gauged and data-scarce regions.
@@ -38,6 +41,21 @@ The model is particularly suited for urban, peri-urban, and rural catchments in 
 - **QGIS, Google Earth Engine, or R** for raster preprocessing (DEM, LULC, soils, etc.)
 
 ---
+
+Example of a rain-on-the-grid simulation of a 1 in 50-year rainfall in an urban area with influence of urban drainage - Sao Paulo, Brazil.
+
+<p align="center">
+  <img src="Generical_Input_Files/Rain_on_the_grid.gif.gif" width="600">
+</p>
+
+<img src="https://marcusnobrega-eng.github.io/profile//files/Rain_on_the_grid.gif">
+
+Example of a total dam-break collapse scenario in a city in Pernambuco, Northeast - Brazil. 
+
+<p align="center">
+  <img src="Generical_Input_Files/dam_break.gif" width="600">
+</p>
+
 
 ## 📂 Input Data Structure
 
