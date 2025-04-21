@@ -56,39 +56,41 @@ Example of a total dam-break collapse scenario in a city in Pernambuco, Northeas
 
 ## 📂 Input Data Structure
 
-HydroPol2D requires:
-- **General Setup File** (`General_Data.xlsx`): Simulation settings, boundary conditions, directories
-- **Rasters (.tif)**:
-  - Digital Elevation Model (DEM)
-  - LULC
-  - Soils
-  - Optional: Rainfall, ETP, ETa, Snow Depth, GW depth
-- **Parameter Tables**:
-  - LULC parameters: `n`, impervious index, `h0`, `d0`, pollutant coefficients (C1–C4)
-  - Soil parameters: `Ksat`, suction head, water content, deficit
+HydroPol2D requires the following input data files and parameters, which must be prepared and aligned before running the model:
+
+### 📊 Raster Inputs (.tif)
+- **Digital Elevation Model (DEM):** Defines terrain slope, flow direction, and is used for hydrologic routing and terrain preprocessing. Must be gap-filled and optionally smoothed. Elevation in meters.
+- **Land Use / Land Cover (LULC):** Used to assign surface properties (e.g., roughness, imperviousness, pollutant loading). Each class must be indexed and named consistently with the LULC parameter table.
+- **Soil Map:** Classifies soils spatially to define infiltration and water balance parameters. Must match indices in the soil parameter table.
+- **Optional Gridded Maps:**
+  - Rainfall intensity maps (mm/hr)
+  - Potential Evapotranspiration (ETP)
+  - Actual Evapotranspiration (ETa)
+  - Snow Depth
+  - Groundwater Table Depth
+  - Subgrid river bathymetry and slope rasters
+
+All rasters must be aligned spatially (same extent, resolution, and coordinate reference, preferably EPSG:3857).
+
+### 📋 Parameter Tables (Excel Sheets)
+- **LULC Parameter Table:** Each land use class must include:
+  - Manning's `n` roughness coefficient
+  - Impervious index (0 or 1)
+  - Initial abstraction depth `h0`
+  - Initial water depth `d0`
+  - Pollutant loading coefficients: `C1` (build-up rate), `C2` (capacity), `C3` (wash-off rate), `C4` (wash-off exponent)
+
+- **Soil Parameter Table:** Each soil class must include:
+  - Saturated hydraulic conductivity `Ksat` (mm/hr)
+  - Suction head `ψ` (mm)
+  - Initial soil water content `θi`
+  - Saturated water content `θsat`
+  - Water deficit (θsat - θi) for infiltration calculations
   
 Preprocessing must ensure that all rasters are aligned and projected (EPSG:3857 recommended).
 
 ---
 
-## 🚀 Running a Simulation
-
-Use the main execution routines and dashboard:
-```matlab
-% Main dashboard interface
-ax = HydroPol2D_running_dashboard(ax, Maps, v_t, DEM_raster, gauges, BC_States, time_step, Resolution, first_time, layer, C_a);
-```
-
-You must configure:
-- `Maps`: raster and parameter structure
-- `v_t`: time vector
-- `DEM_raster`: struct with DEM data and metadata
-- `BC_States`: boundary condition flags
-- `layer`: control for active output layers
-
-A guided example and minimal script will be provided in the future.
-
----
 
 ## 📤 Output Files
 
@@ -157,6 +159,6 @@ Repository: [https://github.com/marcusnobrega-eng/HydroPol2D](https://github.com
 This project is licensed under the **MIT License** — you are free to use, modify, and distribute this software, provided proper credit is given.
 
 
-
 # Short Course Link with 2-h classes + PPT material (Available upon request): marcusnobrega.engcivil@gmail.com
+
 
