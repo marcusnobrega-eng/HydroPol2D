@@ -492,10 +492,26 @@ if flags.flag_spatial_rainfall == 1
     xlabel(' Easting (m) ','Interpreter','Latex','FontSize',12)
     ylabel ('Northing (m) ','Interpreter','Latex','FontSize',12)
 
+    hold on;
+
+    if flags.flag_satellite_rainfall ~= 1 && flags.flag_real_time_satellite_rainfall ~= 1
+       rainfall = Spatial_Rainfall_Parameters.rainfall_raingauges(t,1:Spatial_Rainfall_Parameters.n_raingauges)'; % Values of rainfall at t for each rain gauge
+       % idx_rainfall = logical(isnan(rainfall) | rainfall == 0);
+                    
+       idx_rainfall = logical(isnan(rainfall));
+       Spatial_Rainfall_Parameters.x_coordinate = Spatial_Rainfall_Parameters.coordinates(1:Spatial_Rainfall_Parameters.n_raingauges,1); % Coordinates (easting) of each rain gauge
+       Spatial_Rainfall_Parameters.y_coordinate = Spatial_Rainfall_Parameters.coordinates(1:Spatial_Rainfall_Parameters.n_raingauges,2); % Coordinates (northing) of each rain gauge
+       Spatial_Rainfall_Parameters.x_coordinate(idx_rainfall) = []; % Taking out nans
+       Spatial_Rainfall_Parameters.y_coordinate(idx_rainfall) = []; % Taking out nans
+       rainfall(idx_rainfall) = []; % Taking out nans
+       plot3(Spatial_Rainfall_Parameters.x_coordinate, Spatial_Rainfall_Parameters.y_coordinate,zmax*ones(size(rainfall)), 'ko', 'MarkerSize', 8,'LineWidth',1.5, 'MarkerFaceColor','r' );
+    end
+
     zlabel ('Cumulative Rainfall Volume (mm)','Interpreter','Latex','FontSize',12)
     set(gca,'FontName','Garamond')
 
     box on
+    set(gcf, 'Units', 'inches', 'Position', [1, 1, 7, 5]);
     set(gca,'tickdir','out');
     set(gca, 'TickLength', [0.02 0.01]);
     set(gca,'Tickdir','out')
@@ -509,6 +525,7 @@ if flags.flag_spatial_rainfall == 1
     end
     exportgraphics(gcf,fullfile(folderName,'Isoietal_Map.png'),'ContentType','image','Colorspace','rgb','Resolution',1200)
     saveas(gcf,fullfile(folderName,'Isoeital.fig'))
+    exportgraphics(gcf,fullfile(folderName,'Isoietal_Map.pdf'), 'ContentType', 'vector');
     close all
 end
 
