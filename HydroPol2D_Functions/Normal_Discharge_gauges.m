@@ -50,10 +50,11 @@ if flags.flag_obs_gauges == 1 && flags.flag_rainfall == 1
     max_h = max(max(max(z)));
     h_max = round(max_h/10,0)*10*1.05;
     % UTM Coordinates
-    x_grid = GIS_data.xulcorner + a_grid*[xbegin:1:xend]; y_grid = GIS_data.yulcorner - a_grid*[ybegin:1:yend];
     a_grid = Wshed_Properties.Resolution;
     b_grid = Wshed_Properties.Resolution;
     tmax = 10;
+    x_grid = GIS_data.xulcorner + a_grid*[xbegin:1:xend]; y_grid = GIS_data.yulcorner - a_grid*[ybegin:1:yend];
+    
     %% Creating the custom basemap
 basemapName = "openstreetmap";
 url = "c.tile.openstreetmap.org/${z}/${x}/${y}.png";
@@ -197,7 +198,7 @@ for i = 1:length(gauges.easting_obs_gauges)
 
     grid on;
 
-    legend([strcat('SD on',{' '},labels_depth{i}),labels_depth(end),'Standar Dev'],'Interpreter','Latex','FontSize',8,'location','best');
+    legend([strcat('SD on',{' '},labels_depth{i}),labels_depth(end),'Standar Dev'],'Interpreter','Latex','FontSize',8,'location','east');
 
     title(strcat('Specific Discharge on gauge',{' '},labels_depth{i}),'interpreter','latex','fontsize',12);
     box on;
@@ -297,7 +298,8 @@ for i = 1:length(gauges.easting_obs_gauges)
         view(0,90)
     end
     try
-        exportgraphics(gcf,fullfile(myFolder_wd,'Specific_Discharge_Gauges_'+labels_depth{i}+'.pdf'),'ContentType','vector')
+        exportgraphics(gcf,fullfile(myFolder_wd,'Specific_Discharge_Gauges_'+labels_depth{i}+'.pdf'),'ContentType','vector');
+        exportgraphics(gcf,fullfile(myFolder_wd,'Specific_Discharge_Gauges_'+labels_depth{i}+'.png'),'ContentType','image','Colorspace','rgb','Resolution',1200);
     catch
         fprintf('Specific discharge gauges no exported, PDF export error')
     end
