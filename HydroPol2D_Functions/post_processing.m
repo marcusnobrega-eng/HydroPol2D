@@ -1287,7 +1287,7 @@ if flags.flag_waterquality == 1
     ylabel('$m/m_{\mathrm{tot}}$','Interpreter','Latex');
     xlabel('$V/V_{\mathrm{tot}}$','Interpreter','Latex');
     exportgraphics(gcf,fullfile(folderName,'Mapas.png'),'ContentType','image','Colorspace','rgb','Resolution',1200)
-    exportgraphics(gcf,fullfile(folderName,'Mapas.pdf'),'ContentType','vector')
+    %exportgraphics(gcf,fullfile(folderName,'Mapas.pdf'),'ContentType','vector')
     saveas(gcf,fullfile(folderName,'Mapas.fig'))
 else %%%%%%%%%%%%%%%%%%%%
     % No water quality
@@ -1334,7 +1334,7 @@ else %%%%%%%%%%%%%%%%%%%%
     set(gca,'Tickdir','out')
 
     exportgraphics(gcf,fullfile(folderName,'Mapas.png'),'ContentType','image','Colorspace','rgb','Resolution',800)
-    exportgraphics(gcf,fullfile(folderName,'Mapas.pdf'),'ContentType','vector')
+    %exportgraphics(gcf,fullfile(folderName,'Mapas.pdf'),'ContentType','vector')
     saveas(gcf,fullfile(folderName,'Mapas.fig'))
 end
 
@@ -1358,7 +1358,7 @@ size_font = 12;
 size_font = 12;
 [axis3] = surfplot_maps(DEM_raster,Soil_Properties.soil_matrix,linspecer(Soil_Properties.n_soil),'Easting (m)','Northing (m)','Classification',no_data_value,idx_nan,1,3,3,size_font);
 
-exportgraphics(gcf,fullfile(strcat(cd,"\",folderName),'Input_Data_Maps.pdf'),'ContentType','vector')
+%exportgraphics(gcf,fullfile(strcat(cd,"\",folderName),'Input_Data_Maps.pdf'),'ContentType','vector')
 saveas(gcf,fullfile(folderName,'Input_Data_Maps.fig'))
 close all
 
