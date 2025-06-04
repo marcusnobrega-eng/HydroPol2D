@@ -525,7 +525,7 @@ if flags.flag_spatial_rainfall == 1
     end
     exportgraphics(gcf,fullfile(folderName,'Isoietal_Map.png'),'ContentType','image','Colorspace','rgb','Resolution',1200)
     saveas(gcf,fullfile(folderName,'Isoeital.fig'))
-    exportgraphics(gcf,fullfile(folderName,'Isoietal_Map.pdf'), 'ContentType', 'vector');
+    %exportgraphics(gcf,fullfile(folderName,'Isoietal_Map.pdf'), 'ContentType', 'vector');
     close all
 end
 
