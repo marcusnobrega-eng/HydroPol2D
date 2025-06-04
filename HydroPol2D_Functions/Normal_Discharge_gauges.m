@@ -198,7 +198,7 @@ for i = 1:length(gauges.easting_obs_gauges)
 
     grid on;
 
-    legend([strcat('SD on',{' '},labels_depth{i}),labels_depth(end),'Standar Dev'],'Interpreter','Latex','FontSize',8,'location','east');
+    lgd_hydro = legend([strcat('SD on',{' '},labels_depth{i}),labels_depth(end),'Standar Dev'],'Interpreter','Latex','FontSize',8,'location','east');
 
     title(strcat('Specific Discharge on gauge',{' '},labels_depth{i}),'interpreter','latex','fontsize',12);
     box on;
@@ -297,8 +297,11 @@ for i = 1:length(gauges.easting_obs_gauges)
         ax.YAxis.Exponent = 0;ytickformat('%.0f');
         view(0,90)
     end
+    % adjust the hydrograph legend
+    lgd_hydro.Position = [0.2810, 0.65, 0.1205, 0.0958];
+    %lgd_hydro.Position = [0.083, 0.55, 0.1205, 0.0958];
     try
-        exportgraphics(gcf,fullfile(myFolder_wd,'Specific_Discharge_Gauges_'+labels_depth{i}+'.pdf'),'ContentType','vector');
+        %exportgraphics(gcf,fullfile(myFolder_wd,'Specific_Discharge_Gauges_'+labels_depth{i}+'.pdf'),'ContentType','vector');
         exportgraphics(gcf,fullfile(myFolder_wd,'Specific_Discharge_Gauges_'+labels_depth{i}+'.png'),'ContentType','image','Colorspace','rgb','Resolution',1200);
     catch
         fprintf('Specific discharge gauges no exported, PDF export error')
