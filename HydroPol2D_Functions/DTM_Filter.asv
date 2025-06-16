@@ -47,13 +47,19 @@ try
         % Preserve original NaN locations from the input DEM
         dtm_filled(isnan(DEM)) = NaN;
     end
-    dtm_filled(isnan(dtm_filled) && )
+    dtm_filled(isnan(dtm_filled) & ~isnan(DEM)) = DEM(isnan(dtm_filled) & ~isnan(DEM));
 catch
     dtm_filled = DEM;
 end
 
 %% Step 4: Compute volume difference between DEM and DTM
 Volume = nansum(nansum(Resolution^2 * (dtm_filled - DEM)));
+
+[dx, dy] = gradient(dtm_filled, Resolution, Resolution); % Compute gradient in x and y
+
+% Convert slope to percentage
+slope_magnitude = sqrt(dx.^2 + dy.^2); 
+slope_percentage = atan(slope_magnitude) * (180 / pi);
 
 % %% Step 5: Plot results
 % figure;

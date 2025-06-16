@@ -504,7 +504,7 @@ elseif flags.flag_rainfall == 1 && flags.flag_spatial_rainfall == 1 && flags.fla
     input_table = readtable('Rainfall_Spatial_Input.xlsx');
     % Observations
     n_obs = sum((table2array(input_table(:,2))>=0)); % Number of observations
-    n_max_raingauges = 50;
+    n_max_raingauges =  sum(~isnan((table2array(input_table(3,3:end)))));
     Spatial_Rainfall_Parameters.time_step_spatial = table2array(input_table(7,2)) - table2array(input_table(6,2)); % min
     end_rain = (n_obs-1)*Spatial_Rainfall_Parameters.time_step_spatial;
     %     rainfall_spatial_duration = 0:time_step_spatial:(end_rain); % Rainfall data time in minutes
@@ -581,7 +581,7 @@ if flags.flag_ETP == 1 && flags.flag_input_ETP_map == 0
     % Observations
     n_obs_ETP = min(size(input_table,1) - 2,days(date_end - date_begin));
     ETP_Parameters.n_obs_ETP = size(input_table,1) - 2;
-    ETP_Parameters.n_max_etp_stations = 50;
+    ETP_Parameters.n_max_etp_stations = 50000;
     ETP_Parameters.time_step_etp = minutes(datetime(table2array(input_table(5,2)) ) - datetime(table2array(input_table(4,2)) )); % min
     % ETP_Parameters.end_etp = min((ETP_Parameters.n_obs_ETP-1)*ETP_Parameters.time_step_etp,running_control.routing_time);
     ETP_Parameters.end_etp = (ETP_Parameters.n_obs_ETP-1)*ETP_Parameters.time_step_etp;   
@@ -1368,8 +1368,9 @@ pervious_cells = sum(sum(sum(LULC_Properties.idx_lulc))) - impervious_cells;
 LULC_Properties.idx_lulc = logical(LULC_Properties.idx_lulc);
 LULC_Properties.idx_imp = logical(LULC_Properties.idx_imp);
 LULC_Properties.ADD = ADD;
-for i = 1:LULC_Properties.n_lulc % 8 types of LULC
+for i = 1:LULC_Properties.n_lulc % Types of LULC
     % Only Roughness and h_0
+    index = LULC_index(i,1);
     LULC_Properties.roughness(LULC_Properties.idx_lulc(:,:,i)) = lulc_parameters(i,1); % assigning values for roughness at impervious areas
     LULC_Properties.h_0(LULC_Properties.idx_lulc(:,:,i)) = lulc_parameters(i,2); % Initial Abstraction
 
@@ -1397,7 +1398,7 @@ for i = 1:LULC_Properties.n_lulc % 8 types of LULC
         LULC_Properties.C_3(LULC_Properties.idx_lulc(:,:,i)) =  lulc_parameters(i,6);
         LULC_Properties.C_4(LULC_Properties.idx_lulc(:,:,i)) =  lulc_parameters(i,7);
         
-    elseif flags.flag_water_quality == 1 % We are using rasters
+    elseif flags.flag_waterquality == 1 % We are using rasters
         temp = GRIDobj(B1_path); temp(isnan(DEM_raster.Z)) = nan;
         LULC_Properties.C_1 = temp.Z;
         temp = GRIDobj(B2_path); temp(isnan(DEM_raster.Z)) = nan;
@@ -1991,7 +1992,9 @@ Soil_Properties.Soil_Depth(Soil_Properties.Soil_Depth < 1) = 1; % Aquifers small
 
 % Assuming the average of soil depth
 avg_soil_depth = nanmean(nanmean(Soil_Properties.Soil_Depth));
-Soil_Properties.Soil_Depth(Soil_Properties.Soil_Depth>=0) = avg_soil_depth;
+
+% Activate this to use an average soil depth
+% Soil_Properties.Soil_Depth(Soil_Properties.Soil_Depth>=0) = avg_soil_depth;
 
 % Assuming a very shallow aquifer in rivers
 if flags.flag_subgrid == 1
@@ -1999,7 +2002,9 @@ if flags.flag_subgrid == 1
 else
     idx_GW_river = idx_rivers;
 end
-Soil_Properties.Soil_Depth(idx_GW_river) = 0.05; % m
+
+% Activate this to ensure very shallow depth in rivers
+% Soil_Properties.Soil_Depth(idx_GW_river) = 0.05; % m
 end
 
 C = 0; k = 1; Rainfall_Parameters.index_aggregation = 1;

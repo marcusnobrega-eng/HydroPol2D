@@ -105,7 +105,8 @@ if flags.flag_infiltration == 1
     % Infiltration Capacity
     C = Soil_Properties.ksat.*(1 + ((eff_depth + ...
         Soil_Properties.psi).*(Soil_Properties.teta_sat - Soil_Properties.teta_i))./I_t_GA); % matrix form of Infiltration Capacity [mm/h]
-    
+
+   
     % if flags.flag_baseflow ~= 1 % Deactivating this method due to the linear reservoir approach
     %     % Cells with top layer exceeding root zone
     %     Non_C_idx = Soil_Properties.I_t > Soil_Properties.Lu*1000; % Cells that exceed the top layer infiltrated depth
@@ -158,7 +159,20 @@ if flags.flag_infiltration == 1
         % We need to solve the implicit GA equation
         [Soil_Properties.I_t,Hydro_States.f] = GA_Newton_Raphson(Soil_Properties.I_t,time_step/60 ...
             ,Soil_Properties.ksat,Soil_Properties.psi,Soil_Properties.teta_sat - Soil_Properties.teta_i,eff_depth,Hydro_States.i_a,12,LULC_Properties.idx_imp);
-
+        
+        % No infiltration if unconfined aquifer is fully saturated
+        if flags.flag_baseflow == 1
+            % Soil_Properties.I_t(idx_noinf) = 0;
+            % Hydro_States.f(idx_noinf) = 0;
+            GW_Depth = (BC_States.h_t - (elevation - Soil_Properties.Soil_Depth)); % Groundwater depth [m]
+            UZ_max_storage = (Soil_Properties.Soil_Depth - GW_Depth) .* ...
+                             (Soil_Properties.teta_sat - Soil_Properties.teta_i);  % Max storage in unsaturated zone [m water]
+            idx_limited_inf = Soil_Properties.I_t / 1000 > UZ_max_storage;
+            f_limited = 1/(time_step / 60) * (min(Soil_Properties.I_t, UZ_max_storage * 1000) - Soil_Properties.I_p);
+            Soil_Properties.I_t(idx_limited_inf) = 1000*UZ_max_storage(idx_limited_inf);
+            Hydro_States.f(idx_limited_inf) = f_limited(idx_limited_inf);
+            C(idx_limited_inf) = Hydro_States.f(idx_limited_inf);
+        end
         % if flags.flag_baseflow ~= 1 % Deep percolation
         %     Soil_Properties.I_t = max(Soil_Properties.I_t - Soil_Properties.k_out.*double(Hydro_States.idx_C)*time_step/60,min_soil_moisture);
         % end

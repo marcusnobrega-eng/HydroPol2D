@@ -17,7 +17,7 @@ model_folder = 'Input_Data_Sheets\General_Data_HydroPol2D.xlsx'; % Name of the m
 input_table = readtable(model_folder);
 
 % Load Model Functions
-HydroPol2D_tools = char(table2cell(input_table(15,27))); % File path of the model functions
+HydroPol2D_tools = char(table2cell(input_table(19,27))); % File path of the model functions
 addpath(genpath(char(HydroPol2D_tools)));
 
 HydroPol2D_preprocessing % Preprocessing code

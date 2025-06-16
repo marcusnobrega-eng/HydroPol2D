@@ -180,7 +180,7 @@ if flags.flag_rainfall > 0
             Rainfall_Parameters.index_aggregation = 1;
         end
 
-        if z1 ~= z2 || z2 == length(Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg)
+        if z1 ~= z2 || z2 == length(Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg) || (z1 == 1 && z2 == 1) % Fist time-step
             Spatial_Rainfall_Parameters.x_coordinate = Spatial_Rainfall_Parameters.coordinates(1:Spatial_Rainfall_Parameters.n_raingauges,1); % Coordinates (easting) of each rain gauge
             Spatial_Rainfall_Parameters.y_coordinate = Spatial_Rainfall_Parameters.coordinates(1:Spatial_Rainfall_Parameters.n_raingauges,2); % Coordinates (northing) of each rain gauge
             Spatial_Rainfall_Parameters.x_grid = GIS_data.xulcorner + Wshed_Properties.Resolution*[1:1:size(DEM_raster.Z,2)]'; % Pixel easting coordinates
@@ -203,6 +203,7 @@ if flags.flag_rainfall > 0
                 else
                     [spatial_rainfall] = Rainfall_Interpolator(Spatial_Rainfall_Parameters.x_coordinate,Spatial_Rainfall_Parameters.y_coordinate,rainfall,Spatial_Rainfall_Parameters.x_grid,Spatial_Rainfall_Parameters.y_grid); % Interpolated Values
                     spatial_rainfall(idx_nan) = nan;
+                    spatial_rainfall = spatial_rainfall / 24; % DELETEEEEE
                 end
 
                 if nansum(nansum(spatial_rainfall)) > 0
