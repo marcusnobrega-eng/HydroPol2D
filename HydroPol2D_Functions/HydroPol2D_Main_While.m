@@ -19,7 +19,7 @@
 % clear all
 % load workspace_CG_event.mat
 % load workspace_beaver_creek_correct.mat
-load workspace_amazon_simple.mat
+% load workspace_amazon_simple.mat
 % load workspace_CG_event_subgrid_functions.mat
 % flags.flag_overbanks = 1;
 tic
@@ -34,17 +34,18 @@ Risk_Area = 0; % initial risk area
 store = 1; % Index for saving maps
 t_previous = 0;
 factor_time = 0;
-running_control.max_time_step = 24*60*60; % seconds
-running_control.min_time_step = 24*60*60; % seconds
-time_step = running_control.min_time_step/60; % time-step of the model in min
+% running_control.max_time_step = 24*60*60; % seconds
+% running_control.min_time_step = 24*60*60; % seconds
+% time_step = running_control.min_time_step/60; % time-step of the model in min
 max_dt = running_control.max_time_step;
-flags.flag_dashboard = 1;
-flags.flag_subgrid = 0;
-flags.flag_baseflow = 1;
-flags.flag_critical = 0; % DELETE
+% flags.flag_dashboard = 1;
+% flags.flag_subgrid = 0;
+% flags.flag_baseflow = 1;
+% flags.flag_critical = 0; % DELETE
 % Soil_Properties.ksat = 100*Soil_Properties.ksat; % DELETE
-Soil_Properties.ksat_gw = 100*Soil_Properties.ksat_gw; % DELETE
-flags.flag_ETP = 0; % DELETE
+% Soil_Properties.ksat_gw = 100*Soil_Properties.ksat_gw; % DELETE
+% flags.flag_ETP = 0; % DELETE
+
 try
     Subgrid_Properties
 catch
