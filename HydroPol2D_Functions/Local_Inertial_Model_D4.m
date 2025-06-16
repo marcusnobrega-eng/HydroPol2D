@@ -190,7 +190,7 @@ outflow = outflow_rate./(cell_area)*1000*3600; % mm per hour (for coarse grid)
 matrix_store = outflow; % mm per hour
 
 %% Limiting outflow to maximum velocity
-max_velocity = 5; % m/s
+max_velocity = 10; % m/s
 threshold_velocity = Hf(:,:,1:size(outflow,3))*max_velocity; % m3/s per unit width
 outflow(outflow > threshold_velocity) = threshold_velocity(outflow > threshold_velocity); % m2/s (normalized by flow width)
 outflow(outflow < -threshold_velocity) = (-1)*threshold_velocity(outflow < -threshold_velocity); % m2/s (normalized by flow width) 
