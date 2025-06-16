@@ -133,9 +133,9 @@ else
 end
 
 % Check on I_t values
-if nanmin(nanmin(Soil_Properties.I_t)) <= 0
-    Soil_Properties.I_t(Soil_Properties.I_t <= 0) = 1e-16;
-end
+% if nanmin(nanmin(Soil_Properties.I_t)) <= 0
+%     Soil_Properties.I_t(Soil_Properties.I_t <= 0) = 1e-16;
+% end
 
 % Final Reservoir UZ + Surface Storage
 S_UZ_ETR = nansum(nansum(C_a.*Soil_Properties.I_t/1000));
@@ -149,7 +149,7 @@ flux_E_ETR = (-1)*(nansum(nansum(C_a.*BC_States.delta_E/1000)) +  nansum(nansum(
 dS_ETR = (S_ETR_t - S_ETR_0);
 error = dS_ETR - flux_E_ETR;
 
-errors(3) = error*DEM_raster.cellsize^2;
+errors(3) = error;
 
 
 

@@ -16,16 +16,16 @@
 %      [To proper run the dashboard, you need Matlab 2021 or higher]
 % ========================================================================
 
-clear all
+% clear all
 % load workspace_CG_event.mat
-load workspace_beaver_creek_correct.mat
+% load workspace_beaver_creek_correct.mat
+load workspace_amazon_simple.mat
 % load workspace_CG_event_subgrid_functions.mat
 % flags.flag_overbanks = 1;
 tic
 k = 1; % time-step counter
 C = 0; % initial infiltration capacity
 t = running_control.min_time_step; % inital time
-time_step = running_control.min_time_step/60; % time-step of the model in min
 saver_count = 1; % starts in 1 but the next pointer should be 2, this is auto fixed when t reach the next time aggregation.
 update_spatial_BC;
 Flooded_Area = 0; % initial flooded area
@@ -34,12 +34,17 @@ Risk_Area = 0; % initial risk area
 store = 1; % Index for saving maps
 t_previous = 0;
 factor_time = 0;
-running_control.max_time_step = 15*60; % seconds
-running_control.min_time_step = 60; % seconds
+running_control.max_time_step = 24*60*60; % seconds
+running_control.min_time_step = 24*60*60; % seconds
+time_step = running_control.min_time_step/60; % time-step of the model in min
 max_dt = running_control.max_time_step;
 flags.flag_dashboard = 1;
-flags.flag_subgrid = 1;
-
+flags.flag_subgrid = 0;
+flags.flag_baseflow = 1;
+flags.flag_critical = 0; % DELETE
+% Soil_Properties.ksat = 100*Soil_Properties.ksat; % DELETE
+Soil_Properties.ksat_gw = 100*Soil_Properties.ksat_gw; % DELETE
+flags.flag_ETP = 0; % DELETE
 try
     Subgrid_Properties
 catch
@@ -70,6 +75,7 @@ catch_index = 1;
 
 if flags.flag_obs_gauges ~= 1
     extra_parameters.gauges = [];
+    gauges = [];
 else
     extra_parameters = gauges;
     extra_parameters.labels_observed_string = [];
@@ -347,6 +353,8 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
 
     catch ME % In case an error occurs in the model
         disp(ME.message)
+        ME.stack.file
+        ME.stack.line
         t = t - time_step; % Returning the time-step
         t_previous = t;
         wave_celerity = sqrt(9.81*(max(max(max(depths.d_tot/1000)),max(max(depths.d_p/1000))))); % Using d_p and d_tot

@@ -35,7 +35,8 @@ function [recharge_rate, updated_soil_moisture, cumulative_recharge] = simulate_
 % ═══════════════════════════════════════════════════════════════════════
     
     % Calculate the recharge rate based on the linear reservoir approach
-    recharge_rate = alpha .* initial_soil_moisture;
+    effective_moisture = initial_soil_moisture; effective_moisture(effective_moisture < 0.05) = 0; % No recharge for inf depth < 5 mm
+    recharge_rate = alpha .* effective_moisture;
     % recharge_rate(idx_imp) = 0;
     
     % Update soil moisture state

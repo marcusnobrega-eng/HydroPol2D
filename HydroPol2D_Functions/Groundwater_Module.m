@@ -59,7 +59,7 @@ if flags.flag_baseflow == 1
         LULC_Properties.River_K_coeff * Soil_Properties.ksat / 1000 / 3600, ... % River conductance [m/s]
         (Elevation_Properties.elevation_cell + depths.d_t / 1000), ...          % River stage [m]
         Elevation_Properties.elevation_cell, ...           % River bed elevation [m]
-        0.5, ...                                           % Porosity [-]
+        0.5, ...                                           % Courant [-]
         Soil_Properties.Soil_Depth, ...                    % Soil depth [m]
         Wshed_Properties.domain, ...                       % Watershed domain mask
         [], [], Wshed_Properties.perimeter ...             % Optional boundary conditions
@@ -70,8 +70,12 @@ if flags.flag_baseflow == 1
     
     % Update surface water storage (excess saturation + river exchanges)
     depths.d_t = depths.d_t + time_step * 60 * (q_river * 1000 + q_exf * 1000); % [mm]
-end
 
+    % Updated Vadose Zone if Water Table Rises
+    wt = Soil_Properties.Soil_Depth - (BC_States.h_t - BC_States.z0); % Water Table From Top [m]
+    wf = Soil_Properties.I_t / 1000 ./ (Soil_Properties.teta_sat - Soil_Properties.teta_i); % Wetting front [m]
+    wf(wt < wf) = wt(wt < wf);
+    Soil_Properties.I_t = wf .* (Soil_Properties.teta_sat - Soil_Properties.teta_i) * 1000; % Updated wetting front position [mm]
 %% ------------------------------------------------------------------------
 % 5. TRACK MAXIMUM GROUNDWATER DEPTH
 % -------------------------------------------------------------------------
@@ -89,6 +93,9 @@ max_GW_depth = max(max_GW_depth, BC_States.h_t - (elevation - Soil_Properties.So
 current_recharge = cumulative_recharge - (1/1000) * q_exf * (time_step * 60); % [mm]
 
 %% ------------------------------------------------------------------------
+else
+    error = 0;
+end
 % 7. STORE MODEL ERROR
 % -------------------------------------------------------------------------
 errors(5) = error; % Store Boussinesq model error metric
