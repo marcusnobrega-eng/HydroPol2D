@@ -1,35 +1,40 @@
-function [accum_variable,delta_variable,variable_intensity] = accumulated_incremental(steps,variable_discretized,time_step_variable)
-% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
-%                                                                 %
-%                 Produced by Marcus Nobrega Gomes Junior         %
-%                 e-mail:marcusnobrega.engcivil@gmail.com         %
-%                           September 2021                        %
-%                                                                 %
-%                 Last Updated: 11 September, 2021                %
-%                                                                 %
-% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
-%§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
+function [accum_variable, delta_variable, variable_intensity] = accumulated_incremental(steps, variable_discretized, time_step_variable)
+% Optimized version of accumulated_incremental
+% Author: Marcus Nobrega Gomes Junior
+% Last Updated: Optimized by ChatGPT - July 2025
 
-% Calculates accumulated and incremental variable, assuming the model's
-% time-step and the timeseries time-step
-% 09/30/2020
-%
-% delta_p is the variable discretized into model's time-step
-delta_variable = zeros(size(variable_discretized,1),steps);
-for z = 1:size(variable_discretized,1)
-    accum_variable = cumsum(variable_discretized(z,:)*time_step_variable/60);    
-    for t = 1:(steps)
-        percentage_complete = t/steps*100
-        if t == 1
-            delta_variable(z,t) = accum_variable(t);
-        elseif t >length(variable_discretized)
-            delta_variable(z,t) = 0;
-        else
-            delta_variable(z,t) = accum_variable(t)-accum_variable(t-1); % mm
-        end
-    end
+% Inputs:
+%   steps                - Number of time steps
+%   variable_discretized - Matrix of variable values (rows = series, cols = time)
+%   time_step_variable   - Time step in minutes
 
-    variable_intensity = delta_variable/(time_step_variable/60); % mm/h  through all time-steps
-    % delta_variable = round(delta_variable,12); % ROUNDED VALUE!!! be careful
+% Outputs:
+%   accum_variable       - Accumulated variable over time
+%   delta_variable       - Incremental change at each time step
+%   variable_intensity   - Intensity (e.g., mm/h)
+
+% Precompute constants
+dt_hours = time_step_variable / 60;
+
+% Preallocate
+[n_series, n_times] = size(variable_discretized);
+delta_variable = zeros(n_series, steps);
+
+% Only compute up to min(steps, n_times)
+valid_steps = min(steps, n_times);
+
+% Cumulative sum for accumulation
+accum_variable = cumsum(variable_discretized(:,1:valid_steps) * dt_hours, 2);
+
+% Compute delta values efficiently
+delta_variable(:,1:valid_steps) = [accum_variable(:,1), diff(accum_variable, 1, 2)];
+
+% Fill remaining steps (if any) with zeros
+if steps > n_times
+    delta_variable(:, n_times+1:steps) = 0;
 end
 
+% Intensity in mm/h
+variable_intensity = delta_variable / dt_hours;
+
+end

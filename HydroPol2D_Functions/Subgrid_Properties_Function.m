@@ -1,4 +1,4 @@
-function [A_coeffs, V_coeffs, Rh_east_coeffs, Rh_north_coeffs, W_east_coeffs, W_north_coeffs, A_east_coeffs, A_north_coeffs, Poly_NSE, invert_el] = Subgrid_Properties_Function(DEM_raster, coarse_res, poly_order)
+function [A_coeffs, V_coeffs, Rh_east_coeffs, Rh_north_coeffs, W_east_coeffs, W_north_coeffs, A_east_coeffs, A_north_coeffs, Poly_NSE, invert_el] = Subgrid_Properties_Function(DEM_raster, Reference_raster, coarse_res, poly_order)
     % Computes subgrid hydraulic properties: smooth splines for A & V, polynomial fits of order 4 with zero intercept for others.
 
     DEM = DEM_raster.Z;
@@ -9,17 +9,19 @@ function [A_coeffs, V_coeffs, Rh_east_coeffs, Rh_north_coeffs, W_east_coeffs, W_
     end
 
     [nrows, ncols] = size(DEM);
-    nrows_coarse = ceil(nrows * cellsize / coarse_res) + 1; %%%% Probably wrong
-    ncols_coarse = ceil(ncols * cellsize / coarse_res) + 1;
+    % nrows_coarse = nrows * cellsize / coarse_res; %%%% Probably wrong
+    % ncols_coarse = ncols * cellsize / coarse_res;
+    nrows_coarse = size(Reference_raster.Z,1);
+    ncols_coarse = size(Reference_raster.Z,2);
 
-    V_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order);
-    A_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order);
-    Rh_east_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order);
-    Rh_north_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order);
-    W_east_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order);
-    W_north_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order);
-    A_east_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order);
-    A_north_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order);
+    V_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order + 1);
+    A_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order + 1);
+    Rh_east_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order + 1);
+    Rh_north_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order + 1);
+    W_east_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order + 1);
+    W_north_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order + 1);
+    A_east_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order + 1);
+    A_north_coeffs = NaN(nrows_coarse, ncols_coarse, poly_order + 1);
     invert_el = NaN(nrows_coarse, ncols_coarse);
 
     Poly_NSE = struct('Rh_east', NaN(nrows_coarse, ncols_coarse), ...
@@ -93,6 +95,29 @@ function [A_coeffs, V_coeffs, Rh_east_coeffs, Rh_north_coeffs, W_east_coeffs, W_
             A_east_c = X \ area_east;
             A_north_c = X \ area_north;
 
+            % Add Intercept
+            A = [0; A];
+            V =[0; V];
+            Rh_east_c = [0; Rh_east_c];
+            Rh_north_c = [0; Rh_north_c];
+            W_east_c = [0; W_east_c];
+            W_north_c = [0; W_north_c];
+            A_east_c = [0; A_east_c];
+            A_north_c = [0; A_north_c];
+
+            if max_Depth == 0
+                A = 0*A; A(1) = area(1);
+                V = 0*V; V(1) = volume(1);
+                Rh_east_c = 0*Rh_east_c; Rh_east_c(2) = 1; % Constant with depth
+                Rh_north_c = 0*Rh_north_c; Rh_north_c(2) = 1; % Constant with depth
+                W_east_c = 0*W_east_c; W_east_c(1) = coarse_res;
+                W_east_c = 0*W_east_c; W_east_c(1) = coarse_res;
+                W_north_c = 0*W_north_c; W_north_c(1) = coarse_res;
+                A_east_c = 0*A_east_c; A_east_c(2) = coarse_res; % Linear wih depth
+                A_north_c = 0*A_north_c; A_north_c(2) = coarse_res; % Linear wih depth
+            end
+
+
             % Save coefficients
             A_coeffs(rowc,colc,:) = A;
             V_coeffs(rowc,colc,:) = V;
@@ -104,16 +129,21 @@ function [A_coeffs, V_coeffs, Rh_east_coeffs, Rh_north_coeffs, W_east_coeffs, W_
             A_north_coeffs(rowc, colc, :) = A_north_c;
 
             % Compute R² for each polynomial fit
-            Poly_NSE.A_NSE(rowc, colc) = compute_NSE(X * A, area);
-            Poly_NSE.A_NSE(rowc, colc) = compute_NSE(X * V, volume);
-            Poly_NSE.Rh_east(rowc, colc) = compute_NSE(X * Rh_east_c, Rh_east);
-            Poly_NSE.Rh_north(rowc, colc) = compute_NSE(X * Rh_north_c, Rh_north);
-            Poly_NSE.W_east(rowc, colc) = compute_NSE(X * W_east_c, width_east);
-            Poly_NSE.W_north(rowc, colc) = compute_NSE(X * W_north_c, width_north);
-            Poly_NSE.A_east(rowc, colc) = compute_NSE(X * A_east_c, area_east);
-            Poly_NSE.A_north(rowc, colc) = compute_NSE(X * A_north_c, area_north);
-            
+            X_star = [zeros(size(X,1),1), X];
+            if max_Depth ~= 0
+                Poly_NSE.A_NSE(rowc, colc) = compute_NSE(X_star * A, area);
+                Poly_NSE.A_NSE(rowc, colc) = compute_NSE(X_star * V, volume);
+                Poly_NSE.Rh_east(rowc, colc) = compute_NSE(X_star * Rh_east_c, Rh_east);
+                Poly_NSE.Rh_north(rowc, colc) = compute_NSE(X_star * Rh_north_c, Rh_north);
+                Poly_NSE.W_east(rowc, colc) = compute_NSE(X_star * W_east_c, width_east);
+                Poly_NSE.W_north(rowc, colc) = compute_NSE(X_star * W_north_c, width_north);
+                Poly_NSE.A_east(rowc, colc) = compute_NSE(X_star * A_east_c, area_east);
+                Poly_NSE.A_north(rowc, colc) = compute_NSE(X_star * A_north_c, area_north);
+            end
             count = count + 1;
+            if count == 26119
+                ttt = 1;
+            end
             progress = 100*count / total_iterations
         end
     end

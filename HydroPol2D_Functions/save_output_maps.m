@@ -136,14 +136,14 @@ if flags.flag_automatic_calibration ~= 1
                 % for the Dashboard
                 if flags.flag_GPU == 1
                     ax.app.gauges_time = array2table(gather(double(running_control.time_hydrograph(end)/60/24)) + date_begin, 'VariableNames', {'Time'});
-                    ax.app.gauges_data = array2table(gather(gauges.depth_cell(end,:)), 'VariableNames', ax.ax_list.Items);
+                    ax.app.gauges_data = array2table(gather(gauges.depth_cell(end,:)), 'VariableNames', string(gauges.labels_observed_string));
                 else
                     ax.app.gauges_time = array2table(double(running_control.time_hydrograph(end)/60/24) + date_begin, 'VariableNames', {'Time'});
-                    ax.app.gauges_data = array2table(gauges.depth_cell(end,:), 'VariableNames', ax.ax_list.Items);
+                    ax.app.gauges_data = array2table(gauges.depth_cell(end,:), 'VariableNames', string(gauges.labels_observed_string));
                 end
     
-                ax.app.gauges.x_coord_gauges = gauges.x_coord_gauges;
-                ax.app.gauges.y_coord_gauges = gauges.y_coord_gauges;
+                ax.app.gauges.x_coord_gauges = gauges.easting_obs_gauges_absolute;
+                ax.app.gauges.y_coord_gauges = gauges.northing_obs_gauges_absolute;
                 % Making a general database for all data gathered
                 mapshow(ax.ax_d, mappoint(ax.app.gauges.x_coord_gauges', ax.app.gauges.y_coord_gauges'), ...
                     'DisplayType', 'point', ...
@@ -240,7 +240,7 @@ if flags.flag_automatic_calibration ~= 1
             end
             if flags.flag_dashboard == 1
                 % for the Dashboard
-                ax.app.gauges_data = [ax.app.gauges_data;array2table(subsref({gauges.depth_cell(end,:),gather(gauges.depth_cell(end,:))}, struct('type', '{}', 'subs', {{flags.flag_GPU + 1}})), 'VariableNames', ax.ax_list.Items)];
+                ax.app.gauges_data = [ax.app.gauges_data;array2table(subsref({gauges.depth_cell(end,:),gather(gauges.depth_cell(end,:))}, struct('type', '{}', 'subs', {{flags.flag_GPU + 1}})), 'VariableNames', string(gauges.labels_observed_string))];
         
                 if flags.flag_reservoir == 1
                     % Updating data from dashboard

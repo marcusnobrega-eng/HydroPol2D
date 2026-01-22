@@ -57,15 +57,11 @@ function [h_t, u_x, u_y, q_exf, q_river, error] = Boussinesq_2D_explicit(dt,dx,d
 % ═══════════════════════════════════════════════════════════════════════
 
 perimeter = logical(perimeter);
-
-% R(isnan(R) & ~isnan(z0)) = 0; %  Probably issues in R
+% h_dirichlet = z0; % DELETEEE
+% K(:,end) = 1000*K(:,end);
 % 
-% Sy(Sy == 0 & ~isnan(z0)) = 0.01; % Probably issues in Sy
-% 
-% K(K == 0 & ~isnan(z0)) = 1e-6; % Probably issues in Sy
-% 
-% h(~catchment_mask) = nan;
-
+% dirichlet_mask = perimeter; % DELETE
+% dirichlet_mask(:,end-1) = 0;
 if isempty(dirichlet_mask) || isempty(h_dirichlet) 
     dirichlet_mask = false(size(z0,1),size(z0,2));
     h_dirichlet = false(size(z0,1),size(z0,2));
@@ -87,11 +83,12 @@ T = dt; % Set total simulation time to initial dt
 %% Loop
 h_0 = h;
 h_t = h_0; % Copy current head for updating
-Nx = size(h,1); Ny = size(h,2);
+Nx = size(h,2); Ny = size(h,1);
 
 % Velocity Field
 % Compute groundwater velocities
 [u_x, u_y] = compute_boussinesq_velocities(h_t, K, dx, dy); % m/s
+ 
 
 while t < T
     n_steps = ceil(T/dt);
@@ -105,56 +102,44 @@ while t < T
 
     % Compute groundwater discharge to rivers (maybe this has to be
     % deactivated)
-    q_river = zeros(Nx, Ny);  % Initialize discharge array
-    % river_cells = (river_mask == 1);  % Identify river locations
-    % q_river(river_cells) = K_river(river_cells) .* ((h(river_cells) - h_river(river_cells)) ./ L_river); % m/s
-    % 
-    % % River water depth constraint
-    % river_depth = h_river - z_river; % [m]
-    % q_river(q_river<0 & river_depth <= 0) = 0; % No influx in the aquifer from zero-depth rivers
-    % 
-    % % River Maximum Outflow Constraint
-    % idx = q_river < 0;
-    % q_river(idx) = (-1)*max(abs(q_river(idx)), river_depth(idx)/dt);
-    % % q_river(idx) = max(q_river(idx), - river_depth(idx)/dt);
-    % 
-    % if max(max(abs(q_river))) > 0 % At least one river cell has fluxes
-    %     % Updated Groundwater Head
-    %     h(river_cells) = h(river_cells) - dt./Sy(river_cells).*q_river(river_cells);
-    % end
-    
-    
-    % Apply no-flow boundary conditions
-    % h_t = applyNoFlowBC(h_t, perimeter);
+    q_river = zeros(Ny, Nx);  % Initialize discharge array
 
     % Compute second derivatives using central differencing
-    depth_threshold = 0; % m
-    [d2h_dx2, d2h_dy2] = compute_gradients(h_t, z0, K, dx, dy, depth_threshold, perimeter);
+    depth_threshold = 0.00; % m
 
-    if max(max(d2h_dx2)) > 0
-        ttt = 1;
-    end
-    % Update hydraulic head using explicit finite difference
-    % h_t(2:end-1,:) = h_t(2:end-1,:) + dt./Sy(2:end-1,:) .* d2h_dx2; % x contribution
-    % h_t(:,2:end-1) = h_t(:,2:end-1) + dt./Sy(:,2:end-1) .* d2h_dy2; % y contribution
+    % [d2h_dx2, d2h_dy2] = compute_gradients(h_t, z0, K, dx, dy, depth_threshold, perimeter);
+    % === Predictor step ===
+    [Fx1, Fy1] = compute_fluxes_conservative(h_t, z0, K, dx, dy, dt, Sy);
+    div1 = compute_flux_divergence(Fx1, Fy1, dx, dy);
+    h_predict = h_t + dt ./ Sy .* (-div1);
 
-    h_t = h_t + dt./Sy .* d2h_dx2; % x contribution
-    h_t = h_t + dt./Sy .* d2h_dy2; % y contribution
+    % Apply Dirichlet and physical constraints to predictor
+    h_predict(dirichlet_mask) = h_dirichlet(dirichlet_mask);
+    h_predict = max(h_predict, z0);  % no negative storage
+
+    % === Corrector step ===
+    [Fx2, Fy2] = compute_fluxes_conservative(h_predict, z0, K, dx, dy, dt, Sy);
+
+    % === Average interface fluxes ===
+    Fx_avg = 0.5 * (Fx1 + Fx2);
+    Fy_avg = 0.5 * (Fy1 + Fy2);
+
+    % === Final update using averaged flux divergence ===
+    div_avg = compute_flux_divergence(Fx_avg, Fy_avg, dx, dy);
+    h_t = h_t + dt ./ Sy .* (-div_avg + R);
+
 
     % Apply Dirichlet boundary conditions
     h_t(dirichlet_mask) = h_dirichlet(dirichlet_mask); 
 
-    % Recharge
-    h_t = h_t + dt./Sy .* R; % Recharge contribution
-
     % Lost Mass
-    lost_mass = nansum(nansum(dx*dy*(-1)*min(h_t-z0,0)));
+    lost_mass = nansum(nansum(Sy .* dx * dy * (-1) .* min(h_t-z0,0)));
 
     % Ensure groundwater head does not fall below ground level
     h_t = max(h_t, z0); % m
 
     % Compute exfiltration where groundwater head exceeds surface elevation 
-    q_exf = max(0, Sy.*(h_t - h_surf) / dt); % m/s 
+    q_exf = max(0, (h_t - h_surf)) .* Sy / dt;  % [m/s]
 
     exf_vol = dt*nansum(nansum(q_exf*dx*dy)); % exiltration volume [m3]
 
@@ -180,12 +165,22 @@ while t < T
 
     % Mass balance check
     cell_area = dx*dy;
-    error = (nansum(nansum(cell_area*Sy.*(h_t - z0))) - nansum(nansum(cell_area*Sy.*(h_0 - z0)))) ...
-            - nansum(nansum(cell_area*dt.*R)) ...
-            + nansum(nansum(cell_area*(dt*((q_river + q_exf)))));
-    if error > 10
-        ttt = 1;
-    end
+    % === Correct per-timestep mass balance tracking ===
+    
+    % Step 1: Recharge input this step [m³]
+    recharge_mass = nansum(nansum(R .* dt)) * cell_area;
+    
+    % Step 2: Exfiltration loss this step [m³]
+    exfil_mass = nansum(nansum(q_exf .* dt)) * cell_area;
+    
+    % Step 3: Storage change this step [m³]
+    storage_prev = nansum(nansum(Sy .* max(h_0 - z0, 0))) * cell_area;   % before update
+    storage_curr = nansum(nansum(Sy .* max(h_t - z0, 0))) * cell_area; % after update
+    storage_change = storage_curr - storage_prev;
+       
+    % Step 4: Mass balance error [m³]
+    error = recharge_mass - exfil_mass - storage_change;
+   
 
     % Update variables for next time step
     h = h_t;
@@ -221,303 +216,248 @@ end
 end
 
 
-% % Compute the second derivatives (gradient) using matrix operations
-% function [d2h_dx2, d2h_dy2] = compute_gradients(h, z0, K, dx, dy, depth_threshold)
-% % Use finite difference with convolution for second derivatives
-% 
-% % Compute harmonic mean conductivities at interfaces
-% Kx_p = mean_function(K(2:end-1, :), K(1:end-2, :),1,[]); % Right side conductivity
-% Kx_m = mean_function(K(1:end-2, :), K(2:end-1, :),1,[]); % Left side conductivity
-% hx_p = mean_function(h(2:end-1, :) - z0(2:end-1, :), h(1:end-2, :) - z0(1:end-2, :),2,depth_threshold); % Right side conductivity
-% hx_m = mean_function(h(1:end-2, :) - z0(1:end-2, :), h(2:end-1, :) - z0(2:end-1, :),2,depth_threshold); % Left side conductivity
-% 
-% % Central difference for y-direction
-% Ky_p = mean_function(K(:, 2:end-1), K(:, 1:end-2),1,[]); % Upward conductivity
-% Ky_m = mean_function(K(:, 1:end-2), K(:, 2:end-1),1,[]); % Downward conductivity
-% hy_p = mean_function(h(:, 2:end-1) - z0(:, 2:end-1), h(:, 1:end-2) - z0(:, 1:end-2),2,depth_threshold); % Upward conductivity
-% hy_m = mean_function(h(:, 1:end-2) - z0(:, 1:end-2), h(:, 2:end-1) - z0(:, 2:end-1),2,depth_threshold); % Downward conductivity
-% 
-% % Compute second derivatives using correct finite differences
-% Grad_1 = (h(3:end,:) - h(2:end-1,:))/dx; Grad_1(isnan(Grad_1)) = 0;
-% Grad_2 = (h(2:end-1,:) - h(1:end-2,:))/dx; Grad_2(isnan(Grad_2)) = 0;
-% Grad_3 = (h(:, 3:end) - h(:,2:end-1))/dy; Grad_3(isnan(Grad_3)) = 0;
-% Grad_4 = (h(:,2:end-1) - h(:,1:end-2))/dy; Grad_4(isnan(Grad_4)) = 0;
-% 
-% d2h_dx2 = 1/dx*(Kx_p .*hx_p.*Grad_1 - Kx_m .*hx_m .* Grad_2);
-% d2h_dx2(isnan(d2h_dx2)) = 0;
-% 
-% d2h_dy2 = 1/dy*(Ky_p .* hy_p.*Grad_3 - Ky_m .*hy_m .* Grad_4);
-% d2h_dy2(isnan(d2h_dy2)) = 0;
-% end
-
-% function [d2h_dx2, d2h_dy2] = compute_gradients(h, z0, K, dx, dy, depth_threshold, perimeter)
-%     % Compute water depth above base
-%     H = max(h - z0, 0);  % [m]
-%     H(isnan(z0)) = nan;
-%     [Nx, Ny] = size(H);
-% 
-%     % --- X-Direction ---
-%     % Compute interface water depth (arithmetic mean)
-%     Hx = 0.5 * (H(1:end-1, :) + H(2:end, :));  % size: (Nx-1, Ny)
-%     % Compute effective conductivity at x interfaces (harmonic mean)
-%     Kx = 2 * (K(1:end-1, :) .* K(2:end, :)) ./ (K(1:end-1, :) + K(2:end, :) + eps);  % [m/s]
-%     % Compute head difference at x interfaces (finite difference)
-%     dHdx = diff(h, 1, 1) / dx;  % size: (Nx-1, Ny)
-%     % Compute flux at x interfaces (Darcy flux; sign convention: flux from i to i+1)
-%     Fx = -Kx .* Hx .* dHdx;   % [m^2/s]
-% 
-%     % Compute divergence (difference between fluxes at cell faces)
-%     divFx = zeros(Nx, Ny);
-%     % Interior: use centered difference
-%     divFx(2:Nx-1, :) = (Fx(2:end, :) - Fx(1:end-1, :)) / dx;
-%     % Left boundary: assume no inflow from the left (flux at left face = 0)
-%     divFx(1, :) = (Fx(1, :) - 0) / dx;
-%     % Right boundary: assume no outflow (flux at right face = 0)
-%     divFx(Nx, :) = (0 - Fx(end, :)) / dx;
-% 
-%     % --- Y-Direction ---
-%     % Compute interface water depth (arithmetic mean)
-%     Hy = 0.5 * (H(:, 1:end-1) + H(:, 2:end));  % size: (Nx, Ny-1)
-%     % Compute effective conductivity at y interfaces (harmonic mean)
-%     Ky = 2 * (K(:, 1:end-1) .* K(:, 2:end)) ./ (K(:, 1:end-1) + K(:, 2:end) + eps);  % [m/s]
-%     % Compute head difference at y interfaces
-%     dHdy = diff(h, 1, 2) / dy;  % size: (Nx, Ny-1)
-%     % Compute flux at y interfaces
-%     Fy = -Ky .* Hy .* dHdy;   % [m^2/s]
-% 
-%     % Compute divergence in y-direction
-%     divFy = zeros(Nx, Ny);
-%     divFy(:, 2:Ny-1) = (Fy(:, 2:end) - Fy(:, 1:end-1)) / dy;
-%     % Bottom boundary: no flux from below
-%     divFy(:, 1) = (Fy(:, 1) - 0) / dy;
-%     % Top boundary: no flux out of the top
-%     divFy(:, Ny) = (0 - Fy(:, end)) / dy;
-% 
-%     % --- Combine Divergences ---
-%     d2h_dx2 = divFx;
-%     d2h_dy2 = divFy;
-% 
-%     % --- Enforce No-Flow at Perimeter ---
-%     % For cells at the domain boundary (as flagged in the 'perimeter' boolean matrix),
-%     % we must ensure that the flux leaving the cell to the outside is zero.
-%     % We adjust the divergence for cells adjacent to a perimeter as follows:
-% 
-%     % For x-direction:
-%     % If a cell at the left boundary (first row) is marked as perimeter, then
-%     % if the computed left flux (used in divFx(1,:)) is negative (outflow), set it to zero.
-%     leftBoundary = perimeter(1, :);
-%     if any(leftBoundary)
-%         % Recompute divergence for first row using zero left flux
-%         divFx(1, leftBoundary) = (Fx(1, leftBoundary) - 0) / dx;
-%     end
-%     % For the right boundary (last row):
-%     rightBoundary = perimeter(end, :);
-%     if any(rightBoundary)
-%         divFx(end, rightBoundary) = (0 - Fx(end, rightBoundary)) / dx;
-%     end
-% 
-%     % For y-direction:
-%     bottomBoundary = perimeter(:, 1);
-%     if any(bottomBoundary)
-%         divFy(bottomBoundary, 1) = (Fy(bottomBoundary, 1) - 0) / dy;
-%     end
-%     topBoundary = perimeter(:, end);
-%     if any(topBoundary)
-%         divFy(topBoundary, end) = (0 - Fy(topBoundary, end)) / dy;
-%     end
-% 
-%     % Update combined divergences
-%     d2h_dx2 = divFx;
-%     d2h_dy2 = divFy;
-% 
-%     % Set any remaining NaNs to zero
-%     d2h_dx2(isnan(d2h_dx2)) = 0;
-%     d2h_dy2(isnan(d2h_dy2)) = 0;
-% end
-
 function [d2h_dx2, d2h_dy2] = compute_gradients(h, z0, K, dx, dy, depth_threshold, perimeter)
-    % Compute water depth above base
+    % COMPUTE_GRADIENTS
+    % Computes second derivatives (divergence of groundwater fluxes) for explicit solver.
+    % Assumes:
+    %   x = columns (horizontal)
+    %   y = rows (vertical)
+
+    % Water depth above base
     H = max(h - z0, 0);  % [m]
     H(isnan(z0)) = nan;
-    [Nx, Ny] = size(H);
-    
-    % Gradient limiter
-    alpha = 1; % Tuning parameter
-    L = 1/2*(dx+dy);      % Characteristic length, e.g., grid spacing in x-direction [m]
-    G_max = alpha * (H / L); % Maximum gradient [m/m]
-    G_max = max(G_max,1); % Limting to 0.3
+    [nRows, nCols] = size(h);  % y = rows, x = columns
 
-%     Grad_x_fwd = sign(Grad_x_fwd) .* min(abs(Grad_x_fwd), G_max(2:end-1,:));
-%     Grad_x_bwd = sign(Grad_x_bwd) .* min(abs(Grad_x_bwd), G_max(2:end-1,:));
-    
-    % --- X-Direction ---
-    % Compute interface water depth (arithmetic mean)
-    Hx = 0.5 * (H(1:end-1, :) + H(2:end, :));  % size: (Nx-1, Ny)
-    % Compute effective conductivity at x interfaces (harmonic mean)
-    Kx = 2 * (K(1:end-1, :) .* K(2:end, :)) ./ (K(1:end-1, :) + K(2:end, :) + eps);  % [m/s]
-    % Compute head difference at x interfaces (finite difference)
-    dHdx = diff(h, 1, 1) / dx;  % size: (Nx-1, Ny)
-    % Gradient limiter
-    dHdx = sign(dHdx) .* min(abs(dHdx), G_max(2:end,:));
-    % Compute flux at x interfaces (Darcy flux; sign convention: flux from i to i+1)
-    Fx = -Kx .* Hx .* dHdx;   % [m^2/s]
-    
-    % Compute divergence (difference between fluxes at cell faces)
-    divFx = zeros(Nx, Ny);
-    % Interior: use centered difference
-    divFx(2:Nx-1, :) = (Fx(2:end, :) - Fx(1:end-1, :)) / dx;
-    % Left boundary: assume no inflow from the left (flux at left face = 0)
-    divFx(1, :) = (Fx(1, :) - 0) / dx;
-    % Right boundary: assume no outflow (flux at right face = 0)
-    divFx(Nx, :) = (0 - Fx(end, :)) / dx;
-    
-    % --- Y-Direction ---
-    % Compute interface water depth (arithmetic mean)
-    Hy = 0.5 * (H(:, 1:end-1) + H(:, 2:end));  % size: (Nx, Ny-1)
-    % Compute effective conductivity at y interfaces (harmonic mean)
-    Ky = 2 * (K(:, 1:end-1) .* K(:, 2:end)) ./ (K(:, 1:end-1) + K(:, 2:end) + eps);  % [m/s]
-    % Compute head difference at y interfaces
-    dHdy = diff(h, 1, 2) / dy;  % size: (Nx, Ny-1)
-    % Gradient limiter
-    dHdy = sign(dHdy) .* min(abs(dHdy), G_max(:,2:end));
-    % Compute flux at y interfaces
-    Fy = -Ky .* Hy .* dHdy;   % [m^2/s]
-    
-    % Compute divergence in y-direction
-    divFy = zeros(Nx, Ny);
-    divFy(:, 2:Ny-1) = (Fy(:, 2:end) - Fy(:, 1:end-1)) / dy;
-    % Bottom boundary: no flux from below
-    divFy(:, 1) = (Fy(:, 1) - 0) / dy;
-    % Top boundary: no flux out of the top
-    divFy(:, Ny) = (0 - Fy(:, end)) / dy;
-    
-    % --- Combine Divergences ---
+    % Gradient limiter (inactive by default)
+    alpha = 1;
+    L = 0.5 * (dx + dy);
+    G_max = max(alpha * (H / L), 1);
+
+    % === X-DIRECTION (horizontal / across columns) ===
+    Hx = 0.5 * (H(:,1:end-1) + H(:,2:end));         
+    Kx = 0.5 * (K(:,1:end-1) + K(:,2:end));         
+    dHdx = (h(:,2:end) - h(:,1:end-1)) / dx;        
+    Fx = -Kx .* Hx .* dHdx;                        
+
+    % Enforce zero outflow: check if h(:,j+1) is NaN
+    right_is_nan = isnan(h(:,2:end));  % size = (nRows, nCols-1)
+    Fx(right_is_nan) = 0;
+
+    % Divergence in x
+    divFx = zeros(nRows, nCols);
+    divFx(:,2:nCols-1) = (Fx(:,2:end) - Fx(:,1:end-1)) / dx;
+    divFx(:,1) = Fx(:,1) / dx;
+    divFx(:,nCols) = -Fx(:,end) / dx;
+
+    % === Y-DIRECTION (vertical / across rows) ===
+    Hy = 0.5 * (H(1:end-1,:) + H(2:end,:));         
+    Ky = 0.5 * (K(1:end-1,:) + K(2:end,:));
+    dHdy = (h(2:end,:) - h(1:end-1,:)) / dy;        
+    Fy = -Ky .* Hy .* dHdy;
+
+    % Enforce zero outflow: check if h(i+1,:) is NaN
+    down_is_nan = isnan(h(2:end,:));  % size = (nRows-1, nCols)
+    Fy(down_is_nan) = 0;
+
+    % Divergence in y
+    divFy = zeros(nRows, nCols);
+    divFy(2:nRows-1,:) = (Fy(2:end,:) - Fy(1:end-1,:)) / dy;
+    divFy(1,:) = Fy(1,:) / dy;
+    divFy(nRows,:) = -Fy(end,:) / dy;
+
+    % Output second derivatives
     d2h_dx2 = divFx;
     d2h_dy2 = divFy;
-    
-    % --- Enforce No-Flow at Perimeter ---
-    % For cells at the domain boundary (as flagged in the 'perimeter' boolean matrix),
-    % we must ensure that the flux leaving the cell to the outside is zero.
-    % We adjust the divergence for cells adjacent to a perimeter as follows:
-    
-    % For x-direction:
-    % If a cell at the left boundary (first row) is marked as perimeter, then
-    % if the computed left flux (used in divFx(1,:)) is negative (outflow), set it to zero.
 
-    % Identify perimeter-adjacent neighbors
-    perimeter_shift_xp = [perimeter(2:end, :); false(1, size(perimeter, 2))];
-    perimeter_shift_xm = [false(1, size(perimeter, 2)); perimeter(1:end-1, :)];
-    perimeter_shift_yp = [perimeter(:, 2:end), false(size(perimeter, 1), 1)];
-    perimeter_shift_ym = [false(size(perimeter, 1), 1), perimeter(:, 1:end-1)];
+    % Optional cleanup (could help visualizations)
+    d2h_dx2(isnan(z0)) = nan;
+    d2h_dy2(isnan(z0)) = nan;
+end
 
-    % Zero out flux terms for perimeter-adjacent neighbors
-    d2h_dx2(perimeter_shift_xp(2:end-1, :)) = max(d2h_dx2(perimeter_shift_xp(2:end-1, :)), 0);
-    d2h_dx2(perimeter_shift_xm(2:end-1, :)) = min(d2h_dx2(perimeter_shift_xm(2:end-1, :)), 0);
+function [Fx, Fy] = compute_fluxes_conservative(h, z0, K, dx, dy, dt, Sy)
+    % Returns conservative, flux-limited interface fluxes
+    H = max(h - z0, 0);
+    [nRows, nCols] = size(h);
 
-    d2h_dy2(perimeter_shift_yp(:, 2:end-1)) = max(d2h_dy2(perimeter_shift_yp(:, 2:end-1)), 0);
-    d2h_dy2(perimeter_shift_ym(:, 2:end-1)) = min(d2h_dy2(perimeter_shift_ym(:, 2:end-1)), 0);
-  
-    % Set any remaining NaNs to zero
-    d2h_dx2(isnan(d2h_dx2)) = 0; d2h_dx2(isnan(z0)) = nan;
-    d2h_dy2(isnan(d2h_dy2)) = 0; d2h_dy2(isnan(z0)) = nan;
+    % === X-direction fluxes ===
+    Hx = 0.5 * (H(:,1:end-1) + H(:,2:end));
+    Kx = 0.5 * (K(:,1:end-1) + K(:,2:end));
+    dHdx = (h(:,2:end) - h(:,1:end-1)) / dx;
+    Fx = -Kx .* Hx .* dHdx;
+
+    donor_Hx = H(:,1:end-1);
+    max_flux_x = Sy(:,1:end-1) .* donor_Hx / dt;
+    Fx = sign(Fx) .* min(abs(Fx), max_flux_x);
+    Fx(isnan(H(:,2:end))) = 0;
+
+    % === Y-direction fluxes ===
+    Hy = 0.5 * (H(1:end-1,:) + H(2:end,:));
+    Ky = 0.5 * (K(1:end-1,:) + K(2:end,:));
+    dHdy = (h(2:end,:) - h(1:end-1,:)) / dy;
+    Fy = -Ky .* Hy .* dHdy;
+
+    donor_Hy = H(1:end-1,:);
+    max_flux_y = Sy(1:end-1,:) .* donor_Hy / dt;
+    Fy = sign(Fy) .* min(abs(Fy), max_flux_y);
+    Fy(isnan(H(2:end,:))) = 0;
+end
+
+function div = compute_flux_divergence(Fx, Fy, dx, dy)
+    % Converts interface fluxes into divergence (per cell)
+    [nRows, nCols_minus1] = size(Fx);
+    nCols = nCols_minus1 + 1;
+    div_x = zeros(nRows, nCols);
+    div_x(:,2:end-1) = (Fx(:,2:end) - Fx(:,1:end-1)) / dx;
+    div_x(:,1) = Fx(:,1) / dx;
+    div_x(:,end) = -Fx(:,end) / dx;
+
+    [nRows_minus1, nCols] = size(Fy);
+    nRows = nRows_minus1 + 1;
+    div_y = zeros(nRows, nCols);
+    div_y(2:end-1,:) = (Fy(2:end,:) - Fy(1:end-1,:)) / dy;
+    div_y(1,:) = Fy(1,:) / dy;
+    div_y(end,:) = -Fy(end,:) / dy;
+
+    div = div_x + div_y;
 end
 
 
-
-% function [d2h_dx2, d2h_dy2] = compute_gradients(h, z0, K, dx, dy, depth_threshold, perimeter)
-%     % Ensure non-negative depths
-%     H = max(h - z0,0);  % Water surface depth
+% function [d2h_dx2, d2h_dy2, mass_error] = compute_gradients_conservative(h, z0, K, dx, dy, dt, Sy)
+%     % Mass-conservative groundwater gradient computation
+%     % Ensures symmetric fluxes and performs internal mass balance check
+% 
+%     [nRows, nCols] = size(h);
+%     H = max(h - z0, 0);  
 %     H(isnan(z0)) = nan;
 % 
-%     % Define maximum allowable gradient (based on physical considerations)
-%     alpha = 100; % Tuning parameter
-%     L = 1/2*(dx+dy);      % Characteristic length, e.g., grid spacing in x-direction [m]
-%     G_max = alpha * (H / L); % Maximum gradient [m/m]
+%     % Initialize interface fluxes
+%     Fx = zeros(nRows, nCols-1);  % x-direction (cols)
+%     Fy = zeros(nRows-1, nCols);  % y-direction (rows)
 % 
-%     % Gradient threshold
-%     Gradient_threshold = depth_threshold / L;
+%     %% === X-direction fluxes (left to right) ===
+%     for j = 1:nCols-1
+%         hL = h(:, j); hR = h(:, j+1);
+%         HL = H(:, j); HR = H(:, j+1);
+%         Kx = 0.5 * (K(:, j) + K(:, j+1));
+%         dHdx = (hR - hL) / dx;
 % 
-%     % Compute regularized harmonic mean for conductivities
-%     reg_eps = 1e-8; % Small value to avoid division by zero
-%     Kx_p = 2 * (K(2:end-1, :) .* K(1:end-2, :)) ./ (K(2:end-1, :) + K(1:end-2, :) + reg_eps);
-%     Kx_m = 2 * (K(1:end-2, :) .* K(2:end-1, :)) ./ (K(1:end-2, :) + K(2:end-1, :) + reg_eps);
+%         raw_flux = -Kx .* 0.5 .* (HL + HR) .* dHdx;
+%         max_flux = Sy(:, j) .* HL / dt;
 % 
-%     Ky_p = 2 * (K(:, 2:end-1) .* K(:, 1:end-2)) ./ (K(:, 2:end-1) + K(:, 1:end-2) + reg_eps);
-%     Ky_m = 2 * (K(:, 1:end-2) .* K(:, 2:end-1)) ./ (K(:, 1:end-2) + K(:, 2:end-1) + reg_eps);
+%         capped_flux = sign(raw_flux) .* min(abs(raw_flux), max_flux);
+%         capped_flux(isnan(HR)) = 0;  % No flux into NaN
 % 
-%     % Compute gradients with mixed central-upwind scheme
-%     hx_p = mean_function(H(2:end-1, :), H(1:end-2, :),2,depth_threshold); % Right side conductivity
-%     hx_m = mean_function(H(1:end-2, :), H(2:end-1, :),2,depth_threshold); % Left side conductivity
+%         Fx(:, j) = capped_flux;
+%     end
 % 
-%     hy_p = mean_function(H(:, 2:end-1), H(:, 1:end-2) ,2,depth_threshold); % Upward conductivity
-%     hy_m = mean_function(H(:, 1:end-2), H(:, 2:end-1),2,depth_threshold); % Downward conductivity
+%     %% === Y-direction fluxes (top to bottom) ===
+%     for i = 1:nRows-1
+%         hT = h(i, :); hB = h(i+1, :);
+%         HT = H(i, :); HB = H(i+1, :);
+%         Ky = 0.5 * (K(i, :) + K(i+1, :));
+%         dHdy = (hB - hT) / dy;
 % 
-%     % Apply hybrid central-upwind differencing
-%     Grad_x_fwd = (h(3:end,:) - h(2:end-1,:)) / dx;  
-%     Grad_x_bwd = (h(2:end-1,:) - h(1:end-2,:)) / dx;  
+%         raw_flux = -Ky .* 0.5 .* (HT + HB) .* dHdy;
+%         max_flux = Sy(i, :) .* HT / dt;
 % 
-%     % Apply gradient limiter
-%     Grad_x_fwd = sign(Grad_x_fwd) .* min(abs(Grad_x_fwd), G_max(2:end-1,:));
-%     Grad_x_bwd = sign(Grad_x_bwd) .* min(abs(Grad_x_bwd), G_max(2:end-1,:));
+%         capped_flux = sign(raw_flux) .* min(abs(raw_flux), max_flux);
+%         capped_flux(isnan(HB)) = 0;
 % 
-%     Grad_y_fwd = (h(:, 3:end) - h(:, 2:end-1)) / dy;  
-%     Grad_y_bwd = (h(:, 2:end-1) - h(:, 1:end-2)) / dy;  
+%         Fy(i, :) = capped_flux;
+%     end
 % 
-%     % Apply gradient limiter
-%     Grad_y_fwd = sign(Grad_y_fwd) .* min(abs(Grad_y_fwd), G_max(:,2:end-1));
-%     Grad_y_bwd = sign(Grad_y_bwd) .* min(abs(Grad_y_bwd), G_max(:,2:end-1));
+%     %% === Compute divergence from fluxes ===
+%     d2h_dx2 = zeros(nRows, nCols);
+%     d2h_dy2 = zeros(nRows, nCols);
 % 
-%     % Use central difference where gradients are small, upwind where steep
-%     Grad_x = 0.5 * (Grad_x_fwd + Grad_x_bwd) .* (abs(Grad_x_fwd - Grad_x_bwd) < Gradient_threshold) ...
-%            + Grad_x_fwd .* (abs(Grad_x_fwd - Grad_x_bwd) >= Gradient_threshold & Grad_x_fwd > 0) ...
-%            + Grad_x_bwd .* (abs(Grad_x_fwd - Grad_x_bwd) >= Gradient_threshold & Grad_x_fwd <= 0);
+%     d2h_dx2(:, 2:end-1) = (Fx(:, 2:end) - Fx(:, 1:end-1)) / dx;
+%     d2h_dx2(:, 1) = Fx(:, 1) / dx;
+%     d2h_dx2(:, end) = -Fx(:, end) / dx;
 % 
-%     Grad_y = 0.5 * (Grad_y_fwd + Grad_y_bwd) .* (abs(Grad_y_fwd - Grad_y_bwd) < Gradient_threshold) ...
-%            + Grad_y_fwd .* (abs(Grad_y_fwd - Grad_y_bwd) >= Gradient_threshold & Grad_y_fwd > 0) ...
-%            + Grad_y_bwd .* (abs(Grad_y_fwd - Grad_y_bwd) >= Gradient_threshold & Grad_y_fwd <= 0);
+%     d2h_dy2(2:end-1, :) = (Fy(2:end, :) - Fy(1:end-1, :)) / dy;
+%     d2h_dy2(1, :) = Fy(1, :) / dy;
+%     d2h_dy2(end, :) = -Fy(end, :) / dy;
 % 
-%     % Compute second derivatives
-%     d2h_dx2 = (Kx_p .* hx_p .* Grad_x - Kx_m .* hx_m .* Grad_x) / dx;
-%     d2h_dy2 = (Ky_p .* hy_p .* Grad_y - Ky_m .* hy_m .* Grad_y) / dy;
+%     %% === Mass Balance Check ===
+%     total_flux_out = nansum(Fx(:)) * dy + nansum(Fy(:)) * dx;
+%     total_divergence = nansum(nansum((d2h_dx2 + d2h_dy2) * dx * dy));
+%     mass_error = total_flux_out - total_divergence;
 % 
-%     % Identify perimeter-adjacent neighbors
-%     perimeter_shift_xp = [perimeter(2:end, :); false(1, size(perimeter, 2))];
-%     perimeter_shift_xm = [false(1, size(perimeter, 2)); perimeter(1:end-1, :)];
-%     perimeter_shift_yp = [perimeter(:, 2:end), false(size(perimeter, 1), 1)];
-%     perimeter_shift_ym = [false(size(perimeter, 1), 1), perimeter(:, 1:end-1)];
+%     if abs(mass_error) > 1e-10
+%         warning("⚠️ Mass imbalance in compute_gradients_conservative: %.3e m³", mass_error);
+%     end
 % 
-%     % Zero out flux terms for perimeter-adjacent neighbors
-%     d2h_dx2(perimeter_shift_xp(2:end-1, :)) = max(d2h_dx2(perimeter_shift_xp(2:end-1, :)), 0);
-%     d2h_dx2(perimeter_shift_xm(2:end-1, :)) = min(d2h_dx2(perimeter_shift_xm(2:end-1, :)), 0);
-% 
-%     d2h_dy2(perimeter_shift_yp(:, 2:end-1)) = max(d2h_dy2(perimeter_shift_yp(:, 2:end-1)), 0);
-%     d2h_dy2(perimeter_shift_ym(:, 2:end-1)) = min(d2h_dy2(perimeter_shift_ym(:, 2:end-1)), 0);
-% 
-%     % Ensure no NaN values
-%     d2h_dx2(isnan(d2h_dx2)) = 0;
-%     d2h_dy2(isnan(d2h_dy2)) = 0;
+%     % Optional cleanup
+%     d2h_dx2(isnan(z0)) = nan;
+%     d2h_dy2(isnan(z0)) = nan;
 % end
 
-% Compute the maximum stable time step based on the Courant condition 
-% (not quite correct) 
-% function dt_max = compute_stable_dt(K, Sy, dx, dy, Courant)
-%     dt_max = (Sy ./ K) .* ((dx^2 * dy^2) / (2 * (dx^2 + dy^2)));
-%     dt_max = Courant * dt_max; % Apply a safety factor
-%     dt_max(isinf(dt_max)) = nan;
-%     dt_max = min(min(dt_max));
-% end
+
+
+function [d2h_dx2, d2h_dy2] = compute_gradients_conservative(h, z0, K, dx, dy, dt, Sy)
+    % Computes divergence of groundwater flux with per-interface flux limiting
+    % Ensures no cell loses more mass than it contains (local conservation)
+
+    [nRows, nCols] = size(h);
+    H = max(h - z0, 0);  % Depth above bedrock
+
+    % === X-direction (across columns) ===
+    Hx = 0.5 * (H(:,1:end-1) + H(:,2:end));
+    Kx = 0.5 * (K(:,1:end-1) + K(:,2:end));
+    dHdx = (h(:,2:end) - h(:,1:end-1)) / dx;
+    Fx = -Kx .* Hx .* dHdx;  % Darcy flux from col j to j+1 (same row)
+
+    % Limit flux by available mass in donor cells (column j)
+    donor_Hx = H(:,1:end-1);  % depth in donor cell
+    max_flux = Sy(:,1:end-1) .* donor_Hx / dt;  % [m/s] maximum outflow allowed
+    Fx = sign(Fx) .* min(abs(Fx), max_flux);  % cap the flux but preserve direction
+
+    % Enforce no flux into NaNs
+    Fx(isnan(H(:,2:end))) = 0;
+
+    % Divergence in x-direction
+    d2h_dx2 = zeros(nRows, nCols);
+    d2h_dx2(:,2:end-1) = (Fx(:,2:end) - Fx(:,1:end-1)) / dx;
+    d2h_dx2(:,1) = Fx(:,1) / dx;
+    d2h_dx2(:,end) = -Fx(:,end) / dx;
+
+    % === Y-direction (across rows) ===
+    Hy = 0.5 * (H(1:end-1,:) + H(2:end,:));
+    Ky = 0.5 * (K(1:end-1,:) + K(2:end,:));
+    dHdy = (h(2:end,:) - h(1:end-1,:)) / dy;
+    Fy = -Ky .* Hy .* dHdy;  % Darcy flux from row i to i+1 (same column)
+
+    % Limit flux by available mass in donor cells (row i)
+    donor_Hy = H(1:end-1,:);
+    max_flux_y = Sy(1:end-1,:) .* donor_Hy / dt;
+    Fy = sign(Fy) .* min(abs(Fy), max_flux_y);
+
+    Fy(isnan(H(2:end,:))) = 0;
+
+    % Divergence in y-direction
+    d2h_dy2 = zeros(nRows, nCols);
+    d2h_dy2(2:end-1,:) = (Fy(2:end,:) - Fy(1:end-1,:)) / dy;
+    d2h_dy2(1,:) = Fy(1,:) / dy;
+    d2h_dy2(end,:) = -Fy(end,:) / dy;
+
+    % Mask NaNs
+    d2h_dx2(isnan(z0)) = nan;
+    d2h_dy2(isnan(z0)) = nan;
+end
+
+
 
 function dt_max = compute_stable_dt(u_x, u_y, dx, dy, Courant)
     dt_max = min(Courant*dx./abs(u_x), Courant*dy./abs(u_y));
     dt_max = min(min(dt_max));
     dt_max(isinf(dt_max)) = nan;
 end
-
+% 
 function h = apply_free_flow_bc(h, mask)
-[Nx, Ny] = size(h);
+[Ny, Nx] = size(h);
 
-for i = 2:Nx-1
-    for j = 2:Ny-1
+for i = 2:Ny-1
+    for j = 2:Nx-1
         if ~mask(i, j) % If it's outside the catchment
             % free_flow BC: Set to nearest interior neighbor
             if mask(i-1, j), h(i, j) = h(i-1, j); end
@@ -604,35 +544,35 @@ Sy(:, ny) = (DEM(:, ny) - DEM(:, ny-1)) / dy;  % Backward difference for top bou
 end
 
 function [vx, vy] = compute_boussinesq_velocities(h, K, dx, dy)
-% COMPUTE_BOUSSINESQ_VELOCITIES - Computes groundwater velocities from the Boussinesq equation
-% using Darcy's law.
+% COMPUTE_BOUSSINESQ_VELOCITIES - Computes groundwater velocities using Darcy's law
+% where x = columns (horizontal) and y = rows (vertical).
 %
 % Inputs:
-% - h: Hydraulic head matrix [m] (nx, ny)
-% - K: Hydraulic conductivity matrix [m/s] (nx, ny)
-% - dx: Grid spacing in x-direction [m]
-% - dy: Grid spacing in y-direction [m]
+%   h  - Hydraulic head [m], size (ny, nx) => [rows, cols]
+%   K  - Hydraulic conductivity [m/s], size (ny, nx)
+%   dx - Grid spacing in x-direction [m] (columns)
+%   dy - Grid spacing in y-direction [m] (rows)
 %
 % Outputs:
-% - vx: Groundwater velocity in x-direction [m/s] (nx-1, ny)
-% - vy: Groundwater velocity in y-direction [m/s] (nx, ny-1)
+%   vx - Velocity in x-direction [m/s], size (ny, nx-1) — between columns
+%   vy - Velocity in y-direction [m/s], size (ny-1, nx) — between rows
 
-[nx, ny] = size(h);
+[ny, nx] = size(h);  % rows (Y), cols (X)
 
-% Compute harmonic mean of hydraulic conductivity at cell interfaces
-Kx = 2 ./ (1./K(1:nx-1, :) + 1./K(2:nx, :)); % Interface values in x-direction
-Ky = 2 ./ (1./K(:, 1:ny-1) + 1./K(:, 2:ny)); % Interface values in y-direction
+% Arithmetic mean of K at interfaces
+Kx = 0.5 * (K(:, 1:nx-1) + K(:, 2:nx));   % Between columns
+Ky = 0.5 * (K(1:ny-1, :) + K(2:ny, :));   % Between rows
 
-% Compute hydraulic head gradients using central differences
-dhdx = (h(2:nx, :) - h(1:nx-1, :)) / dx;  % Gradient in x-direction
-dhdy = (h(:, 2:ny) - h(:, 1:ny-1)) / dy;  % Gradient in y-direction
+% Head gradients (forward difference on staggered grid)
+dhdx = (h(:, 2:nx) - h(:, 1:nx-1)) / dx;  % Gradient in x (columns)
+dhdy = (h(2:ny, :) - h(1:ny-1, :)) / dy;  % Gradient in y (rows)
 
-% Compute velocities using Darcy's law
-vx = -Kx .* dhdx; % x-component of groundwater velocity
-vy = -Ky .* dhdy; % y-component of groundwater velocity
+% Darcy velocity components
+vx = -Kx .* dhdx;  % x-component of velocity (cols)
+vy = -Ky .* dhdy;  % y-component of velocity (rows)
 
-% Include boundary faces
-vx(end+1,:) = nan;
-vy(:,end+1) = nan;
+% Pad with NaNs for full-grid compatibility (optional)
+vx(:, end+1) = nan;  % pad last column
+vy(end+1, :) = nan;  % pad last row
 
 end

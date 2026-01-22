@@ -203,7 +203,9 @@ if flags.flag_rainfall > 0
                 else
                     [spatial_rainfall] = Rainfall_Interpolator(Spatial_Rainfall_Parameters.x_coordinate,Spatial_Rainfall_Parameters.y_coordinate,rainfall,Spatial_Rainfall_Parameters.x_grid,Spatial_Rainfall_Parameters.y_grid); % Interpolated Values
                     spatial_rainfall(idx_nan) = nan;
-                    spatial_rainfall = spatial_rainfall / 24; % DELETEEEEE
+                    % spatial_rainfall = ones(size(spatial_rainfall)) * 10; %  mm/h
+                    % spatial_rainfall(idx_nan) = nan; % DELETEE
+                    % spatial_rainfall = spatial_rainfall / 24; % DELETEEEEE
                 end
 
                 if nansum(nansum(spatial_rainfall)) > 0
@@ -260,15 +262,18 @@ if flags.flag_rainfall > 0
             %         input_rainfall = raster_cutter(DEM_raster,rR,input_rainfall,1);
             %     end
             % catch
-                [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input}{1}));
+                [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input}));
+                if max(max(input_rainfall)) > 0
+                    ttt = 1;
+                end
                 if rR.CellExtentInWorldX ~= GIS_data.resolution_resample
                     input_rainfall = raster_cutter(DEM_raster,rR,input_rainfall,0);
                     if max(max(input_rainfall.Z)) > 300 % Very unlikely to have a value like this
                         warning('Rainfall values larger than 300 mm/h. We are neglecting this raster and collecting the previous one for this time-step.')
-                        [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input - 1}{1}),'CoordinateSystemType','geographic');                
+                        [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input - 1}),'CoordinateSystemType','geographic');                
                     elseif isnan(sum(input_rainfall.Z(~idx_nan)))
                         warning('Rainfall has nan values inside of the domain. Using the previous rainfall as input for this time-step.')
-                        [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input - 1}{1}),'CoordinateSystemType','geographic');                                    
+                        [input_rainfall,rR] = readgeoraster(string(Input_Rainfall.labels_Directory{z2_input - 1}),'CoordinateSystemType','geographic');                                    
                     end
                 end
             % end

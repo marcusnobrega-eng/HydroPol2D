@@ -17,7 +17,7 @@
 % similarly:
 % C_a = river surface area [m2]
 
-function [q,C_a] = subgrid_channel_functions(h, w, zc,dx, nc, Qc_prev,Qci_prev, g, dt, idx_rivers, Subgrid_Properties)
+function [q,C_a] = subgrid_channel_functions(h, w, zc,dx, nc, Qc_prev,Qci_prev, g, dt, idx_rivers, Subgrid_Properties, SubgridTables)
 
     % --------- Channel Calculations ----------- %
     yc = h + zc; % Channel head [m]
@@ -44,11 +44,15 @@ function [q,C_a] = subgrid_channel_functions(h, w, zc,dx, nc, Qc_prev,Qci_prev, 
     % Compute flow width for all cells with their respective h_targets
     h(isnan(h)) = 0;
     hfcflow(mask) = 0;
+    
+    % Polynomial
+    % [Ac(:,:,1), Ac(:,:,2), hydraulic_radius(:,:,1), hydraulic_radius(:,:,2)] = Compute_Subgrid_Properties_Polynomialwise(Subgrid_Properties.A_east_spline, ...
+    %                                                Subgrid_Properties.A_north_spline, Subgrid_Properties.Rh_east_spline, Subgrid_Properties.Rh_north_spline, ...
+    %                                                yc, zc, Subgrid_Properties.invert_el);
 
-    [Ac(:,:,1), Ac(:,:,2), hydraulic_radius(:,:,1), hydraulic_radius(:,:,2)] = Compute_Subgrid_Properties_Polynomialwise(Subgrid_Properties.A_east_spline, ...
-                                                   Subgrid_Properties.A_north_spline, Subgrid_Properties.Rh_east_spline, Subgrid_Properties.Rh_north_spline, ...
-                                                   yc, zc, Subgrid_Properties.invert_el);
-
+    % Lookup Tables
+    [Ac(:,:,1), ~, hydraulic_radius(:,:,1), ~] = Compute_Subgrid_Properties_Lookupwise(SubgridTables, yc, zc, 'east');
+    [~, Ac(:,:,2), ~, hydraulic_radius(:,:,2)] = Compute_Subgrid_Properties_Lookupwise(SubgridTables, yc, zc, 'north');
 
     % Channel Effective Flow Width
     wc_flow = width_function(w,nan_col,nan_row);
@@ -70,7 +74,7 @@ function [q,C_a] = subgrid_channel_functions(h, w, zc,dx, nc, Qc_prev,Qci_prev, 
     % Rc = cellfun(@(func, h) func(h) * ~isempty(func), Subgrid_Properties.hydraulic_radius, num2cell(h));
 
     % Channel Flow
-    Qc_prev(:,:,3:4) = Qci_prev;
+    Qc_prev(:,:,3:4) = Qci_prev * dx;
     Qc = (Qc_prev - g.*Acflow.*dt.*Sc)./(1 + g*dt.*nc.^2.*abs(Qc_prev)./(Rc.^(4/3).*Acflow)); % m3/s
     Qc(mask) = 0;
     Qc(isnan(Qc)) = 0;
@@ -179,10 +183,12 @@ function [Area_east, Area_north, Rh_east, Rh_north] = Compute_Subgrid_Properties
         % Rh_east = Rh_east + Rh_east_coeffs(:,:,i).*(yc - invert_el).^i;
         % Rh_north = Rh_north + Rh_north_coeffs(:,:,i).*(yc - invert_el).^i;
 
-        Area_east = Area_east + A_east_coeffs(:,:,i).*(yc - zc).^i;
-        Area_north = Area_north + A_north_coeffs(:,:,i).*(yc - zc).^i;
-        Rh_east = Rh_east + Rh_east_coeffs(:,:,i).*(yc - zc).^i;
-        Rh_north = Rh_north + Rh_north_coeffs(:,:,i).*(yc - zc).^i;
+        exp = i - 1;
+
+        Area_east = Area_east + A_east_coeffs(:,:,i).*(yc - zc).^exp;
+        Area_north = Area_north + A_north_coeffs(:,:,i).*(yc - zc).^exp;
+        Rh_east = Rh_east + Rh_east_coeffs(:,:,i).*(yc - zc).^exp;
+        Rh_north = Rh_north + Rh_north_coeffs(:,:,i).*(yc - zc).^exp;
     end
     
     % Area_east = polyval(reshape(A_east_coeffs, nrows * ncols, []), repmat(Depths(:),2)); % Evaluates Area_east for all depths in a vectorized way
@@ -201,4 +207,109 @@ function [Area_east, Area_north, Rh_east, Rh_north] = Compute_Subgrid_Properties
     Area_north = max(Area_north, 1e-12);
     Rh_east = max(Rh_east, 1e-12);
     Rh_north = max(Rh_north, 1e-12);
+end
+
+
+function [Area_east, Area_north, Rh_east, Rh_north] = Compute_Subgrid_Properties_Lookupwise(SubgridTables, yc, zc, direction)
+%--------------------------------------------------------------------------
+% Fully matrix-based subgrid interpolation (no for loops, no interp1)
+%
+% INPUTS:
+%   SubgridTables - Struct with .depths, .area_*, .Rh_*, all size [nrows x ncols x nz]
+%   yc, zc        - Water surface and bed elevation [nrows x ncols]
+%   direction     - 'east' or 'north'
+%
+% OUTPUTS:
+%   Area_east / Area_north - Interpolated flow area [m²]
+%   Rh_east   / Rh_north   - Interpolated hydraulic radius [m]
+%--------------------------------------------------------------------------
+
+[nrows, ncols, nz] = size(SubgridTables.depths);
+N = nrows * ncols;
+
+% Flatten depth
+depth = max(yc - zc, 0);         % [nrows x ncols]
+depth_flat = reshape(depth, [N 1]);  % [N x 1]
+
+% Choose fields
+switch lower(direction)
+    case 'east'
+        area_table = SubgridTables.area_east;
+        rh_table   = SubgridTables.Rh_east;
+    case 'north'
+        area_table = SubgridTables.area_north;
+        rh_table   = SubgridTables.Rh_north;
+    otherwise
+        error('Invalid direction');
+end
+
+% Reshape to [N x nz]
+depths_all = reshape(SubgridTables.depths, [N, nz]);      % [N x nz]
+areas_all  = reshape(area_table, [N, nz]);
+rhs_all    = reshape(rh_table,   [N, nz]);
+
+% Mask invalid rows
+valid_mask = ~isnan(depths_all) & ~isnan(areas_all) & ~isnan(rhs_all);
+
+% Initialize output
+Area_flat = zeros(N, 1);
+Rh_flat   = ones(N, 1) * 1e-12;
+
+% For each cell, find bounding indices
+above = depths_all >= depth_flat;     % [N x nz]
+below = depths_all <= depth_flat;     % [N x nz]
+
+% First above (min depth >= d)
+above_idx = max(above .* (1:nz), [], 2);  % [N x 1]
+above_idx(above_idx == 0) = 1;
+
+% Last below (max depth <= d)
+below_idx = max(below .* (1:nz), [], 2); % [N x 1]
+below_idx(below_idx == 0) = 1;
+
+% Make sure they’re not the same
+same_idx = (above_idx == below_idx);
+above_idx(same_idx & above_idx < nz) = above_idx(same_idx & above_idx < nz) + 1;
+
+% Linear indices for lookup
+idx_upper = sub2ind([N, nz], (1:N)', above_idx);
+idx_lower = sub2ind([N, nz], (1:N)', below_idx);
+
+% Fetch values
+x1 = depths_all(idx_lower);
+x2 = depths_all(idx_upper);
+A1 = areas_all(idx_lower);
+A2 = areas_all(idx_upper);
+R1 = rhs_all(idx_lower);
+R2 = rhs_all(idx_upper);
+
+% Avoid divide-by-zero
+dx = max(x2 - x1, 1e-6);
+alpha = (depth_flat - x1) ./ dx;
+
+% Interpolate
+Area_flat = A1 + alpha .* (A2 - A1);
+Rh_flat   = R1 + alpha .* (R2 - R1);
+
+% Apply floor
+Area_flat = max(Area_flat, 1e-12);
+Rh_flat   = max(Rh_flat, 1e-12);
+
+% Reshape to 2D
+Area_out = reshape(Area_flat, nrows, ncols);
+Rh_out   = reshape(Rh_flat,   nrows, ncols);
+
+% Output assignment
+if strcmp(direction, 'east')
+    Area_east = Area_out;
+    Area_north = [];
+    Rh_east = Rh_out;
+    Rh_north = [];
+else
+    Area_north = Area_out;
+    Area_east = [];
+    Rh_north = Rh_out;
+    Rh_east = [];
+end
+
 end

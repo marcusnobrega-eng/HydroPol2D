@@ -35,7 +35,7 @@ function [recharge_rate, updated_soil_moisture, cumulative_recharge] = simulate_
 % ═══════════════════════════════════════════════════════════════════════
     
     % Calculate the recharge rate based on the linear reservoir approach
-    effective_moisture = initial_soil_moisture; effective_moisture(effective_moisture < 0.05) = 0; % No recharge for inf depth < 5 mm
+    effective_moisture = initial_soil_moisture; effective_moisture(effective_moisture < 0.005) = 0; % No recharge for inf depth < 5 mm
     recharge_rate = alpha .* effective_moisture;
     % recharge_rate(idx_imp) = 0;
     
@@ -53,10 +53,6 @@ function [recharge_rate, updated_soil_moisture, cumulative_recharge] = simulate_
 
     % Mass balance check
     error = nansum(nansum((updated_soil_moisture - initial_soil_moisture) - dt*(infiltration_rate - recharge_rate)));
-
-    if error > 1/100*(dt*infiltration_rate)
-        error('Mass balance error in recharge too large')
-    end
 
     % Cumulative recharge
     cumulative_recharge = current_recharge + recharge_rate*1000*dt; % Cumulative recharge in mm

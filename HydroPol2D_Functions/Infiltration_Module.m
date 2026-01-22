@@ -236,7 +236,13 @@ errors(4) = error; % m3
 if k == 1
     cumulative_infiltration = ones(size(DEM_raster.Z)); cumulative_infiltration(isnan(cumulative_infiltration)) = nan;
 end
-cumulative_infiltration = cumulative_infiltration + Hydro_States.f/1000/3600 * (time_step/60); % [mm]
+
+if flags.flag_infiltration == 1
+    cumulative_infiltration = cumulative_infiltration + Hydro_States.f/1000/3600 * (time_step/60); % [mm]
+else
+    Hydro_States.f = 0*elevation;
+    inf_volume = 0*elevation;
+end
 
 
 %%%% Local Functions %%%%

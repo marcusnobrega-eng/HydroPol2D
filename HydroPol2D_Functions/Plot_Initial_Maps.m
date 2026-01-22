@@ -115,6 +115,7 @@ zlabel ('$n$ ($\mathrm{sm^{-1/3}}$)','Interpreter','Latex','FontSize',12)
 set(gca, 'FontName', 'Garamond', 'FontSize', 12)
 set(gca, 'TickLength', [0.02 0.01]);
 set(gca,'Tickdir','out')
+format_chart(); % apply styling
 % ---------- h_0 --------------- %
 
 ax2 = subplot(3,2,2);
@@ -164,6 +165,7 @@ zlabel ('$h_0$ ($\mathrm{mm}$)','Interpreter','Latex','FontSize',12)
 set(gca, 'FontName', 'Garamond', 'FontSize', 12)
 set(gca, 'TickLength', [0.02 0.01]);
 set(gca,'Tickdir','out')
+format_chart(); % apply styling
 
 % ----------  k_sat ------------- %
 ax3 = subplot(3,2,3);
@@ -213,6 +215,7 @@ zlabel ('$k_{sat}$ ($\mathrm{mm/h}$)','Interpreter','Latex','FontSize',12)
 set(gca, 'FontName', 'Garamond', 'FontSize', 12)
 set(gca, 'TickLength', [0.02 0.01]);
 set(gca,'Tickdir','out')
+format_chart(); % apply styling
 
 % ----------  dtheta ------------- %
 ax4 = subplot(3,2,4);
@@ -262,6 +265,7 @@ zlabel ('$\Delta \theta$ ($\mathrm{cm^3.cm^{-3}}$)','Interpreter','Latex','FontS
 set(gca, 'FontName', 'Garamond', 'FontSize', 12)
 set(gca, 'TickLength', [0.02 0.01]);
 set(gca,'Tickdir','out')
+format_chart(); % apply styling
 
 % ----------  F_0 ------------- %
 ax5 = subplot(3,2,5);
@@ -310,6 +314,7 @@ zlabel ('$I_0$ ($\mathrm{m}$)','Interpreter','Latex','FontSize',12)
 set(gca, 'FontName', 'Garamond', 'FontSize', 12)
 set(gca, 'TickLength', [0.02 0.01]);
 set(gca,'Tickdir','out')
+format_chart(); % apply styling
 
 % ----------  D_0 ------------- %
 ax6 = subplot(3,2,6);
@@ -359,8 +364,58 @@ zlabel ('$d_{0}^0$ ($\mathrm{m}$)','Interpreter','Latex','FontSize',12)
 set(gca, 'FontName', 'Garamond', 'FontSize', 12)
 set(gca, 'TickLength', [0.02 0.01]);
 set(gca,'Tickdir','out')
+format_chart(); % apply styling
 
 exportgraphics(gcf,fullfile(strcat('Modeling_Results','\','Input_Maps.TIF')),'ContentType','image','Colorspace','rgb','Resolution',300)
 
 
 close all
+
+function format_chart(ax)
+% FORMAT_CHART Applies consistent styling to axes and colorbars
+%   - Minor ticks inside
+%   - Major ticks outside
+%   - Axis box with thick borders
+%   - Tick direction, length, width
+%   - Colorbar styling
+%   - Font: Montserrat
+
+    if nargin < 1
+        ax = gca;
+    end
+
+    % Set Montserrat font (make sure it's installed in your system)
+    set(ax, 'FontName', 'Montserrat');
+
+    % Major ticks outside, minor ticks inside
+    ax.TickDir = 'out';
+    ax.TickDirMode = 'manual';
+    ax.TickLength = [0.02, 0.01]; % Adjust to taste
+
+    % Minor ticks
+    ax.XMinorTick = 'on';
+    ax.YMinorTick = 'on';
+    if ~isempty(ax.ZLim)
+        ax.ZMinorTick = 'on';
+    end
+
+    % Tick line width
+    ax.LineWidth = 2.5;
+
+    % Font size and weight
+    ax.FontSize = 12;
+    ax.FontWeight = 'normal';
+
+    % Box on for axis borders
+    box(ax, 'on');
+
+    % Find and format colorbar if it exists
+    cb = findall(gcf, 'Type', 'ColorBar');
+    for k = 1:length(cb)
+        cb(k).TickDirection = 'in';
+        cb(k).LineWidth = 2.5;
+        cb(k).FontName = 'Montserrat';
+        cb(k).FontSize = 12;
+        cb(k).TickLength = 0.01;
+    end
+end

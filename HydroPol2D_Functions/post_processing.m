@@ -4,7 +4,7 @@ simulation_time = toc;
 
 %% Coloramp
 [Spectrum,Depth_Purple,Terrain_RAS_ramp,blue_ramp,blues_2,pallete,Depth_RAS,Terrain_RAS,Velocity_RAS,WSE_RAS] = coloramps();
-
+addpath('Temporary_Files')
 %% Creating Modeling Results Folder
 % Create the folder name
 folderName = 'Modeling_Results';
@@ -88,6 +88,19 @@ else
     line_plot(gather(running_control.time_hydrograph),'\mathrm{Date} ','',gather(outlet_states.outlet_hydrograph),'\mathrm{Discharge} ','\mathrm{m^3 \cdot s^{-1}}',[],[],[],[],'Hydrograph',1,1);
 end
 yyaxis right; set(gca,'ydir','reverse','ycolor','black');
+
+
+if flags.flag_satellite_rainfall == 1
+    Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg = Spatial_Rainfall_Parameters.rainfall_spatial_duration;
+end
+
+if flags.flag_spatial_rainfall == 1 
+    if isdatetime(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1)) && ~isdatetime(Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg(1))
+        % Convert rainfall spatial aggregation to datetime
+        baseDate = Spatial_Rainfall_Parameters.rainfall_spatial_duration(1);
+        Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg = baseDate + Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg/1440;
+    end
+end
 if flags.flag_rainfall == 1
     if flags.flag_spatial_rainfall ~=1
         Rainfall_Parameters.time_rainfall = Rainfall_Parameters.time_rainfall(1:length(Rainfall_Parameters.intensity_rainfall));
@@ -96,7 +109,7 @@ if flags.flag_rainfall == 1
     else
         if flags.flag_rainfall == 1 && flags.flag_spatial_rainfall == 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_real_time_satellite_rainfall ~= 1 && flags.flag_satellite_rainfall ~= 1
             dim = length(BC_States.average_spatial_rainfall);
-            bar((gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim))))',gather(BC_States.average_spatial_rainfall),'FaceColor',pallete.blue_colors(2,:),'EdgeColor',[0 .5 .5],'LineWidth',1.5);
+            bar((gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg(1,1:(dim))))',gather(BC_States.average_spatial_rainfall),'FaceColor',pallete.blue_colors(2,:),'EdgeColor',[0 .5 .5],'LineWidth',1.5);
             ylabel('Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex'); ylim([0,max(BC_States.average_spatial_rainfall)*5]);
         else
             dim = length(BC_States.average_spatial_rainfall);
@@ -145,48 +158,67 @@ close all
 
 %% Stage and Hydrograph at the Outlet
 if flags.flag_obs_gauges == 1
-    set(gcf,'units','inches','position',[3,0,6.5,4])
+    set(gcf, 'Units', 'inches', 'Position', [3, 0, 6.5, 4]);  % Publication size
+
     if gauges.num_obs_gauges == 1
         color_plot = linspecer(2);
     else
         color_plot = linspecer(gauges.num_obs_gauges);
     end
-    font_size = 12;
+
+    font_size = 14;
+
     for i = 1:1
-        fsize = 12;
-        subplot(ceil(1),1,i)
+        subplot(1, 1, i)
+
+        % Left axis: Discharge
         yyaxis left;
-        set(gca,'ycolor',color_plot(1,:))
-        plot(gather(running_control.time_hydrograph),gather(outlet_states.outlet_hydrograph),'LineWidth',1.5','color',color_plot(1,:));
-        xlabel('Elapsed Time [min]','Interpreter','latex');
-        ylabel('Q $(\mathrm{m^3/s})$','interpreter','latex'); set(gca,'FontSize',12);
-        ylabel('Q $(\mathrm{m^3/s})$','interpreter','latex');
-        title('Outlet','FontName','Garamond')
-        yyaxis right
-        set(gca,'ycolor',color_plot(2,:))
-        plot(gather(running_control.time_hydrograph),gather(outlet_states.depth_outlet/1000),'LineWidth',1.5','linestyle','--','color',color_plot(2,:));
-        ylabel('h (m)','interpreter','latex')
+        set(gca, 'YColor', color_plot(1,:));
+        plot(gather(running_control.time_hydrograph), gather(outlet_states.outlet_hydrograph), ...
+            'LineWidth', 1.5, 'Color', color_plot(1,:));
+        xlabel('Elapsed Time', 'Interpreter', 'latex');
+        ylabel('$Q~(\mathrm{m^3/s})$', 'Interpreter', 'latex');
+
+        % Right axis: Stage
+        yyaxis right;
+        set(gca, 'YColor', color_plot(2,:));
+        plot(gather(running_control.time_hydrograph), gather(outlet_states.depth_outlet / 1000), ...
+            'LineWidth', 1.5, 'LineStyle', '--', 'Color', color_plot(2,:));
+        ylabel('$h~(\mathrm{m})$', 'Interpreter', 'latex');
+
+        % Styling
+        set(gca, 'FontSize', font_size);
+        set(gca, 'FontName', 'Helvetica');
+        set(gca, 'TickDir', 'out');
+        set(gca, 'LineWidth', 2);
         set(gca, 'TickLength', [0.02 0.01]);
-        set(gca,'Tickdir','out')
-        set(gca, 'FontName', 'Garamond', 'FontSize', font_size)
-        box on
+        box on;
+        grid on;
+        title('Outlet', 'Interpreter', 'latex', 'FontSize', font_size);
     end
+
+    % Export to vector PDF
     try
-        exportgraphics(gcf,fullfile(folderName,'Stage_Hydrograph_Outlet.pdf'),'ContentType','vector')
+        exportgraphics(gcf, fullfile(folderName, 'Stage_Hydrograph_Outlet.pdf'), 'ContentType', 'vector');
     catch
-        fprintf('No Stage hydrographs exported, pdf export error')
+        fprintf('No Stage hydrographs exported, PDF export error\n');
     end
-    saveas(gcf,fullfile(folderName,'Stage_Hydrograph_Outlet.fig'))
-    close all
+
+    % Save .fig file
+    saveas(gcf, fullfile(folderName, 'Stage_Hydrograph_Outlet.fig'));
+    close all;
 end
 
 
 %% Stage Hydrograph %%
 if flags.flag_obs_gauges == 1
     color_plots = linspecer(gauges.num_obs_gauges);
-    set(gcf,'units','inches','position',[3,0,9,5])
-    % Stage Hydrograph
-    % plot(gather(running_control.time_hydrograph),gather(wse_outlet_2),'LineWidth',1.5','color','black'); xlabel('Time [min]','interpreter','latex'); ylabel('Flow Discharge $(\mathrm{m^3/s})$','interpreter','latex'); set(gca,'FontSize',12);
+    set(gcf, 'Units', 'inches', 'Position', [3, 0, 9, 5]);
+
+    font_size = 14;
+    hold on;
+
+    % Plot gauge depths
     for i = 1:gauges.num_obs_gauges
         if mod(i,3) == 0
             ls = '--';
@@ -195,81 +227,110 @@ if flags.flag_obs_gauges == 1
         else
             ls = ':';
         end
-        set(gca,'ycolor','black')
-        plot(gather(running_control.time_hydrograph),gather(gauges.depth_cell(:,i)),'LineWidth',1.5,'linestyle',ls,'color',color_plots(i,:));
-        hold on
+        set(gca, 'YColor', 'black');
+        plot(gather(running_control.time_hydrograph), gather(gauges.depth_cell(:,i)), ...
+            'LineWidth', 1.5, 'LineStyle', ls, 'Color', color_plots(i,:));
     end
-    % Outlet
-    plot(gather(running_control.time_hydrograph),gather(outlet_states.depth_outlet/1000),'LineWidth',1.5,'linestyle',ls,'marker','.','color','red');
-    xlabel('Time ','interpreter','latex'); ylabel('Depth $(\mathrm{m})$','interpreter','latex'); set(gca,'FontSize',12);
-    hold on
-    yyaxis right; set(gca,'ydir','reverse','ycolor','black');
+
+    % Plot outlet depth
+    plot(gather(running_control.time_hydrograph), gather(outlet_states.depth_outlet / 1000), ...
+        'LineWidth', 1.5, 'LineStyle', ls, 'Marker', '.', 'Color', 'red');
+
+    xlabel('Time [min]', 'Interpreter', 'latex');
+    ylabel('Depth $[\mathrm{m}]$', 'Interpreter', 'latex');
+
+    % Formatting: left y-axis
+    set(gca, 'FontName', 'Helvetica', ...
+             'FontSize', font_size, ...
+             'TickDir', 'out', ...
+             'LineWidth', 2, ...
+             'TickLength', [0.02 0.01]);
+    box on;
+    grid on;
+
+    % Right y-axis: rainfall
+    yyaxis right;
+    set(gca, 'YDir', 'reverse', 'YColor', 'black');
+
     if flags.flag_rainfall == 1
-        if flags.flag_spatial_rainfall ~=1
-            bar(gather(Rainfall_Parameters.time_rainfall),gather(Rainfall_Parameters.intensity_rainfall),'FaceColor',[0 .55 .55],'EdgeColor',[0 .5 .5],'LineWidth',1.5)
-            ylabel('Rainfall Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex');
+        if flags.flag_spatial_rainfall ~= 1
+            bar(gather(Rainfall_Parameters.time_rainfall), gather(Rainfall_Parameters.intensity_rainfall), ...
+                'FaceColor', [0 0.55 0.55], 'EdgeColor', [0 0.5 0.5], 'LineWidth', 1.5);
+            ylabel('Rainfall Intensity $[\mathrm{mm \cdot h^{-1}}]$', 'Interpreter', 'latex');
         else
-            ylabel('Mean Rainfall Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex');
-            plot((gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim)))),gather(BC_States.average_spatial_rainfall),'LineWidth',1.5,'color','blue')
+            plot(gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1, 1:dim)), ...
+                 gather(BC_States.average_spatial_rainfall), ...
+                 'LineWidth', 1.5, 'Color', 'blue');
+            ylabel('Mean Rainfall Intensity $[\mathrm{mm \cdot h^{-1}}]$', 'Interpreter', 'latex');
         end
     end
-    labels_depth = gauges.labels_observed_string; labels_depth{gauges.num_obs_gauges+1} = 'Outlet';
+
+    % Legend
+    labels_depth = gauges.labels_observed_string;
+    labels_depth{gauges.num_obs_gauges + 1} = 'Outlet';
     labels_depth{gauges.num_obs_gauges + 2} = 'Rainfall Intensity';
-    legend(labels_depth,'FontName','Garamond','FontSize',8,'location','bestoutside')
+    legend(labels_depth, 'FontName', 'Helvetica', 'FontSize', 10, 'Location', 'bestoutside');
+
+    % Axis limit for rainfall
     try
-        ylim([0 max(max(gather(BC_States.average_spatial_rainfall)))*6]);
+        ylim([0, max(max(gather(BC_States.average_spatial_rainfall))) * 6]);
     catch
-        ylim([0 10]);
+        ylim([0, 10]);
     end
-    title('Surface Runoff Depth','interpreter','latex','fontsize',12)
-    set(gca, 'TickLength', [0.02 0.01]);
-    set(gca,'Tickdir','out')
-    set(gca,'FontName','Garamond','FontSize',12)
+
+    % Title
+    title('Surface Runoff Depth', 'Interpreter', 'latex', 'FontSize', font_size);
+
+    % Export
     try
-        exportgraphics(gcf,fullfile(folderName,'Stage_Hydrograph_Gauges.pdf'),'ContentType','vector')
+        exportgraphics(gcf, fullfile(folderName, 'Stage_Hydrograph_Gauges.pdf'), 'ContentType', 'vector');
     catch
-        fprintf('No stage hydrograph gauges saved, PDF export error')
+        fprintf('No stage hydrograph gauges saved, PDF export error\n');
     end
-    saveas(gcf,fullfile(folderName,'Stage_Hydrograph_Gauges.fig'))
-    close all
+
+    saveas(gcf, fullfile(folderName, 'Stage_Hydrograph_Gauges.fig'));
+    close all;
 end
+
 
 %% Normalized Discharge %%
 % Rainfall Std Deviation
-zero_matrix = zeros(size(Elevation_Properties.elevation_cell,1),size(Elevation_Properties.elevation_cell,2));
+zero_matrix = zeros(size(Elevation_Properties.elevation_cell,1), size(Elevation_Properties.elevation_cell,2));
 if flags.flag_spatial_rainfall == 1 && running_control.record_time_spatial_rainfall
-    store=1;
-    flag_loader=1;
+    store = 1;
+    flag_loader = 1;
     rainfall_sum = zeros(size(zero_matrix));
     for i = 1:length(running_control.time_records)
-        if i > saver_memory_maps*store
+        if i > saver_memory_maps * store
             store = store + 1;
-            load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+            load(strcat('Temporary_Files\save_map_hydro_', num2str(store)), 'Maps');
         else
             if flag_loader == 1
-                load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
-                flag_loader=0;
+                load(strcat('Temporary_Files\save_map_hydro_', num2str(store)), 'Maps');
+                flag_loader = 0;
             end
         end
         z = Maps.Hydro.spatial_rainfall_maps(:,:,i - ((store-1)*saver_memory_maps));
-        rainfall_sum = rainfall_sum + z; % mm/h
+        rainfall_sum = rainfall_sum + z;
         Rainfall_Parameters.std_dev(i,1) = nanstd(z(:));
     end
-    % for i = 1:size(Maps.Hydro.spatial_rainfall_maps,3)
-    %     z = Maps.Hydro.spatial_rainfall_maps(:,:,i);
-    %     Rainfall_Parameters.std_dev(i,1) = nanstd(z(:));
-    % end
 end
 
 if flags.flag_obs_gauges == 1 && flags.flag_rainfall == 1
-    % Catchment area of each gauge
+    % Compute catchment area per gauge
     for i = 1:length(gauges.easting_obs_gauges)
-        gauges.catchment_area(i,1) = Wshed_Properties.fac_area(gauges.northing_obs_gauges(i,1),gauges.easting_obs_gauges(i,1)); % km2
+        gauges.catchment_area(i,1) = Wshed_Properties.fac_area( ...
+            gauges.northing_obs_gauges(i,1), gauges.easting_obs_gauges(i,1)); % km²
     end
+
+    % Set up figure
     color_plots = linspecer(gauges.num_obs_gauges);
-    set(gcf,'units','inches','position',[3,0,9,5])
-    % Stage Hydrograph
-    % plot(gather(running_control.time_hydrograph),gather(wse_outlet_2),'LineWidth',1.5','color','black'); xlabel('Time [min]','interpreter','latex'); ylabel('Flow Discharge $(\mathrm{m^3/s})$','interpreter','latex'); set(gca,'FontSize',12);
+    set(gcf, 'Units', 'inches', 'Position', [3, 0, 9, 5]);
+    hold on;
+
+    font_size = 14;
+
+    % Plot specific discharge for each gauge
     for i = 1:gauges.num_obs_gauges
         if mod(i,3) == 0
             ls = '--';
@@ -278,228 +339,314 @@ if flags.flag_obs_gauges == 1 && flags.flag_rainfall == 1
         else
             ls = ':';
         end
-        set(gca,'ycolor','black')
-        specific_discharge = gauges.hydrograph_cell(:,i)/gauges.catchment_area(i,1) ; % m3/s/km2
-        plot(gather(running_control.time_hydrograph),specific_discharge,'LineWidth',1.5,'linestyle',ls,'color',color_plots(i,:));
-        hold on
+
+        specific_discharge = gauges.hydrograph_cell(:,i) ./ gauges.catchment_area(i,1); % m³/s/km²
+        plot(gather(running_control.time_hydrograph), specific_discharge, ...
+            'LineWidth', 1.5, 'LineStyle', ls, 'Color', color_plots(i,:));
     end
-    % Outlet
-    plot(gather(running_control.time_hydrograph),gather(outlet_states.outlet_hydrograph)/(Wshed_Properties.drainage_area/1000/1000),'LineWidth',1.5,'linestyle',ls,'marker','.','color','red');
-    xlabel('Elapsed Time [min]','interpreter','latex'); ylabel('Specific Discharge $(\mathrm{m^3/s/km^2})$','interpreter','latex'); set(gca,'FontSize',12);
-    hold on
-    yyaxis right; set(gca,'ydir','reverse','ycolor','black');
+
+    % Plot outlet
+    outlet_sd = gather(outlet_states.outlet_hydrograph) / (Wshed_Properties.drainage_area / 1e6); % km²
+    plot(gather(running_control.time_hydrograph), outlet_sd, ...
+        'LineWidth', 1.5, 'LineStyle', ls, 'Marker', '.', 'Color', 'red');
+
+    xlabel('Elapsed Time [min]', 'Interpreter', 'latex');
+    ylabel('Specific Discharge $[\mathrm{m^3/s/km^2}]$', 'Interpreter', 'latex');
+
+    % Style left axis
+    set(gca, 'FontName', 'Helvetica', ...
+             'FontSize', font_size, ...
+             'TickDir', 'out', ...
+             'LineWidth', 2, ...
+             'TickLength', [0.02 0.01]);
+    box on; grid on;
+
+    % Right axis: Rainfall
+    yyaxis right;
+    set(gca, 'YDir', 'reverse', 'YColor', 'black');
+
     if flags.flag_rainfall == 1
-        if flags.flag_spatial_rainfall ~=1
-            bar(gather(Rainfall_Parameters.time_rainfall),gather(Rainfall_Parameters.intensity_rainfall),'FaceColor',[0 .55 .55],'EdgeColor',[0 .5 .5],'LineWidth',1.5)
-            ylabel('Rainfall Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex');
-            ylim([0 max(gather(Rainfall_Parameters.intensity_rainfall))*6])
+        if flags.flag_spatial_rainfall ~= 1
+            bar(gather(Rainfall_Parameters.time_rainfall), gather(Rainfall_Parameters.intensity_rainfall), ...
+                'FaceColor', [0 .55 .55], 'EdgeColor', [0 .5 .5], 'LineWidth', 1.5);
+            ylabel('Rainfall Intensity $[\mathrm{mm \cdot h^{-1}}]$', 'Interpreter', 'latex');
+            ylim([0, max(gather(Rainfall_Parameters.intensity_rainfall)) * 6]);
         else
-            bar(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim)),gather(BC_States.average_spatial_rainfall),'FaceColor',[0 .5 .5],'EdgeColor',[0 .55 .55],'LineWidth',1.5);
-            ylabel('Aerial Mean Rainfall Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex');
-            hold on
+            bar(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:dim), ...
+                gather(BC_States.average_spatial_rainfall), ...
+                'FaceColor', [0 .5 .5], 'EdgeColor', [0 .55 .55], 'LineWidth', 1.5);
+            ylabel('Areal Mean Rainfall Intensity $[\mathrm{mm \cdot h^{-1}}]$', 'Interpreter', 'latex');
+            hold on;
             try
-                er = errorbar(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim)),BC_States.average_spatial_rainfall,Rainfall_Parameters.std_dev(1:(dim),1),Rainfall_Parameters.std_dev(1:(dim),1));
+                er = errorbar(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:dim), ...
+                              BC_States.average_spatial_rainfall, ...
+                              Rainfall_Parameters.std_dev(1:dim,1), ...
+                              Rainfall_Parameters.std_dev(1:dim,1));
                 er.Color = [0 0 0];
                 er.LineStyle = 'none';
             end
-            plot((gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim)))),gather(BC_States.average_spatial_rainfall),'LineWidth',1.5,'color','blue')
-            ylim([0 max(max(gather(BC_States.average_spatial_rainfall)))*6])
+            plot(gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:dim)), ...
+                 gather(BC_States.average_spatial_rainfall), ...
+                 'LineWidth', 1.5, 'Color', 'blue');
+            ylim([0, max(max(gather(BC_States.average_spatial_rainfall))) * 6]);
         end
     end
-    labels_depth = gauges.labels_observed_string; labels_depth{gauges.num_obs_gauges+1} = 'Outlet';
-    labels_depth{gauges.num_obs_gauges + 2} = 'Rainfall Intensity';
-    legend(labels_depth,'FontName','Garamond','FontSize',8,'location','bestoutside')
 
-    title('Specific Discharge','interpreter','latex','fontsize',12)
-    set(gca, 'TickLength', [0.02 0.01]);
-    set(gca,'Tickdir','out')
-    set(gca,'FontName','Garamond','FontSize',12)
+    % Legend
+    labels_depth = gauges.labels_observed_string;
+    labels_depth{gauges.num_obs_gauges + 1} = 'Outlet';
+    labels_depth{gauges.num_obs_gauges + 2} = 'Rainfall Intensity';
+    legend(labels_depth, 'FontName', 'Helvetica', 'FontSize', 10, 'Location', 'bestoutside');
+
+    % Title
+    title('Specific Discharge', 'Interpreter', 'latex', 'FontSize', font_size);
+
+    % Export
     try
-        exportgraphics(gcf,fullfile(folderName,'Specific_Discharge_Gauges.pdf'),'ContentType','vector')
+        exportgraphics(gcf, fullfile(folderName, 'Specific_Discharge_Gauges.pdf'), 'ContentType', 'vector');
     catch
-        fprintf('Specific discharge gauges no exported, PDF export error')
+        fprintf('Specific discharge gauges not exported, PDF export error\n');
     end
-    saveas(gcf,fullfile(folderName,'Specific_Discharge_Gauges.fig'))
-    close all
+    saveas(gcf, fullfile(folderName, 'Specific_Discharge_Gauges.fig'));
+    close all;
 end
+
 
 %% Total ETR and ETP
-% The current version assumes that all maps are extracted in the same
-% resolution. ETP is typically taken daily, so to proper calculate the
-% total mass fluxes, we have to multiply it by the temporal resolution of
-% the maps that are being saved, which is time_step_rainfall
+% This assumes maps are extracted at consistent spatial resolution.
+% ETP is typically daily; use rainfall time step to integrate over time.
 
-zero_matrix = zeros(size(Elevation_Properties.elevation_cell,1),size(Elevation_Properties.elevation_cell,2));
+zero_matrix = zeros(size(Elevation_Properties.elevation_cell, 1), ...
+                    size(Elevation_Properties.elevation_cell, 2));
+
 if flags.flag_ETP == 1
-    store=1;
-    flag_loader=1;
+    store = 1;
+    flag_loader = 1;
     ETR_sum = zeros(size(zero_matrix));
-    ETP_sum = ETR_sum;
+    ETP_sum = zeros(size(zero_matrix));
+
     for i = 1:length(running_control.time_records)
         try
-            if i > saver_memory_maps*store
+            % Load new batch of saved maps when needed
+            if i > saver_memory_maps * store
                 store = store + 1;
-                load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
-            else
-                if flag_loader == 1
-                    load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
-                    flag_loader=0;
-                end
+                load(strcat('Temporary_Files\save_map_hydro_', num2str(store)), 'Maps');
+            elseif flag_loader == 1
+                load(strcat('Temporary_Files\save_map_hydro_', num2str(store)), 'Maps');
+                flag_loader = 0;
             end
-            z = Maps.Hydro.spatial_rainfall_maps(:,:,i - ((store-1)*saver_memory_maps));
-            z = Maps.Hydro.ETR_save(:,:,i - ((store-1)*saver_memory_maps));
-            z(isnan(z)) = 0; % Attention here
-            ETR_sum = ETR_sum + z; % mm
-            ETP_Parameters.std_dev_ETR(i,1) = nanstd(z(:));
 
-            % Now for ETP
-            z = Maps.Hydro.spatial_rainfall_maps(:,:,i - ((store-1)*saver_memory_maps));
-            z = Maps.Hydro.ETP_save(:,:,i - ((store-1)*saver_memory_maps));
-            z(isnan(z)) = 0; % Attention here
-            ETP_sum = ETP_sum + z; % mm
-            ETP_Parameters.std_dev_ETP(i,1) = nanstd(z(:));
+            % Get index for this frame
+            idx = i - ((store - 1) * saver_memory_maps);
+
+            % ---- ETR ----
+            z_etr = Maps.Hydro.ETR_save(:, :, idx);
+            z_etr(isnan(z_etr)) = 0;
+            ETR_sum = ETR_sum + z_etr;
+            ETP_Parameters.std_dev_ETR(i, 1) = nanstd(z_etr(:));
+
+            % ---- ETP ----
+            z_etp = Maps.Hydro.ETP_save(:, :, idx);
+            z_etp(isnan(z_etp)) = 0;
+            ETP_sum = ETP_sum + z_etp;
+            ETP_Parameters.std_dev_ETP(i, 1) = nanstd(z_etp(:));
+
+        catch err
+            warning('Error processing ETP/ETR map at step %d: %s', i, err.message);
         end
     end
 end
 
-%% Rating Curve - Outlet
-close all
-set(gcf,'units','inches','position',[3,3,6,4])
-if size(Wshed_Properties.row_min,1) > 0
-    % We have more than one outlet
-    wse_outlet = Wshed_Properties.el_outlet(Wshed_Properties.row_min(1),Wshed_Properties.col_min(1)) + outlet_states.depth_outlet/1000;
-    s = scatter(outlet_states.outlet_hydrograph,wse_outlet,'o','b'); xlabel('Flow Discharge $(\mathrm{m^3/s})$','interpreter','latex');
+%% Rating Curve – Outlet
+close all;
+set(gcf, 'Units', 'inches', 'Position', [3, 3, 6, 4]);
+
+% Determine WSE at outlet
+if size(Wshed_Properties.row_min, 1) > 0
+    % Multiple outlets
+    wse_outlet = Wshed_Properties.el_outlet(Wshed_Properties.row_min(1), Wshed_Properties.col_min(1)) + outlet_states.depth_outlet / 1000;
+    s = scatter(outlet_states.outlet_hydrograph, wse_outlet, 'o');
 else
-    % We have only one outlet
-    wse_outlet = Wshed_Properties.el_outlet(Wshed_Properties.row_min,Wshed_Properties.col_min) + outlet_states.depth_outlet/1000; % wse
-    s = scatter(gather(outlet_states.outlet_hydrograph),gather(wse_outlet),'o','b'); xlabel('Flow Discharge $(\mathrm{m^3/s})$','interpreter','latex');
+    % Single outlet
+    wse_outlet = Wshed_Properties.el_outlet(Wshed_Properties.row_min, Wshed_Properties.col_min) + outlet_states.depth_outlet / 1000;
+    s = scatter(gather(outlet_states.outlet_hydrograph), gather(wse_outlet), 'o');
 end
-ylabel('Water Surface Elevation $(\mathrm{m})$','interpreter','latex'); set(gca,'FontSize',12);
+
+% Axis labels
+xlabel('Flow Discharge $[\mathrm{m^3/s}]$', 'Interpreter', 'latex');
+ylabel('Water Surface Elevation $[\mathrm{m}]$', 'Interpreter', 'latex');
+
+% Formatting
+set(gca, 'FontSize', 14, ...
+         'FontName', 'Helvetica', ...
+         'TickDir', 'out', ...
+         'LineWidth', 2);
+box on;
+grid on;
+
+% Adjust Y-limits
 if max(wse_outlet) == Wshed_Properties.stage_min
-    ylim([Wshed_Properties.stage_min Wshed_Properties.stage_min + 1])
+    ylim([Wshed_Properties.stage_min, Wshed_Properties.stage_min + 1]);
 else
-    ylim([Wshed_Properties.stage_min max(wse_outlet)])
+    ylim([Wshed_Properties.stage_min, max(wse_outlet)]);
 end
-set(gca,'FontName','Garamond')
-s.LineWidth = 0.6;
-s.MarkerEdgeColor = 'b';
-s.MarkerFaceColor = [0 0.5 0.5];
-s.SizeData = 10;
-box on
+
+% Style scatter points
+s.LineWidth = 0.75;
+s.MarkerEdgeColor = [0 0.4 0.7];
+s.MarkerFaceColor = [0 0.6 0.6];
+s.SizeData = 20;
+
+% Export figure
 try
-    exportgraphics(gcf,fullfile(folderName,'Rating_Curve_Outlet.pdf'),'ContentType','vector')
+    exportgraphics(gcf, fullfile(folderName, 'Rating_Curve_Outlet.pdf'), 'ContentType', 'vector');
 catch
-    fprintf('No rating curge outlet export, PDF export error')
+    fprintf('No rating curve outlet exported – PDF export error\n');
 end
-saveas(gcf,fullfile(folderName,'Rating_Curve_Outlet.fig'))
-Rating_Curve_Data = table(gather(outlet_states.outlet_hydrograph),gather(wse_outlet),gather(outlet_states.depth_outlet)/1000,'VariableNames',{'Flow Discharge (m3/s)','WSE (m)','Depth (m)'});
+saveas(gcf, fullfile(folderName, 'Rating_Curve_Outlet.fig'));
+close all;
 
-FileName_String = 'Rating_Curve_Data';
-FileName = fullfile(folderName,strcat('\',FileName_String,'.csv'));
-writetable(Rating_Curve_Data,FileName);
+% Export rating curve data
+Rating_Curve_Data = table( ...
+    gather(outlet_states.outlet_hydrograph), ...
+    gather(wse_outlet), ...
+    gather(outlet_states.depth_outlet) / 1000, ...
+    'VariableNames', {'Flow Discharge (m3/s)', 'WSE (m)', 'Depth (m)'});
+writetable(Rating_Curve_Data, fullfile(folderName, 'Rating_Curve_Data.csv'));
 
-% Hydrograph table
-Outlet_Hydrograph_Data = table(gather(running_control.time_hydrograph),gather(outlet_states.outlet_hydrograph),'VariableNames',{'Time ','Flow Discharge $(\mathrm{m^3/s})$'});
+% Export hydrograph table
+Outlet_Hydrograph_Data = table( ...
+    gather(running_control.time_hydrograph), ...
+    gather(outlet_states.outlet_hydrograph), ...
+    'VariableNames', {'Time (min)', 'Flow Discharge (m3/s)'});
+writetable(Outlet_Hydrograph_Data, fullfile(folderName, 'Outlet_Hydrograph_Data_Outlet.csv'));
 
-FileName_String = 'Outlet_Hydrograph_Data_Outlet';
-FileName = fullfile(folderName,strcat('\',FileName_String,'.csv'));
-writetable(Outlet_Hydrograph_Data,FileName);
-
-% writetable(Outlet_Hydrograph_Data)
-close all
-
-%% Rating Curve - Specific Cell
+%% Rating Curve – Specific Cell
 if flags.flag_obs_gauges == 1
-    figure('units','normalized','outerposition',[0 0 1 1])
+    figure('Units', 'normalized', 'OuterPosition', [0 0 1 1]);
     color_plot = linspecer(gauges.num_obs_gauges);
+
     for i = 1:gauges.num_obs_gauges
+        % Font size based on number of gauges
         if gauges.num_obs_gauges > 5
             fsize = 8;
         else
-            fsize = 12;
+            fsize = 14;
         end
+
+        % Subplot layout
         if gauges.num_obs_gauges > 3
-            subplot(ceil(gauges.num_obs_gauges/3),3,i)
+            subplot(ceil(gauges.num_obs_gauges / 3), 3, i);
         elseif gauges.num_obs_gauges == 2
-            subplot(ceil(gauges.num_obs_gauges/2),2,i)
-        elseif gauges.num_obs_gauges == 1
-            subplot(1,1,1)
+            subplot(1, 2, i);
+        else
+            subplot(1, 1, 1);
         end
-        s = scatter(gather(gauges.hydrograph_cell(:,i)),gather(gauges.wse_cell(:,i)),'o'); xlabel('Q $(\mathrm{m^3/s})$','interpreter','latex');
-        s.LineWidth = 0.6;
-        %     s.MarkerEdgeColor = 'b';
+
+        % Scatter plot of Q vs WSE
+        s = scatter(gather(gauges.hydrograph_cell(:, i)), gather(gauges.wse_cell(:, i)), 'o');
         s.MarkerFaceColor = color_plot(i,:);
-        s.SizeData = 10;
-        hold on
-        ylabel('WSE $(\mathrm{m})$','interpreter','latex'); set(gca,'FontSize',fsize);
-        title(gauges.labels_observed_string{i},'FontName','Garamond')
-        set(gca, 'TickLength', [0.02 0.01]);
-        set(gca,'Tickdir','out')
-        set(gca, 'FontName', 'Garamond', 'FontSize', fsize)
-        box on
+        s.MarkerEdgeColor = [0.3 0.3 0.3];
+        s.SizeData = 20;
+        s.LineWidth = 0.75;
+
+        xlabel('$Q~(\mathrm{m^3/s})$', 'Interpreter', 'latex');
+        ylabel('$\mathrm{WSE~(m)}$', 'Interpreter', 'latex');
+
+        % Styling
+        title(gauges.labels_observed_string{i}, 'Interpreter', 'latex', 'FontSize', fsize);
+        set(gca, 'FontSize', fsize, ...
+                 'FontName', 'Helvetica', ...
+                 'TickDir', 'out', ...
+                 'TickLength', [0.02 0.01], ...
+                 'LineWidth', 2);
+        box on; grid on;
     end
+
+    % Export figure
     try
-        exportgraphics(gcf,fullfile(folderName,'Rating_Curve_Gauges.pdf'),'ContentType','vector')
+        exportgraphics(gcf, fullfile(folderName, 'Rating_Curve_Gauges.pdf'), 'ContentType', 'vector');
     catch
-        fprintf('No rating curge gaugest export, PDF export error')
+        fprintf('No rating curve gauges exported – PDF export error\n');
     end
-    saveas(gcf,fullfile(folderName,'Rating_Curve_Gauges.fig'))
-    Rating_Curve_Specifc_Cell = table(gather(running_control.time_hydrograph), gather(gauges.hydrograph_cell),gather(gauges.wse_cell),gather(gauges.depth_cell),'VariableNames',{'Time [min] or Date','Flow Discharge (m3/s)','WSE (m)','Water Depth (m)'});
 
-    FileName_String = 'Rating_Curve_Gauges';
-    FileName = fullfile(folderName,strcat('\',FileName_String,'.csv'));
-    writetable(Rating_Curve_Specifc_Cell,FileName);
+    saveas(gcf, fullfile(folderName, 'Rating_Curve_Gauges.fig'));
+    close(gcf);
 
+    % Export data
+    Rating_Curve_Specific_Cell = table( ...
+        gather(running_control.time_hydrograph), ...
+        gather(gauges.hydrograph_cell), ...
+        gather(gauges.wse_cell), ...
+        gather(gauges.depth_cell), ...
+        'VariableNames', {'Time [min] or Date', 'Flow Discharge (m3/s)', 'WSE (m)', 'Water Depth (m)'});
 
-    % writetable(Rating_Curve_Specifc_Cell)
+    writetable(Rating_Curve_Specific_Cell, fullfile(folderName, 'Rating_Curve_Gauges.csv'));
 end
-close all
 
-%% Hydrographs - Specific Cell
+%% Hydrographs – Specific Cell
 if flags.flag_obs_gauges == 1
-    figure('units','normalized','outerposition',[0 0 1 1])
+    figure('Units', 'normalized', 'OuterPosition', [0 0 1 1]);
+
+    % Color handling
     if gauges.num_obs_gauges == 1
         color_plot = linspecer(10);
     else
         color_plot = linspecer(gauges.num_obs_gauges);
     end
-    font_size = 12;
+
     for i = 1:gauges.num_obs_gauges
+        % Font size by layout density
         if gauges.num_obs_gauges > 5
             fsize = 8;
         else
-            fsize = 12;
+            fsize = 14;
         end
+
+        % Subplot layout
         if gauges.num_obs_gauges > 3
-            subplot(ceil(gauges.num_obs_gauges/3),3,i)
+            subplot(ceil(gauges.num_obs_gauges / 3), 3, i);
         elseif gauges.num_obs_gauges == 2
-            subplot(ceil(gauges.num_obs_gauges/2),2,i)
-        elseif gauges.num_obs_gauges == 1
-            subplot(1,1,1)
+            subplot(1, 2, i);
+        else
+            subplot(1, 1, 1);
         end
+
+        % Left axis: Discharge
         yyaxis left;
-        set(gca,'ycolor',pallete.blue_colors(1,:))
-        plot(gather(running_control.time_hydrograph),gather(gauges.hydrograph_cell(:,i)),'LineWidth',1.5','color',pallete.blue_colors(2,:));
-        xlabel('Elapsed Time [min]','Interpreter','latex');
-        ylabel('Q $(\mathrm{m^3/s})$','interpreter','latex'); set(gca,'FontSize',12);
-        title(gauges.labels_observed_string{i},'FontName','Garamond')
-        yyaxis right
-        set(gca,'ycolor',color_plot(2,:))
-        plot(gather(running_control.time_hydrograph),gather(gauges.depth_cell(:,i)),'LineWidth',1.5','linestyle','--','color',pallete.red_colors(3,:));
-        ylabel('h (m)','interpreter','latex')
-        set(gca, 'TickLength', [0.02 0.01]);
-        set(gca,'Tickdir','out')
-        set(gca, 'FontName', 'Garamond', 'FontSize', font_size)
-        box on
+        set(gca, 'YColor', pallete.blue_colors(1,:));
+        plot(gather(running_control.time_hydrograph), gather(gauges.hydrograph_cell(:,i)), ...
+             'LineWidth', 1.5, 'Color', pallete.blue_colors(2,:));
+        ylabel('$Q~(\mathrm{m^3/s})$', 'Interpreter', 'latex');
+
+        % Right axis: Depth
+        yyaxis right;
+        set(gca, 'YColor', pallete.red_colors(3,:));
+        plot(gather(running_control.time_hydrograph), gather(gauges.depth_cell(:,i)), ...
+             'LineWidth', 1.5, 'LineStyle', '--', 'Color', pallete.red_colors(3,:));
+        ylabel('$h~(\mathrm{m})$', 'Interpreter', 'latex');
+
+        % Common formatting
+        xlabel('Elapsed Time [min]', 'Interpreter', 'latex');
+        title(gauges.labels_observed_string{i}, 'Interpreter', 'latex', 'FontSize', fsize);
+        set(gca, 'FontSize', fsize, ...
+                 'FontName', 'Helvetica', ...
+                 'TickDir', 'out', ...
+                 'LineWidth', 2, ...
+                 'TickLength', [0.02 0.01]);
+        box on; grid on;
     end
+
+    % Export figure
     try
-        exportgraphics(gcf,fullfile(folderName,'Hydrograph_Gauges.pdf'),'ContentType','vector')
+        exportgraphics(gcf, fullfile(folderName, 'Hydrograph_Gauges.pdf'), 'ContentType', 'vector');
     catch
-        fprintf('No Hydrograph gauges export, PDF export error')
+        fprintf('No Hydrograph gauges exported – PDF export error\n');
     end
-    saveas(gcf,fullfile(folderName,'Hydrograph_Gauges.fig'))
+    saveas(gcf, fullfile(folderName, 'Hydrograph_Gauges.fig'));
+    close(gcf);
 end
-close all
+
 
 %% Creating the custom basemap
 basemapName = "openstreetmap";
@@ -552,140 +699,239 @@ else
     S_p.Y = (DEM_raster.georef.SpatialRef.YWorldLimits(2)  - combinedY * DEM_raster.georef.SpatialRef.CellExtentInWorldX + DEM_raster.georef.SpatialRef.CellExtentInWorldX/2)';
 end
 
-%% DEM with Streams and Obseved Points
+%% DEM with Streams and Observed Points
+
+% Flow direction
 FD = FLOWobj(DEM_raster);
-area_km2 = GIS_data.min_area; % km2
-area_cells = area_km2./((DEM_raster.cellsize/1000)^2); % pixels
-if no_plot==0
+area_km2 = GIS_data.min_area;
+area_cells = area_km2 / ((DEM_raster.cellsize / 1000)^2); % pixels
+
+% Optional map display
+if no_plot == 0
     try
-        mapshow(A,RA,"AlphaData",0.45);hold on;
-        mapshow(S_p,'FaceColor','n'); hold on;
-    catch ME
-        warning('You need matlab 2022 or higher to run basemaps')
+        mapshow(A, RA, 'AlphaData', 0.45); hold on;
+        mapshow(S_p, 'FaceColor', 'none'); hold on;
+    catch
+        warning('You need MATLAB 2022 or higher to run basemaps');
     end
 end
 
-S = STREAMobj(FD,'minarea',area_cells); % Flow accumulation
-ax1 = plot(S);
-hold on
-title(('Streams and Obseved Points'),'Interpreter','Latex','FontSize',12)
-xlabel(' x (m) ','Interpreter','Latex','FontSize',12)
-ylabel ('y (m) ','Interpreter','Latex','FontSize',12)
+% Create stream network
+S = STREAMobj(FD, 'minarea', area_cells);
+ax1 = plot(S); hold on;
+
+% Labels and formatting
+title('Streams and Observed Points', 'Interpreter', 'latex', 'FontSize', 14);
+xlabel('$x~(\mathrm{m})$', 'Interpreter', 'latex', 'FontSize', 14);
+ylabel('$y~(\mathrm{m})$', 'Interpreter', 'latex', 'FontSize', 14);
+
+% Format axis if not a map axis
 ax = ancestor(ax1, 'axes');
-ax.XAxis.Exponent = 0;xtickformat('%.0f');
-ax.YAxis.Exponent = 0;ytickformat('%.0f');
+if isprop(ax, 'XAxis') % avoid error in map axes
+    set(ax, 'FontName', 'Helvetica', ...
+            'FontSize', 14, ...
+            'TickDir', 'out', ...
+            'LineWidth', 2);
+    box on; grid on;
+end
+
+% Gauges
 if flags.flag_obs_gauges == 1
-    scatter(gauges.easting_obs_gauges_absolute,gauges.northing_obs_gauges_absolute)
+    scatter(gauges.easting_obs_gauges_absolute, gauges.northing_obs_gauges_absolute, ...
+        40, 'filled', 'MarkerFaceColor', [0.85 0.1 0.1], 'MarkerEdgeColor', 'k');
+
+    % Export streams
     MS = STREAMobj2mapstruct(S);
+    shapewrite(MS, fullfile(folderName, 'streamnetwork.shp'));
 
-    FileName_String = 'streamnetwork.shp';
-    FileName = fullfile(folderName,strcat('\',FileName_String));
-    shapewrite(MS,FileName);
-
-
-    % Example x and y coordinates
+    % Gauges to shapefile
     gauges.x_coord_gauges = gauges.easting_obs_gauges_absolute;
     gauges.y_coord_gauges = gauges.northing_obs_gauges_absolute;
-end
-if flags.flag_obs_gauges == 1
-    labels_gauges = gauges.labels_observed_string;  % Labels for each point
+    labels_gauges = gauges.labels_observed_string;
 
-
-    % Create a shapefile writer
-    % shapefile = shapewrite('observed_gauges.shp');
-
-    % Create a geoshape object with the points and labels
     points = mappoint(gauges.x_coord_gauges', gauges.y_coord_gauges', 'Label', labels_gauges');
-
-    % Write the geoshape object to a shapefile
-    FileName_String = 'observed_gauges.shp';
-    FileName = fullfile(folderName,strcat('\',FileName_String));
-    shapewrite(points, FileName); % This is in the same coordinate system of your DEM
+    shapewrite(points, fullfile(folderName, 'observed_gauges.shp'));
 end
 
-close all
+% ==== Save Figure ====
+try
+    % Save as FIG (MATLAB format)
+    saveas(gcf, fullfile(folderName, 'DEM_Streams_Observed_Gauges.fig'));
+
+    % Export as high-quality vector PDF
+    exportgraphics(gcf, fullfile(folderName, 'DEM_Streams_Observed_Gauges.pdf'), 'ContentType', 'vector');
+
+catch err
+    warning('Could not export DEM with streams and gauges')
+end
+
+
+close all;
 
 %% Water Quality Analysis
 if flags.flag_waterquality == 1
-    plot(gather(running_control.time_hydrograph),gather(WQ_States.outet_pollutograph),'LineWidth',1.5,'color','Red','Marker','o') ;
-    xlabel('Time [min]','Interpreter','Latex');
-    ylabel('Pol. Concentration (mg/L)','Interpreter','Latex')
-    grid on
-    hold on
-    yyaxis right
-    set(gca,'ycolor','black')
-    ylabel('Load (kg/sec)','interpreter','latex')
-    load_wq = 10^(-3)*gather(WQ_States.outet_pollutograph).*gather(outlet_states.outlet_hydrograph); % kg/sec
-    plot(gather(running_control.time_hydrograph),load_wq,'LineWidth',1.5,'color','Blue','Marker','*')
-    legend('Concentration','Load','interpreter','latex')
-    set(gca, 'TickLength', [0.02 0.01]);
-    set(gca,'Tickdir','out')
-    set(gca, 'FontName', 'Garamond', 'FontSize', font_size)
-    box on
-    exportgraphics(gcf,fullfile(folderName,'Pollutograph.pdf'),'ContentType','vector')
-    saveas(gcf,fullfile(folderName,'Pollutograph.fig'))
-    Outlet_Pollutograph_Data = table(gather(running_control.time_hydrograph),gather(WQ_States.outet_pollutograph),gather(load_wq),'VariableNames',{'Time [min]','Concentration (mg/L)','load (kg/sec)'});
+    % Pollutograph – Concentration and Load at Outlet
+    figure('Units', 'inches', 'Position', [3, 2, 8, 5]);
+    
+    font_size = 14;
+    
+    % Left Y-axis: Pollutant concentration
+    yyaxis left;
+    plot(gather(running_control.time_hydrograph), gather(WQ_States.outet_pollutograph), ...
+        'LineWidth', 1.5, 'Color', 'r', 'Marker', 'o');
+    xlabel('Time [min]', 'Interpreter', 'latex');
+    ylabel('Concentration $[\mathrm{mg/L}]$', 'Interpreter', 'latex');
+    set(gca, 'YColor', 'r');
+    
+    % Right Y-axis: Pollutant load
+    yyaxis right;
+    load_wq = 1e-3 * gather(WQ_States.outet_pollutograph) .* gather(outlet_states.outlet_hydrograph); % kg/s
+    plot(gather(running_control.time_hydrograph), load_wq, ...
+        'LineWidth', 1.5, 'Color', 'b', 'Marker', '*');
+    ylabel('Load $[\mathrm{kg/s}]$', 'Interpreter', 'latex');
+    set(gca, 'YColor', 'b');
+    
+    % Styling
+    legend({'Concentration', 'Load'}, 'Interpreter', 'latex', 'FontSize', font_size, 'Location', 'best');
+    set(gca, 'FontName', 'Helvetica', ...
+             'FontSize', font_size, ...
+             'TickDir', 'out', ...
+             'LineWidth', 2, ...
+             'TickLength', [0.02 0.01]);
+    grid on; box on;
+    
+    % Export figure
+    try
+        exportgraphics(gcf, fullfile(folderName, 'Pollutograph.pdf'), 'ContentType', 'vector');
+    catch
+        warning('Pollutograph PDF export failed.');
+    end
+    saveas(gcf, fullfile(folderName, 'Pollutograph.fig'));
+    
+    % Export data
+    Outlet_Pollutograph_Data = table( ...
+        gather(running_control.time_hydrograph), ...
+        gather(WQ_States.outet_pollutograph), ...
+        gather(load_wq), ...
+        'VariableNames', {'Time [min]', 'Concentration (mg/L)', 'Load (kg/s)'});
+    
+    writetable(Outlet_Pollutograph_Data, fullfile(folderName, 'Outlet_Pollutograph_Data.csv'));
+    
+    close all;
 
-    FileName_String = 'Outlet_Pollutograph_Data';
-    FileName = fullfile(folderName,strcat('\',FileName_String,'.csv'));
-    writetable(Outlet_Pollutograph_Data,FileName);
+%% Hysteresis Effect
+figure('Units', 'inches', 'Position', [3, 3, 6, 4]);
+font_size = 14;
 
-    %     writetable(Outlet_Pollutograph_Data)
-    close all
-    %% Histeresis Effect
-    set(gcf,'units','inches','position',[3,3,6,4])
-    plot(gather(running_control.time_hydrograph),outlet_states.outlet_hydrograph,'color','black','linewidth',1.5,'marker','*');
-    xlabel('Time [min]','Interpreter','Latex');
-    ylabel('Flow Discharge $(\mathrm{m^3/s})$','interpreter','latex')
-    yyaxis right
-    set(gca,'ycolor','black')
-    plot(gather(running_control.time_hydrograph),gather(WQ_States.outet_pollutograph),'LineWidth',1.5,'color','Red','Marker','o') ;
-    ylabel('Pol. Concentration (mg/L)','Interpreter','Latex')
-    legend('Flow discharge','Pollutant Concentration','interpreter','latex')
-    exportgraphics(gcf,fullfile(folderName,'Histeresis.pdf'),'ContentType','vector')
-    saveas(gcf,fullfile(folderName,'Histeresis.fig'))
-    close all
-    % M(v) Curves
-    m_M = WQ_States.mass_outlet_save./(max(max(WQ_States.mass_outlet)));
-    v_V = WQ_States.vol_outlet_save./(max(max(WQ_States.vol_outlet)));
-    plot(v_V,m_M,'LineWidth',1.5,'color','black','Marker','*');
-    hold on
-    plot(0:1,0:1,'LineWidth',1,'Color','black','LineStyle','--')
-    ylabel('$m/m_{tot}$','Interpreter','Latex');
-    xlabel('$V/V_{tot}$','Interpreter','Latex');
-    set(gca, 'TickLength', [0.02 0.01]);
-    set(gca,'Tickdir','out')
-    set(gca, 'FontName', 'Garamond', 'FontSize', font_size)
-    box on
-    exportgraphics(gcf,fullfile(folderName,'M(V)_Curve.pdf'),'ContentType','vector')
-    saveas(gcf,fullfile(folderName,'M(V)_Curve.fig'))
-    Outlet_M_V_Curve = table(gather(round(v_V,3)),gather(round(m_M,3)),'VariableNames',{'Normalized Volume','Normalized Polutant Mass'});
+% Left Y-axis: Flow discharge
+yyaxis left;
+plot(gather(running_control.time_hydrograph), gather(outlet_states.outlet_hydrograph), ...
+    'Color', 'black', 'LineWidth', 1.5, 'Marker', '*');
+xlabel('Time [min]', 'Interpreter', 'latex');
+ylabel('Flow Discharge $[\mathrm{m^3/s}]$', 'Interpreter', 'latex');
 
-    FileName_String = 'Outlet_M_V_Curve';
-    FileName = fullfile(folderName,strcat('\',FileName_String,'.csv'));
-    writetable(Outlet_M_V_Curve,FileName);
+% Right Y-axis: Pollutant concentration
+yyaxis right;
+set(gca, 'YColor', 'r');
+plot(gather(running_control.time_hydrograph), gather(WQ_States.outet_pollutograph), ...
+    'LineWidth', 1.5, 'Color', 'red', 'Marker', 'o');
+ylabel('Concentration $[\mathrm{mg/L}]$', 'Interpreter', 'latex');
 
-    %     writetable(Outlet_M_V_Curve);
+% Formatting
+legend({'Flow Discharge', 'Pollutant Concentration'}, 'Interpreter', 'latex', 'FontSize', font_size, 'Location', 'best');
+set(gca, 'FontName', 'Helvetica', ...
+         'FontSize', font_size, ...
+         'TickDir', 'out', ...
+         'LineWidth', 2, ...
+         'TickLength', [0.02 0.01]);
+box on; grid on;
 
-    close all
+% Export hysteresis plot
+try
+    exportgraphics(gcf, fullfile(folderName, 'Hysteresis.pdf'), 'ContentType', 'vector');
+catch
+    warning('Failed to export Hysteresis PDF');
+end
+saveas(gcf, fullfile(folderName, 'Hysteresis.fig'));
+close(gcf);
 
-    %% EMC(Curve)
-    plot(gather(running_control.time_hydrograph),WQ_States.EMC_outlet,'LineWidth',1.5,'color','black');
-    ylabel('$\mathrm{EMC (mg/L)}$','Interpreter','Latex');
-    xlabel('Elapsed Time [min]','Interpreter','Latex');
-    set(gca, 'TickLength', [0.02 0.01]);
-    set(gca,'Tickdir','out')
-    set(gca, 'FontName', 'Garamond', 'FontSize', font_size)
-    box on
-    exportgraphics(gcf,fullfile(folderName,'EMC Curve.pdf'),'ContentType','vector')
-    saveas(gcf,fullfile(folderName,'EMC_Curve.fig'))
-    Outlet_EMC_Curve = table(gather(running_control.time_hydrograph,3),gather(round(WQ_States.EMC_outlet,2)),'VariableNames',{'Normalized Volume','Normalized Polutant Mass'});
+    %% M(V) Curve
+    figure('Units', 'inches', 'Position', [3, 3, 6, 4]);
+    
+    % Normalized data
+    m_M = WQ_States.mass_outlet_save ./ max(WQ_States.mass_outlet(:)); % m/m_tot
+    v_V = WQ_States.vol_outlet_save ./ max(WQ_States.vol_outlet(:));   % V/V_tot
+    
+    % Plot M(V) curve
+    plot(gather(v_V), gather(m_M), ...
+        'LineWidth', 1.5, 'Color', 'black', 'Marker', '*'); hold on;
+    
+    % 1:1 reference line
+    plot([0 1], [0 1], 'LineWidth', 1, 'Color', 'black', 'LineStyle', '--');
+    
+    xlabel('$V/V_{tot}$', 'Interpreter', 'latex');
+    ylabel('$m/m_{tot}$', 'Interpreter', 'latex');
+    
+    % Formatting
+    set(gca, 'FontName', 'Helvetica', ...
+             'FontSize', font_size, ...
+             'TickDir', 'out', ...
+             'LineWidth', 2, ...
+             'TickLength', [0.02 0.01]);
+    box on; grid on;
+    
+    % Export M(V) curve
+    try
+        exportgraphics(gcf, fullfile(folderName, 'M(V)_Curve.pdf'), 'ContentType', 'vector');
+    catch
+        warning('Failed to export M(V) curve PDF');
+    end
+    saveas(gcf, fullfile(folderName, 'M(V)_Curve.fig'));
+    
+    % Export CSV data
+    Outlet_M_V_Curve = table(round(gather(v_V), 3), round(gather(m_M), 3), ...
+        'VariableNames', {'Normalized Volume', 'Normalized Pollutant Mass'});
+    
+    writetable(Outlet_M_V_Curve, fullfile(folderName, 'Outlet_M_V_Curve.csv'));
+    close(gcf);
 
-    FileName_String = 'Outlet_EMC_Curve';
-    FileName = fullfile(folderName,strcat('\',FileName_String,'.csv'));
-    writetable(Outlet_EMC_Curve,FileName);
 
-    %     writetable(Outlet_EMC_Curve);
+%% EMC (Event Mean Concentration) Curve
+figure('Units', 'inches', 'Position', [3, 3, 6, 4]);
+
+font_size = 14;
+
+% Plot EMC curve
+plot(gather(running_control.time_hydrograph), gather(WQ_States.EMC_outlet), ...
+    'LineWidth', 1.5, 'Color', 'black');
+
+xlabel('Elapsed Time [min]', 'Interpreter', 'latex');
+ylabel('EMC $[\mathrm{mg/L}]$', 'Interpreter', 'latex');
+
+% Styling
+set(gca, 'FontName', 'Helvetica', ...
+         'FontSize', font_size, ...
+         'TickDir', 'out', ...
+         'TickLength', [0.02 0.01], ...
+         'LineWidth', 2);
+box on; grid on;
+
+% Export figure
+try
+    exportgraphics(gcf, fullfile(folderName, 'EMC_Curve.pdf'), 'ContentType', 'vector');
+catch
+    warning('Failed to export EMC curve PDF');
+end
+saveas(gcf, fullfile(folderName, 'EMC_Curve.fig'));
+
+% Export EMC data table
+Outlet_EMC_Curve = table( ...
+    gather(running_control.time_hydrograph), ...
+    round(gather(WQ_States.EMC_outlet), 2), ...
+    'VariableNames', {'Elapsed Time [min]', 'EMC (mg/L)'});
+
+writetable(Outlet_EMC_Curve, fullfile(folderName, 'Outlet_EMC_Curve.csv'));
+
 end
 %% Exporting Rasters
 if flags.flag_export_maps == 1
@@ -864,9 +1110,29 @@ if flags.flag_export_maps == 1
             geotiffwrite(FileName,raster_to_export.Z,raster_to_export.georef.SpatialRef,...
                 'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
         end
-        if flags.flag_human_instability == 2
-        elseif flags.flag_human_instability == 3
-            list={'_cm','_tm','_am','_om','_cf','_tf','_af','_of'};
+        % if flags.flag_human_instability == 2
+        % elseif flags.flag_human_instability == 3
+        %     list={'_cm','_tm','_am','_om','_cf','_tf','_af','_of'};
+        %     if flags.flag_elapsed_time == 1
+        %         FileName =  strcat('Human_instability_', num2str(time_map),'min');
+        %     else
+        %         FileName = strcat('Human_instability_', string(time_map));
+        %     end
+        %     FileName = fullfile(myFolder_hr,FileName);
+        % 
+        %     raster_exportion = zeros(size(DEM_raster.Z,1),size(DEM_raster.Z,2),8);
+        %     for j = 1:8
+        %         raster_exportion(:,:,j) = double(Maps.Hydro.(strcat('risk',list{j}))(:,:,i - (store-1)*saver_memory_maps)>0)*Human_Instability.order(j);
+        %     end
+        %     raster_exportion = max(raster_exportion,[],3);
+        %     raster_exportion(isnan(raster_exportion)) = no_data_value;
+        %     raster_exportion(isinf(raster_exportion)) = no_data_value;
+        %     raster_exportion(raster_exportion < 0) = no_data_value;
+        %     raster_exportion(raster_exportion==0) = no_data_value;
+        %     geotiffwrite(FileName,raster_exportion,raster_to_export.georef.SpatialRef,...
+        %         'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+        % end
+        if flags.flag_human_instability == 1
             if flags.flag_elapsed_time == 1
                 FileName =  strcat('Human_instability_', num2str(time_map),'min');
             else
@@ -874,11 +1140,7 @@ if flags.flag_export_maps == 1
             end
             FileName = fullfile(myFolder_hr,FileName);
 
-            raster_exportion = zeros(size(DEM_raster.Z,1),size(DEM_raster.Z,2),8);
-            for j = 1:8
-                raster_exportion(:,:,j) = double(Maps.Hydro.(strcat('risk',list{j}))(:,:,i - (store-1)*saver_memory_maps)>0)*Human_Instability.order(j);
-            end
-            raster_exportion = max(raster_exportion,[],3);
+            raster_exportion = double(Maps.Hydro.risk(:,:,i - (store-1)*saver_memory_maps));            
             raster_exportion(isnan(raster_exportion)) = no_data_value;
             raster_exportion(isinf(raster_exportion)) = no_data_value;
             raster_exportion(raster_exportion < 0) = no_data_value;
@@ -1121,6 +1383,7 @@ if flags.flag_export_maps == 1
         zzz(isinf(zzz)) = no_data_value;
         zzz(isnan(zzz)) = no_data_value;
         raster_exportion = zzz;
+        raster_to_export = DEM_raster; % Just to get the properties
         raster_to_export.Z = raster_exportion; % Putting the right values
         % Exporting the Map
         geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
@@ -1135,6 +1398,7 @@ if flags.flag_export_maps == 1
         zzz(isinf(zzz)) = no_data_value;
         zzz(isnan(zzz)) = no_data_value;
         raster_exportion = zzz;
+        raster_to_export = DEM_raster; % Just to get the properties
         raster_to_export.Z = raster_exportion; % Putting the right values
         % Exporting the Map
         geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
@@ -1148,6 +1412,7 @@ if flags.flag_export_maps == 1
         FileName = fullfile(folderName,FileName);
         zzz(isinf(zzz)) = no_data_value;
         zzz(isnan(zzz)) = no_data_value;
+        raster_to_export = DEM_raster; % Just to get the properties
         raster_exportion = zzz;
         raster_to_export.Z = raster_exportion; % Putting the right values
         % Exporting the Map
@@ -1250,7 +1515,11 @@ Inundation_Maps
 % W = kc sqrt(A) / 1.12 * (1 - sqrt(1 - {1.128 / k_c}^2))
 Wshed_Properties.width_SWMM = Wshed_Properties.compactness_coefficient*sqrt(Wshed_Properties.drainage_area)/1.12*(1 - sqrt(1 - (1.128/Wshed_Properties.compactness_coefficient)^2));
 %%% - Runoff Coefficient -
-Wshed_Properties.C_r = BC_States.outflow_volume/BC_States.inflow_volume;
+if flags.flag_inflow == 1 
+    Wshed_Properties.C_r = BC_States.outflow_volume/BC_States.inflow_volume;
+else
+    Wshed_Properties.C_r = BC_States.outflow_volume/(sum(BC_States.average_spatial_rainfall / 1000)*time_step_rainfall * Wshed_Properties.drainage_area);
+end
 %%% - Rainfall Volume
 if flags.flag_spatial_rainfall ~=1 && flags.flag_rainfall == 1
     rainfall_vol = sum(sum(BC_States.delta_p));

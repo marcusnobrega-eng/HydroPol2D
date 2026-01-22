@@ -4,7 +4,7 @@
 %  Date: [04/06/2025]
 % -------------------------------------------------------------------------
 %  Purpose:
-%      [This function combines all internal model functiosn to run HydroPol2D.]
+%      [This function combines all internal model functions to run HydroPol2D.]
 %
 %  Inputs:
 %      - input1: [You can enter a workspace with your model pre-processed]
@@ -19,7 +19,15 @@
 % clear all
 % load workspace_CG_event.mat
 % load workspace_beaver_creek_correct.mat
+clear all
 % load workspace_amazon_simple.mat
+% clear all
+% load workspace_beaver.mat
+% load example_1.mat
+% load test.mat
+% load test_radar.mat
+load workspace_synthetic_all_cases
+
 % load workspace_CG_event_subgrid_functions.mat
 % flags.flag_overbanks = 1;
 tic
@@ -34,20 +42,71 @@ Risk_Area = 0; % initial risk area
 store = 1; % Index for saving maps
 t_previous = 0;
 factor_time = 0;
-% running_control.max_time_step = 24*60*60; % seconds
-% running_control.min_time_step = 24*60*60; % seconds
-% time_step = running_control.min_time_step/60; % time-step of the model in min
+% flags.flag_input_rainfall_map = 0;
+% flags.flag_satellite_rainfall = 1;
+running_control.max_time_step = 15*60; % seconds
+running_control.min_time_step = 1; % seconds
+
+running_control.max_time_step = min(running_control.record_time_hydrographs*60, running_control.max_time_step);
+running_control.min_time_step = min(running_control.record_time_hydrographs*60, running_control.min_time_step);
+
 max_dt = running_control.max_time_step;
-% flags.flag_dashboard = 1;
-% flags.flag_subgrid = 0;
-% flags.flag_baseflow = 1;
+ax.timer = minutes(double(gather(running_control.time_records(recording_parameters.actual_record_state)))) + date_begin;
+ax.percentage = gather((t)/running_control.routing_time*100);
+
+% %  DELETE ALL OF THIS
+% time_step = running_control.min_time_step/60; % time-step of the model in min
+% flags.flag_dashboard = 1; % DELETE
+% flags.flag_subgrid = 0; % DELETE
+% flags.flag_baseflow = 0; % DELETE
 % flags.flag_critical = 0; % DELETE
-% Soil_Properties.ksat = 100*Soil_Properties.ksat; % DELETE
-% Soil_Properties.ksat_gw = 100*Soil_Properties.ksat_gw; % DELETE
+% flags.flag_spatial_rainfall = 0; % DELETE
+% flags.flag_rainfall = 1;
 % flags.flag_ETP = 0; % DELETE
+% SubgridTables = [];  % DELETE
+
+% %  DELETE ALL OF THIS
+% %  Assuming the average of soil depth
+% avg_soil_depth = nanmean(nanmean(Soil_Properties.Soil_Depth));
+% avg_soil_depth = 1;
+% Soil_Properties.Soil_Depth = avg_soil_depth;
+% Soil_Properties.ksat_gw = 10*Soil_Properties.ksat_gw;
+
+% Activate this to use an average soil depth
+% Soil_Properties.Soil_Depth(Soil_Properties.Soil_Depth>=0) = avg_soil_depth;
+
+% BC_States.z0 = elevation - Soil_Properties.Soil_Depth; % Bedrock elevation [m]
+% BC_States.z0(idx_nan) = nan;
+
+% Initial Conditions for the domain
+% h_depth = 0.8; % [m]
+% BC_States.z0 = elevation - avg_soil_depth;
+% BC_States.z0(14:16,14:16) = BC_States.z0(14:16,14:16) - 0.5;
+% BC_States.h_0 = BC_States.z0 + h_depth;
+% BC_States.h_t = BC_States.h_0;
+
+% BC_States.z0(Wshed_Properties.idx_rivers) = elevation(Wshed_Properties.idx_rivers) - 0.05;
+% BC_States.h_t(Wshed_Properties.idx_rivers) = BC_States.z0(Wshed_Properties.idx_rivers) + 0.05;
+% BC_States.h_0 = BC_States.h_t;
+% 
+% % Soil_Properties.ksat = 10000*Soil_Properties.ksat; % DELETE
+% % Soil_Properties.ksat_gw = 10000*Soil_Properties.ksat_gw; % DELETE
+% % Activate this to ensure very shallow depth in rivers
+% % Soil_Properties.Soil_Depth(Wshed_Properties.idx_rivers) = 1; % m
+
+% Close all figures
+close all force;
+
+% Find and delete all app windows (AppDesigner uifigures)
+appWindows = findall(groot, 'Type', 'Figure', 'Tag', 'AppWindow');
+delete(appWindows);
+
+% Optionally clear memory/workspace
+% clear all; clc;
+
 
 try
-    Subgrid_Properties
+    Subgrid_Properties;
 catch
     Subgrid_Properties = [];
 end
@@ -82,12 +141,17 @@ else
     extra_parameters.labels_observed_string = [];
 end
 
-if flags.flag_dashboard == 1
+
+% if DEM_raster.georef.SpatialRef.ProjectedCRS.Name ~= "WGS 84 / Pseudo-Mercator"
+%     flags.flag_dashboard = 0; % Deactivating Dashboard
+% end
+
+if flags.flag_dashboard == 1 
     ax.flags = flags;
     ax = HydroPol2D_running_dashboard(ax,Maps, zeros(size(DEM_raster.Z)), DEM_raster,gauges,BC_States,time_step,Wshed_Properties.Resolution,1,1,C_a);
 end
 
-% #################### Main Loop (HydroPol2D)  ################ %
+%% #################### Main Loop (HydroPol2D)  ################ %
 while t <= (running_control.routing_time + running_control.min_time_step/60) % Running up to the end of the simulation
     try
         % -------------- Hydrological Model --------------- %
@@ -150,7 +214,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf,Qc,Qf,Qci,Qfi,C_a] = ...
                     Local_Inertial_Model_D4(flags.flag_numerical_scheme,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
                     flags.flag_reservoir,Elevation_Properties.elevation_cell,...
-                    depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical,flags.flag_subgrid,Wshed_Properties.Inbank_Manning,Wshed_Properties.Overbank_Manning,Wshed_Properties.River_Width, Wshed_Properties.River_Depth,Qc,Qf,Qci,Qfi,C_a,Subgrid_Properties,flags.flag_overbanks,flags.flag_inflow);
+                    depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical,flags.flag_subgrid,Wshed_Properties.Inbank_Manning,Wshed_Properties.Overbank_Manning,Wshed_Properties.River_Width, Wshed_Properties.River_Depth,Qc,Qf,Qci,Qfi,C_a,Subgrid_Properties,flags.flag_overbanks,flags.flag_inflow, SubgridTables);
                 end
             end
         end
@@ -223,9 +287,6 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             end
         end
 
-        %% Human Instability Calculations
-        Human_Instability_Module
-
         %% Refreshing Time-step
         running_control.pos_save = ceil((t*60)/running_control.time_step_change);
         running_control.time_save = (running_control.pos_save - 1)*running_control.time_step_change/60;
@@ -239,6 +300,9 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
 
         % Refreshing time-step script
         refreshing_timestep;
+
+        %% Human Instability Calculations
+        Human_Instability_Module
 
         %% Updating Boundary Conditions
         update_spatial_BC; % Updating rainfall and etr B.C.
