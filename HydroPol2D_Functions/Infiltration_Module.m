@@ -1,256 +1,340 @@
-%% ═══════════════════════════════════════════════════════════════════════
-%  Function: infiltrationModule
-%  🛠️ Developer: Marcus Nobrega, Ph.D.
-%  📅 Date: 03/06/2025
-% ─────────────────────────────────────────────────────────────────────────────
-%  ➤ Purpose:
-%      Compute the infiltration process for the hydrological model. This 
-%      module calculates the effective infiltration rate, updates the soil
-%      moisture storage, and computes the error in the infiltration volume.
-%      It handles both standard and subgrid (inbank/overbank) processes.
-%
-%  ➤ Inputs:
-%      • Wshed_Properties:
-%           - Resolution: Spatial resolution (used to compute cell area)
-%           - River_Width, River_Depth: Parameters for subgrid river modeling.
-%
-%      • Soil_Properties:
-%           - I_t: Current UZ soil moisture (mm)
-%           - ksat: Saturated hydraulic conductivity (mm/h)
-%           - psi: Soil suction head (mm)
-%           - teta_sat, teta_i: Saturated and initial soil moisture contents
-%
-%      • depths:
-%           - d_t: Current total water depth (mm)
-%           - d_p: Ponded water depth from previous time-step (mm) [for subgrid corrections]
-%
-%      • LULC_Properties:
-%           - idx_imp: Logical mask for impervious areas (if applicable)
-%
-%      • flags:
-%           - flag_infiltration: Activates the infiltration process
-%           - flag_subgrid: Indicates subgrid modeling for finer channel detail
-%           - flag_overbanks: Activates inbank/overbank corrections
-%
-%      • time_step: Duration of the current time-step (minutes)
-%      • k: Time-step counter (used for initialization)
-%      • DEM_raster: Digital Elevation Model (for domain dimensions and NaN mask)
-%      • C_a: Cell area (may be modified during subgrid corrections)
-%      • cumulative_infiltration: Matrix storing the cumulative infiltration
-%      • errors: Array to store infiltration error (mass balance error)
-%
-%  ➤ Outputs:
-%      • Updates Hydro_States with:
-%           - i_a: Computed inflow rate (mm/h)
-%           - f: Infiltration rate (mm/h)
-%
-%      • Updates Soil_Properties.I_t (soil moisture storage) based on 
-%        infiltration computations.
-%
-%      • Updates depths.d_t (water depth) by subtracting the infiltrated 
-%        volume.
-%
-%      • Updates cumulative_infiltration with the new infiltration volume.
-%
-%      • Updates errors(4) with the infiltration mass balance error (m³)
-%
-%  ➤ Local Functions:
-%      • inbank_to_overbank(B,H,h_p,R)
-%           - Converts inbank depths to overbank conditions.
-%
-%      • overbank_to_inbank(B,H,h_p,R)
-%           - Converts overbank depths back to inbank conditions.
-%
-%  ➤ Notes:
-%      • The module distinguishes between standard infiltration and scenarios
-%        requiring subgrid corrections (i.e., inbank/overbank transitions).
-%      • For high-resolution time-steps, the infiltration rate is approximated
-%        using a simple min() function; otherwise, the GA Newton-Raphson 
-%        method is used to solve the implicit infiltration equation.
-%      • The code applies unit conversions as necessary (e.g., converting mm 
-%        to m³, mm/h adjustments).
-%      • Some sections (e.g., baseflow-related code) are commented out but 
-%        indicate potential extensions.
-%      • Ensure that all input structures (e.g., Wshed_Properties, Soil_Properties)
-%        are properly initialized in the workspace.
-% ═══════════════════════════════════════════════════════════════════════
+%% =========================================================================
+%  INFILTRATION_MODULE
+%  =========================================================================
+%  HydroPol2D – Hydrological Infiltration Component
+%  Developed by Marcus N. Gomes Jr., PhD
 
-
-% Infiltration Module
-
+%  Description:
+%  -------------------------------------------------------------------------
+%  Computes surface infiltration using a Darcy-based formulation coupled
+%  with the van Genuchten–Mualem soil hydraulic model. The infiltration
+%  capacity is controlled by:
+%
+%     • Representative soil moisture state (bucket storage)
+%     • van Genuchten pressure head h(θ)
+%     • Mualem hydraulic conductivity K(θ)
+%     • Surface ponding head (h0)
+%     • Effective top conductance length (Ltop)
+%     • Maximum driving head cap (dh_max) for numerical stability
+%     • Unsaturated storage capacity limited by groundwater depth
+%
+%  The infiltration flux is computed as:
+%
+%     C = K(θ) * [ (min(h0 - h(θ), dh_max) / Ltop) + 1 ]
+%
+%  Final infiltration is limited by:
+%     (i) available surface water supply,
+%    (ii) soil storage capacity remaining,
+%   (iii) impervious area mask.
+%
+%  This formulation replaces the previous Green–Ampt implementation
+%  with a reduced Richards-consistent flux approximation while preserving:
+%
+%     • Mass conservation
+%     • HydroPol2D output structure
+%     • Subgrid inbank/overbank corrections
+%     • Cumulative infiltration accounting
+%
+%  -------------------------------------------------------------------------
+%  Inputs (through struct fields):
+%
+%  Soil_Properties:
+%     I_t           - Current soil storage [mm]
+%     Soil_Depth    - Total soil depth [m]
+%     theta_i        - Initial water content [-]
+%     theta_sat      - Saturated water content [-]
+%     theta_r        - Residual water content [-]
+%     ksat          - Saturated hydraulic conductivity [mm/h]
+%     alpha_vg      - van Genuchten α parameter [1/m]
+%     n_vg          - van Genuchten n parameter [-]
+%     l_vg          - Mualem pore connectivity parameter [-]
+%     Ltop          - Effective surface conductance length [m]
+%     dh_max        - Maximum head difference cap [m]
+%
+%  Hydro_States:
+%     i_a           - Available infiltration supply [mm/h]
+%     f             - Infiltration rate [mm/h]
+%
+%  depths:
+%     d_t           - Surface water depth [mm]
+%
+%  BC_States:
+%     h_t           - Groundwater head [m]
+%
+%  LULC_Properties:
+%     idx_imp       - Impervious mask (logical)
+%
+%  flags:
+%     flag_infiltration
+%     flag_subgrid
+%     flag_overbanks
+%
+%  -------------------------------------------------------------------------
+%  Outputs:
+%
+%     Hydro_States.f        - Infiltration flux [mm/h]
+%     Soil_Properties.I_t   - Updated soil storage [mm]
+%     depths.d_t            - Updated surface water depth [mm]
+%     cumulative_infiltration
+%     errors(4)             - Mass balance diagnostic [m³]
+%
+%  -------------------------------------------------------------------------
+%  Notes:
+%
+%  • When groundwater reaches the surface (zwt → 0), infiltration is set
+%    to zero and excess water is routed as surface flow.
+%
+%  • The parameter Ltop represents an effective hydraulic resistance
+%    thickness of the near-surface layer (typically 0.05–0.10 m).
+%
+%  • The parameter dh_max prevents unrealistically large suction-driven
+%    gradients under very dry conditions.
+%
+%  • This module maintains compatibility with existing HydroPol2D
+%    groundwater and routing components.
+%
+%  -------------------------------------------------------------------------
+%  Version:
+%     v2.0 – Darcy–van Genuchten infiltration formulation
+%
+%
+%  =========================================================================
+% -----------------------------
+% Area / initial storage accounting 
+% -----------------------------
 Coarse_Area = Wshed_Properties.Resolution^2;
 
 % Current UZ + depth Storage
-S_UZ_inf_0 = nansum(nansum(Coarse_Area.*Soil_Properties.I_t/1000));
+S_UZ_inf_0 = nansum(nansum(Coarse_Area .* Soil_Properties.I_t/1000));
+
 if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
     Vol = ((Wshed_Properties.Resolution - Wshed_Properties.River_Width).*Wshed_Properties.Resolution.*max((depths.d_t/1000 - Wshed_Properties.River_Depth),0) + ...
-                      (Wshed_Properties.Resolution.*Wshed_Properties.River_Width.*depths.d_t/1000)); % m3 per cell
+           (Wshed_Properties.Resolution.*Wshed_Properties.River_Width.*depths.d_t/1000)); % m3 per cell
+
     S_p_inf_0 = nansum(nansum(Vol));
-    eff_depth = 1000*(Vol / Coarse_Area); % Depth in the coarse model that matches the subgrid volume (mm)
+    eff_depth = 1000*(Vol / Coarse_Area); % Equivalent coarse depth (mm)
 else
     eff_depth = depths.d_t;
-    S_p_inf_0 = nansum(nansum(Coarse_Area.*depths.d_t/1000));
+    S_p_inf_0 = nansum(nansum(Coarse_Area .* depths.d_t/1000));
 end
 
 S_inf_0 = S_UZ_inf_0 + S_p_inf_0;
 
-
+% -----------------------------
+% Infiltration
+% -----------------------------
 if flags.flag_infiltration == 1
-    % Inflow Rate
-    Hydro_States.i_a = (eff_depth)./(time_step/60);  % Inflow rate [mm/h]
-
-    % Effective Soil Moisture for Green-Ampt Calculation
-    I_t_GA = max(Soil_Properties.I_t,5); % Limiting to 5 mm as minimum
-
-    % Infiltration Capacity
-    C = Soil_Properties.ksat.*(1 + ((eff_depth + ...
-        Soil_Properties.psi).*(Soil_Properties.teta_sat - Soil_Properties.teta_i))./I_t_GA); % matrix form of Infiltration Capacity [mm/h]
-
-   
-    % if flags.flag_baseflow ~= 1 % Deactivating this method due to the linear reservoir approach
-    %     % Cells with top layer exceeding root zone
-    %     Non_C_idx = Soil_Properties.I_t > Soil_Properties.Lu*1000; % Cells that exceed the top layer infiltrated depth
-    % 
-    %     % Limiting infiltration in these areas
-    %     C(Non_C_idx) = Soil_Properties.ksat(Non_C_idx); % If that condition ocurrs, reduce the capacity to the saturation
-    % 
-    %     % Cells where infiltration capacity is higher than inflow
-    %     Hydro_States.idx_C = (Hydro_States.i_a <= C); % Cells where the inflow rate is smaller than the infiltration capacity
-    % 
-    %     % Cells where the inflow rate is larger than the infiltration capacity
-    %     idx_i_a = (Hydro_States.i_a > C); % Cells where the inflow rate is larger than the infiltration capacity
-    % end
-    % % Recovery time
-    % if k == 1
-    %     Soil_Properties.T = zeros(size(elevation,1),size(elevation,2)); Soil_Properties.T(idx_nan) = nan;
-    % else
-    %     Soil_Properties.T = Soil_Properties.T - time_step/60; % Recoverying time (hours
-    % end
-
-    % if flags.flag_baseflow ~= 1
-    %     Soil_Properties.T(idx_i_a) = Soil_Properties.Tr(idx_i_a); % Saturated Areas we begin the process again
-    %     Soil_Properties.idx_T = Soil_Properties.T < 0; % Cells where the replenishing time is reached
-    % 
-    %     % Refreshing Soil_Properties.I_t to I_0 for cases where idx_T > 0
-    %     Soil_Properties.I_t(Soil_Properties.idx_T) = min_soil_moisture(Soil_Properties.idx_T);
-    % 
-    % end
-
-    % Infiltration rate
-    if time_step*60 < 1/60 % If we are using high resolution time-steps
-        % We can approximate the soil infiltration capacity curve
-        Hydro_States.f = min(C,Hydro_States.i_a); % Infiltration rate (mm/hr)
-        Hydro_States.f(LULC_Properties.idx_imp) = 0;
-
-        % % Soil matrix mass balance
-        % if flags.flag_baseflow ~= 1
-        % 
-        %     Soil_Properties.I_t = max(Soil_Properties.I_t + Hydro_States.f*time_step/60 - Soil_Properties.k_out.*double(Hydro_States.idx_C)*time_step/60,min_soil_moisture);
-        % 
-        % else
-        %     Soil_Properties.I_t = Soil_Properties.I_t + Hydro_States.f*time_step/60; % Assuming all infiltrated depth into the soil matrix (recharge will be done with no f)
-        % end
-
-        % Infiltrated Volume
-        inf_volume_cell = Hydro_States.f*(time_step/60); % Infiltrated volume in mm per cell
-        inf_volume = 1/1000*nansum(nansum((inf_volume_cell.*Coarse_Area))); % m3 total per domain
-
-    else
-        % We need to solve the implicit GA equation
-        [Soil_Properties.I_t,Hydro_States.f] = GA_Newton_Raphson(Soil_Properties.I_t,time_step/60 ...
-            ,Soil_Properties.ksat,Soil_Properties.psi,Soil_Properties.teta_sat - Soil_Properties.teta_i,eff_depth,Hydro_States.i_a,12,LULC_Properties.idx_imp);
-        
-        % No infiltration if unconfined aquifer is fully saturated
-        if flags.flag_baseflow == 1
-            % Soil_Properties.I_t(idx_noinf) = 0;
-            % Hydro_States.f(idx_noinf) = 0;
-            GW_Depth = (BC_States.h_t - (elevation - Soil_Properties.Soil_Depth)); % Groundwater depth [m]
-            UZ_max_storage = (Soil_Properties.Soil_Depth - GW_Depth) .* ...
-                             (Soil_Properties.teta_sat - Soil_Properties.teta_i);  % Max storage in unsaturated zone [m water]
-            idx_limited_inf = Soil_Properties.I_t / 1000 > UZ_max_storage;
-            f_limited = 1/(time_step / 60) * (min(Soil_Properties.I_t, UZ_max_storage * 1000) - Soil_Properties.I_p);
-            Soil_Properties.I_t(idx_limited_inf) = 1000*UZ_max_storage(idx_limited_inf);
-            Hydro_States.f(idx_limited_inf) = f_limited(idx_limited_inf);
-            C(idx_limited_inf) = Hydro_States.f(idx_limited_inf);
-        end
-        % if flags.flag_baseflow ~= 1 % Deep percolation
-        %     Soil_Properties.I_t = max(Soil_Properties.I_t - Soil_Properties.k_out.*double(Hydro_States.idx_C)*time_step/60,min_soil_moisture);
-        % end
-
-        % Soil matrix balance already considered in the GA model, so
-        % recharge occurs with f = 0
-        
-        % Infiltrated Volume
-        inf_volume_cell = Hydro_States.f*(time_step/60); % Infiltrated volume in mm per coarse cell
-        inf_volume = 1/1000*nansum(nansum((inf_volume_cell/1000 .* Coarse_Area))); % m3 total per domain
-
+    
+    % ---------------------------------------------------------------------
+    % Default hydraulic parameters (only if not provided in struct)
+    % ---------------------------------------------------------------------
+    if ~isfield(Soil_Properties,'l_vg') || isempty(Soil_Properties.l_vg)
+        Soil_Properties.l_vg = 0.5;        % Mualem pore connectivity [-]
     end
 
-    depths.d_t = depths.d_t - inf_volume_cell .* Coarse_Area ./ C_a; % Taking care of the infiltration depth
+    if ~isfield(Soil_Properties,'Ltop') || isempty(Soil_Properties.Ltop)
+        Soil_Properties.Ltop = 0.05;       % Effective surface conductance length [m]
+    end
+
+    if ~isfield(Soil_Properties,'dh_max') || isempty(Soil_Properties.dh_max)
+        Soil_Properties.dh_max = 1.0;      % Max driving head cap [m]
+    end
+
+    % Time
+    dt_h = (time_step/60);     % hours
+    dt_s = time_step * 60;     % seconds
+
+    % Inflow rate from ponded depth (mm/h) – consistent with your existing definition
+    Hydro_States.i_a = eff_depth ./ dt_h;
+
+    % Ponding head at surface (m)
+    h0 = max(eff_depth, 0) / 1000;
+
+    % ---------------------------------------------------------
+    % Unsaturated-zone capacity as function of groundwater depth
+    % (same idea you already use when baseflow is on, but always applied)
+    % ---------------------------------------------------------
+    GW_Depth = (BC_States.h_t - (elevation - Soil_Properties.Soil_Depth));  % [m] saturated thickness
+    zwt = Soil_Properties.Soil_Depth - GW_Depth;                           % [m] depth to WT from surface
+    zwt = max(zwt, 0);
+
+    % Max UZ storage [m water]
+    UZ_max_storage = zwt .* (Soil_Properties.theta_sat - Soil_Properties.theta_r);
+
+    % Current storage [m water]
+    S = max(Soil_Properties.I_t, 0) / 1000;
+
+    % Remaining storage capacity [m water]
+    S_rem = max(UZ_max_storage - S, 0);
+
+    % If fully saturated / no unsat thickness -> no infiltration
+    idx_noUZ = (zwt <= 0) | (UZ_max_storage <= 0);
+
+    % ---------------------------------------------------------
+    % Map bucket storage -> representative theta
+    % theta = theta_r + S/zwt (bounded)
+    % ---------------------------------------------------------
+    zwt_safe = max(zwt, 1e-6);
+    theta = Soil_Properties.theta_r + (S ./ zwt_safe);
+
+    theta = max(theta, Soil_Properties.theta_r);
+    theta = min(theta, Soil_Properties.theta_sat);
+
+    % ---------------------------------------------------------
+    % van Genuchten: h(theta)
+    % Required fields:
+    %   Soil_Properties.theta_r
+    %   Soil_Properties.alpha_vg [1/m]
+    %   Soil_Properties.n_vg
+    % m = 1 - 1/n
+    % ---------------------------------------------------------
+    theta_r = Soil_Properties.theta_r;
+    theta_s = Soil_Properties.theta_sat;
+
+    Se = (theta - theta_r) ./ max(theta_s - theta_r, 1e-12);
+    Se = min(max(Se, 1e-6), 1);
+
+    n = Soil_Properties.n_vg;
+    m = 1 - 1./n;
+    a = Soil_Properties.alpha_vg;   % [1/m]
+
+    % Pressure head h(theta) [m], negative unsaturated
+    h_soil = -(1./a) .* ((Se.^(-1./m) - 1).^(1./n));
+    h_soil(Se >= 0.999999) = 0;
+
+    % ---------------------------------------------------------
+    % Mualem–van Genuchten: K(theta)
+    % Required fields:
+    %   Soil_Properties.ksat [mm/h]
+    %   Soil_Properties.l_vg [-]  (typical 0.5)
+    % ---------------------------------------------------------
+    Ks = Soil_Properties.ksat / 1000 / 3600;   % [m/s]
+    ell = Soil_Properties.l_vg;                % [-]
+
+    term = (1 - Se.^(1./m));
+    Kr = Se.^ell .* (1 - term.^m).^2;
+    Kr = min(max(Kr, 0), 1);
+
+    Ksoil = Ks .* Kr;                          % [m/s]
+
+    % ---------------------------------------------------------
+    % Darcy infiltration capacity with Ltop and dh_max
+    % fcap = Ksoil * ( (min(h0 - h_soil, dh_max))/Ltop + 1 )
+    % ---------------------------------------------------------
+    Ltop   = Soil_Properties.Ltop;     % [m] e.g., 0.05
+    dh_max = Soil_Properties.dh_max;   % [m] e.g., 1.0
+
+    dh = h0 - h_soil;                  % [m]
+    dh = max(dh, 0);
+    dh = min(dh, dh_max);
+
+    grad = (dh ./ max(Ltop, 1e-6)) + 1;   % dimensionless
+    C = Ksoil .* grad;            % [m/s]
+
+    % Convert to mm/h
+    C = C * 1000 * 3600;      % [mm/h]
+
+    % ---------------------------------------------------------
+    % Final infiltration: supply limit + capacity limit + storage limit
+    % Supply limit is Hydro_States.i_a by definition.
+    % Storage limit: cannot exceed remaining capacity this step.
+    % ---------------------------------------------------------
+    f_store_lim = (S_rem * 1000) ./ max(dt_h, 1e-12);  % [mm/h]
+
+    Hydro_States.f = min(Hydro_States.i_a, C);
+    Hydro_States.f = min(Hydro_States.f, f_store_lim);
+
+    % Impervious areas: no infiltration
+    Hydro_States.f(LULC_Properties.idx_imp) = 0;
+
+    % No UZ capacity (WT at/above surface): no infiltration
+    Hydro_States.f(idx_noUZ) = 0;
+
+    % Safety
+    Hydro_States.f(isnan(Hydro_States.f)) = 0;
+    Hydro_States.f = max(Hydro_States.f, 0);
+
+    % ---------------------------------------------------------
+    % Update soil storage and compute infiltrated volume
+    % ---------------------------------------------------------
+    Soil_Properties.I_p = Soil_Properties.I_t;  % keep previous (used elsewhere sometimes)
+
+    % Infiltrated depth per coarse cell [mm]
+    inf_volume_cell = Hydro_States.f * dt_h;
+
+    % Update soil storage [mm]
+    Soil_Properties.I_t = Soil_Properties.I_t + inf_volume_cell;
+
+    % Enforce soil storage bound [mm]
+    Soil_Properties.I_t = min(Soil_Properties.I_t, UZ_max_storage * 1000);
+    Soil_Properties.I_t = max(Soil_Properties.I_t, 0);
+
+    % Total infiltrated volume (domain) [m3] (for diagnostics only)
+    inf_volume = 1/1000 * nansum(nansum((inf_volume_cell .* Coarse_Area)));
+
+    % Remove infiltrated depth from surface water depth (your original area correction)
+    depths.d_t = depths.d_t - inf_volume_cell .* Coarse_Area ./ C_a;
+    depths.d_t(depths.d_t < 0) = 0;
+
 end
 
-if flags.flag_subgrid == 1 && flags.flag_overbanks % Maybe we have a change from inbank <-> overbank
-    % Eq. 15 and 16 of A subgrid channel model for simulating river hydraulics andfloodplain inundation over large and data sparse areas
-    % Inbank - Overbank
-    idx = depths.d_t/1000 > Wshed_Properties.River_Depth & depths.d_p/1000 <= Wshed_Properties.River_Depth & (Wshed_Properties.River_Width>0); % Cells in which there is a change from inbank to overbank
+% -----------------------------
+% Subgrid inbank/overbank transitions (unchanged)
+% -----------------------------
+if flags.flag_subgrid == 1 && flags.flag_overbanks
+    % Inbank -> Overbank
+    idx = depths.d_t/1000 > Wshed_Properties.River_Depth & depths.d_p/1000 <= Wshed_Properties.River_Depth & (Wshed_Properties.River_Width > 0);
     if sum(sum(idx)) > 0
-        [depths.d_t(idx)] = inbank_to_overbank(Wshed_Properties.River_Width(idx),Wshed_Properties.River_Depth(idx),depths.d_t(idx)/1000,Wshed_Properties.Resolution);
+        depths.d_t(idx) = inbank_to_overbank(Wshed_Properties.River_Width(idx), Wshed_Properties.River_Depth(idx), depths.d_t(idx)/1000, Wshed_Properties.Resolution);
         C_a(idx) = Wshed_Properties.Resolution^2;
     end
-    % Overbank - Inbank
-    idx = depths.d_t/1000 <= Wshed_Properties.River_Depth & depths.d_p/1000 >= Wshed_Properties.River_Depth & (Wshed_Properties.River_Width>0); % Cells in which there is a change from overbank to inbank
+
+    % Overbank -> Inbank
+    idx = depths.d_t/1000 <= Wshed_Properties.River_Depth & depths.d_p/1000 >= Wshed_Properties.River_Depth & (Wshed_Properties.River_Width > 0);
     if sum(sum(idx)) > 0
-        [depths.d_t(idx)] = overbank_to_inbank(Wshed_Properties.River_Width(idx),Wshed_Properties.River_Depth(idx),depths.d_t(idx)/1000,Wshed_Properties.Resolution);
-        C_a(idx) = Wshed_Properties.River_Width(idx)*Wshed_Properties.Resolution;
-    end 
+        depths.d_t(idx) = overbank_to_inbank(Wshed_Properties.River_Width(idx), Wshed_Properties.River_Depth(idx), depths.d_t(idx)/1000, Wshed_Properties.Resolution);
+        C_a(idx) = Wshed_Properties.River_Width(idx) * Wshed_Properties.Resolution;
+    end
 end
 
-% Final UZ + depth Storage
-S_UZ_inf_t = nansum(nansum(Coarse_Area.*Soil_Properties.I_t/1000));
+% -----------------------------
+% Final storage accounting + error (unchanged)
+% -----------------------------
+S_UZ_inf_t = nansum(nansum(Coarse_Area .* Soil_Properties.I_t/1000));
 
 if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
     S_p_inf_t = nansum(nansum((Wshed_Properties.Resolution - Wshed_Properties.River_Width).*Wshed_Properties.Resolution.*max((depths.d_t/1000 - Wshed_Properties.River_Depth),0))) + ...
-                      nansum(nansum(Wshed_Properties.Resolution.*Wshed_Properties.River_Width.*depths.d_t/1000));
+               nansum(nansum(Wshed_Properties.Resolution .* Wshed_Properties.River_Width .* depths.d_t/1000));
 else
-    S_p_inf_t = nansum(nansum(Coarse_Area.*depths.d_t/1000));
+    S_p_inf_t = nansum(nansum(Coarse_Area .* depths.d_t/1000));
 end
+
 S_inf_t = S_UZ_inf_t + S_p_inf_t;
 
-% Reservoir 1: surface
-% dh1/dt = -f
-
-% Reservoir 2: soil matrix
-% dh2/dt = +f
-
-% dh1/dt + dh2/dt = 0
-
-% Storage(t + dt) - Storage(t) = 0
-
-% Error 
 dS_inf = (S_inf_t - S_inf_0);
-error = dS_inf;
+errors(4) = dS_inf; % m3
 
-errors(4) = error; % m3 
-
-% Cumulative Infiltration
+% -----------------------------
+% Cumulative infiltration (unchanged interface)
+% -----------------------------
 if k == 1
-    cumulative_infiltration = ones(size(DEM_raster.Z)); cumulative_infiltration(isnan(cumulative_infiltration)) = nan;
+    cumulative_infiltration = ones(size(DEM_raster.Z));
+    cumulative_infiltration(isnan(cumulative_infiltration)) = nan;
 end
 
 if flags.flag_infiltration == 1
-    cumulative_infiltration = cumulative_infiltration + Hydro_States.f/1000/3600 * (time_step/60); % [mm]
+    cumulative_infiltration = cumulative_infiltration + Hydro_States.f/1000/3600 * (time_step/60);
 else
-    Hydro_States.f = 0*elevation;
-    inf_volume = 0*elevation;
+    Hydro_States.f = 0 * elevation;
+    inf_volume = 0 * elevation;
 end
-
 
 %%%% Local Functions %%%%
 
 function [h] = inbank_to_overbank(B,H,h_p,R)
-    h = 1000*(B.* H + (R - B).* h_p) ./ R;
+    h = 1000*(B.*H + (R - B).*h_p) ./ R;
 end
 
 function [h] = overbank_to_inbank(B,H,h_p,R)
-    h = 1000*(B .* h_p + (R - B) .* (H - h_p)) ./ B;
+    h = 1000*(B.*h_p + (R - B).*(H - h_p)) ./ B;
 end

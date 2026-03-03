@@ -86,7 +86,7 @@ Hf_x     = [Hf_x_int, nan_col];
 zf_y   = max(z(1:end-1,:), z(2:end,:));                  % bed at the face
 etaS_y = max(y(1:end-1,:), zf_y);                        % reconstructed η* from (i, j)
 etaN_y = max(y(2:end  ,:), zf_y);                        % reconstructed η* from (i, j+1)
-Sy_int = (etaN_y - etaS_y) ./ Resolution;                % slope positive to the north
+Sy_int = (etaS_y - etaN_y) ./ Resolution;                % slope positive to the north
 % pad to full ny×nx by prepending a NaN row on the top
 Sy     = [nan_row; Sy_int];
 
@@ -256,7 +256,7 @@ outflow = outflow_rate./(cell_area)*1000*3600; % mm per hour (for coarse grid)
 matrix_store = outflow; % mm per hour
 
 %% Limiting outflow to maximum velocity
-max_velocity = 100; % m/s
+max_velocity = 10; % m/s
 threshold_velocity = Hf(:,:,1:size(outflow,3))*max_velocity; % m3/s per unit width
 q(q > threshold_velocity) = threshold_velocity(q > threshold_velocity); % m2/s (normalized by flow width)
 q(q < -threshold_velocity) = (-1)*threshold_velocity(q < -threshold_velocity); % m2/s (normalized by flow width) 
@@ -368,8 +368,9 @@ else
         % Checking left, right up, and down
         row = row_outlet(i); % Row of outlet
         col = col_outlet(i); % Col of outlet
-        S_0(row,col) = (max((d_t(row,col)/1000),0).^(-1/6)).*sqrt(9.81).*roughness_cell(row,col); % Critical Slope
-    end
+        h = max(d_t(row,col)/1000, 0);
+        S_0(row,col) = (roughness_cell(row,col)^2) * 9.81 * h^(-1/3);  % TRUE critical slope Scrit    
+        end
     S_0(isinf(S_0)) = 0;
 end
 mask_outlet = S_0 ~= 0;

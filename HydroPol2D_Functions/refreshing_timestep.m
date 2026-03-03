@@ -117,6 +117,8 @@ if running_control.delta_time_save > 0 || k == 1 % First time-step
 
     if velocities.max_velocity > 0
         % Old Solution considering flow velocity
+        Courant_Parameters.slope_alfa = 2;
+        Courant_Parameters.v_threshold = 5;
         new_timestep = (Courant_Parameters.factor_grid*Wshed_Properties.Resolution/velocities.max_velocity); % seconds
         Courant_Parameters.time_step_factor = max(Courant_Parameters.alfa_max - Courant_Parameters.slope_alfa*(max(velocities.max_velocity - Courant_Parameters.v_threshold,0)),Courant_Parameters.alfa_min);
 

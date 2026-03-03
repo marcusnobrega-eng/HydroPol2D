@@ -19,17 +19,27 @@
 % clear all
 % load workspace_CG_event.mat
 % load workspace_beaver_creek_correct.mat
-clear all
+% clear all
 % load workspace_amazon_simple.mat
 % clear all
 % load workspace_beaver.mat
 % load example_1.mat
 % load test.mat
 % load test_radar.mat
-load workspace_synthetic_all_cases
-
+% load workspace_synthetic_all_cases
 % load workspace_CG_event_subgrid_functions.mat
 % flags.flag_overbanks = 1;
+% clear all; load pune_90m_ABM.mat;
+% clear all; load pune_30m_ABM.mat
+% clear all
+% load pune_30m_ABM.mat
+% load workspace_pune_100yr.mat
+% load pune_inflow_90m.mat
+% load workspace_pune_15000cms_inflow.mat;
+% load pune_90m.mat;
+running_control.max_time_step = 60;
+% clear all; load workspace_wetbeavercreek.mat;
+flags.flag_dashboard = 1;
 tic
 k = 1; % time-step counter
 C = 0; % initial infiltration capacity
@@ -42,10 +52,6 @@ Risk_Area = 0; % initial risk area
 store = 1; % Index for saving maps
 t_previous = 0;
 factor_time = 0;
-% flags.flag_input_rainfall_map = 0;
-% flags.flag_satellite_rainfall = 1;
-running_control.max_time_step = 15*60; % seconds
-running_control.min_time_step = 1; % seconds
 
 running_control.max_time_step = min(running_control.record_time_hydrographs*60, running_control.max_time_step);
 running_control.min_time_step = min(running_control.record_time_hydrographs*60, running_control.min_time_step);
@@ -155,8 +161,9 @@ end
 while t <= (running_control.routing_time + running_control.min_time_step/60) % Running up to the end of the simulation
     try
         % -------------- Hydrological Model --------------- %
-        % BC_States.delta_p_agg(BC_States.delta_p_agg >= 0) = 1 * (time_step/60); % 1 mm/h
-       
+        % BC_States.delta_p_agg(BC_States.delta_p_agg >= 0) = 0.1 * (time_step/60); % 1 mm/h
+        % time_step = 1; % min 
+
         Hydrological_Model; % Runs the interception + infiltration + GW routing model
 
         % Preallocating cels for Cellular Automata 
@@ -482,7 +489,9 @@ if flags.flag_waterquality == 1
     Maps.WQ_States.Pol_Conc_Map=Maps.WQ_States.Pol_Conc_Map(:,:,1:saver_count);
     Maps.WQ_States.Pol_mass_map=Maps.WQ_States.Pol_mass_map(:,:,1:saver_count);
 end
-save(strcat('Temporary_Files\save_map_hydro_',num2str(store),'.mat'),'Maps');
+tempDir = fullfile(pwd,'Temporary_Files');
+save(fullfile(tempDir, ['save_map_hydro_' num2str(store) '.mat']), 'Maps', '-v7.3');
+
 
 % Returning Variables to CPU
 if flags.flag_GPU == 1

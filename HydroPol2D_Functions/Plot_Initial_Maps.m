@@ -228,7 +228,7 @@ if no_plot==0;
 end
 t_title = 'Moisture Deficit';
 axis tight; grid on; box on; % this ensures that getframe() returns a consistent size
-z = (Soil_Properties.teta_sat - Soil_Properties.teta_i); z(idx_nan) = nan;
+z = (Soil_Properties.theta_sat - Soil_Properties.theta_r); z(idx_nan) = nan;
 idx = z < 0;
 z(idx) = nan;
 idx = isinf(z);

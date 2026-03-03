@@ -1,118 +1,52 @@
 %%%%%%%%%%%%%% INPUT DATA %%%%%%%%%%%%%%%%%%%
-input_table = readtable(model_folder);
+GD = readcell(model_folder,'Sheet','General_Data');  % raw grid (names anywhere)
 
-% Running Control
-input_table_running_control = table2array(input_table(:,2));
-time_step_model = input_table_running_control(1)/60; % Dividing to convert to min
-running_control.min_time_step = input_table_running_control(2);
-running_control.max_time_step = input_table_running_control(3);
-running_control.time_step_increments = input_table_running_control(4);
-running_control.time_step_change = input_table_running_control(5);
-Courant_Parameters.alfa_max = input_table_running_control(6);
-Courant_Parameters.alfa_min = input_table_running_control(7);
-Courant_Parameters.v_threshold = input_table_running_control(8);
-Courant_Parameters.slope_alfa = input_table_running_control(9);
-date_begin = input_table_running_control(10);
-date_end = input_table_running_control(11);
-% --- Routing Time --- %
-running_control.routing_time = round((date_end - date_begin)*1440,4); % Minutes
-date_begin = datetime(datestr(date_begin+datenum('30-Dec-1899')));
-date_end = datetime(datestr(date_end+datenum('30-Dec-1899')));
+% ---------------- Running Control (name-based) ----------------
+time_step_model = xlnum(GD,'time_step_model')/60;   % sheet is seconds -> minutes
+running_control.min_time_step = xlnum(GD,'min_time_step');
+running_control.max_time_step = xlnum(GD,'max_time_step');
+
+running_control.time_step_increments = 0.001;       % keep as constant (your choice)
+running_control.time_step_change = xlnum(GD,'time_step_change');
+
+Courant_Parameters.alfa_min = xlnum(GD,'alfa_min');
+Courant_Parameters.alfa_max = xlnum(GD,'alfa_max');
+
+date_begin = xldatetime(GD,'date_begin');
+date_end   = xldatetime(GD,'date_end');
+
+running_control.routing_time = round(minutes(date_end - date_begin), 4);  % minutes
 if running_control.routing_time < 0
     error('Please make sure Date End is later than Date Begin.')
 end
 
-% --------------- Flags ----------------  %
-input_table_flags = readtable(model_folder,'Sheet','Flags');
-input_table_BC = table2array(input_table_flags(:,2));
-input_table_BC(isnan(input_table_BC)) = [];
+% ==========================================================
+% FLAGS (name-based read from 'Flags' sheet)
+% ==========================================================
+FlagsGrid = readcell(model_folder,'Sheet','Flags');
 
-input_table_Hydro = table2array(input_table_flags(:,5));
-input_table_Hydro(isnan(input_table_Hydro)) = [];
+flags = read_flags_sheet(FlagsGrid);
 
-input_table_Performance = table2array(input_table_flags(:,8));
-input_table_Performance(isnan(input_table_Performance)) = [];
+% --- Optional: sanity checks (fail fast if a required flag is missing) ---
+requiredFlags = { ...
+    'flag_rainfall','flag_spatial_rainfall','flag_ETP','flag_input_rainfall_map', ...
+    'flag_rainfall_multiple_runs','flag_data_source','flag_inflow','flag_satellite_rainfall', ...
+    'flag_alternated_blocks','flag_huff','flag_stage_hydrograph','flag_input_ETP_map', ...
+    'flag_timestep','flag_infiltration','flag_critical','flag_D8','flag_CA','flag_inertial', ...
+    'flag_waterbalance','flag_waterquality','flag_reservoir','flag_wq_model','flag_groundwater_modeling', ...
+    'flag_real_time_satellite_rainfall','flag_dam_break','flag_human_instability','flag_boundary', ...
+    'flag_numerical_scheme','flag_outlet_type','flag_adaptive_timestepping','flag_neglect_infiltration_river', ...
+    'flag_subgrid','flag_spatial_albedo','flag_river_rasters','flag_baseflow','flag_kinematic','flag_diffusive', ...
+    'flag_DTM','flag_abstraction','flag_overbanks','flag_snow_modeling','flag_WQ_Rasters', ...
+    'flag_GPU','flag_single','flag_warmup','flag_initial_buildup', ...
+    'flag_resample','flag_smoothening','flag_trunk','flag_fill_DEM','flag_smooth_cells','flag_reduce_DEM', ...
+    'flag_export_maps','flag_river_heigth_compensation','flag_dashboard','flag_elapsed_time','flag_obs_gauges' ...
+};
 
-input_table_IC = table2array(input_table_flags(:,11));
-input_table_IC(isnan(input_table_IC)) = [];
-
-input_table_DEM_t = table2array(input_table_flags(:,14));
-input_table_DEM_t(isnan(input_table_DEM_t)) = [];
-
-input_table_extra = table2array(input_table_flags(:,17));
-input_table_extra(isnan(input_table_extra)) = [];
-
-% Boundary Condition Flags
-flags.flag_rainfall = input_table_BC(1);
-flags.flag_spatial_rainfall = input_table_BC(2);
-flags.flag_ETP = input_table_BC(3);
-flags.flag_input_rainfall_map = input_table_BC(4);
-flags.flag_rainfall_multiple_runs = input_table_BC(5);
-flags.flag_data_source = input_table_BC(6);
-flags.flag_inflow = input_table_BC(7);
-flags.flag_satellite_rainfall = input_table_BC(8);
-flags.flag_alternated_blocks = input_table_BC(9);
-flags.flag_huff = input_table_BC(10);
-flags.flag_stage_hydrograph = input_table_BC(11);
-flags.flag_input_ETP_map = input_table_BC(12);
-
-
-% Hydrologic-Hydrodynamic-WQ Flags
-flags.flag_timestep = input_table_Hydro(1);
-flags.flag_infiltration = input_table_Hydro(2);
-flags.flag_critical = input_table_Hydro(3);
-flags.flag_D8 = input_table_Hydro(4);
-flags.flag_CA = input_table_Hydro(5);
-flags.flag_inertial = input_table_Hydro(6);
-flags.flag_waterbalance = input_table_Hydro(7);
-flags.flag_waterquality = input_table_Hydro(8);
-flags.flag_reservoir = input_table_Hydro(9);
-flags.flag_wq_model = input_table_Hydro(10);
-flags.flag_groundwater_modeling = input_table_Hydro(11);
-flags.flag_real_time_satellite_rainfall = input_table_Hydro(12);
-flags.flag_dam_break = input_table_Hydro(13);
-flags.flag_human_instability = input_table_Hydro(14);
-flags.flag_boundary = input_table_Hydro(15);
-flags.flag_numerical_scheme = input_table_Hydro(16);
-flags.flag_outlet_type = input_table_Hydro(17);
-flags.flag_adaptive_timestepping = input_table_Hydro(18);
-flags.flag_neglect_infiltration_river = input_table_Hydro(19);
-flags.flag_subgrid = input_table_Hydro(20);
-flags.flag_spatial_albedo = input_table_Hydro(21);
-flags.flag_river_rasters = input_table_Hydro(22);
-flags.flag_baseflow = input_table_Hydro(23);
-flags.flag_kinematic = input_table_Hydro(24);
-flags.flag_diffusive = input_table_Hydro(25);
-flags.flag_DTM = input_table_Hydro(26);
-flags.flag_abstraction = input_table_Hydro(27);
-flags.flag_overbanks = input_table_Hydro(28);
-flags.flag_snow_modeling = input_table_Hydro(29);
-flags.flag_WQ_Rasters = input_table_Hydro(30);
-
-% Performance Flags
-flags.flag_GPU = input_table_Performance(1);
-flags.flag_single = input_table_Performance(2);
-
-% Initial Condition Flags
-flags.flag_warmup = input_table_IC(1);
-flags.flag_initial_buildup = input_table_IC(2);
-
-% DEM Treatment Tools
-flags.flag_resample = input_table_DEM_t(1);
-flags.flag_smoothening = input_table_DEM_t(2);
-flags.flag_trunk = input_table_DEM_t(3);
-flags.flag_fill_DEM = input_table_DEM_t(4);
-flags.flag_smooth_cells = input_table_DEM_t(5);
-flags.flag_reduce_DEM = input_table_DEM_t(6);
-
-% Extra Flags
-flags.flag_export_maps = input_table_extra(1);
-flags.flag_river_heigth_compensation = input_table_extra(2);
-flags.flag_rainfall_multiple_runs = input_table_extra(3);
-flags.flag_data_source = input_table_extra(4);
-flags.flag_dashboard = input_table_extra(5);
-flags.flag_elapsed_time = input_table_extra(6);
-flags.flag_obs_gauges = input_table_extra(7);
+missing = requiredFlags(~isfield(flags, requiredFlags));
+if ~isempty(missing)
+    error("Missing flags in Flags sheet: %s", strjoin(missing, ", "));
+end
 
 % Little Constraints
 if flags.flag_infiltration == 0
@@ -122,9 +56,8 @@ if flags.flag_infiltration == 0
 end
 
 % Volume error
-input_table_error = table2array(input_table(:,5));
-running_control.volume_error = input_table_error(1);
-running_control.factor_reduction = input_table_error(2);
+running_control.volume_error = 5; % m3 [not needed and not considerd as input anymore]
+running_control.factor_reduction = 2; % [not considered as input anymore]
 
 if flags.flag_input_rainfall_map + flags.flag_satellite_rainfall + flags.flag_real_time_satellite_rainfall > 1
     error('Please choose only one type of spatial rainfall data.')
@@ -134,30 +67,34 @@ if flags.flag_inertial == 1 && flags.flag_CA == 1
     error('Please, add either diffusive or inertial flag.')
 end
 
-% Watershed Inputs and Cuts
-input_table_watershed_inputs = table2array(input_table(:,8));
-% outlet_type = input_table_watershed_inputs(1);
+
+% ---------------- Watershed / outlet ----------------
 if flags.flag_outlet_type == 1
     outlet_type = 1;
-else
-    outlet_type = 2;
 end
-slope_outlet = input_table_watershed_inputs(1);
-n_outlets_data = input_table_watershed_inputs(2);
+
+slope_outlet   = xlnum(GD,'slope_outlet');
+
+% This key does NOT exist in your current General_Data -> add it or delete this line:
+n_outlets_data = 1; % Fixed in one
+
+
+
 % Lateral_Groundwater_Flux = input_table_watershed_inputs(3); % m3/s/m
 
-% Maps and Plots Control
-input_table_map_plots = table2array(input_table(:,11));
-running_control.record_time_maps = input_table_map_plots(1);
-running_control.record_time_hydrographs = input_table_map_plots(2);
-Pol_min = input_table_map_plots(3);
-depth_wse = input_table_map_plots(4);
-flags.flag_wse = input_table_map_plots(5);
-running_control.record_time_spatial_rainfall = input_table_map_plots(6);
-time_save_ETP = input_table_map_plots(7);
-Krs_ETP = input_table_map_plots(8);
-albedo = input_table_map_plots(9);
-running_control.record_time_spatial_etp = input_table_map_plots(10);
+% ---------------- Maps and Plots Control ----------------
+running_control.record_time_maps            = xlnum(GD,'record_time_maps');
+running_control.record_time_hydrographs     = xlnum(GD,'record_time_hydrographs');
+Pol_min                                    = xlnum(GD,'Pol_min');
+depth_wse                                   = xlnum(GD,'depth_wse');
+flags.flag_wse                               = xlnum(GD,'flag_wse');
+running_control.record_time_spatial_rainfall = xlnum(GD,'record_time_spatial_rainfall');
+time_save_ETP                                = xlnum(GD,'time_save_ETP');
+running_control.record_time_spatial_etp      = xlnum(GD,'record_time_spatial_ETP');
+
+% These keys do NOT exist in your current General_Data -> add them or remove from code:
+Krs_ETP = 0.13; % Defaults
+albedo  = 0.25; % Defaults
 
 
 if flags.flag_input_rainfall_map == 1
@@ -166,41 +103,41 @@ if flags.flag_input_rainfall_map == 1
     end
 end
 
-% Routing Parameters
-routing_parameters = table2array(input_table(:,14));
-CA_States.depth_tolerance = routing_parameters(1);
+% ---------------- Routing Parameters ----------------
+CA_States.depth_tolerance = 1; % Default 1 mm
 
 
 % River Heigth and Width (Deactivated. Now it is spatially distributed)
-input_table_river = table2array(input_table(:,17));
-GIS_data.alfa_1 = input_table_river(1);
-GIS_data.alfa_2 = input_table_river(2);
-GIS_data.beta_1 = input_table_river(3);
-GIS_data.beta_2 = input_table_river(4);
-LULC_Parameters.River_Manning = input_table_river(5);
-River_K_coeff = input_table_river(6);
+% ---------------- River Height and Width ----------------
+GIS_data.alfa_1 = xlnum(GD,'alfa_1');
+GIS_data.alfa_2 = xlnum(GD,'alfa_2');
+GIS_data.beta_1 = xlnum(GD,'beta_1');
+GIS_data.beta_2 = xlnum(GD,'beta_2');
+LULC_Parameters.River_Manning = xlnum(GD,'Manning');
+
+% This key does NOT exist in your current General_Data -> add it or remove:
+River_K_coeff = nan; % Deactivated
 
 % GIS_data.xulcorner = input_table_abstraction(5);
 % GIS_data.yulcorner = input_table_abstraction(6);
 
-% Water Quality Inputs
-input_table_WQ_parameter = table2array(input_table(:,20));
-ADD = input_table_WQ_parameter(1);
-min_Bt = input_table_WQ_parameter(2);
-Bmin = input_table_WQ_parameter(3);
-Bmax = input_table_WQ_parameter(4);
+% ---------------- Water Quality Inputs ----------------
+ADD    = xlnum(GD,'ADD');
+min_Bt = xlnum(GD,'min_Bt');
+Bmin   = xlnum(GD,'Bmin');
+Bmax   = xlnum(GD,'Bmax');
 
 % DEM Smoothing, Imposemin & Resample
-input_table_DEM = table2array(input_table(:,24));
-GIS_data.min_area = input_table_DEM(1);
-GIS_data.tau = input_table_DEM(2);
-GIS_data.K_value = input_table_DEM(3);
-GIS_data.sl = input_table_DEM(4);
-GIS_data.resolution_resample = input_table_DEM(5);
-GIS_data.slope_DTM = input_table_DEM(6);
+% ---------------- DEM Smoothing, Imposemin, Resample ----------------
+GIS_data.min_area            = xlnum(GD,'min_area');
+GIS_data.tau                 = xlnum(GD,'tau');
+GIS_data.K_value             = xlnum(GD,'K_value');
+GIS_data.sl                  = xlnum(GD,'sl');
+GIS_data.resolution_resample = xlnum(GD,'resolution_resample');
+GIS_data.slope_DTM           = xlnum(GD,'slope_DTM');
 
-% TopoToolbox Folder
-topo_path = table2cell(input_table(1,27));
+% ---------------- TopoToolbox Folder ----------------
+topo_path = xlget(GD,'topo_path');   % <-- rename 'Path' -> 'topo_path' in Excel
 
 % Human Instability
 if flags.flag_human_instability == 1
@@ -278,64 +215,63 @@ else
     Human_Instability = [];
 end
 
-% Design Storms
-input_table_design = table2array((input_table(1:9,45)));
-Design_Storm_Parameters.RP = input_table_design(1); % year
-Design_Storm_Parameters.Rainfall_Duration = input_table_design(2); % min
-Design_Storm_Parameters.K = input_table_design(3); % K
-Design_Storm_Parameters.a = input_table_design(4); % a
-Design_Storm_Parameters.b = input_table_design(5); % b
-Design_Storm_Parameters.c = input_table_design(6); % c
-Design_Storm_Parameters.time_step = input_table_design(7); % min
+% ---------------- Design Storms (from General_Data by label) ----------------
+Design_Storm_Parameters.RP              = xlnum(GD,'RP');                % years
+Design_Storm_Parameters.Rainfall_Duration = xlnum(GD,'Rainfall Duration'); % minutes (see note below)
+Design_Storm_Parameters.K               = xlnum(GD,'K');
+Design_Storm_Parameters.a               = xlnum(GD,'a');
+Design_Storm_Parameters.b               = xlnum(GD,'b');
+Design_Storm_Parameters.c               = xlnum(GD,'c');
+Design_Storm_Parameters.time_step       = xlnum(GD,'dt_design');                % minutes
 
 if flags.flag_huff == 1 && flags.flag_alternated_blocks == 1
     error('Please, enter either Alternated Blocks or Huff hyetograph.')
 end
 
 % Input Rainfall Maps
-if flags.flag_input_rainfall_map == 1
-    input_table_rainfall = ((input_table(2:end,47:48)));
-    Input_Rainfall.time = table2array(input_table_rainfall(:,1)); % % min
-    Input_Rainfall.num_obs_maps = sum(~isnan(Input_Rainfall.time));
-    Input_Rainfall.time = Input_Rainfall.time(1:Input_Rainfall.num_obs_maps);
-    input_table_dir = input_table_rainfall(:,2);
+if flags.flag_input_rainfall_map == 1 || flags.flag_satellite_rainfall == 1 || flags.flag_real_time_satellite_rainfall == 1
 
-    for i = 1:Input_Rainfall.num_obs_maps
-        Input_Rainfall.labels_Directory{i,:} = input_table_dir{i,:};
-    end
+    T_rain = xlblock_2col( ...
+        GD, ...
+        'Sattelite or Radar Rainfall', ...
+        'Time [min]', ...
+        'Raster Directory with values in mm/h' ...
+    );
+
+    Input_Rainfall.time = T_rain.time;                     % minutes
+    Input_Rainfall.num_obs_maps = numel(Input_Rainfall.time);
+    Input_Rainfall.labels_Directory = cellstr(T_rain.directory);
+
     flags.flag_spatial_rainfall = 1;
     flags.flag_rainfall = 1;
-    flags.flag_real_time_satellite_rainfall = 0;
-    flags.flag_satellite_rainfall = 0;
-    % flags.flag_input_rainfall_map = 0;
-else
-    Input_Rainfall = [];
+
 end
 
 % Input transpiration and evaporation Maps
 if flags.flag_input_ETP_map == 1
-    input_table_transpiration = ((input_table(2:end,50:51)));
-    input_table_evaporation = ((input_table(2:end,53:54)));
-    Input_Transpiration.time = table2array(input_table_transpiration(:,1)); % % min
-    Input_Evaporation.time = table2array(input_table_evaporation(:,1)); % % min
-    Input_Transpiration.num_obs_maps = sum(~isnan(Input_Transpiration.time));
-    Input_Evaporation.num_obs_maps = sum(~isnan(Input_Evaporation.time));
-    Input_Transpiration.time = Input_Transpiration.time(1:Input_Transpiration.num_obs_maps);
-    Input_Evaporation.time = Input_Evaporation.time(1:Input_Evaporation.num_obs_maps);
-    input_table_dir_Tr = input_table_transpiration(:,2);
-    input_table_dir_E = input_table_evaporation(:,2);
-    for i = 1:Input_Transpiration.num_obs_maps
-        Input_Transpiration.labels_Directory{i,:} = input_table_dir_Tr{i,:};
-        Input_Evaporation.labels_Directory{i,:} = input_table_dir_E{i,:};
-    end
-    flags.flag_spatial_rainfall = 1;
-    flags.flag_rainfall = 1;
-    flags.flag_real_time_satellite_rainfall = 0;
-    flags.flag_satellite_rainfall = 0;
-    % flags.flag_input_rainfall_map = 0;
-else
-    Input_Transpiration = [];
-    Input_Evaporation = [];
+
+    T_tr = xlblock_2col( ...
+        GD, ...
+        'Sattelite transpiration', ...
+        'Time [day]', ...
+        'Raster Directory with values in mm/day' ...
+    );
+
+    T_ev = xlblock_2col( ...
+        GD, ...
+        'Sattelite Evaporation', ...
+        'Time [day]', ...
+        'Raster Directory with values in mm/day' ...
+    );
+
+    Input_Transpiration.time = T_tr.time;                       % days
+    Input_Transpiration.num_obs_maps = numel(Input_Transpiration.time);
+    Input_Transpiration.labels_Directory = cellstr(T_tr.directory);
+
+    Input_Evaporation.time = T_ev.time;                         % days
+    Input_Evaporation.num_obs_maps = numel(Input_Evaporation.time);
+    Input_Evaporation.labels_Directory = cellstr(T_ev.directory);
+
 end
 
 if flags.flag_satellite_rainfall == 1
@@ -629,3 +565,240 @@ end
 
 clear input_table
 
+
+function v = xlget(GD, key)
+%XLGET Find a label (key) anywhere in a readcell() grid and return the cell to the right.
+%   v = xlget(GD,'time_step_model') returns the value in the cell right of the key.
+%
+% Notes:
+% - Case-insensitive
+% - Errors if key not found
+% - If multiple matches exist, returns the first match (top-to-bottom, left-to-right)
+
+    S = strings(size(GD));
+    for r = 1:size(GD,1)
+        for c = 1:size(GD,2)
+            if ischar(GD{r,c}) || isstring(GD{r,c})
+                S(r,c) = string(GD{r,c});
+            end
+        end
+    end
+
+    [rr, cc] = find(strcmpi(S, key), 1, 'first');
+    if isempty(rr)
+        error("General_Data: key '%s' not found.", key);
+    end
+
+    if cc == size(GD,2)
+        error("General_Data: key '%s' found in last column; no value to the right.", key);
+    end
+
+    v = GD{rr, cc+1};
+end
+
+
+function x = xlnum(GD, key)
+%XLNUM numeric version of xlget
+    v = xlget(GD, key);
+    if isempty(v) || (isstring(v) && strlength(v)==0)
+        x = NaN;
+        return
+    end
+    x = double(v);
+end
+
+
+function t = xldatetime(GD, key)
+%XLDATETIME datetime version of xlget (handles Excel serials or datetimes/strings)
+    v = xlget(GD, key);
+
+    if isdatetime(v)
+        t = v;
+        return
+    end
+
+    if isnumeric(v)
+        % Excel serial date number -> MATLAB datetime (Excel origin: 30-Dec-1899)
+        t = datetime(v + datenum('30-Dec-1899'),'ConvertFrom','datenum');
+        return
+    end
+
+    % string parse fallback
+    t = datetime(string(v));
+end
+
+function flags = read_flags_sheet(FlagsGrid)
+%READ_FLAGS_SHEET Builds flags struct by scanning for any cell 'flag_*'
+% and reading the value in the cell to the right.
+%
+% Supports:
+% - Flags sheet is a readcell() grid
+% - flag names anywhere in the grid (case-insensitive)
+% - value is assumed to be in the cell immediately to the right
+% - values can be numeric, logical, char, string, empty, missing
+
+    flags = struct();
+
+    nR = size(FlagsGrid,1);
+    nC = size(FlagsGrid,2);
+
+    for r = 1:nR
+        for c = 1:nC
+
+            % ---- read potential key cell safely ----
+            keyRaw = FlagsGrid{r,c};
+
+            % unwrap cell-in-cell
+            if iscell(keyRaw) && numel(keyRaw) >= 1
+                keyRaw = keyRaw{1};
+            end
+
+            % convert to string for checking (safe)
+            try
+                keyStr = string(keyRaw);
+            catch
+                continue
+            end
+
+            if numel(keyStr) == 0
+                continue
+            end
+            keyStr = keyStr(1);                 % scalar
+            keyStr = strtrim(keyStr);
+
+            if strlength(keyStr) == 0
+                continue
+            end
+
+            % only accept keys like "flag_*"
+            if ~startsWith(lower(keyStr), "flag_")
+                continue
+            end
+
+            % ---- value is the cell to the right ----
+            if c == nC
+                % flag in last column: no value cell
+                valRaw = [];
+            else
+                valRaw = FlagsGrid{r,c+1};
+            end
+
+            % unwrap cell-in-cell
+            if iscell(valRaw) && numel(valRaw) >= 1
+                valRaw = valRaw{1};
+            end
+
+            % ---- normalize value to numeric (0/1) or NaN ----
+            val = NaN;
+
+            if isempty(valRaw)
+                val = NaN;
+
+            elseif ismissing(string(valRaw))  % handles <missing>, NaT, etc
+                val = NaN;
+
+            elseif islogical(valRaw)
+                val = double(valRaw);
+
+            elseif isnumeric(valRaw)
+                if isscalar(valRaw)
+                    val = double(valRaw);
+                else
+                    % if someone pasted a vector by mistake, take first
+                    val = double(valRaw(1));
+                end
+
+            else
+                % char/string like '1', '0', 'true', 'false', 'yes', 'no'
+                s = strtrim(string(valRaw));
+                if strlength(s) == 0 || ismissing(s)
+                    val = NaN;
+                else
+                    sLow = lower(s);
+
+                    if any(sLow == ["true","t","yes","y","on"])
+                        val = 1;
+                    elseif any(sLow == ["false","f","no","n","off"])
+                        val = 0;
+                    else
+                        tmp = str2double(sLow);
+                        if ~isnan(tmp)
+                            val = tmp;
+                        else
+                            val = NaN;
+                        end
+                    end
+                end
+            end
+
+            % store field (make valid)
+            fieldName = matlab.lang.makeValidName(char(keyStr));
+            flags.(fieldName) = val;
+
+        end
+    end
+
+    % Optional default (prevents crash if user forgot it)
+    if ~isfield(flags,'flag_warmup')
+        flags.flag_warmup = 0;
+    end
+end
+
+function T = xlblock_2col(GD, headerText, col1Header, col2Header)
+%XLBLOCK_2COL Finds a 2-column block under a header and returns it as a table.
+%   headerText: the title above the block (e.g., 'Sattelite or Radar Rainfall')
+%   col1Header/col2Header: the header texts in the first row of the block.
+
+    % make a string grid for searching
+    S = strings(size(GD));
+    for r = 1:size(GD,1)
+        for c = 1:size(GD,2)
+            v = GD{r,c};
+            if ischar(v) || isstring(v)
+                S(r,c) = string(v);
+            end
+        end
+    end
+
+    [r0,c0] = find(strcmpi(strtrim(S), headerText), 1, 'first');
+    if isempty(r0), error("General_Data: header '%s' not found.", headerText); end
+
+    % find the header row immediately below
+    rh = r0 + 1;
+
+    % find column indices for the two columns (same row)
+    c1 = find(strcmpi(strtrim(S(rh,:)), col1Header), 1, 'first');
+    c2 = find(strcmpi(strtrim(S(rh,:)), col2Header), 1, 'first');
+    if isempty(c1) || isempty(c2)
+        error("General_Data: could not find column headers '%s' and '%s' under '%s'.", col1Header, col2Header, headerText);
+    end
+
+    % data start row
+    rd = rh + 1;
+
+    % read down until first column is empty
+    times = [];
+    paths = strings(0,1);
+
+    r = rd;
+    while r <= size(GD,1)
+        vtime = GD{r,c1};
+        vpath = GD{r,c2};
+
+        if isempty(vtime) || (isstring(vtime) && strlength(vtime)==0)
+            break
+        end
+
+        times(end+1,1) = double(vtime); %#ok<AGROW>
+
+        if ismissing(string(vpath)) || strlength(string(vpath))==0
+            paths(end+1,1) = "";
+        else
+            paths(end+1,1) = string(vpath);
+        end
+
+        r = r + 1;
+    end
+
+    T = table(times, paths, 'VariableNames', {'time','directory'});
+end

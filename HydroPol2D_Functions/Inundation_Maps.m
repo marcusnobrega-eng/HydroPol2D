@@ -9,9 +9,9 @@ tfinal = t_max ; %t_max;
 DEM_maps = gather(Elevation_Properties.elevation_cell);
 
 %% Time Data Processing
-% The following block processes time-related data for different components 
-% of the hydrological-hydrodynamic model, such as spatial rainfall, 
-% evapotranspiration (ETP), and time records. Time values are adjusted 
+% The following block processes time-related data for different components
+% of the hydrological-hydrodynamic model, such as spatial rainfall,
+% evapotranspiration (ETP), and time records. Time values are adjusted
 % if they are not already in datetime format.
 
 % Check if elapsed time flag is not set
@@ -57,7 +57,7 @@ attribution = copyright + "OpenStreetMap contributors"; % Full attribution strin
 attribution_2 = "Stadia Maps @ OpenStreetMap contributors"; % Additional attribution info
 
 % Add the custom basemap to the current figure
-addCustomBasemap(basemapName, url, "Attribution", attribution); 
+addCustomBasemap(basemapName, url, "Attribution", attribution);
 % The function 'addCustomBasemap' integrates the basemap into the map with the provided attribution
 
 %% Getting Latitude and Longitude from the Study Area
@@ -69,8 +69,8 @@ addCustomBasemap(basemapName, url, "Attribution", attribution);
 % The 'projinv' function transforms the X and Y world limits of the DEM raster
 % from the projected coordinate system into latitude and longitude (geographic coordinates)
 [lat, lon] = projinv(DEM_raster.georef.SpatialRef.ProjectedCRS, ...
-                     DEM_raster.georef.SpatialRef.XWorldLimits, ...
-                     DEM_raster.georef.SpatialRef.YWorldLimits);
+    DEM_raster.georef.SpatialRef.XWorldLimits, ...
+    DEM_raster.georef.SpatialRef.YWorldLimits);
 
 % Define latitude and longitude limits
 latlim = [lat(1), lat(2)]; % Latitude range of the study area (min to max latitude)
@@ -84,7 +84,7 @@ lonlim = [lon(1), lon(2)]; % Longitude range of the study area (min to max longi
 
 try
     % Read the basemap image for the specified geographic limits
-    [A, RA, attribA] = readBasemapImage(basemapName, latlim, lonlim); 
+    [A, RA, attribA] = readBasemapImage(basemapName, latlim, lonlim);
     % A: The image array of the basemap
     % RA: The referencing matrix for the basemap
     % attribA: The attribution information for the basemap image
@@ -94,15 +94,15 @@ catch ME
 end
 
 %% Creating a Shapefile from the DEM as Reference
-% This block generates a shapefile representing the boundaries of valid 
-% (non-NaN) data in the DEM raster. It first creates a binary mask, 
-% then extracts the boundary coordinates, and finally creates a shapefile 
+% This block generates a shapefile representing the boundaries of valid
+% (non-NaN) data in the DEM raster. It first creates a binary mask,
+% then extracts the boundary coordinates, and finally creates a shapefile
 % in the appropriate coordinate reference system (CRS).
 
 % Create a binary mask where non-NaN values in the DEM are set to 1
-binaryMask = ~isnan(DEM_raster.Z); 
+binaryMask = ~isnan(DEM_raster.Z);
 % Extract the boundaries of the valid (non-NaN) data
-boundaries = bwboundaries(binaryMask); 
+boundaries = bwboundaries(binaryMask);
 
 % Pre-allocate arrays to store combined X and Y coordinates
 combinedX = [];
@@ -132,25 +132,25 @@ if DEM_raster.georef.SpatialRef.ProjectedCRS.Name ~= web_mercator_crs.Name
 else
     % Prepare the structure for the shapefile data
     S_p = struct('Geometry', 'Polygon', ...
-                 'BoundingBox', [], ...
-                 'X', [], ...
-                 'Y', [], ...
-                 'fid', 1, 'DN', 0);  % Initialize the structure fields
-             
+        'BoundingBox', [], ...
+        'X', [], ...
+        'Y', [], ...
+        'fid', 1, 'DN', 0);  % Initialize the structure fields
+
     % Calculate the bounding box of the polygon (study area limits)
     S_p.BoundingBox = [DEM_raster.georef.SpatialRef.XWorldLimits(1,1), ...
-                       DEM_raster.georef.SpatialRef.YWorldLimits(1,1); ...
-                       DEM_raster.georef.SpatialRef.XWorldLimits(1,2), ...
-                       DEM_raster.georef.SpatialRef.YWorldLimits(1,2)];
+        DEM_raster.georef.SpatialRef.YWorldLimits(1,1); ...
+        DEM_raster.georef.SpatialRef.XWorldLimits(1,2), ...
+        DEM_raster.georef.SpatialRef.YWorldLimits(1,2)];
 
     % Adjust the X and Y coordinates based on the DEM's georeferencing
     % Convert the coordinates from raster grid to world coordinates
     S_p.X = (DEM_raster.georef.SpatialRef.XWorldLimits(1)  + ...
-             combinedX * DEM_raster.georef.SpatialRef.CellExtentInWorldX - ...
-             DEM_raster.georef.SpatialRef.CellExtentInWorldX / 2)';
+        combinedX * DEM_raster.georef.SpatialRef.CellExtentInWorldX - ...
+        DEM_raster.georef.SpatialRef.CellExtentInWorldX / 2)';
     S_p.Y = (DEM_raster.georef.SpatialRef.YWorldLimits(2)  - ...
-             combinedY * DEM_raster.georef.SpatialRef.CellExtentInWorldX + ...
-             DEM_raster.georef.SpatialRef.CellExtentInWorldX / 2)';
+        combinedY * DEM_raster.georef.SpatialRef.CellExtentInWorldX + ...
+        DEM_raster.georef.SpatialRef.CellExtentInWorldX / 2)';
 end
 
 %% Set up HEC-RAS colors
@@ -188,17 +188,17 @@ for t = 1:tmax
     % Surface plot
     F = DEM_maps(1:ymax, 1:xmax);
     surf(x_grid, y_grid, F, 'LineStyle', 'none');
-    
+
     % View angle for rotation
     view((t - 1) * 360 / tmax, (t - 1) * 90 / tmax);
-    
+
     % Axis limits and styling
     axis([min(x_grid) max(x_grid) min(y_grid) max(y_grid) h_min zmax]);
     zlabel('Elevation [m]', 'Interpreter', 'latex', 'FontSize', 14);
     xlabel('Easting [m]', 'Interpreter', 'latex', 'FontSize', 14);
     ylabel('Northing [m]', 'Interpreter', 'latex', 'FontSize', 14);
     title('Elevation Model', 'Interpreter', 'latex', 'FontSize', 14);
-    
+
     % Color settings
     colormap(Terrain_RAS);
     caxis([h_min, zmax]);
@@ -211,9 +211,9 @@ for t = 1:tmax
 
     % Font and border styling
     set(gca, 'FontName', 'Helvetica', ...
-             'FontSize', 14, ...
-             'TickDir', 'out', ...
-             'LineWidth', 2);
+        'FontSize', 14, ...
+        'TickDir', 'out', ...
+        'LineWidth', 2);
 
     box on; grid on;
     drawnow;
@@ -295,32 +295,24 @@ for t = 1:f:length(running_control.time_records)
     shading interp;
     view(0,90);
     axis([min(x_grid) max(x_grid) min(y_grid) max(y_grid) z1min z1max]);
-    if flags.flag_elapsed_time
-        time_unit = 'h';
-        t_val = t_title / 60;
+    if isa(t_title,'datetime')
+        time_str = sprintf('Time = %s', datestr(t_title,'yyyy-mm-dd HH:MM'));
     else
-        time_unit = 'min';
-        t_val = t_title;
+        if flags.flag_elapsed_time == 1
+            time_str = sprintf('Time [h] = %.2f', t_title/60);
+        else
+            time_str = sprintf('Time [min] = %.2f', t_title);
+        end
     end
-    
-    if flags.flag_elapsed_time
-        time_unit = 'h';
-        t_val = t_title / 60;
-        time_str = sprintf('Time [%s] = %.2f', time_unit, t_val);
-    else
-        % Assume t_title is datetime
-        time_str = sprintf('Time = %s', datestr(t_title, 'yyyy-mm-dd HH:MM'));
-    end
-    
-    title(time_str, 'Interpreter', 'latex', 'FontSize', 14);
+    title(time_str, 'Interpreter','latex', 'FontSize',14);
 
 
     colormap(ax1, WSE_RAS);
-    k = colorbar(ax1); 
-    k.Label.String = 'WSE [m]'; 
-    k.Label.Interpreter = 'latex'; 
-    k.FontName = 'Helvetica'; 
-    k.FontSize = 12; 
+    k = colorbar(ax1);
+    k.Label.String = 'WSE [m]';
+    k.Label.Interpreter = 'latex';
+    k.FontName = 'Helvetica';
+    k.FontSize = 12;
     k.TickDirection = 'out';
     xlabel('Easting [m]', 'Interpreter', 'latex');
     ylabel('Northing [m]', 'Interpreter', 'latex');
@@ -345,31 +337,31 @@ for t = 1:f:length(running_control.time_records)
     else
         time_unit = 'min';
         t_val = t_title;
-if isa(t_title, 'datetime')
-    time_str = sprintf('Time = %s', datestr(t_title, 'dd-mmm-yyyy HH:MM'));
-else
-    if flags.flag_elapsed_time
-        time_unit = 'h';
-        t_val = t_title / 60;
-    else
-        time_unit = 'min';
-        t_val = t_title;
-    end
-    time_str = sprintf('Time [%s] = %.2f', time_unit, t_val);
-end
+        if isa(t_title, 'datetime')
+            time_str = sprintf('Time = %s', datestr(t_title, 'dd-mmm-yyyy HH:MM'));
+        else
+            if flags.flag_elapsed_time
+                time_unit = 'h';
+                t_val = t_title / 60;
+            else
+                time_unit = 'min';
+                t_val = t_title;
+            end
+            time_str = sprintf('Time [%s] = %.2f', time_unit, t_val);
+        end
 
-title(time_str, 'Interpreter', 'latex', 'FontSize', 14);
+        title(time_str, 'Interpreter', 'latex', 'FontSize', 14);
 
     end
-    
+
     title(time_str, 'Interpreter', 'latex', 'FontSize', 14);
 
     colormap(ax2, Depth_Purple);
-    k2 = colorbar(ax2); 
-    k2.Label.String = 'Depth [m]'; 
-    k2.Label.Interpreter = 'latex'; 
-    k2.FontName = 'Helvetica'; 
-    k2.FontSize = 12; 
+    k2 = colorbar(ax2);
+    k2.Label.String = 'Depth [m]';
+    k2.Label.Interpreter = 'latex';
+    k2.FontName = 'Helvetica';
+    k2.FontSize = 12;
     k2.TickDirection = 'out';
     xlabel('Easting [m]', 'Interpreter', 'latex');
     ylabel('Northing [m]', 'Interpreter', 'latex');
@@ -387,11 +379,13 @@ end
 close(video);
 close all;
 
-%% Plot Water Surface Elevation and Depths (Video Export)
+%% Plot Water Surface Elevation and Depths (Video Export) - FIXED FRAME SIZE
 close all;
 
-try 
-    delete('Modeling_Results\Depths.mp4')
+% Delete previous video safely
+try
+    delete(fullfile(folderName, 'Depths.mp4'));
+catch
 end
 
 Video_Name = 'Depths.mp4';
@@ -399,12 +393,35 @@ video = VideoWriter(fullfile(folderName, Video_Name), 'MPEG-4');
 video.FrameRate = 10;
 open(video);
 
-figure('Units', 'inches', 'Position', [0, 0, 7, 12]);
-set(gcf, 'DefaultTextInterpreter', 'latex');
+% ---- Create a figure with a FIXED PIXEL size (cross-platform stable) ----
+figW = 1256;   % must stay constant
+figH = 1008;   % must stay constant
+fig = figure( ...
+    'Units', 'pixels', ...
+    'Position', [50 50 figW figH], ...
+    'Color', 'w', ...
+    'MenuBar', 'none', ...
+    'ToolBar', 'none', ...
+    'Resize', 'off', ...
+    'Renderer', 'opengl');
+
+set(fig, 'DefaultTextInterpreter', 'latex');
+
+% Create axes once (avoid layout changes each frame)
+ax = axes('Parent', fig);
+hold(ax, 'on');
+
+% Add a colorbar once (avoid size jitter)
+cb = colorbar(ax);
+cb.Label.String = 'Depth [m]';
+cb.Label.Interpreter = 'latex';
+cb.FontName = 'Garamond';
+cb.FontSize = 12;
+cb.TickDirection = 'out';
 
 % Elevation + Depth Limits
-z1max = max(Max_depth_d(:)) / 1000 + max(DEM_maps(:));
-z1min = min(Max_depth_d(:)) / 1000 + min(DEM_maps(:));
+z1max = max(Max_depth_d(:)) / 1000 + max(DEM_maps(:)); %#ok<NASGU>
+z1min = min(Max_depth_d(:)) / 1000 + min(DEM_maps(:)); %#ok<NASGU>
 z2max = max(Max_depth_d(:)) / 1000;
 z2min = min(Max_depth_d(:)) / 1000;
 
@@ -417,36 +434,50 @@ y_grid = GIS_data.yulcorner - Wshed_Properties.Resolution * (1:ymax);
 store = 1;
 flag_loader = 1;
 
+% We will lock the output frame size to the first captured frame
+targetH = [];
+targetW = [];
+
 for t = 1:f:length(running_control.time_records)
-    clf;
+
+    cla(ax); % clear axes only (keeps figure + colorbar stable)
+
     t_title = running_control.time_records(t);
 
-    % Load and compute z1, z2
+    % Load maps (platform independent)
     if t > saver_memory_maps * store
         store = store + 1;
-        load(fullfile('Temporary_Files', ['save_map_hydro_', num2str(store)]), 'Maps');
+        load(fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store)), 'Maps');
+        flag_loader = 0; % we already loaded
     elseif flag_loader == 1
-        load(fullfile('Temporary_Files', ['save_map_hydro_', num2str(store)]), 'Maps');
+        load(fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store)), 'Maps');
         flag_loader = 0;
     end
 
-    idx2 = Maps.Hydro.d < depths.depth_wse * 1000;
-    z2_full = gather(Maps.Hydro.d(:, :, t - (store - 1) * saver_memory_maps)) / 1000;
-    z2_full(z2_full <= 0 | idx2(:, :, t - (store - 1) * saver_memory_maps)) = NaN;
+    local_t = t - (store - 1) * saver_memory_maps;
 
-    % Plot
+    % Compute depth map
+    idx2 = Maps.Hydro.d < depths.depth_wse * 1000;
+    z2_full = gather(Maps.Hydro.d(:, :, local_t)) / 1000;
+    z2_full(z2_full <= 0 | idx2(:, :, local_t)) = NaN;
+
+    % Optional basemap layers (draw BEFORE surf so surf overlays properly)
     if no_plot == 0
-        try mapshow(A, RA, 'AlphaData', 0.25); hold on; catch, end
+        try
+            mapshow(ax, A, RA, 'AlphaData', 0.25);
+        catch
+        end
     end
 
-    surf(x_grid, y_grid, z2_full, 'EdgeColor', 'none');
-    shading interp;
-    view(0, 90);
-    axis([min(x_grid) max(x_grid) min(y_grid) max(y_grid) z2min z2max]);
-    colormap(Depth_Purple);
-    caxis([z2min z2max]);
+    % Plot surface
+    s = surf(ax, x_grid, y_grid, z2_full, 'EdgeColor', 'none'); %#ok<NASGU>
+    shading(ax, 'interp');
+    view(ax, 0, 90);
+    axis(ax, [min(x_grid) max(x_grid) min(y_grid) max(y_grid) z2min z2max]);
+    colormap(ax, Depth_Purple);
+    caxis(ax, [z2min z2max]);
 
-    % Format time string
+    % Labels / formatting
     if isa(t_title, 'datetime')
         time_str = sprintf('Time = %s', datestr(t_title, 'dd-mmm-yyyy HH:MM'));
     else
@@ -457,35 +488,45 @@ for t = 1:f:length(running_control.time_records)
         end
     end
 
-    title(time_str, 'Interpreter', 'latex', 'FontSize', 14);
-    k = colorbar;
-    k.Label.String = 'Depth [m]';
-    k.Label.Interpreter = 'latex';
-    k.FontName = 'Garamond';
-    k.FontSize = 12;
-    k.TickDirection = 'out';
+    title(ax, time_str, 'Interpreter', 'latex', 'FontSize', 14);
 
-    xlabel('Easting [m]', 'Interpreter', 'latex');
-    ylabel('Northing [m]', 'Interpreter', 'latex');
-    zlabel('Depth [m]', 'Interpreter', 'latex');
-    set(gca, 'FontName', 'Garamond', 'FontSize', 12, 'LineWidth', 2, 'TickDir', 'out');
-    xtickformat('%.0f');
-    ytickformat('%.0f');
+    xlabel(ax, 'Easting [m]', 'Interpreter', 'latex');
+    ylabel(ax, 'Northing [m]', 'Interpreter', 'latex');
+    zlabel(ax, 'Depth [m]', 'Interpreter', 'latex');
+
+    set(ax, 'FontName', 'Garamond', 'FontSize', 12, 'LineWidth', 2, 'TickDir', 'out');
+    xtickformat(ax, '%.0f');
+    ytickformat(ax, '%.0f');
 
     if no_plot == 0
-        try mapshow(S_p, 'FaceColor', 'none'); hold on; catch, end
+        try
+            mapshow(ax, S_p, 'FaceColor', 'none');
+        catch
+        end
     end
 
-    box on;
+    box(ax, 'on');
 
-    % Record frame
-    frame = getframe(gcf);
-    writeVideo(video, frame);
+    drawnow; % ensure rendering is complete before capture
+
+    % ---- Capture frame and FORCE constant size ----
+    fr = getframe(fig);
+    img = fr.cdata;
+
+    if isempty(targetH)
+        [targetH, targetW, ~] = size(img); % lock to first frame size
+    end
+
+    % If size ever changes, resize to match
+    if size(img,1) ~= targetH || size(img,2) ~= targetW
+        img = imresize(img, [targetH targetW]); % requires Image Processing Toolbox
+    end
+
+    writeVideo(video, img); % writing image is often more stable than frame struct
 end
 
 close(video);
-close all;
-
+close(fig);
 
 %% Subgrid Flood Depths (Video Export)
 
@@ -579,10 +620,10 @@ if flags.flag_subgrid == 1 && flags.flag_overbanks ~= 1
         ylabel('Northing [m]', 'Interpreter', 'latex');
         zlabel('Depth [m]', 'Interpreter', 'latex');
         set(gca, 'FontName', 'Helvetica', ...
-                 'FontSize', 12, ...
-                 'LineWidth', 2, ...
-                 'TickDir', 'out', ...
-                 'TickLength', [0.02 0.01]);
+            'FontSize', 12, ...
+            'LineWidth', 2, ...
+            'TickDir', 'out', ...
+            'TickLength', [0.02 0.01]);
         xtickformat('%.0f');
         ytickformat('%.0f');
 
@@ -605,157 +646,157 @@ end
 %% Snowpack
 
 if flags.flag_snow_modeling == 1
-% Adjusting the size
+    % Adjusting the size
 
-% Generate video showing water level profile over time
-close all
+    % Generate video showing water level profile over time
+    close all
 
-Video_Name = 'Snowpack.mp4';
+    Video_Name = 'Snowpack.mp4';
 
-% Set up video
-video = VideoWriter(fullfile(folderName,Video_Name),'MPEG-4');
-% control the framerate
-video.FrameRate = 10;
-open(video);
+    % Set up video
+    video = VideoWriter(fullfile(folderName,Video_Name),'MPEG-4');
+    % control the framerate
+    video.FrameRate = 10;
+    open(video);
 
-% Set up HEC-RAS colors
-hec_ras_colors = [52/255 85/255 132/255; 0 1 1; 0 128/255 1; 0 255/255 0; 1 1 0; 1 128/255 0; 1 0 0; 128/255 0 128/255];
+    % Set up HEC-RAS colors
+    hec_ras_colors = [52/255 85/255 132/255; 0 1 1; 0 128/255 1; 0 255/255 0; 1 1 0; 1 128/255 0; 1 0 0; 128/255 0 128/255];
 
-h = figure;
-axis tight manual % this ensures that getframe() returns a consistent size
+    h = figure;
+    axis tight manual % this ensures that getframe() returns a consistent size
 
-set(gcf,'units','inches','position',[0,0,7,12])
-set(gcf,'DefaultTextInterpreter','latex')
-
-
-% createMatrixVideo(Maps.Hydro.d, running_control.time_records(1:5), 'test3', 'test2', 14, 'TEST', Terrain_RAS_ramp, 'Test', DEM_raster)
-
-% This is absolutely memory expensive
-% z1 = gather(Maps.Hydro.d)/1000 + DEM_maps;
-% idx2 = Maps.Hydro.d < depths.depth_wse*1000;
-% z1(z1<=0)=nan;
-% z1(idx2) = nan;
-
-% z1max = max(max(Max_depth.d/1000 + DEM_maps));
-% z1min = min(min(Max_depth.d/1000 + DEM_maps));
-% z1max = max(max(max(Maps.Hydro.d/1000 + DEM_maps)));
-% z1min = min(min(min(Maps.Hydro.d/1000 + DEM_maps)));
-z1max = 300; % data comes from prost_processing
-z1min = 0;
-
-z2max = 300; % data comes from prost_processing
-z2min = 0;
+    set(gcf,'units','inches','position',[0,0,7,12])
+    set(gcf,'DefaultTextInterpreter','latex')
 
 
-targetColor=[0.27 0.47 0.68];
+    % createMatrixVideo(Maps.Hydro.d, running_control.time_records(1:5), 'test3', 'test2', 14, 'TEST', Terrain_RAS_ramp, 'Test', DEM_raster)
 
-store=1;
-flag_loader=1;
-for t = 1:f:length(running_control.time_records)
-    clf
-    t_title = running_control.time_records(t);
+    % This is absolutely memory expensive
+    % z1 = gather(Maps.Hydro.d)/1000 + DEM_maps;
+    % idx2 = Maps.Hydro.d < depths.depth_wse*1000;
+    % z1(z1<=0)=nan;
+    % z1(idx2) = nan;
 
-    if t > saver_memory_maps*store
-        store = store + 1;
-        load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
-        idx2 = Maps.Hydro.Snowpack < 0;
-        z1 = gather(Maps.Hydro.Snowpack);
-        z2 = gather(Maps.Hydro.Snowpack);
-        z1(z1<=0)= nan;
-        z1(idx2) = nan;
-        z2(z2<=0)= nan;
-        z2(idx2) = nan;
-    else
-        if flag_loader == 1
-          load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
-          flag_loader=0;
-          idx2 = Maps.Hydro.Snowpack < 0;
-          z1 = gather(Maps.Hydro.Snowpack);
-          z2 = gather(Maps.Hydro.Snowpack);
-          z1(z1<=0)= nan;
-          z1(idx2) = nan;
-          z2(z2<=0)= nan;
-          z2(idx2) = nan;
+    % z1max = max(max(Max_depth.d/1000 + DEM_maps));
+    % z1min = min(min(Max_depth.d/1000 + DEM_maps));
+    % z1max = max(max(max(Maps.Hydro.d/1000 + DEM_maps)));
+    % z1min = min(min(min(Maps.Hydro.d/1000 + DEM_maps)));
+    z1max = 300; % data comes from prost_processing
+    z1min = 0;
+
+    z2max = 300; % data comes from prost_processing
+    z2min = 0;
+
+
+    targetColor=[0.27 0.47 0.68];
+
+    store=1;
+    flag_loader=1;
+    for t = 1:f:length(running_control.time_records)
+        clf
+        t_title = running_control.time_records(t);
+
+        if t > saver_memory_maps*store
+            store = store + 1;
+            load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
+            idx2 = Maps.Hydro.Snowpack < 0;
+            z1 = gather(Maps.Hydro.Snowpack);
+            z2 = gather(Maps.Hydro.Snowpack);
+            z1(z1<=0)= nan;
+            z1(idx2) = nan;
+            z2(z2<=0)= nan;
+            z2(idx2) = nan;
+        else
+            if flag_loader == 1
+                load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
+                flag_loader=0;
+                idx2 = Maps.Hydro.Snowpack < 0;
+                z1 = gather(Maps.Hydro.Snowpack);
+                z2 = gather(Maps.Hydro.Snowpack);
+                z1(z1<=0)= nan;
+                z1(idx2) = nan;
+                z2(z2<=0)= nan;
+                z2(idx2) = nan;
+            end
         end
-    end
-    
-    if isnan(z1max)
-        zmax = 10;
-    end
-    if isnan(z1min)
-        zmin = 0;
-    end
-    xmax = length(z(1,:));
-    xend = xmax;
-    ymax = length(z(:,1));
-    yend = ymax;
-    xbegin = 1;
-    ybegin = 1;
-    axis tight
-    if flags.flag_elapsed_time == 1
-        title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
-    else
-        title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
-    end
 
-    if isnan(z2max)
-        z2max = 10;
-    end
-    if isnan(z2min)
-        z2min = 0;
-    end
-    F = z2([ybegin:1:yend],[xbegin:1:xend],t-(store-1)*saver_memory_maps);
-    F(idx2(:,:,t-(store-1)*saver_memory_maps)) = 0;
-    F(F==0)=nan;
-    % F = z2([ybegin:1:yend],[xbegin:1:xend],t);
-    % F(idx2(:,:,t)) = 0;
-    % F(F==0)=nan;
-    if no_plot==0
-        try
-            mapshow(A,RA,"AlphaData",0.25);hold on;
-        catch ME
-            warning('You need matlab 2022 or higher to run basemaps.')
+        if isnan(z1max)
+            zmax = 10;
         end
-    end
-    surf(x_grid,y_grid,F);
-    axis tight
-    shading INTERP;
-    if flags.flag_elapsed_time == 1
-        title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
-    else
-        title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
-    end
-    view(0,90);
-    colorbar
-    % caxis([0 z2max]);
-    colormap(Depth_Purple)
-    k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
+        if isnan(z1min)
+            zmin = 0;
+        end
+        xmax = length(z(1,:));
+        xend = xmax;
+        ymax = length(z(:,1));
+        yend = ymax;
+        xbegin = 1;
+        ybegin = 1;
+        axis tight
+        if flags.flag_elapsed_time == 1
+            title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+        else
+            title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
+        end
 
-    ylabel(k,'Snowpack [mm]','Interpreter','Latex','FontSize',12)
-    xlabel('Easting [m] ','Interpreter','Latex','FontSize',12)
-    ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
-    zlabel ('Interception [mm]','Interpreter','Latex','FontSize',12)
-    set(gca,'FontName','Garamond','FontSize',12)
-    % Increase border (axis) thickness
-    ax = gca;          % Get current axis
-    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
-    ax = ancestor(gca, 'axes');
-    ax.XAxis.Exponent = 0;xtickformat('%.0f');
-    ax.YAxis.Exponent = 0;ytickformat('%.0f');
-    if no_plot == 0
-        mapshow(S_p,'FaceColor','n'); hold on;
-    end
-    box on
-    % Set background color and write to video
-    frame = getframe(gcf);
-    writeVideo(video,frame);
-    hold off
-    clf
-end
+        if isnan(z2max)
+            z2max = 10;
+        end
+        if isnan(z2min)
+            z2min = 0;
+        end
+        F = z2([ybegin:1:yend],[xbegin:1:xend],t-(store-1)*saver_memory_maps);
+        F(idx2(:,:,t-(store-1)*saver_memory_maps)) = 0;
+        F(F==0)=nan;
+        % F = z2([ybegin:1:yend],[xbegin:1:xend],t);
+        % F(idx2(:,:,t)) = 0;
+        % F(F==0)=nan;
+        if no_plot==0
+            try
+                mapshow(A,RA,"AlphaData",0.25);hold on;
+            catch ME
+                warning('You need matlab 2022 or higher to run basemaps.')
+            end
+        end
+        surf(x_grid,y_grid,F);
+        axis tight
+        shading INTERP;
+        if flags.flag_elapsed_time == 1
+            title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+        else
+            title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
+        end
+        view(0,90);
+        colorbar
+        % caxis([0 z2max]);
+        colormap(Depth_Purple)
+        k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
 
-% Close video writer    
-close(video);
-close all
+        ylabel(k,'Snowpack [mm]','Interpreter','Latex','FontSize',12)
+        xlabel('Easting [m] ','Interpreter','Latex','FontSize',12)
+        ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
+        zlabel ('Interception [mm]','Interpreter','Latex','FontSize',12)
+        set(gca,'FontName','Garamond','FontSize',12)
+        % Increase border (axis) thickness
+        ax = gca;          % Get current axis
+        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
+        ax = ancestor(gca, 'axes');
+        ax.XAxis.Exponent = 0;xtickformat('%.0f');
+        ax.YAxis.Exponent = 0;ytickformat('%.0f');
+        if no_plot == 0
+            mapshow(S_p,'FaceColor','n'); hold on;
+        end
+        box on
+        % Set background color and write to video
+        frame = getframe(gcf);
+        writeVideo(video,frame);
+        hold off
+        clf
+    end
+
+    % Close video writer
+    close(video);
+    close all
 end
 
 %% Maximum Snowdepth
@@ -764,7 +805,7 @@ if flags.flag_snow_modeling == 1
     set(gcf,'units','inches','position',[2,2,6.5,4])
     time_total = days(date_end - date_begin);
     title_isoietal = strcat('Max. Snowpack from',{' '},string(round(time_total,2)),' days ',' from ',{' '},cellstr(date_begin),' to ',{' '},cellstr(date_end));
-    idx = isnan(Elevation_Properties.elevation_cell);    
+    idx = isnan(Elevation_Properties.elevation_cell);
     max_Hsnow(max_Hsnow<=0) = nan;
     max_Hsnow(idx) = nan;
     zmin = min(min(max_Hsnow));
@@ -793,7 +834,7 @@ if flags.flag_snow_modeling == 1
     set(gca,'FontName','Garamond','FontSize',12)
     % Increase border (axis) thickness
     ax = gca;          % Get current axis
-    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
 
     box on
     set(gca,'tickdir','out');
@@ -802,7 +843,7 @@ if flags.flag_snow_modeling == 1
     set(gca,'FontName','Garamond','FontSize',12)
     % Increase border (axis) thickness
     ax = gca;          % Get current axis
-    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
     ax = ancestor(gca, 'axes');
     ax.XAxis.Exponent = 0;xtickformat('%.0f');
     ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -816,17 +857,17 @@ if flags.flag_snow_modeling == 1
 end
 
 %% Maximum GW Depth
-if flags.flag_groundwater_modeling == 1
+if flags.flag_groundwater_modeling == 1 && flags.flag_baseflow == 1
     close all
     set(gcf,'units','inches','position',[2,2,6.5,4])
     time_total = days(date_end - date_begin);
     title_isoietal = strcat('Max. GW Depth from',{' '},string(round(time_total,2)),' days ',' from ',{' '},cellstr(date_begin),' to ',{' '},cellstr(date_end));
-    idx = isnan(Elevation_Properties.elevation_cell);    
+    idx = isnan(Elevation_Properties.elevation_cell);
     max_GW_depth(max_GW_depth<=0) = nan;
     max_GW_depth(idx) = nan;
     zmin = min(min(max_GW_depth));
     zmax = max(max(max_GW_depth));
-    F = max_GW_depth([ybegin:1:yend],[xbegin:1:xend]);
+    F = max_GW_depth;
     if no_plot==0
         try
             mapshow(A,RA,"AlphaData",0.45);hold on;
@@ -850,7 +891,7 @@ if flags.flag_groundwater_modeling == 1
     set(gca,'FontName','Garamond','FontSize',12)
     % Increase border (axis) thickness
     ax = gca;          % Get current axis
-    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
 
     box on
     set(gca,'tickdir','out');
@@ -859,7 +900,7 @@ if flags.flag_groundwater_modeling == 1
     set(gca,'FontName','Garamond','FontSize',12)
     % Increase border (axis) thickness
     ax = gca;          % Get current axis
-    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
     ax = ancestor(gca, 'axes');
     ax.XAxis.Exponent = 0;xtickformat('%.0f');
     ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -874,157 +915,157 @@ end
 %% Canopy Storage
 
 if flags.flag_abstraction == 1
-% Adjusting the size
+    % Adjusting the size
 
-% Generate video showing water level profile over time
-close all
+    % Generate video showing water level profile over time
+    close all
 
-Video_Name = 'Interception.mp4';
+    Video_Name = 'Interception.mp4';
 
-% Set up video
-video = VideoWriter(fullfile(folderName,Video_Name),'MPEG-4');
-% control the framerate
-video.FrameRate = 10;
-open(video);
+    % Set up video
+    video = VideoWriter(fullfile(folderName,Video_Name),'MPEG-4');
+    % control the framerate
+    video.FrameRate = 10;
+    open(video);
 
-% Set up HEC-RAS colors
-hec_ras_colors = [52/255 85/255 132/255; 0 1 1; 0 128/255 1; 0 255/255 0; 1 1 0; 1 128/255 0; 1 0 0; 128/255 0 128/255];
+    % Set up HEC-RAS colors
+    hec_ras_colors = [52/255 85/255 132/255; 0 1 1; 0 128/255 1; 0 255/255 0; 1 1 0; 1 128/255 0; 1 0 0; 128/255 0 128/255];
 
-h = figure;
-axis tight manual % this ensures that getframe() returns a consistent size
+    h = figure;
+    axis tight manual % this ensures that getframe() returns a consistent size
 
-set(gcf,'units','inches','position',[0,0,7,12])
-set(gcf,'DefaultTextInterpreter','latex')
-
-
-% createMatrixVideo(Maps.Hydro.d, running_control.time_records(1:5), 'test3', 'test2', 14, 'TEST', Terrain_RAS_ramp, 'Test', DEM_raster)
-
-% This is absolutely memory expensive
-% z1 = gather(Maps.Hydro.d)/1000 + DEM_maps;
-% idx2 = Maps.Hydro.d < depths.depth_wse*1000;
-% z1(z1<=0)=nan;
-% z1(idx2) = nan;
-
-% z1max = max(max(Max_depth.d/1000 + DEM_maps));
-% z1min = min(min(Max_depth.d/1000 + DEM_maps));
-% z1max = max(max(max(Maps.Hydro.d/1000 + DEM_maps)));
-% z1min = min(min(min(Maps.Hydro.d/1000 + DEM_maps)));
-z1max = 300; % data comes from prost_processing
-z1min = 0;
-
-z2max = 300; % data comes from prost_processing
-z2min = 0;
+    set(gcf,'units','inches','position',[0,0,7,12])
+    set(gcf,'DefaultTextInterpreter','latex')
 
 
-targetColor=[0.27 0.47 0.68];
+    % createMatrixVideo(Maps.Hydro.d, running_control.time_records(1:5), 'test3', 'test2', 14, 'TEST', Terrain_RAS_ramp, 'Test', DEM_raster)
 
-store=1;
-flag_loader=1;
-for t = 1:f:length(running_control.time_records)
-    clf
-    t_title = running_control.time_records(t);
+    % This is absolutely memory expensive
+    % z1 = gather(Maps.Hydro.d)/1000 + DEM_maps;
+    % idx2 = Maps.Hydro.d < depths.depth_wse*1000;
+    % z1(z1<=0)=nan;
+    % z1(idx2) = nan;
 
-    if t > saver_memory_maps*store
-        store = store + 1;
-        load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
-        idx2 = Maps.Hydro.Abstraction < 0;
-        z1 = gather(Maps.Hydro.Abstraction);
-        z2 = gather(Maps.Hydro.Abstraction);
-        z1(z1<=0)= nan;
-        z1(idx2) = nan;
-        z2(z2<=0)= nan;
-        z2(idx2) = nan;
-    else
-        if flag_loader == 1
-          load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
-          flag_loader=0;
-          idx2 = Maps.Hydro.Abstraction < 0;
-          z1 = gather(Maps.Hydro.Abstraction);
-          z2 = gather(Maps.Hydro.Abstraction);
-          z1(z1<=0)= nan;
-          z1(idx2) = nan;
-          z2(z2<=0)= nan;
-          z2(idx2) = nan;
+    % z1max = max(max(Max_depth.d/1000 + DEM_maps));
+    % z1min = min(min(Max_depth.d/1000 + DEM_maps));
+    % z1max = max(max(max(Maps.Hydro.d/1000 + DEM_maps)));
+    % z1min = min(min(min(Maps.Hydro.d/1000 + DEM_maps)));
+    z1max = 300; % data comes from prost_processing
+    z1min = 0;
+
+    z2max = 300; % data comes from prost_processing
+    z2min = 0;
+
+
+    targetColor=[0.27 0.47 0.68];
+
+    store=1;
+    flag_loader=1;
+    for t = 1:f:length(running_control.time_records)
+        clf
+        t_title = running_control.time_records(t);
+
+        if t > saver_memory_maps*store
+            store = store + 1;
+            load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
+            idx2 = Maps.Hydro.Abstraction < 0;
+            z1 = gather(Maps.Hydro.Abstraction);
+            z2 = gather(Maps.Hydro.Abstraction);
+            z1(z1<=0)= nan;
+            z1(idx2) = nan;
+            z2(z2<=0)= nan;
+            z2(idx2) = nan;
+        else
+            if flag_loader == 1
+                load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
+                flag_loader=0;
+                idx2 = Maps.Hydro.Abstraction < 0;
+                z1 = gather(Maps.Hydro.Abstraction);
+                z2 = gather(Maps.Hydro.Abstraction);
+                z1(z1<=0)= nan;
+                z1(idx2) = nan;
+                z2(z2<=0)= nan;
+                z2(idx2) = nan;
+            end
         end
-    end
-    
-    if isnan(z1max)
-        zmax = 10;
-    end
-    if isnan(z1min)
-        zmin = 0;
-    end
-    xmax = length(z(1,:));
-    xend = xmax;
-    ymax = length(z(:,1));
-    yend = ymax;
-    xbegin = 1;
-    ybegin = 1;
-    axis tight
-    if flags.flag_elapsed_time == 1
-        title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
-    else
-        title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
-    end
 
-    if isnan(z2max)
-        z2max = 10;
-    end
-    if isnan(z2min)
-        z2min = 0;
-    end
-    F = z2([ybegin:1:yend],[xbegin:1:xend],t-(store-1)*saver_memory_maps);
-    F(idx2(:,:,t-(store-1)*saver_memory_maps)) = 0;
-    F(F==0)=nan;
-    % F = z2([ybegin:1:yend],[xbegin:1:xend],t);
-    % F(idx2(:,:,t)) = 0;
-    % F(F==0)=nan;
-    if no_plot==0
-        try
-            mapshow(A,RA,"AlphaData",0.25);hold on;
-        catch ME
-            warning('You need matlab 2022 or higher to run basemaps.')
+        if isnan(z1max)
+            zmax = 10;
         end
-    end
-    surf(x_grid,y_grid,F);
-    axis tight
-    shading INTERP;
-    if flags.flag_elapsed_time == 1
-        title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
-    else
-        title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
-    end
-    view(0,90);
-    colorbar
-    % caxis([0 z2max]);
-    colormap(Depth_Purple)
-    k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
+        if isnan(z1min)
+            zmin = 0;
+        end
+        xmax = length(z(1,:));
+        xend = xmax;
+        ymax = length(z(:,1));
+        yend = ymax;
+        xbegin = 1;
+        ybegin = 1;
+        axis tight
+        if flags.flag_elapsed_time == 1
+            title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+        else
+            title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
+        end
 
-    ylabel(k,'Interception [mm]','Interpreter','Latex','FontSize',12)
-    xlabel('Easting [m] ','Interpreter','Latex','FontSize',12)
-    ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
-    zlabel ('Interception [mm]','Interpreter','Latex','FontSize',12)
-    set(gca,'FontName','Garamond','FontSize',12)
-    % Increase border (axis) thickness
-    ax = gca;          % Get current axis
-    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
-    ax = ancestor(gca, 'axes');
-    ax.XAxis.Exponent = 0;xtickformat('%.0f');
-    ax.YAxis.Exponent = 0;ytickformat('%.0f');
-    if no_plot == 0
-        mapshow(S_p,'FaceColor','n'); hold on;
-    end
-    box on
-    % Set background color and write to video
-    frame = getframe(gcf);
-    writeVideo(video,frame);
-    hold off
-    clf
-end
+        if isnan(z2max)
+            z2max = 10;
+        end
+        if isnan(z2min)
+            z2min = 0;
+        end
+        F = z2([ybegin:1:yend],[xbegin:1:xend],t-(store-1)*saver_memory_maps);
+        F(idx2(:,:,t-(store-1)*saver_memory_maps)) = 0;
+        F(F==0)=nan;
+        % F = z2([ybegin:1:yend],[xbegin:1:xend],t);
+        % F(idx2(:,:,t)) = 0;
+        % F(F==0)=nan;
+        if no_plot==0
+            try
+                mapshow(A,RA,"AlphaData",0.25);hold on;
+            catch ME
+                warning('You need matlab 2022 or higher to run basemaps.')
+            end
+        end
+        surf(x_grid,y_grid,F);
+        axis tight
+        shading INTERP;
+        if flags.flag_elapsed_time == 1
+            title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+        else
+            title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
+        end
+        view(0,90);
+        colorbar
+        % caxis([0 z2max]);
+        colormap(Depth_Purple)
+        k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
 
-% Close video writer    
-close(video);
-close all
+        ylabel(k,'Interception [mm]','Interpreter','Latex','FontSize',12)
+        xlabel('Easting [m] ','Interpreter','Latex','FontSize',12)
+        ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
+        zlabel ('Interception [mm]','Interpreter','Latex','FontSize',12)
+        set(gca,'FontName','Garamond','FontSize',12)
+        % Increase border (axis) thickness
+        ax = gca;          % Get current axis
+        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
+        ax = ancestor(gca, 'axes');
+        ax.XAxis.Exponent = 0;xtickformat('%.0f');
+        ax.YAxis.Exponent = 0;ytickformat('%.0f');
+        if no_plot == 0
+            mapshow(S_p,'FaceColor','n'); hold on;
+        end
+        box on
+        % Set background color and write to video
+        frame = getframe(gcf);
+        writeVideo(video,frame);
+        hold off
+        clf
+    end
+
+    % Close video writer
+    close(video);
+    close all
 end
 
 %% WSE GIFS
@@ -1033,7 +1074,7 @@ end
 % h = figure;
 % axis tight manual % this ensures that getframe() returns a consistent size
 % FileName_String = 'WSE_and_Depths.gif';
-% FileName = fullfile(folderName,strcat('\',FileName_String));
+% FileName = fullfile(folderName, FileName_String);
 %
 % set(gcf,'units','inches','position',[0,0,7,12])
 % idx2 = Maps.Hydro.d < depths.depth_wse*1000;
@@ -1203,7 +1244,7 @@ if flags.flag_spatial_rainfall == 1
     set(gca,'FontName','Garamond','FontSize',12)
     % Increase border (axis) thickness
     ax = gca;          % Get current axis
-    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
 
     box on
     set(gca,'tickdir','out');
@@ -1212,7 +1253,7 @@ if flags.flag_spatial_rainfall == 1
     set(gca,'FontName','Garamond','FontSize',12)
     % Increase border (axis) thickness
     ax = gca;          % Get current axis
-    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
     ax = ancestor(gca, 'axes');
     ax.XAxis.Exponent = 0;xtickformat('%.0f');
     ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -1272,7 +1313,7 @@ if flags.flag_ETP == 1
     set(gca,'FontName','Garamond','FontSize',12)
     % Increase border (axis) thickness
     ax = gca;          % Get current axis
-    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
 
     box on
     set(gca,'tickdir','out');
@@ -1281,7 +1322,7 @@ if flags.flag_ETP == 1
     set(gca,'FontName','Garamond','FontSize',12)
     % Increase border (axis) thickness
     ax = gca;          % Get current axis
-    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
     ax = ancestor(gca, 'axes');
     ax.XAxis.Exponent = 0;xtickformat('%.0f');
     ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -1340,7 +1381,7 @@ if flags.flag_ETP == 1
     set(gca,'FontName','Garamond','FontSize',12)
     % Increase border (axis) thickness
     ax = gca;          % Get current axis
-    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
 
     box on
     set(gca,'tickdir','out');
@@ -1349,7 +1390,7 @@ if flags.flag_ETP == 1
     set(gca,'FontName','Garamond','FontSize',12)
     % Increase border (axis) thickness
     ax = gca;          % Get current axis
-    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
     ax = ancestor(gca, 'axes');
     ax.XAxis.Exponent = 0;xtickformat('%.0f');
     ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -1398,7 +1439,7 @@ if flags.flag_infiltration == 1
     set(gca,'FontName','Garamond','FontSize',12)
     % Increase border (axis) thickness
     ax = gca;          % Get current axis
-    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
 
     box on
     set(gca,'tickdir','out');
@@ -1407,7 +1448,7 @@ if flags.flag_infiltration == 1
     set(gca,'FontName','Garamond','FontSize',12)
     % Increase border (axis) thickness
     ax = gca;          % Get current axis
-    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+    ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
     ax = ancestor(gca, 'axes');
     ax.XAxis.Exponent = 0;xtickformat('%.0f');
     ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -1429,10 +1470,10 @@ end
 %     for i = 1:length(running_control.time_records)
 %         if i > saver_memory_maps*store
 %             store = store + 1;
-%             load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+%             load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
 %         else
 %             if flag_loader == 1
-%                 load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+%                 load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
 %                 flag_loader=0;
 %             end
 %         end
@@ -1451,7 +1492,7 @@ end
 %     time_step_rainfall_aggregated = floor((n_rainfall/n_plots))*time_step_rainfall;
 %     zmin = 0;
 %     zmax = max(max(rainfall_sum*time_step_rainfall));
-% 
+%
 %     for i = 1:n_plots
 %         subplot(2,n_plots/2,i)
 %         prior_range = floor(n_rainfall/n_plots*(i-1) + 1);
@@ -1476,10 +1517,10 @@ end
 %         rain_total(idx) = nan;
 %         F = rain_total([ybegin:1:yend],[xbegin:1:xend]);
 %         if no_plot==0
-%             try 
+%             try
 %                 mapshow(A,RA,"AlphaData",0.45);hold on;
 %             catch ME
-% 
+%
 %             end
 %         end
 %         surf(x_grid,y_grid,F);
@@ -1493,13 +1534,13 @@ end
 %         ylabel(k,'Cumulative Rainfall Volume [mm]','Interpreter','Latex','FontSize',12)
 %         xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
 %         ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
-% 
+%
 %         zlabel ('Cumulative Rainfall Volume [mm]','Interpreter','Latex','FontSize',12)
 %         if no_plot == 0
 %             mapshow(S_p,'FaceColor','n'); hold on;
 %         end
 %         set(gca,'FontName','Garamond')
-% 
+%
 %         box on
 %         set(gca,'tickdir','out');
 %         set(gca, 'TickLength', [0.02 0.01]);
@@ -1516,8 +1557,8 @@ end
 %% Spatial Rainfall Video
 % Generate video showing water level profile over time
 
-try 
-    delete('Modeling_Results\Rainfall_Intensities.mp4')
+try
+    delete(fullfile('Modeling_Results','Rainfall_Intensities.mp4'))
 end
 
 %Calculating general Max and Min
@@ -1526,27 +1567,27 @@ if flags.flag_spatial_rainfall == 1
     flag_loader=1;
     for i = 1:length(running_control.time_records)
         try
-        if i > saver_memory_maps*store
-            store = store + 1;
-            load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');      
-            Max_rains = max(max(Maps.Hydro.spatial_rainfall_maps,[],3),Max_rains);
-            Min_rains = min(min(Maps.Hydro.spatial_rainfall_maps,[],3),Min_rains);
-            if flags.flag_ETP
-                Max_etp = max(max(Maps.Hydro.ETP_save,[],3),Max_etp);
-                Min_etp = min(min(Maps.Hydro.ETP_save,[],3),Min_etp);
-            end
-        else
-            if flag_loader == 1
-                load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
-                flag_loader=0;
-                Max_rains = max(Maps.Hydro.spatial_rainfall_maps,[],3);
-                Min_rains = min(Maps.Hydro.spatial_rainfall_maps,[],3);
+            if i > saver_memory_maps*store
+                store = store + 1;
+                load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
+                Max_rains = max(max(Maps.Hydro.spatial_rainfall_maps,[],3),Max_rains);
+                Min_rains = min(min(Maps.Hydro.spatial_rainfall_maps,[],3),Min_rains);
                 if flags.flag_ETP
-                    Max_etp = max(Maps.Hydro.ETP_save,[],3);
-                    Min_etp = min(Maps.Hydro.ETP_save,[],3);
+                    Max_etp = max(max(Maps.Hydro.ETP_save,[],3),Max_etp);
+                    Min_etp = min(min(Maps.Hydro.ETP_save,[],3),Min_etp);
+                end
+            else
+                if flag_loader == 1
+                    load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
+                    flag_loader=0;
+                    Max_rains = max(Maps.Hydro.spatial_rainfall_maps,[],3);
+                    Min_rains = min(Maps.Hydro.spatial_rainfall_maps,[],3);
+                    if flags.flag_ETP
+                        Max_etp = max(Maps.Hydro.ETP_save,[],3);
+                        Min_etp = min(Maps.Hydro.ETP_save,[],3);
+                    end
                 end
             end
-        end
         end
     end
 end
@@ -1559,7 +1600,7 @@ if flags.flag_spatial_rainfall == 1
     video.FrameRate=2;
     open(video);
     h = figure;
-    FileName = fullfile(folderName,strcat('\',FileName_String));
+    FileName = fullfile(folderName, FileName_String);
     set(gcf,'units','inches','position',[0,0,7,12])
     set(gcf,'DefaultTextInterpreter','latex')
     if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_input_rainfall_map ~= 1
@@ -1575,10 +1616,10 @@ if flags.flag_spatial_rainfall == 1
             clf
             if t > saver_memory_maps*store
                 store = store + 1;
-                load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+                load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
             else
                 if flag_loader == 1
-                    load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+                    load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
                     flag_loader=0;
                 end
             end
@@ -1643,7 +1684,7 @@ if flags.flag_spatial_rainfall == 1
             set(gca,'FontName','Garamond','FontSize',12)
             % Increase border (axis) thickness
             ax = gca;          % Get current axis
-            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
 
             box on
             set(gca,'tickdir','out');
@@ -1652,7 +1693,7 @@ if flags.flag_spatial_rainfall == 1
             set(gca,'FontName','Garamond','FontSize',12)
             % Increase border (axis) thickness
             ax = gca;          % Get current axis
-            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
             ax = ancestor(gca, 'axes');
             ax.XAxis.Exponent = 0;xtickformat('%.0f');
             ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -1683,7 +1724,7 @@ if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_in
     video.FrameRate=2;
     open(video);
     h = figure;
-    FileName = fullfile(folderName,strcat('\',FileName_String));
+    FileName = fullfile(folderName, FileName_String);
     set(gcf,'units','inches','position',[0,0,6.5,4])
     set(gcf,'DefaultTextInterpreter','latex')
 
@@ -1757,7 +1798,7 @@ if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_in
         set(gca,'FontName','Garamond','FontSize',12)
         % Increase border (axis) thickness
         ax = gca;          % Get current axis
-        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
 
         box on
         set(gca,'tickdir','out');
@@ -1766,7 +1807,7 @@ if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_in
         set(gca,'FontName','Garamond','FontSize',12)
         % Increase border (axis) thickness
         ax = gca;          % Get current axis
-        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
         ax = ancestor(gca, 'axes');
         ax.XAxis.Exponent = 0;xtickformat('%.0f');
         ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -1795,7 +1836,7 @@ if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_in
     video.FrameRate=2;
     open(video);
     h = figure;
-    FileName = fullfile(folderName,strcat('\',FileName_String));
+    FileName = fullfile(folderName, FileName_String);
     set(gcf,'units','inches','position',[0,0,6.5,4])
     set(gcf,'DefaultTextInterpreter','latex')
 
@@ -1855,7 +1896,7 @@ if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_in
         set(gca,'FontName','Garamond','FontSize',12)
         % Increase border (axis) thickness
         ax = gca;          % Get current axis
-        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
 
         box on
         set(gca,'tickdir','out');
@@ -1864,7 +1905,7 @@ if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_in
         set(gca,'FontName','Garamond','FontSize',12)
         % Increase border (axis) thickness
         ax = gca;          % Get current axis
-        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
         ax = ancestor(gca, 'axes');
         ax.XAxis.Exponent = 0;xtickformat('%.0f');
         ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -1885,8 +1926,8 @@ close all
 
 
 %% ETP  Video
-try 
-    delete('Modeling_Results\ETP_Intensities.mp4')
+try
+    delete(fullfile('Modeling_Results','ETP_Intensities.mp4'))
 end
 
 %Calculating general Max and Min
@@ -1895,23 +1936,23 @@ if flags.flag_ETP == 1
     flag_loader=1;
     for i = 1:length(running_control.time_records)
         try
-        if i > saver_memory_maps*store
-            store = store + 1;
-            load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');      
-            if flags.flag_ETP
-                Max_etp = max(max(Maps.Hydro.ETP_save,[],3),Max_etp);
-                Min_etp = min(min(Maps.Hydro.ETP_save,[],3),Min_etp);
-            end
-        else
-            if flag_loader == 1
-                load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
-                flag_loader=0;
+            if i > saver_memory_maps*store
+                store = store + 1;
+                load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
                 if flags.flag_ETP
-                    Max_etp = max(Maps.Hydro.ETP_save,[],3);
-                    Min_etp = min(Maps.Hydro.ETP_save,[],3);
+                    Max_etp = max(max(Maps.Hydro.ETP_save,[],3),Max_etp);
+                    Min_etp = min(min(Maps.Hydro.ETP_save,[],3),Min_etp);
+                end
+            else
+                if flag_loader == 1
+                    load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
+                    flag_loader=0;
+                    if flags.flag_ETP
+                        Max_etp = max(Maps.Hydro.ETP_save,[],3);
+                        Min_etp = min(Maps.Hydro.ETP_save,[],3);
+                    end
                 end
             end
-        end
         end
     end
 end
@@ -1924,7 +1965,7 @@ if flags.flag_ETP == 1
     video.FrameRate=2;
     open(video);
     h = figure;
-    FileName = fullfile(folderName,strcat('\',FileName_String));
+    FileName = fullfile(folderName, FileName_String);
     set(gcf,'units','inches','position',[0,0,7,12])
     set(gcf,'DefaultTextInterpreter','latex')
     if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_input_rainfall_map ~= 1
@@ -1940,10 +1981,10 @@ if flags.flag_ETP == 1
             clf
             if t > saver_memory_maps*store
                 store = store + 1;
-                load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+                load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
             else
                 if flag_loader == 1
-                    load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+                    load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
                     flag_loader=0;
                 end
             end
@@ -1997,7 +2038,7 @@ if flags.flag_ETP == 1
             set(gca,'FontName','Garamond','FontSize',12)
             % Increase border (axis) thickness
             ax = gca;          % Get current axis
-            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
 
             box on
             set(gca,'tickdir','out');
@@ -2006,7 +2047,7 @@ if flags.flag_ETP == 1
             set(gca,'FontName','Garamond','FontSize',12)
             % Increase border (axis) thickness
             ax = gca;          % Get current axis
-            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
             ax = ancestor(gca, 'axes');
             ax.XAxis.Exponent = 0;xtickformat('%.0f');
             ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -2029,8 +2070,8 @@ if flags.flag_ETP == 1
 end
 
 %% ETR  Video
-try 
-    delete('Modeling_Results\ETR_Intensities.mp4')
+try
+    delete(fullfile('Modeling_Results','ETR_Intensities.mp4'))
 end
 
 %Calculating general Max and Min
@@ -2039,23 +2080,23 @@ if flags.flag_ETP == 1
     flag_loader=1;
     for i = 1:length(running_control.time_records)
         try
-        if i > saver_memory_maps*store
-            store = store + 1;
-            load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');      
-            if flags.flag_ETP
-                Max_etr = max(max(Maps.Hydro.ETR_save,[],3),Max_etr);
-                Min_etp = min(min(Maps.Hydro.ETR_save,[],3),Min_etp);
-            end
-        else
-            if flag_loader == 1
-                load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
-                flag_loader=0;
+            if i > saver_memory_maps*store
+                store = store + 1;
+                load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
                 if flags.flag_ETP
-                    Max_etr = max(Maps.Hydro.ETR_save,[],3);
-                    Min_etr = max(Maps.Hydro.ETR_save,[],3);
+                    Max_etr = max(max(Maps.Hydro.ETR_save,[],3),Max_etr);
+                    Min_etp = min(min(Maps.Hydro.ETR_save,[],3),Min_etp);
+                end
+            else
+                if flag_loader == 1
+                    load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
+                    flag_loader=0;
+                    if flags.flag_ETP
+                        Max_etr = max(Maps.Hydro.ETR_save,[],3);
+                        Min_etr = max(Maps.Hydro.ETR_save,[],3);
+                    end
                 end
             end
-        end
         end
     end
 end
@@ -2068,7 +2109,7 @@ if flags.flag_ETP == 1
     video.FrameRate=2;
     open(video);
     h = figure;
-    FileName = fullfile(folderName,strcat('\',FileName_String));
+    FileName = fullfile(folderName, FileName_String);
     set(gcf,'units','inches','position',[0,0,7,12])
     set(gcf,'DefaultTextInterpreter','latex')
     if flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1 && flags.flag_input_rainfall_map ~= 1
@@ -2084,10 +2125,10 @@ if flags.flag_ETP == 1
             clf
             if t > saver_memory_maps*store
                 store = store + 1;
-                load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+                load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
             else
                 if flag_loader == 1
-                    load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+                    load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
                     flag_loader=0;
                 end
             end
@@ -2141,7 +2182,7 @@ if flags.flag_ETP == 1
             set(gca,'FontName','Garamond','FontSize',12)
             % Increase border (axis) thickness
             ax = gca;          % Get current axis
-            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
 
             box on
             set(gca,'tickdir','out');
@@ -2150,7 +2191,7 @@ if flags.flag_ETP == 1
             set(gca,'FontName','Garamond','FontSize',12)
             % Increase border (axis) thickness
             ax = gca;          % Get current axis
-            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
             ax = ancestor(gca, 'axes');
             ax.XAxis.Exponent = 0;xtickformat('%.0f');
             ax.YAxis.Exponent = 0;ytickformat('%.0f');
@@ -2173,8 +2214,8 @@ if flags.flag_ETP == 1
 end
 
 %% GW Video
-try 
-    delete('Modeling_Results\GW_Depths.mp4')
+try
+    delete(fullfile('Modeling_Results','GW_Depths.mp4'))
 end
 
 % Calculating general Max and Min
@@ -2187,15 +2228,13 @@ if flags.flag_baseflow == 1
             Min_gw = zeros(size(elevation));
             if i > saver_memory_maps * store
                 store = store + 1;
-                load(strcat('Temporary_Files\save_map_hydro_', num2str(store)), 'Maps');      
-                if flags.flag_ETP
+                load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');                if flags.flag_ETP
                     Max_gw = max(max(Maps.Hydro.GWdepth_save, [], 3), Max_gw);
                     Min_gw = min(min(Maps.Hydro.GWdepth_save, [], 3), Min_gw);
                 end
             else
                 if flag_loader == 1
-                    load(strcat('Temporary_Files\save_map_hydro_', num2str(store)), 'Maps');
-                    flag_loader = 0;
+                    load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');                    flag_loader = 0;
                     if flags.baseflow
                         Max_gw = max(Maps.Hydro.GWdepth_save, [], 3);
                         Min_gw = max(Maps.Hydro.GWdepth_save, [], 3);
@@ -2209,12 +2248,12 @@ end
 if flags.flag_baseflow == 1
     close all
     Video_Name = 'GW_Depths.mp4';
-    
+
     % Set up video
     video = VideoWriter(fullfile(folderName, Video_Name), 'MPEG-4');
     video.FrameRate = 2;
     open(video);
-    
+
     h = figure;
     set(gcf, 'units', 'inches', 'position', [0, 0, 10, 7]) % Larger figure size
     set(gcf, 'DefaultTextInterpreter', 'latex')
@@ -2233,11 +2272,9 @@ if flags.flag_baseflow == 1
             clf
             if t > saver_memory_maps * store
                 store = store + 1;
-                load(strcat('Temporary_Files\save_map_hydro_', num2str(store)), 'Maps');
-            else
+                load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');            else
                 if flag_loader == 1
-                    load(strcat('Temporary_Files\save_map_hydro_', num2str(store)), 'Maps');
-                    flag_loader = 0;
+                    load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');                    flag_loader = 0;
                 end
             end
             GW = Maps.Hydro.GWdepth_save(:, :, t - (store - 1) * saver_memory_maps);
@@ -2245,7 +2282,7 @@ if flags.flag_baseflow == 1
             GW(GW < 0) = nan;
             GW(idx) = nan;
             spatial_GW = GW;
-            
+
             if t > size(Spatial_Rainfall_Parameters.rainfall_spatial_duration, 2)
                 t_title = Spatial_Rainfall_Parameters.rainfall_spatial_duration(end) + Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg(2);
                 spatial_GW = zeros(size(Elevation_Properties.elevation_cell));
@@ -2255,7 +2292,7 @@ if flags.flag_baseflow == 1
                 z = spatial_GW;
                 z(idx_nan) = nan;
             end
-            
+
             hold on
             F = z([ybegin:1:yend], [xbegin:1:xend]);
             if no_plot == 0
@@ -2268,7 +2305,7 @@ if flags.flag_baseflow == 1
             surf(x_grid, y_grid, F);
             axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
             shading INTERP;
-            
+
             if flags.flag_elapsed_time == 1
                 title(sprintf('Time [h] = %4.2f', t_title / 60), 'Interpreter', 'Latex', 'FontSize', 14)
             else
@@ -2278,9 +2315,9 @@ if flags.flag_baseflow == 1
             colorbar
             % caxis([zmin zmax]);
             colormap(Spectrum)
-            k = colorbar; 
-            k.FontName = 'Garamond'; 
-            k.FontSize = 14; 
+            k = colorbar;
+            k.FontName = 'Garamond';
+            k.FontSize = 14;
             k.TickDirection = 'out';
             ylabel(k, 'GW Depth [m]', 'Interpreter', 'Latex', 'FontSize', 14)
             xlabel('Easting [m]', 'Interpreter', 'Latex', 'FontSize', 14)
@@ -2289,8 +2326,8 @@ if flags.flag_baseflow == 1
             set(gca, 'FontName', 'Garamond', 'FontSize', 14)
 
             % Increase border (axis) thickness
-            ax = gca; 
-            ax.LineWidth = 2;  
+            ax = gca;
+            ax.LineWidth = 2;
             box on
             set(gca, 'TickDir', 'out', 'TickLength', [0.02 0.01]);
             set(gca, 'FontName', 'Garamond', 'FontSize', 14)
@@ -2335,11 +2372,11 @@ end
 %     video.Quality = 100;
 %     open(video);
 %     h = figure;
-%     FileName = fullfile(folderName,strcat('\',FileName_String));
+%     FileName = fullfile(folderName, FileName_String);
 %     set(gcf,'units','pixels','position',[0,0,1080,1080])
 %     set(gcf,'DefaultTextInterpreter','latex')
 %     set(gcf,'units','pixels','position',[0,0,1080,1080])
-% 
+%
 %     % loop for video frames
 %     store=1;
 %     flag_loader=1;
@@ -2350,14 +2387,14 @@ end
 %         t_title = running_control.time_records(i);
 %         if i > saver_memory_maps*store
 %             store = store + 1;
-%             load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+%             load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
 %         else
 %             if flag_loader == 1
-%                 load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+%                 load(fullfile('Temporary_Files', ['save_map_hydro_' num2str(store)]), 'Maps');
 %                 flag_loader=0;
 %             end
 %         end
-% 
+%
 %         % subplot(2,1,1)
 %         subplot(2,1,1)
 %         set(gca,'Position',[0.06 0.85 0.9 0.1])
@@ -2379,19 +2416,19 @@ end
 %                 % ylim([0 max(max(gather(BC_States.average_spatial_rainfall)))*6])
 %             end
 %         end
-% 
+%
 %         if flags.flag_elapsed_time == 1
 %             title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
 %         else
 %             title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
 %         end
-% 
+%
 %         for j = 1:8
 %             zzz(:,:,j) = double(Maps.Hydro.(strcat('risk',Human_Instability_text.list{j}))(:,:,i - (store-1)*saver_memory_maps)>0)*find(Human_Instability.order==Human_Instability.order(j));
 %         end
 %         zzz_2 = max(zzz,[],3);
 %         zzz_2(zzz_2==0)=nan;
-% 
+%
 %         F = zzz_2([ybegin:1:yend],[xbegin:1:xend]);
 %         % Plotting base map and study area boundaries
 %         subplot(2,1,2)
@@ -2401,16 +2438,16 @@ end
 %                 mapshow(A,RA,"AlphaData",0.25);hold on;
 %                 mapshow(S_p,'FaceColor','n'); hold on;
 %             catch ME
-% 
+%
 %             end
 %         end
-% 
+%
 %         cmap = [204 255 153; 102 255 102; 255 255 153; 255 255 0; 255 178 102; 255 128 0; 255 102 102; 255 51 51]./255;
 %         colormap(cmap);
 %         s= pcolor(x_grid,y_grid,F);
 %         s.EdgeColor = 'none';
 %         caxis([1 8]); % Set the colorbar scale to 1 to 8
-% 
+%
 %         k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
 %         xlabel(' Easting [m] ','Interpreter','Latex','FontSize',14)
 %         ylabel ('Northing [m] ','Interpreter','Latex','FontSize',14)
@@ -2419,7 +2456,7 @@ end
 %         set(gca,'FontName','Garamond','FontSize',12)
 %         % Increase border (axis) thickness
 %         ax = gca;          % Get current axis
-%         ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+%         ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
 %         box on
 %         ax = ancestor(gca, 'axes');
 %         ax.XAxis.Exponent = 0;xtickformat('%.0f');
@@ -2427,14 +2464,14 @@ end
 %         hold off
 %         % Set background color and write to video
 %         frame = getframe(gcf);
-% 
+%
 %         % Save high-resolution frame before writing to video
 %         frame_filename = 'temp_frame.png';
 %         print(gcf, '-dpng', '-r300', frame_filename); % 300 DPI output
 %         frame_img = imread(frame_filename);
 %         writeVideo(video, frame_img);
 %         delete(frame_filename); % Clean up temporary file
-% 
+%
 %         writeVideo(video,frame);
 %         box on
 %         hold off
@@ -2451,7 +2488,7 @@ if flags.flag_waterquality == 1
     h = figure;
     axis tight manual % this ensures that getframe() returns a consistent size
     FileName_String = 'Pollutant_Concentration.gif';
-    FileName = fullfile(folderName,strcat('\',FileName_String));
+    FileName = fullfile(folderName, FileName_String);
     set(gcf,'units','inches','position',[3,3,6.5,5])
 
     % Replace all infs for nan
@@ -2502,7 +2539,7 @@ if flags.flag_waterquality == 1
             set(gca,'FontName','Garamond','FontSize',12)
             % Increase border (axis) thickness
             ax = gca;          % Get current axis
-            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+            ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
             box on
             ax = ancestor(gca, 'axes');
             ax.XAxis.Exponent = 0;xtickformat('%.0f');
@@ -2520,7 +2557,7 @@ if flags.flag_waterquality == 1
             end
         end
     end
-    
+
     clf
     close all
 
@@ -2529,7 +2566,7 @@ if flags.flag_waterquality == 1
     h = figure;
     axis tight manual % this ensures that getframe() returns a consistent size
     FileName_String = 'Mass_of_pollutant.gif';
-    FileName = fullfile(folderName,strcat('\',FileName_String));
+    FileName = fullfile(folderName, FileName_String);
     set(gcf,'units','inches','position',[3,3,6.5,5])
     % Replace all infs for nan
     z = Maps.WQ_States.Pol_mass_map/Wshed_Properties.cell_area*1000; % Plotting pollutant mass in grams
@@ -2567,7 +2604,7 @@ if flags.flag_waterquality == 1
         set(gca,'FontName','Garamond','FontSize',12)
         % Increase border (axis) thickness
         ax = gca;          % Get current axis
-        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5) 
+        ax.LineWidth = 2;   % Set the line width to 2 (default is 0.5)
         box on
         ax = ancestor(gca, 'axes');
         ax.XAxis.Exponent = 0;xtickformat('%.0f');

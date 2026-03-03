@@ -4,10 +4,16 @@ simulation_time = toc;
 
 %% Coloramp
 [Spectrum,Depth_Purple,Terrain_RAS_ramp,blue_ramp,blues_2,pallete,Depth_RAS,Terrain_RAS,Velocity_RAS,WSE_RAS] = coloramps();
-addpath('Temporary_Files')
+tempDir = fullfile(pwd, 'Temporary_Files');
+addpath(tempDir);
 %% Creating Modeling Results Folder
-% Create the folder name
-folderName = 'Modeling_Results';
+
+% Base results folder (absolute, cross-platform)
+resultsDir = fullfile(pwd, 'Modeling_Results');
+if ~isfolder(resultsDir), mkdir(resultsDir); end
+
+% If you want folderName to always be an absolute path:
+folderName = resultsDir;
 
 try
     % If it doesn't exist, create the folder
@@ -20,8 +26,10 @@ end
 %% Change directory if necessary
 if flags.flag_rainfall_multiple_runs == 1
     input_rains = spreadsheetDatastore('rainfalls_cc.xlsx');
-    mkdir(strcat('Modeling_Results','\',input_rains.VariableNames{Rainfall_Parameters.name_time}))
-    folderName = strcat('Modeling_Results','\',input_rains.VariableNames{Rainfall_Parameters.name_time});
+    
+    runTag = input_rains.VariableNames{Rainfall_Parameters.name_time};
+    folderName = fullfile(resultsDir, runTag);  % absolute, cross-platform
+if ~isfolder(folderName), mkdir(folderName); end
 end
 
 
@@ -303,10 +311,10 @@ if flags.flag_spatial_rainfall == 1 && running_control.record_time_spatial_rainf
     for i = 1:length(running_control.time_records)
         if i > saver_memory_maps * store
             store = store + 1;
-            load(strcat('Temporary_Files\save_map_hydro_', num2str(store)), 'Maps');
+            load(fullfile(tempDir, ['save_map_hydro_' num2str(store)]), 'Maps');
         else
             if flag_loader == 1
-                load(strcat('Temporary_Files\save_map_hydro_', num2str(store)), 'Maps');
+                load(fullfile(tempDir, ['save_map_hydro_' num2str(store)]), 'Maps');
                 flag_loader = 0;
             end
         end
@@ -430,7 +438,7 @@ if flags.flag_ETP == 1
             % Load new batch of saved maps when needed
             if i > saver_memory_maps * store
                 store = store + 1;
-                load(strcat('Temporary_Files\save_map_hydro_', num2str(store)), 'Maps');
+                load(fullfile(tempDir, ['save_map_hydro_' num2str(store)]), 'Maps');
             elseif flag_loader == 1
                 load(strcat('Temporary_Files\save_map_hydro_', num2str(store)), 'Maps');
                 flag_loader = 0;
@@ -933,580 +941,567 @@ Outlet_EMC_Curve = table( ...
 writetable(Outlet_EMC_Curve, fullfile(folderName, 'Outlet_EMC_Curve.csv'));
 
 end
-%% Exporting Rasters
+%% Exporting Rasters (cross-platform)
 if flags.flag_export_maps == 1
-    % Delete previous rasters in the folder
+
     no_data_value = nan;
 
-    % Create their own folder
-    if flags.flag_waterquality==1
-        mkdir(strcat(folderName,'\Water_Quality_Maps'));
-        % Specify the folder where the files live.
-        myFolder_wq = strcat(pwd,'\',folderName,'\Water_Quality_Maps\'); % Current folder
-        % Get a list of all files in the folder with the desired file name pattern.
-        filePattern = fullfile(myFolder_wq, '*.tif'); % Change to whatever pattern you need.
-        theFiles = dir(filePattern);
-        for k = 1 : length(theFiles)
-            baseFileName = theFiles(k).name;
-            fullFileName = fullfile(myFolder_wq, baseFileName);
-            fprintf(1, 'Now deleting %s\n', fullFileName);
-            delete(fullFileName);
-        end
-        filePattern = fullfile(myFolder_wq, '*.tif.aux'); % Change to whatever pattern you need.
-        theFiles = dir(filePattern);
-        for k = 1 : length(theFiles)
-            baseFileName = theFiles(k).name;
-            fullFileName = fullfile(myFolder_wq, baseFileName);
-            fprintf(1, 'Now deleting %s\n', fullFileName);
-            delete(fullFileName);
-        end
-    elseif flags.flag_human_instability>0
-        % Specify the folder where the files live.
-        myFolder_hr = strcat(pwd,'\',folderName,'\Human_Risk_Maps\'); % Current folder
-        mkdir(strcat(folderName,'\Human_Risk_Maps'));
-        % Get a list of all files in the folder with the desired file name pattern.
-        filePattern = fullfile(myFolder_hr, '*.tif'); % Change to whatever pattern you need.
-        theFiles = dir(filePattern);
-        for k = 1 : length(theFiles)
-            baseFileName = theFiles(k).name;
-            fullFileName = fullfile(myFolder_hr, baseFileName);
-            fprintf(1, 'Now deleting %s\n', fullFileName);
-            delete(fullFileName);
-        end
-        filePattern = fullfile(myFolder_hr, '*.tif.aux'); % Change to whatever pattern you need.
-        theFiles = dir(filePattern);
-        for k = 1 : length(theFiles)
-            baseFileName = theFiles(k).name;
-            fullFileName = fullfile(myFolder_hr, baseFileName);
-            fprintf(1, 'Now deleting %s\n', fullFileName);
-            delete(fullFileName);
-        end
+    %-----------------------------
+    % Helper: ensure folder exists
+    %-----------------------------
+    ensureFolder = @(p) ( ~isfolder(p) && mkdir(p) );
+
+    %-----------------------------------------
+    % Helper: delete previous rasters by pattern
+    %-----------------------------------------
+    % (Defined as local function at bottom: deleteMatchingFiles)
+
+    %========================
+    % 1) Create/Clean WQ/HR folders
+    %========================
+    myFolder_wq = "";
+    myFolder_hr = "";
+
+    if flags.flag_waterquality == 1
+        myFolder_wq = fullfile(folderName, 'Water_Quality_Maps');
+        ensureFolder(myFolder_wq);
+
+        deleteMatchingFiles(myFolder_wq, {'*.tif', '*.tif.aux'});
+
+    elseif flags.flag_human_instability > 0
+        myFolder_hr = fullfile(folderName, 'Human_Risk_Maps');
+        ensureFolder(myFolder_hr);
+
+        deleteMatchingFiles(myFolder_hr, {'*.tif', '*.tif.aux'});
     end
 
-    mkdir(strcat(folderName,'\Water_Depths_Maps'));
-    % Specify the folder where the files live.
-    myFolder_wd = strcat(pwd,'\',folderName,'\Water_Depths_Maps\'); % Current folder
-    % Check to make sure that folder actually exists.  Warn user if it doesn't.
+    %========================
+    % 2) Create/Clean Water Depths folder
+    %========================
+    myFolder_wd = fullfile(folderName, 'Water_Depths_Maps');
+    ensureFolder(myFolder_wd);
+
     if ~isfolder(myFolder_wd)
-        errorMessage = sprintf('Error: The following folder does not exist:\n%s', myFolder_wd);
+        errorMessage = sprintf("Error: The following folder does not exist:\n%s", myFolder_wd);
         uiwait(warndlg(errorMessage));
         return;
     end
-    % Get a list of all files in the folder with the desired file name pattern.
-    filePattern = fullfile(myFolder_wd, '*.tif'); % Change to whatever pattern you need.
-    theFiles = dir(filePattern);
-    for k = 1 : length(theFiles)
-        baseFileName = theFiles(k).name;
-        fullFileName = fullfile(myFolder_wd, baseFileName);
-        fprintf(1, 'Now deleting %s\n', fullFileName);
-        delete(fullFileName);
-    end
-    % Get a list of all files in the folder with the desired file name pattern.
-    filePattern = fullfile(myFolder_wd, '*.tif.aux'); % Change to whatever pattern you need.
-    theFiles = dir(filePattern);
-    for k = 1 : length(theFiles)
-        baseFileName = theFiles(k).name;
-        fullFileName = fullfile(myFolder_wd, baseFileName);
-        fprintf(1, 'Now deleting %s\n', fullFileName);
-        delete(fullFileName);
-    end
-    clc
-    % Changing Nan Values
-    % Maps.Hydro.d(isnan(Maps.Hydro.d)) = no_data_value;
-    % Maps.Hydro.d(isinf(Maps.Hydro.d)) = no_data_value;
-    % Maps.Hydro.d(idx_nan) = no_data_value;
-    % Rasters - Depths, WSE, and Pol. Conc
-    store=1;
-    flag_loader=1;
-    flag_loader_wq = 1;
-    for i = 1:length(running_control.time_records)
-        raster_exportion_percentage = i/length(running_control.time_records)*100
-        %         flags.flag_elapsed_time = 1;
 
-        if i > saver_memory_maps*store
+    deleteMatchingFiles(myFolder_wd, {'*.tif', '*.tif.aux'});
+
+    clc
+
+    %========================
+    % 3) Export time-varying rasters
+    %========================
+    store = 1;
+    flag_loader = 1;
+
+    % NOTE: you referenced idx_nan, Max_depth_d, etc. assuming they exist upstream
+    for i = 1:length(running_control.time_records)
+
+        raster_exportion_percentage = i / length(running_control.time_records) * 100
+
+        %-----------------------------------------
+        % Load maps in chunks (platform independent)
+        %-----------------------------------------
+        if i > saver_memory_maps * store
             store = store + 1;
-            load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+
+            mapFile = fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store));
+            load(mapFile, 'Maps');
+
             % Changing Nan Values
             Maps.Hydro.d(isnan(Maps.Hydro.d)) = no_data_value;
             Maps.Hydro.d(isinf(Maps.Hydro.d)) = no_data_value;
             Maps.Hydro.d(idx_nan) = no_data_value;
-            Max_depth_d = max(max(Maps.Hydro.d,[],3),Max_depth_d);
+
+            Max_depth_d = max(max(Maps.Hydro.d, [], 3), Max_depth_d);
+
         else
             if flag_loader == 1
-                load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
-                flag_loader=0;
+                mapFile = fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store));
+                load(mapFile, 'Maps');
+                flag_loader = 0;
+
                 % Changing Nan Values
                 Maps.Hydro.d(isnan(Maps.Hydro.d)) = no_data_value;
                 Maps.Hydro.d(isinf(Maps.Hydro.d)) = no_data_value;
                 Maps.Hydro.d(idx_nan) = no_data_value;
-                Max_depth_d = max(Maps.Hydro.d,[],3);
+
+                Max_depth_d = max(Maps.Hydro.d, [], 3);
             end
         end
 
-        idx_depth = Maps.Hydro.d(:,:,i - ((store-1)*saver_memory_maps)) < depths.depth_wse*1000;
+        local_i = i - ((store-1) * saver_memory_maps);
 
-        % idx_depth = Maps.Hydro.d(:,:,i) < depths.depth_wse*1000;
+        idx_depth = Maps.Hydro.d(:,:,local_i) < depths.depth_wse * 1000;
+
         if flags.flag_elapsed_time ~= 1
-            time_map = datestr(running_control.time_records(i),'yyyy_mm_dd_hh_MM_ss');
+            time_map = datestr(running_control.time_records(i), 'yyyy_mm_dd_hh_MM_ss');
         else
-            time_map = running_control.time_records(i)/60; % hours
+            time_map = running_control.time_records(i) / 60; % hours
         end
-        if flags.flag_wse == 0  % We will save only water surface depth
+
+        %-----------------------------------------
+        % Build filename + raster values
+        %-----------------------------------------
+        if flags.flag_wse == 0  % save only water depth
             if flags.flag_elapsed_time == 1
-                FileName = strcat('Flood_Depths_t_', num2str(time_map),'_h.tif');
+                baseName = sprintf('Flood_Depths_t_%s_h', num2str(time_map));
             else
-                FileName = strcat('Flood_Depths_', string(time_map));
+                baseName = sprintf('Flood_Depths_%s', string(time_map));
             end
-            raster_exportion = Maps.Hydro.d(:,:,i - ((store-1)*saver_memory_maps))/1000;
-            % raster_exportion = Maps.Hydro.d(:,:,i)/1000;
+
+            raster_exportion = Maps.Hydro.d(:,:,local_i) / 1000;
             raster_exportion(idx_nan) = no_data_value;
             raster_exportion(idx_depth) = no_data_value;
-        else
+
+        else % save WSE
             if flags.flag_elapsed_time == 1
-                FileName =  strcat('Water_Surface_Elevation_t_', num2str(time_map),'_h.tif');
+                baseName = sprintf('Water_Surface_Elevation_t_%s_h', num2str(time_map));
             else
-                FileName = strcat('Water_Surface_Elevation_', string(time_map));
+                baseName = sprintf('Water_Surface_Elevation_%s', string(time_map));
             end
-            raster_exportion = Maps.Hydro.d(:,:,i - ((store-1)*saver_memory_maps))/1000 + double(idx_Elevation_Properties.elevation_cell).*Elevation_Properties.elevation_cell;
-            % raster_exportion = Maps.Hydro.d(:,:,i)/1000 + double(idx_Elevation_Properties.elevation_cell).*Elevation_Properties.elevation_cell;
+
+            raster_exportion = Maps.Hydro.d(:,:,local_i)/1000 + ...
+                double(idx_Elevation_Properties.elevation_cell) .* Elevation_Properties.elevation_cell;
+
             raster_exportion(idx_nan) = no_data_value;
             raster_exportion(idx_depth) = no_data_value;
         end
-        % Save Map
-        FileName = fullfile(myFolder_wd,FileName);
+
+        outTif = fullfile(myFolder_wd, baseName + ".tif");
+
+        %-----------------------------------------
+        % Export (subgrid vs regular)
+        %-----------------------------------------
         if flags.flag_subgrid ~= 1
-            raster_to_export = DEM_raster; % Just to get the properties
-            raster_to_export.Z = raster_exportion; % Putting the right values
+            raster_to_export = DEM_raster;              % copy metadata
+            raster_to_export.Z = raster_exportion;      % assign values
         else
-            raster_to_export = DEM_raster_high_resolution; % Just to get the properties
-            wse = raster_exportion + Subgrid_Properties.invert_el; % Water surface elevation considering the invert elevation
+            raster_to_export = DEM_raster_high_resolution;
+            wse = raster_exportion + Subgrid_Properties.invert_el;
             high_res_flood_map = ProjectFloodMap(DEM_raster_high_resolution, DEM_raster, wse);
             raster_to_export.Z = high_res_flood_map;
         end
-        % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
-        %         SaveAsciiRaster(raster_exportion,Resolution,xllcorner,yllcorner,FileName,no_data_value)
-        geotiffwrite(FileName,raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
-        % Water Quality
+
+        geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+            'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
+
+        %========================
+        % Water Quality export
+        %========================
         if flags.flag_waterquality == 1
             if flags.flag_elapsed_time == 1
-                FileName =  strcat('Pollutant_Concentration', num2str(time_map),'min');
+                baseNameWQ = sprintf('Pollutant_Concentration_%smin', num2str(time_map));
             else
-                FileName = strcat('Pollutant_Concentration', string(time_map));
+                baseNameWQ = sprintf('Pollutant_Concentration_%s', string(time_map));
             end
-            FileName = fullfile(myFolder_wq,FileName);
+            outTifWQ = fullfile(myFolder_wq, baseNameWQ + ".tif");
 
-            raster_exportion = Maps.WQ_States.Pol_Conc_Map(:,:,i - (store-1)*saver_memory_maps);
-            % raster_exportion = Maps.WQ_States.Pol_Conc_Map(:,:,i);
-            idx_ = raster_exportion < LULC_Properties.Pol_min; % Finding values below Pol_min
+            raster_exportion = Maps.WQ_States.Pol_Conc_Map(:,:,local_i);
+            idx_ = raster_exportion < LULC_Properties.Pol_min;
             raster_exportion(idx_) = no_data_value;
             raster_exportion(isnan(raster_exportion)) = no_data_value;
             raster_exportion(isinf(raster_exportion)) = no_data_value;
             raster_exportion(raster_exportion < 0) = no_data_value;
 
-            raster_to_export = DEM_raster; % Just to get the properties
-            raster_to_export.Z = raster_exportion; % Putting the right values
-            % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
-            geotiffwrite(FileName,raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-                'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+            raster_to_export = DEM_raster;
+            raster_to_export.Z = raster_exportion;
+
+            geotiffwrite(outTifWQ, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+                'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
         end
-        % if flags.flag_human_instability == 2
-        % elseif flags.flag_human_instability == 3
-        %     list={'_cm','_tm','_am','_om','_cf','_tf','_af','_of'};
-        %     if flags.flag_elapsed_time == 1
-        %         FileName =  strcat('Human_instability_', num2str(time_map),'min');
-        %     else
-        %         FileName = strcat('Human_instability_', string(time_map));
-        %     end
-        %     FileName = fullfile(myFolder_hr,FileName);
-        % 
-        %     raster_exportion = zeros(size(DEM_raster.Z,1),size(DEM_raster.Z,2),8);
-        %     for j = 1:8
-        %         raster_exportion(:,:,j) = double(Maps.Hydro.(strcat('risk',list{j}))(:,:,i - (store-1)*saver_memory_maps)>0)*Human_Instability.order(j);
-        %     end
-        %     raster_exportion = max(raster_exportion,[],3);
-        %     raster_exportion(isnan(raster_exportion)) = no_data_value;
-        %     raster_exportion(isinf(raster_exportion)) = no_data_value;
-        %     raster_exportion(raster_exportion < 0) = no_data_value;
-        %     raster_exportion(raster_exportion==0) = no_data_value;
-        %     geotiffwrite(FileName,raster_exportion,raster_to_export.georef.SpatialRef,...
-        %         'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
-        % end
+
+        %========================
+        % Human instability export (case 1)
+        %========================
         if flags.flag_human_instability == 1
             if flags.flag_elapsed_time == 1
-                FileName =  strcat('Human_instability_', num2str(time_map),'min');
+                baseNameHR = sprintf('Human_instability_%smin', num2str(time_map));
             else
-                FileName = strcat('Human_instability_', string(time_map));
+                baseNameHR = sprintf('Human_instability_%s', string(time_map));
             end
-            FileName = fullfile(myFolder_hr,FileName);
+            outTifHR = fullfile(myFolder_hr, baseNameHR + ".tif");
 
-            raster_exportion = double(Maps.Hydro.risk(:,:,i - (store-1)*saver_memory_maps));            
+            raster_exportion = double(Maps.Hydro.risk(:,:,local_i));
             raster_exportion(isnan(raster_exportion)) = no_data_value;
             raster_exportion(isinf(raster_exportion)) = no_data_value;
             raster_exportion(raster_exportion < 0) = no_data_value;
-            raster_exportion(raster_exportion==0) = no_data_value;
-            geotiffwrite(FileName,raster_exportion,raster_to_export.georef.SpatialRef,...
-                'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+            raster_exportion(raster_exportion == 0) = no_data_value;
+
+            geotiffwrite(outTifHR, raster_exportion, raster_to_export.georef.SpatialRef, ...
+                'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
         end
     end
 
+    %========================
+    % 4) Static exports (make sure all have .tif)
+    %========================
+
     % Initial_Buildup Map
     if flags.flag_waterquality == 1
-        FileName = 'Initial_Buildup_kg';
-        FileName = fullfile(folderName,FileName);
+        outTif = fullfile(folderName, "Initial_Buildup_kg.tif");
         raster_exportion = Maps.WQ_States.initial_buildup_map;
         raster_exportion(isnan(raster_exportion)) = no_data_value;
         raster_exportion(isinf(raster_exportion)) = no_data_value;
         raster_exportion(raster_exportion < 0) = no_data_value;
 
-        raster_to_export = DEM_raster; % Just to get the properties
-        raster_to_export.Z = raster_exportion; % Putting the right values
-        % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
-        geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+        raster_to_export = DEM_raster;
+        raster_to_export.Z = raster_exportion;
 
-        % Map of Total Washed Mass
-        FileName = 'Total_Washed_Mass_Kg';
-        FileName = fullfile(folderName,FileName);
+        geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+            'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
+
+        % Total Washed Mass
+        outTif = fullfile(folderName, "Total_Washed_Mass_Kg.tif");
         raster_exportion = WQ_States.Tot_Washed;
         raster_exportion(isnan(raster_exportion)) = no_data_value;
         raster_exportion(isinf(raster_exportion)) = no_data_value;
         raster_exportion(raster_exportion < 0) = no_data_value;
 
-        raster_to_export = DEM_raster; % Just to get the properties
-        raster_to_export.Z = raster_exportion; % Putting the right values
-        % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
-        geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+        raster_to_export = DEM_raster;
+        raster_to_export.Z = raster_exportion;
+
+        geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+            'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
     end
 
     % Points of accumulation of Depths
-    FileName = strcat('Accumulation_Areas_Larger_1m');
-    FileName = fullfile(folderName,FileName);
-    idx_depth = depths.d_t > 1*1000; % Larger than 1 m
-    raster_exportion = no_data_value*ones(size(depths.d_t));
+    outTif = fullfile(folderName, "Accumulation_Areas_Larger_1m.tif");
+    idx_depth = depths.d_t > 1 * 1000;
+    raster_exportion = no_data_value * ones(size(depths.d_t));
     raster_exportion(idx_depth) = 1;
 
-    raster_to_export = DEM_raster; % Just to get the properties
-    raster_to_export.Z = raster_exportion; % Putting the right values
-    % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
-    geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+    raster_to_export = DEM_raster;
+    raster_to_export.Z = raster_exportion;
+
+    geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+        'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
 
     % Points of accumulation of pollutants
     if flags.flag_waterquality == 1
-        FileName = strcat('Accumulation_Areas_10_g_m2');
-        FileName = fullfile(folderName,FileName);
+        outTif = fullfile(folderName, "Accumulation_Areas_10_g_m2.tif");
         pol_accumulation = 10; % g/m2
-        zzz = WQ_States.B_t/Wshed_Properties.cell_area*1000; % g/m2
+        zzz = WQ_States.B_t / Wshed_Properties.cell_area * 1000; % g/m2
         zzz(isinf(zzz)) = no_data_value;
         zzz(isnan(zzz)) = no_data_value;
-        idx_bt = zzz < pol_accumulation; %
+        idx_bt = zzz < pol_accumulation;
         zzz(idx_bt) = no_data_value;
-        raster_exportion = zzz;
 
-        raster_to_export = DEM_raster; % Just to get the properties
-        raster_to_export.Z = raster_exportion; % Putting the right values
-        % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
-        geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+        raster_to_export = DEM_raster;
+        raster_to_export.Z = zzz;
 
-        % Final Polutant Mass
-        FileName = strcat('Final_Pollutant_Mass_g_m2');
-        FileName = fullfile(folderName,FileName);
-        raster_exportion = no_data_value*ones(size(WQ_States.B_t));
-        final_mass = Maps.WQ_States.Pol_mass_map(:,:,end)/Wshed_Properties.cell_area*1000; % g/m2
+        geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+            'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
+
+        % Final Pollutant Mass
+        outTif = fullfile(folderName, "Final_Pollutant_Mass_g_m2.tif");
+        raster_exportion = no_data_value * ones(size(WQ_States.B_t));
+        final_mass = Maps.WQ_States.Pol_mass_map(:,:,end) / Wshed_Properties.cell_area * 1000; % g/m2
         idx_bt = final_mass > 0;
         raster_exportion(idx_bt) = final_mass(idx_bt);
         raster_exportion(isinf(raster_exportion)) = no_data_value;
 
-        raster_to_export = DEM_raster; % Just to get the properties
-        raster_to_export.Z = raster_exportion; % Putting the right values
-        % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
-        geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+        raster_to_export = DEM_raster;
+        raster_to_export.Z = raster_exportion;
+
+        geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+            'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
     end
+
     % Maximum Velocity
+    outTif = fullfile(folderName, "Maximum_Velocity.tif");
     zzz = velocities.vmax_final; % m/s
-    idx_wse = depths.dmax_final/1000 < depths.depth_wse; % Finding values below the threshold
-    % Maximum_Depths
-    FileName = strcat('Maximum_Velocity');
-    FileName = fullfile(folderName,FileName);
+    idx_wse = depths.dmax_final/1000 < depths.depth_wse;
     zzz(isinf(zzz)) = no_data_value;
     zzz(isnan(zzz)) = no_data_value;
     zzz(idx_wse) = no_data_value;
-    raster_exportion = zzz;
-    raster_to_export = DEM_raster; % Just to get the properties
-    raster_to_export.Z = raster_exportion; % Putting the right values
-    % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
-    geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
 
-    % Risk Map
+    raster_to_export = DEM_raster;
+    raster_to_export.Z = zzz;
+
+    geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+        'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
+
+    % Risk Map (flag_human_instability == 1) - FIXED LOOP + path
     if flags.flag_human_instability == 1
-        store=1;
-        flag_loader=1;
-        for i = 1:size(length(running_control.time_records))
-            if i > saver_memory_maps*store
+        store = 1;
+        flag_loader = 1;
+
+        % Initialize zzz safely (if you want max-over-time risk)
+        zzz = -inf(size(DEM_raster.Z,1), size(DEM_raster.Z,2));
+
+        for i = 1:length(running_control.time_records)
+            if i > saver_memory_maps * store
                 store = store + 1;
-                load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
-                zzz = max(max(Maps.Hydro.risk,[],3),zzz); % m/s
+                mapFile = fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store));
+                load(mapFile, 'Maps');
             else
                 if flag_loader == 1
-                    load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
-                    flag_loader=0;
-                    zzz = max(Maps.Hydro.risk,[],3); % m/s
+                    mapFile = fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store));
+                    load(mapFile, 'Maps');
+                    flag_loader = 0;
                 end
             end
+
+            % If Maps.Hydro.risk is 3D, this keeps max across 3rd dim
+            zzz = max(zzz, max(Maps.Hydro.risk, [], 3));
         end
-        idx_wse = depths.dmax_final/1000 < depths.depth_wse; % Finding values below the threshold
-        % Maximum_Depths
-        zzz = Human_Instability.max_risk; % Value of max risk        
-        FileName = strcat('Maximum_Instability_Risk');
-        FileName = fullfile(folderName,FileName);
+
+        % Your code then overrides zzz with Human_Instability.max_risk:
+        zzz = Human_Instability.max_risk;
+
+        idx_wse = depths.dmax_final/1000 < depths.depth_wse;
+        outTif = fullfile(folderName, "Maximum_Instability_Risk.tif");
+
         zzz(isinf(zzz)) = no_data_value;
         zzz(isnan(zzz)) = no_data_value;
         zzz(idx_wse) = no_data_value;
-        raster_exportion = zzz;
-        raster_to_export = DEM_raster; % Just to get the properties
-        raster_to_export.Z = raster_exportion; % Putting the right values
-        geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+
+        raster_to_export = DEM_raster;
+        raster_to_export.Z = zzz;
+
+        geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+            'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
+
     elseif flags.flag_human_instability == 2
+        % (leave as-is / your implementation)
+
     elseif flags.flag_human_instability == 3
-        list={'_cm','_tm','_am','_om','_cf','_tf','_af','_of'};
-        risk_summary = table('Size', [1 9], 'VariableNames',{'Risk','risk_cm', 'risk_tm', 'risk_am', 'risk_om', 'risk_cf', 'risk_tf', 'risk_af', 'risk_of'}, ...
+        list = {'_cm','_tm','_am','_om','_cf','_tf','_af','_of'};
+        risk_summary = table('Size', [3 9], ...
+            'VariableNames', {'Risk','risk_cm', 'risk_tm', 'risk_am', 'risk_om', 'risk_cf', 'risk_tf', 'risk_af', 'risk_of'}, ...
             'VariableTypes', {'string','double', 'double', 'double', 'double', 'double', 'double', 'double', 'double'});
-        risk_summary.Risk(1) = 'Slide'; risk_summary.Risk(2) = 'Toppling'; risk_summary.Risk(3) = 'Drawing';
+
+        risk_summary.Risk(1) = "Slide";
+        risk_summary.Risk(2) = "Toppling";
+        risk_summary.Risk(3) = "Drowning";
+
         for k = 1:8
-            store=1;
-            flag_loader=1;
+            store = 1;
+            flag_loader = 1;
+
             for i = 1:length(running_control.time_records)
-                if i > saver_memory_maps*store
+                if i > saver_memory_maps * store
                     store = store + 1;
-                    load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+                    mapFile = fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store));
+                    load(mapFile, 'Maps');
                 else
                     if flag_loader == 1
-                        load(strcat('Temporary_Files\save_map_hydro_',num2str(store)),'Maps');
+                        mapFile = fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store));
+                        load(mapFile, 'Maps');
+                        flag_loader = 0;
                     end
                 end
-                zzz = double(Maps.Hydro.(strcat('risk',list{k}))(:,:,i - (store-1)*saver_memory_maps));
-                if flag_loader ==1
-                    zzz_2 = max(zzz,[],3);
-                    flag_loader=0;
-                else
-                    zzz_2 = max(zzz,zzz_2);
-                end
-                risk_summary.(strcat('risk',list{k}))(1) = max(risk_summary.(strcat('risk',list{k}))(1),sum(sum(sum(zzz==1))));
-                risk_summary.(strcat('risk',list{k}))(2) = max(risk_summary.(strcat('risk',list{k}))(2),sum(sum(sum(zzz==2))));
-                risk_summary.(strcat('risk',list{k}))(3) = max(risk_summary.(strcat('risk',list{k}))(3),sum(sum(sum(zzz==3))));
-            end
-            zzz=zzz_2;
 
-            % Marcus Edit
-            zzz = Human_Instability.max_risk; % Value of max risk
-            idx_wse = depths.dmax_final/1000 < depths.depth_wse; % Finding values below the threshold
-            % Maximum_Depths
-            FileName = strcat(strcat('Maximum_Instability_Risk',list{k}));
-            FileName = fullfile(folderName,FileName);
+                local_i = i - ((store-1) * saver_memory_maps);
+                zzz = double(Maps.Hydro.(strcat('risk', list{k}))(:,:,local_i));
+
+                risk_summary.(strcat('risk',list{k}))(1) = max(risk_summary.(strcat('risk',list{k}))(1), sum(zzz(:) == 1));
+                risk_summary.(strcat('risk',list{k}))(2) = max(risk_summary.(strcat('risk',list{k}))(2), sum(zzz(:) == 2));
+                risk_summary.(strcat('risk',list{k}))(3) = max(risk_summary.(strcat('risk',list{k}))(3), sum(zzz(:) == 3));
+            end
+
+            % Export max risk raster for this category
+            zzz = Human_Instability.max_risk;
+            outTif = fullfile(folderName, "Maximum_Instability_Risk" + string(list{k}) + ".tif");
+
             zzz(isinf(zzz)) = no_data_value;
             zzz(isnan(zzz)) = no_data_value;
-            % zzz(idx_wse) = no_data_value;
-            raster_exportion = zzz;
-            raster_to_export = DEM_raster; % Just to get the properties
-            raster_to_export.Z = raster_exportion; % Putting the right values
-            geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-                'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+
+            raster_to_export = DEM_raster;
+            raster_to_export.Z = zzz;
+
+            geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+                'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
         end
-        risk_summary(:,2:9)=risk_summary(:,2:9).*power(Wshed_Properties.Resolution,2)./1000000;
-        writetable(risk_summary,strcat(folderName,"\",'Risk_summary.txt'),'Delimiter',',');
+
+        risk_summary(:,2:9) = risk_summary(:,2:9) .* (Wshed_Properties.Resolution^2) ./ 1e6;
+        writetable(risk_summary, fullfile(folderName, 'Risk_summary.txt'), 'Delimiter', ',');
     end
 
-    zzz = Soil_Properties.I_t; % m/s
-    % Maximum_Depths
-    FileName = strcat('Infiltrated_Depth');
-    FileName = fullfile(folderName,FileName);
+    % Infiltrated Depth
+    outTif = fullfile(folderName, "Infiltrated_Depth.tif");
+    zzz = Soil_Properties.I_t;
     zzz(isinf(zzz)) = no_data_value;
     zzz(isnan(zzz)) = no_data_value;
-    raster_exportion = zzz;
-    raster_to_export = DEM_raster; % Just to get the properties
-    raster_to_export.Z = raster_exportion; % Putting the right values
-    % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
-    geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
 
-    % Maximum
+    raster_to_export = DEM_raster;
+    raster_to_export.Z = zzz;
+
+    geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+        'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
+
+    % Maximum Depths / Max WSE
     if flags.flag_subgrid ~= 1
-        raster_to_export = DEM_raster; % Just to get the properties
-        zzz = depths.dmax_final/1000; % m
+        raster_to_export = DEM_raster;
+        zzz = depths.dmax_final / 1000;
         idx_wse = zzz < depths.depth_wse;
     else
-        raster_to_export = DEM_raster_high_resolution; % Just to get the properties
-        zzz = depths.dmax_final/1000; % m
-        wse = zzz + Subgrid_Properties.invert_el; % Water surface elevation considering the invert elevation
+        raster_to_export = DEM_raster_high_resolution;
+        zzz = depths.dmax_final / 1000;
+        wse = zzz + Subgrid_Properties.invert_el;
         high_res_flood_map = ProjectFloodMap(DEM_raster_high_resolution, DEM_raster, wse);
         raster_to_export.Z = high_res_flood_map;
         zzz = raster_to_export.Z;
         idx_wse = zzz < depths.depth_wse;
     end
-    if flags.flag_wse == 0 % Save only max depth
-        % Maximum_Depths
-        FileName = strcat('Maximum_Depths');
-        FileName = fullfile(folderName,FileName);
+
+    if flags.flag_wse == 0
+        outTif = fullfile(folderName, "Maximum_Depths.tif");
         zzz(isinf(zzz)) = no_data_value;
         zzz(isnan(zzz)) = no_data_value;
         zzz(idx_wse) = no_data_value;
-        raster_exportion = zzz;
-        raster_to_export.Z = raster_exportion; % Putting the right values
-        % Exporting the Map
-        geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
 
+        raster_to_export.Z = zzz;
+
+        geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+            'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
     else
-        raster_exportion = zzz + Elevation_Properties.elevation_cell; % Surface elevation
+        raster_exportion = zzz + Elevation_Properties.elevation_cell;
         raster_exportion(idx) = no_data_value;
-        FileName = strcat('Max_Water_Surface_Elevation');
-        FileName = fullfile(folderName,FileName);
 
-        raster_to_export = DEM_raster; % Just to get the properties
-        raster_to_export.Z = raster_exportion; % Putting the right values
-        % Exporting the Map
-        geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+        outTif = fullfile(folderName, "Max_Water_Surface_Elevation.tif");
+
+        raster_to_export = DEM_raster;
+        raster_to_export.Z = raster_exportion;
+
+        geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+            'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
     end
 
     % Maximum Snowpack
     if flags.flag_snow_modeling == 1
-        zzz = max_Hsnow/1000; % meters of snow 
-        FileName = strcat('Maximum_Snowpack');
-        FileName = fullfile(folderName,FileName);
+        outTif = fullfile(folderName, "Maximum_Snowpack.tif");
+        zzz = max_Hsnow / 1000;
         zzz(isinf(zzz)) = no_data_value;
         zzz(isnan(zzz)) = no_data_value;
-        raster_exportion = zzz;
-        raster_to_export = DEM_raster; % Just to get the properties
-        raster_to_export.Z = raster_exportion; % Putting the right values
-        % Exporting the Map
-        geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)        
+
+        raster_to_export = DEM_raster;
+        raster_to_export.Z = zzz;
+
+        geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+            'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
     end
 
     % Total Infiltration
     if flags.flag_infiltration == 1
-        zzz = cumulative_infiltration/1000; % meters of infiltrated water
-        FileName = strcat('Cumulative_Infiltration');
-        FileName = fullfile(folderName,FileName);
+        outTif = fullfile(folderName, "Cumulative_Infiltration.tif");
+        zzz = cumulative_infiltration / 1000;
         zzz(isinf(zzz)) = no_data_value;
         zzz(isnan(zzz)) = no_data_value;
-        raster_exportion = zzz;
-        raster_to_export = DEM_raster; % Just to get the properties
-        raster_to_export.Z = raster_exportion; % Putting the right values
-        % Exporting the Map
-        geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)        
+
+        raster_to_export = DEM_raster;
+        raster_to_export.Z = zzz;
+
+        geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+            'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
     end
 
     % Maximum GW Depth
     if flags.flag_groundwater_modeling == 1
-        zzz = max_GW_depth; % meters of GW depth
-        FileName = strcat('Max_GW_depth');
-        FileName = fullfile(folderName,FileName);
+        outTif = fullfile(folderName, "Max_GW_depth.tif");
+        zzz = max_GW_depth;
         zzz(isinf(zzz)) = no_data_value;
         zzz(isnan(zzz)) = no_data_value;
-        raster_to_export = DEM_raster; % Just to get the properties
-        raster_exportion = zzz;
-        raster_to_export.Z = raster_exportion; % Putting the right values
-        % Exporting the Map
-        geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)        
+
+        raster_to_export = DEM_raster;
+        raster_to_export.Z = zzz;
+
+        geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+            'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
     end
 
     % DEM
     if flags.flag_resample == 1
-        FileName = strcat('DEM_resampled');
+        outTif = fullfile(folderName, "DEM_resampled.tif");
     else
-        FileName = strcat('DEM_Treated');
+        outTif = fullfile(folderName, "DEM_Treated.tif");
     end
-    FileName = fullfile(folderName,FileName);
 
     zzz = Elevation_Properties.elevation_cell;
     zzz(isinf(zzz)) = no_data_value;
     zzz(isnan(zzz)) = no_data_value;
-    raster_exportion = zzz;
 
-    raster_to_export = DEM_raster; % Just to get the properties
-    raster_to_export.Z = raster_exportion; % Putting the right values
-    % Exporting the Map
-    geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+    raster_to_export = DEM_raster;
+    raster_to_export.Z = zzz;
+
+    geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+        'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
 
     % LULC
-    FileName = strcat('Land_Cover_Data');
-    FileName = fullfile(folderName,FileName);
+    outTif = fullfile(folderName, "Land_Cover_Data.tif");
     zzz = LULC_Properties.LULC;
     zzz(isinf(zzz)) = no_data_value;
     zzz(isnan(zzz)) = no_data_value;
-    raster_exportion = zzz;
 
-    raster_to_export = DEM_raster; % Just to get the properties
-    raster_to_export.Z = raster_exportion; % Putting the right values
-    % Exporting the Map
-    geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-        'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+    raster_to_export = DEM_raster;
+    raster_to_export.Z = zzz;
 
+    geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+        'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
+
+    % Final WQ maps (max conc + final mass)
     if flags.flag_waterquality == 1
-        store=1;
-        flag_loader=1;
+        store = 1;
+        flag_loader = 1;
+
         for i = 1:length(running_control.time_records)
             if i == length(running_control.time_records)
-                % Water Quality - Mass of Pollutant
-                time_map = running_control.time_records(i);
-                FileName = 'Final_Mass_Of_Pollutant';
-                FileName = fullfile(folderName,FileName);
 
-                if i > saver_memory_maps*store
+                outTif = fullfile(folderName, "Final_Mass_Of_Pollutant.tif");
+
+                if i > saver_memory_maps * store
                     store = store + 1;
-                    load(strcat('Temporary_Files\save_map_hydro',num2str(store)),'Maps');
-                    Max_Pol_Conc_Map = max(max(Maps.WQ_States.Pol_Conc_Map,[],3),Max_Pol_Conc_Map);
+                    mapFile = fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store));
+                    load(mapFile, 'Maps');
+                    Max_Pol_Conc_Map = max(max(Maps.WQ_States.Pol_Conc_Map, [], 3), Max_Pol_Conc_Map);
                 else
                     if flag_loader == 1
-                        load(strcat('Temporary_Files\save_map_hydro',num2str(store)),'Maps');
-                        flag_loader=0;
-                        Max_Pol_Conc_Map = max(Maps.WQ_States.Pol_Conc_Map,[],3);
+                        mapFile = fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store));
+                        load(mapFile, 'Maps');
+                        flag_loader = 0;
+                        Max_Pol_Conc_Map = max(Maps.WQ_States.Pol_Conc_Map, [], 3);
                     end
                 end
-                raster_exportion = Maps.WQ_States.Pol_mass_map(:,:,i - (store-1)*saver_memory_maps);
-                % raster_exportion = Maps.WQ_States.Pol_mass_map(:,:,i);
-                idx = raster_exportion < 0.01; % Finding values below Pol_min
-                raster_exportion(idx) = no_data_value;
-                raster_exportion = raster_exportion/Wshed_Properties.cell_area*1000; % g/m2
 
-                raster_to_export = DEM_raster; % Just to get the properties
-                raster_to_export.Z = raster_exportion; % Putting the right values
-                % Exporting the Map
-                geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-                    'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
+                local_i = i - ((store-1) * saver_memory_maps);
+                raster_exportion = Maps.WQ_States.Pol_mass_map(:,:,local_i);
+
+                idx = raster_exportion < 0.01;
+                raster_exportion(idx) = no_data_value;
+
+                raster_exportion = raster_exportion / Wshed_Properties.cell_area * 1000; % g/m2
+
+                raster_to_export = DEM_raster;
+                raster_to_export.Z = raster_exportion;
+
+                geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+                    'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
             end
         end
-        % Maximum
-        FileName = strcat('Maximum_Pol_Conc','min');
-        FileName = fullfile(folderName,FileName);
 
-        % raster_exportion = Max_Pol_Conc_Map;
+        % Maximum pollutant concentration
+        outTif = fullfile(folderName, "Maximum_Pol_Conc_min.tif");
         raster_exportion = Max_Pol_Conc_Map;
-        idx = raster_exportion < LULC_Properties.Pol_min; % Finding values below Pol_min
+
+        idx = raster_exportion < LULC_Properties.Pol_min;
         raster_exportion(idx) = no_data_value;
         raster_exportion(isnan(raster_exportion)) = no_data_value;
         raster_exportion(isinf(raster_exportion)) = no_data_value;
         raster_exportion(raster_exportion < 0) = no_data_value;
 
-        raster_to_export = DEM_raster; % Just to get the properties
-        raster_to_export.Z = raster_exportion; % Putting the right values
-        % GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
-        geotiffwrite(strcat(cd,"\",FileName),raster_to_export.Z,raster_to_export.georef.SpatialRef,...
-            'GeoKeyDirectoryTag',raster_to_export.georef.GeoKeyDirectoryTag)
-        % Final Pollutant Mass
+        raster_to_export = DEM_raster;
+        raster_to_export.Z = raster_exportion;
+
+        geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+            'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
     end
 end
+
+
 %% Generate GIF Files of the Simulation
 Inundation_Maps
 
@@ -1549,7 +1544,7 @@ else
 end
 % writetable(Summary_Table)
 FileName_String = 'Summary_Table';
-FileName = fullfile(folderName,strcat('\',FileName_String,'.csv'));
+FileName = fullfile(folderName, [FileName_String '.csv']);
 
 writetable(Summary_Table,FileName);
 
@@ -1714,7 +1709,7 @@ size_font = 12;
 size_font = 12;
 [axis3] = surfplot_maps(DEM_raster,Soil_Properties.soil_matrix,linspecer(Soil_Properties.n_soil),'Easting (m)','Northing (m)','Classification',no_data_value,idx_nan,1,3,3,size_font);
 
-exportgraphics(gcf,fullfile(strcat(cd,"\",folderName),'Input_Data_Maps.pdf'),'ContentType','vector')
+exportgraphics(gcf, fullfile(folderName, 'Input_Data_Maps.pdf'), 'ContentType', 'vector');
 saveas(gcf,fullfile(folderName,'Input_Data_Maps.fig'))
 close all
 
@@ -1839,11 +1834,34 @@ disp('Thank you for using HydroPol2D. Results are exported in Modeling Results f
 % files_to_delete = dir('Temporary_Files');
 % for k = 1 : length(files_to_delete)
 %     baseFileName = files_to_delete(k).name;
-%     fullFileName = fullfile('Temporary_Files/', baseFileName);
+%     fullFileName = fullfile(tempDir, baseFileName);;
 %     fprintf(1, 'Now deleting %s\n', fullFileName);
 %     delete(fullFileName);
 % end
 
+%% ===== Local helper function(s) =====
+function deleteMatchingFiles(folderPath, patterns)
+%DELETE MATCHING FILES deletes files matching patterns in folderPath.
+% patterns: cell array of patterns, e.g. {'*.tif','*.tif.aux'}
 
+    if ~isfolder(folderPath)
+        return;
+    end
+
+    for p = 1:numel(patterns)
+        filePattern = fullfile(folderPath, patterns{p});
+        theFiles = dir(filePattern);
+
+        for k = 1:numel(theFiles)
+            fullFileName = fullfile(folderPath, theFiles(k).name);
+            fprintf(1, 'Now deleting %s\n', fullFileName);
+            try
+                delete(fullFileName);
+            catch ME
+                warning("Could not delete %s (%s)", fullFileName, ME.message);
+            end
+        end
+    end
+end
 
 

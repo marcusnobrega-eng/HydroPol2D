@@ -7,6 +7,10 @@ recording_parameters.actual_record_state = find(running_control.time_records < t
 recording_parameters.delta_record = recording_parameters.actual_record_state - recording_parameters.last_record_maps;
 recording_parameters.last_record_maps = recording_parameters.actual_record_state;
 
+if recording_parameters.delta_record > 0
+    ttt = 1;
+end
+
 if flags.flag_automatic_calibration ~= 1
     if k == 1 % First time-step
         Maps.Hydro.d(:,:,1) = depths.d_t;
@@ -313,7 +317,8 @@ if flags.flag_automatic_calibration ~= 1
         saver_count = saver_count+1;
         if saver_count > 12
             saver_count = 1;
-            save(strcat('Temporary_Files\save_map_hydro_',num2str(store),'.mat'),'Maps');
+            tempDir = fullfile(pwd,'Temporary_Files');
+            save(fullfile(tempDir, ['save_map_hydro_' num2str(store) '.mat']), 'Maps', '-v7.3');
             store = store + 1;
         end        
     end

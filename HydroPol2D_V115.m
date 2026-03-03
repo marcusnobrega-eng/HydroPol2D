@@ -1,46 +1,68 @@
 %% HydroPol2D Model
 % Developer: Marcus Nobrega, Ph.D.
 % Main Script
-% % % % % % % % % % % % % Model Status % % % % % % % % % % % % %
 % ---------- Version 15.0 -------------
 % Last Update - 7/18/2024
 
-% % % % % % % % % % % % % All Rights Reserved % % % % % % % % % % % % %
 %% Pre-Processing
+clear; clc;
 
-% Clearing All Previous Data
-clear all; clc;
+% -------------------------------------------------------------------------
+% Main input spreadsheet (General_Data)
+% -------------------------------------------------------------------------
+model_folder = '/Users/mngomes/Documents/GitHub/HydroPol2D/Input_Data_Sheets/General_Data_HydroPol2D.xlsx';
 
-model_folder = 'C:\Users\marcu\Documents\GitHub\HydroPol2D\Synthetic_Rasters\General_Data_HydroPol2D_Synthetic.xlsx'; % Name of the main general data
-% Adding Paths
-addpath 'Input_Data_Sheets' % Folder where the excel files are available
-input_table = readtable(model_folder);
+% Optional: make sure folder containing spreadsheets is visible
+addpath('Input_Data_Sheets');
 
-% Load Model Functions
-HydroPol2D_tools = char(table2cell(input_table(19,27))); % File path of the model functions
+% Read General_Data as a raw cell grid (label/value format)
+GD = readcell(model_folder, 'Sheet', 'General_Data');
 
-addpath(genpath(char(HydroPol2D_tools)));
+% -------------------------------------------------------------------------
+% Add required toolboxes / model functions (name-based)
+% -------------------------------------------------------------------------
+hydropol2d_tools = string(xlget(GD,'hydropol2d_tools'));
+topo_path        = string(xlget(GD,'topo_path'));   % if you want TopoToolbox available globally
 
-HydroPol2D_preprocessing % Preprocessing code
+addpath(genpath(char(hydropol2d_tools)));
+addpath(genpath(char(topo_path)));
 
-%% Sensitivity Analysis
-% Activate this code below to run a sensitivity analysis
-% clear all
-% Adding Paths
-% addpath 'Input_Data_Sheets'
-% addpath HydroPol2D_Functions\
-% model_folder = 'Input_Data_Sheets\General_Data_HydroPol2D.xlsx';
-% input_table = readtable(model_folder);
-% ---- Variation Range ---- %
-% var_range = [0.25 0.5 0.75 1 1.25 1.5 1.75]'; % variable/baseline, such that 0.5
-% means the parameters will be changed in 50%.
-% Sensitivity_Analysis_HydroPol2D;
+% -------------------------------------------------------------------------
+% Run preprocessing 
+% -------------------------------------------------------------------------
+HydroPol2D_preprocessing;   %
 
-%% Main While Loop
-% This code runs the HydroPol2D solver
-% Main While to Run the Model
-HydroPol2D_Main_While; % Runs the Main While Loop of the Model
+%% Main While Loop (solver)
+HydroPol2D_Main_While;
 
 %% Post-Processing Results
 close all
-post_processing
+post_processing;
+
+
+% ========================================================================
+% Local helper (same as you already have in preprocessing)
+% ========================================================================
+function v = xlget(GD, key)
+%XLGET Find a label (key) anywhere in a readcell() grid and return the cell to the right.
+% Case-insensitive. Errors if key not found.
+
+    S = strings(size(GD));
+    for r = 1:size(GD,1)
+        for c = 1:size(GD,2)
+            if ischar(GD{r,c}) || isstring(GD{r,c})
+                S(r,c) = string(GD{r,c});
+            end
+        end
+    end
+
+    [rr, cc] = find(strcmpi(strtrim(S), key), 1, 'first');
+    if isempty(rr)
+        error("General_Data: key '%s' not found.", key);
+    end
+    if cc == size(GD,2)
+        error("General_Data: key '%s' found in last column; no value to the right.", key);
+    end
+
+    v = GD{rr, cc+1};
+end
