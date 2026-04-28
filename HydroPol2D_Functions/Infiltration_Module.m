@@ -102,6 +102,9 @@
 % -----------------------------
 % Area / initial storage accounting 
 % -----------------------------
+
+if flags.flag_infiltration == 1 || k == 1
+
 Coarse_Area = Wshed_Properties.Resolution^2;
 
 % Current UZ + depth Storage
@@ -119,6 +122,8 @@ else
 end
 
 S_inf_0 = S_UZ_inf_0 + S_p_inf_0;
+
+end
 
 % -----------------------------
 % Infiltration
@@ -300,6 +305,9 @@ end
 % -----------------------------
 % Final storage accounting + error (unchanged)
 % -----------------------------
+
+if flags.flag_infiltration == 1 || k == 1
+
 S_UZ_inf_t = nansum(nansum(Coarse_Area .* Soil_Properties.I_t/1000));
 
 if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
@@ -313,6 +321,8 @@ S_inf_t = S_UZ_inf_t + S_p_inf_t;
 
 dS_inf = (S_inf_t - S_inf_0);
 errors(4) = dS_inf; % m3
+
+end
 
 % -----------------------------
 % Cumulative infiltration (unchanged interface)

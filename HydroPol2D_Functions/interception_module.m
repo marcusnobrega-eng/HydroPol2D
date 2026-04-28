@@ -53,14 +53,16 @@ end
 
 
 if flags.flag_ETP == 1 && flags.flag_abstraction == 1
-    [Hydro_States.S, Hydro_States.T, Hydro_States.E_int, Hydro_States.St_F, error] = interceptionModel(P_interception, Hydro_States.Ep*(time_step/60/24), LAI_raster.Z, Hydro_States.S, 0.2);
-elseif flags.flag_ETP == 0 && ~isempty(LAI_raster)
-    [Hydro_States.S, Hydro_States.T, Hydro_States.E_int, Hydro_States.St_F, error] = interceptionModel(P_interception, zeros(size(elevation,1),size(elevation,2)), LAI_raster.Z, Hydro_States.S, 0.2);
+    [Hydro_States.S, Hydro_States.T, Hydro_States.E_int, Hydro_States.St_F, error] = interceptionModel(P_interception, Hydro_States.Ep*(time_step/60/24), LAI_raster.Z, Hydro_States.S, 0.2, zero_matrix);
+elseif flags.flag_ETP == 0 && flags.flag_abstraction == 1
+    [Hydro_States.S, Hydro_States.T, Hydro_States.E_int, Hydro_States.St_F, error] = interceptionModel(P_interception, zeros(size(elevation,1),size(elevation,2)), LAI_raster.Z, Hydro_States.S, 0.2, zero_matrix);
 else
     Hydro_States.T = BC_States.delta_p_agg; % [mm]
-    Hydro_States.S = zeros(size(elevation,1),size(elevation,2));
-    Hydro_States.E_int = zeros(size(elevation,1),size(elevation,2));
-    Hydro_States.St_F = zeros(size(elevation,1),size(elevation,2)); 
+    if k == 1
+        Hydro_States.S = zeros(size(elevation,1),size(elevation,2));
+        Hydro_States.E_int = zeros(size(elevation,1),size(elevation,2));
+        Hydro_States.St_F = zeros(size(elevation,1),size(elevation,2)); 
+    end
     error = 0;
 end
 

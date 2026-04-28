@@ -38,7 +38,7 @@ depths.d_t(depths.d_t < 0) = 0;
 depths.d_tot = depths.d_t;
 
 % Correcting depths in case it reach overbanks
-if flags.flag_subgrid == 1 % Maybe we have a change from inbank <-> overbank
+if flags.flag_subgrid == 1 && flags.flag_overbanks == 1% Maybe we have a change from inbank <-> overbank
     % Eq. 15 and 16 of A subgrid channel model for simulating river hydraulics andfloodplain inundation over large and data sparse areas
     % Inbank - Overbank
     idx = depths.d_tot/1000 > Wshed_Properties.River_Depth & depths.d_p/1000 <= Wshed_Properties.River_Depth & idx_rivers; % Cells in which there is a change from inbank to overbank
@@ -55,4 +55,5 @@ if flags.flag_subgrid == 1 % Maybe we have a change from inbank <-> overbank
         C_a(idx) = Wshed_Properties.River_Width(idx)*Wshed_Properties.Resolution;
     end
 end
+
 

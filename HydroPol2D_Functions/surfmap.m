@@ -6,7 +6,7 @@ function [ax] = surfmap(M)
 % Purpose....: Generate a top-down view of a matrix using smooth color
 %              gradients and scientific formatting for visualization.
 % =========================================================================
-
+    M = gather(M);
     M = double(M);  % Ensure input is double
 
     % === 🛠️ Flip matrix to correct orientation (row 1 = top) ===

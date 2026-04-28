@@ -38,15 +38,20 @@
 % 1) INITIALIZE CURRENT RECHARGE MEMORY (mm)
 % -------------------------------------------------------------------------
 if k == 1
-    current_recharge = zeros(size(DEM_raster.Z));
-    current_recharge(isnan(DEM_raster.Z)) = nan;
+    cumulative_recharge = zeros(size(DEM_raster.Z));
+    cumulative_recharge(isnan(DEM_raster.Z)) = nan;
 end
 
 %% ------------------------------------------------------------------------
 % 2) COMPUTE WATER TABLE POSITION AND UNSATURATED ZONE STORAGE CAPACITY
 % -------------------------------------------------------------------------
 % Saturated thickness above bedrock (as used in your original code) [m]
-GW_Depth = (BC_States.h_t - (elevation - Soil_Properties.Soil_Depth));  % [m]
+if k == 1
+    z_terrain = Elevation_Properties.elevation_cell;
+    zero_matrix = zeros(size(Elevation_Properties.elevation_cell));
+    zero_matrix(isnan(Elevation_Properties.elevation_cell)) = nan;
+end
+GW_Depth = (BC_States.h_t - (z_terrain - Soil_Properties.Soil_Depth));  % [m]
 
 % Depth to water table from surface [m]
 zwt = Soil_Properties.Soil_Depth - GW_Depth;  % [m]
@@ -73,7 +78,7 @@ S0_m   = Soil_Properties.I_t / 1000;      % [m]
     minS_m, ...                            % min vadose storage [m]
     UZ_max_storage, ...                    % max vadose storage [m]
     LULC_Properties.idx_imp, ...           % impervious mask
-    current_recharge ...                   % recharge memory [mm]
+    cumulative_recharge ...                % recharge memory [mm]
 );
 
 % Update vadose storage state for next modules [mm]
@@ -82,8 +87,8 @@ Soil_Properties.I_t = Soil_Moisture * 1000;
 %% ------------------------------------------------------------------------
 % 4) GROUNDWATER FLOW SIMULATION (BOUSSINESQ 2D EXPLICIT MODEL)
 % -------------------------------------------------------------------------
-q_exf   = 0 * elevation;   % [m/s] exfiltration to surface
-q_river = 0 * elevation;   % [m/s] exchange with river
+q_exf   = zero_matrix;   % [m/s] exfiltration to surface
+q_river = zero_matrix;   % [m/s] exchange with river
 error   = 0;
 
 if flags.flag_baseflow == 1
@@ -93,14 +98,14 @@ if flags.flag_baseflow == 1
         Wshed_Properties.Resolution, ...                              % dx [m]
         Wshed_Properties.Resolution, ...                              % dy [m]
         BC_States.h_t, ...                                            % head [m]
-        (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth), ... % bedrock elev [m]
+        (z_terrain - Soil_Properties.Soil_Depth), ... % bedrock elev [m]
         Soil_Properties.Sy, ...                                       % Sy [-]
         recharge_rate, ...                                            % recharge [m/s]
         Soil_Properties.ksat_gw / 1000 / 3600, ...                     % Kgw [m/s]
         idx_rivers, ...                                               % river mask
         LULC_Properties.River_K_coeff * Soil_Properties.ksat / 1000 / 3600, ... % river conductance [m/s]
-        (Elevation_Properties.elevation_cell + depths.d_t / 1000), ...         % stage [m]
-        Elevation_Properties.elevation_cell, ...                      % river bed elev [m]
+        (z_terrain + depths.d_t / 1000), ...         % stage [m]
+        z_terrain, ...                      % river bed elev [m]
         0.5, ...                                                      % Courant [-]
         Soil_Properties.Soil_Depth, ...                               % soil depth [m]
         Wshed_Properties.domain, ...                                  % domain mask
@@ -148,11 +153,6 @@ end
 
 max_GW_depth = max(max_GW_depth, BC_States.h_t - (elevation - Soil_Properties.Soil_Depth));
 
-%% ------------------------------------------------------------------------
-% 6) UPDATE EFFECTIVE RECHARGE MEMORY (mm)
-% -------------------------------------------------------------------------
-% cumulative_recharge is [mm], q_exf is [m/s]
-current_recharge = cumulative_recharge - (q_exf * dt_s * 1000);  % [mm]
 
 %% ------------------------------------------------------------------------
 % 7) STORE MODEL ERROR (Boussinesq solver diagnostic)

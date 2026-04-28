@@ -62,8 +62,11 @@ var_obs = u2_stations(k,1:n_stations)';
 var_obs = ur_stations(k,1:n_stations)';
 [ur,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid);
 % G
-var_obs = G_stations(k,1:n_stations)';
-[G,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid);
+% Here, we are assuming daily evapotranspiration calculation such that G =
+% 0
+% var_obs = G_stations(k,1:n_stations)';
+% [G,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid);
+G  = 0*idx_mask;
 
 %% Run ETP code
 [ETP,Ep] = Evapotranspiration(DEM_etp, avg_temp,max_temp,min_temp,day_of_year,lat,u2, ur, Krs, alfa_albedo_input, G);

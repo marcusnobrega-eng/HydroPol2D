@@ -1,26 +1,38 @@
 function high_res_flood_map = ProjectFloodMap(high_res_DEM, coarse_DEM, coarse_flood_map)
     % Projects a coarse-resolution flood map onto a high-resolution DEM
     
-    % Get resolutions
+    % Get sizes
     [nrows_high, ncols_high] = size(high_res_DEM.Z);
-    [nrows_coarse, ncols_coarse] = size(coarse_DEM.Z);
     
     high_res_cellsize = high_res_DEM.cellsize;
     coarse_res_cellsize = coarse_DEM.cellsize;
     
-    % Compute scale factor
+    % Compute approximate scale factor
     scale_factor = coarse_res_cellsize / high_res_cellsize;
-    if mod(scale_factor, 1) ~= 0
-        error('High-resolution cell size must be an integer fraction of coarse resolution.');
+    scale_factor_round = round(scale_factor);
+    
+    % Allow small mismatch
+    if abs(scale_factor - scale_factor_round) > 1e-6
+        warning('Resolution ratio is not exact. Using rounded scale factor.');
     end
     
-    % Repeat the coarse flood map to match high resolution grid
-    high_res_flood_surface = repelem(coarse_flood_map, scale_factor, scale_factor);
+    scale_factor = scale_factor_round;
     
-    % Ensure dimensions match (crop if necessary)
-    high_res_flood_surface = high_res_flood_surface(1:nrows_high, 1:ncols_high);
+    if scale_factor < 1
+        error('Coarse resolution must be >= high-resolution cell size.');
+    end
     
-    % Compute flood depth at high resolution
+    % Repeat the coarse flood map
+    high_res_flood_surface = repelem(double(coarse_flood_map), scale_factor, scale_factor);
+    
+    % Make output exactly match DEM size
+    temp = zeros(nrows_high, ncols_high);
+    nr = min(nrows_high, size(high_res_flood_surface,1));
+    nc = min(ncols_high, size(high_res_flood_surface,2));
+    temp(1:nr, 1:nc) = high_res_flood_surface(1:nr, 1:nc);
+    high_res_flood_surface = temp;
+    
+    % Compute flood depth
     high_res_flood_map = high_res_flood_surface - double(high_res_DEM.Z);
     
     % Ensure non-negative flood depths

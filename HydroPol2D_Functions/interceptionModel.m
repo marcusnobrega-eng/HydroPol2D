@@ -1,4 +1,4 @@
-function [S, T, E, F, error] = interceptionModel(P, Ep, LAI, S_prev, C)
+function [S, T, E, F, error] = interceptionModel(P, Ep, LAI, S_prev, C,zero_matrix)
     % Estimates plant canopy interception following the Rutter Model
     %
     % Inputs:
@@ -15,29 +15,34 @@ function [S, T, E, F, error] = interceptionModel(P, Ep, LAI, S_prev, C)
     % F - stemflow (mm)
 
     % Step 1: Compute Maximum Canopy Storage
-    LAI(isnan(LAI)) = 0;
-    LAI(isnan(P)) = nan;
+    % LAI(isnan(LAI)) = 0;
+    % LAI(isnan(P)) = nan;
     S_max = C * LAI; % Maximum interception storage (mm)    
 
     % Compute stemflow
-    alpha = 0.3; % alpha = Decay parameter (depends on bark roughness, e.g., 0.3)
-    maximum_delay = 20; % maximum delay in minutes
-    F = computeStemflow(P, maximum_delay, alpha, S_prev, S_max);
-    F = 0*F; % Not activated !
+    % alpha = 0.3; % alpha = Decay parameter (depends on bark roughness, e.g., 0.3)
+    % maximum_delay = 20; % maximum delay in minutes
+    % F = computeStemflow(P, maximum_delay, alpha, S_prev, S_max);
+    F = 0; % Not activated !
 
     % Compute Evaporation
-    beta = S_prev ./ S_max;  beta(isnan(beta)) = 0;
+    beta = S_prev ./ S_max;
+    
     E = beta .* Ep;
+
+    E(S_max <= 0) = 0;
 
     % Constraint at E
     E = min(E, P + S_prev);
 
     % Compute canopy storage change
     % dS = P - F - E - 0 (Assuming initally no throughfall)
-    dS = P - F - E;
+    % dS = P - F - E;
 
     % Compute S^{t + 1/2}
-    S  = S_prev + dS; % No throughfall considered
+    % S  = S_prev + dS; % No throughfall considered
+
+    S = S_prev + P - E;
 
     % dS = P - F - E - T, T = P - dS - F - E
 

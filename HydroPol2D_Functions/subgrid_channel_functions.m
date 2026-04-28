@@ -1,315 +1,169 @@
-% Sub-grid approach for 1D Channels
-% Developer: Marcus Nobrega, Ph.D.
-% Goal: define subgrid approach for dealing with channels
+function [outflow, C_a, Hf_x, Hf_y, Wf_x, Wf_y] = subgrid_channel_functions( ...
+    depth_cell, River_Width, zbed, Resolution, nc, Qc_prev, Qci_prev, ...
+    g, dt, idx_rivers, Subgrid_Properties, SubgridTables)
+%SUBGRID_CHANNEL_FUNCTIONS
 %
-% Input:
-% h: flood depth matrix [m]
-% w: river width matrix [m]
-% zc: channel elevation matrix [m]
-% dx: grid resolution [m]
-% nc: channel Manning's roughness coefficient matrix [sm^-1/3]
-% Qc_prev: previous outflow for channel [m3/s]
-% g: gravity acceleration [m2/s]
-% dt: time-step in [sec]
-% 
-% Output:
-% q: outflow [m2/s] with first entry for x and second entry for y
-% similarly:
-% C_a = river surface area [m2]
-
-function [q,C_a] = subgrid_channel_functions(h, w, zc,dx, nc, Qc_prev,Qci_prev, g, dt, idx_rivers, Subgrid_Properties, SubgridTables)
-
-    % --------- Channel Calculations ----------- %
-    yc = h + zc; % Channel head [m]
-    yc(isnan(zc)) = nan;
-
-    % Cells that are not river change to nan
-    % yc(~idx_rivers) = inf;
-    % h(~idx_rivers) = inf;
-    % w(~idx_rivers) = inf;
-    % nc(~idx_rivers) = inf;
-    
-    nan_row = nan*ones(1,size(h,2));
-    nan_col = nan*ones(size(h,1),1);
-
-    % Water Surface Slope Calculation
-    Sc = slope_function(yc,dx,nan_col,nan_row);
-  
-    % Effective Channel Flow Depth
-    hfcflow = hf_function(yc,zc,nan_col,nan_row);
-
-    % Cells in which channel flow occurs
-    mask = hfcflow <= 1e-6;    
-        
-    % Compute flow width for all cells with their respective h_targets
-    h(isnan(h)) = 0;
-    hfcflow(mask) = 0;
-    
-    % Polynomial
-    % [Ac(:,:,1), Ac(:,:,2), hydraulic_radius(:,:,1), hydraulic_radius(:,:,2)] = Compute_Subgrid_Properties_Polynomialwise(Subgrid_Properties.A_east_spline, ...
-    %                                                Subgrid_Properties.A_north_spline, Subgrid_Properties.Rh_east_spline, Subgrid_Properties.Rh_north_spline, ...
-    %                                                yc, zc, Subgrid_Properties.invert_el);
-
-    % Lookup Tables
-    [Ac(:,:,1), ~, hydraulic_radius(:,:,1), ~] = Compute_Subgrid_Properties_Lookupwise(SubgridTables, yc, zc, 'east');
-    [~, Ac(:,:,2), ~, hydraulic_radius(:,:,2)] = Compute_Subgrid_Properties_Lookupwise(SubgridTables, yc, zc, 'north');
-
-    % Channel Effective Flow Width
-    wc_flow = width_function(w,nan_col,nan_row);
-
-    % Channel Flow Area
-    % Acflow = wc_flow.*hfcflow;
-    Acflow = area_function(Ac,nan_col,nan_row);
-
-    % Channel surface area
-    % C_a = dx*w;
-
-    C_a = dx*dx*ones(size(zc));
-    C_a(isnan(h)) = nan;
-
-    % Channel Hydraulic Radius
-    Rc = Rh_function(hydraulic_radius,nan_col,nan_row);
-
-    % Channel Hydraulic Radius
-    % Rc = cellfun(@(func, h) func(h) * ~isempty(func), Subgrid_Properties.hydraulic_radius, num2cell(h));
-
-    % Channel Flow
-    Qc_prev(:,:,3:4) = Qci_prev * dx;
-    Qc = (Qc_prev - g.*Acflow.*dt.*Sc)./(1 + g*dt.*nc.^2.*abs(Qc_prev)./(Rc.^(4/3).*Acflow)); % m3/s
-    Qc(mask) = 0;
-    Qc(isnan(Qc)) = 0;
-    Qc(isinf(Qc)) = 0;
-
-    % Total Flow (Ortogonal Interfaces)
-    Q = Qc(:,:,1:2); Q(:,:,3:4) = zeros(size(h,1),size(h,2),2);
-    
-    q = Q./dx; %  flow per unit width
-    q(:,:,3:4) = [];
-
-end
-
-
-function [S] = slope_function(M,dx,nan_col,nan_row)
-    S(:,:,1) = [(M(:,2:end) - M(:,1:(end-1)))/dx,nan_col]; % East
-    S(:,:,2) = [nan_row; M(1:(end-1),:) - M(2:end,:)]/dx; % North
-    S(2:end,1:(end-1),3) = (M(1:(end-1),2:end) - M(2:end,1:(end-1)))/(sqrt(2)*dx); % NE
-    S(1:(end-1),1:(end-1),4) = (M(2:end,2:(end)) - M(1:(end-1),1:(end-1)))/(sqrt(2)*dx); % SE
-end
-
-function [hf] = hf_function(y,z,nan_col,nan_row)
-    hf(:,:,1) = [max(y(:,2:end), y(:,1:(end-1))) - max(z(:,2:end), z(:,1:(end-1))), nan_col]; % East
-    hf(:,:,2) = [nan_row; max(y(1:(end-1),:),y(2:end,:)) - max(z(1:(end-1),:),z(2:end,:))]; % North
-    hf(2:end,1:(end-1),3) = max(y(1:(end-1),2:end), y(2:end,1:(end-1))) - max(z(1:(end-1),2:end), z(2:end,1:(end-1))); % NE
-    hf(1:(end-1),1:(end-1),4) = max(y(2:end,2:(end)), y(1:(end-1),1:(end-1))) - max(z(2:end,2:(end)), z(1:(end-1),1:(end-1))); % SE
-end
-
-function [wc] = width_function(w,nan_col,nan_row)
-    wc(:,:,1) = [min(w(:,1:(end-1)),(w(:,2:(end)))), nan_col]; % East
-    wc(:,:,2) = [nan_row; min(w(2:(end),:),w(1:(end-1),:))]; % North
-    wc(2:end,1:(end-1),3) = [min(w(1:(end-1),2:end),w(2:end,1:(end-1)))]; % NE 
-    wc(1:(end-1),1:(end-1),4) = [min(w(2:end,2:(end)),w(1:(end-1),1:(end-1)))]; % SE
-    % river_width = repmat(w,[1 1 4]);
-    % wc(wc == 0) = river_width(wc == 0);
-    % wc(repmat(~idx_rivers,[1 1 4])) = 0;
-end
-
-function [wc] = area_function(w,nan_col,nan_row)
-    wc(:,:,1) = [min(w(:,1:(end-1),1),(w(:,2:(end),1))), nan_col]; % East
-    wc(:,:,2) = [nan_row; min(w(2:(end),:,2),w(1:(end-1),:,2))]; % North
-    wc(2:end,1:(end-1),3) = [min(w(1:(end-1),2:end,1),w(2:end,1:(end-1),2))]; % NE 
-    wc(1:(end-1),1:(end-1),4) = [min(w(2:end,2:(end),2),w(1:(end-1),1:(end-1),1))]; % SE
-    % river_width = repmat(w,[1 1 4]);
-    % wc(wc == 0) = river_width(wc == 0);
-    % wc(repmat(~idx_rivers,[1 1 4])) = 0;
-end
-
-function [wc] = Rh_function(w,nan_col,nan_row)
-    wc(:,:,1) = [min(w(:,1:(end-1),1),(w(:,2:(end),1))), nan_col]; % East
-    wc(:,:,2) = [nan_row; min(w(2:(end),:,2),w(1:(end-1),:,2))]; % North
-    wc(2:end,1:(end-1),3) = [min(w(1:(end-1),2:end,1),w(2:end,1:(end-1),2))]; % NE 
-    wc(1:(end-1),1:(end-1),4) = [min(w(2:end,2:(end),2),w(1:(end-1),1:(end-1),1))]; % SE
-    % river_width = repmat(w,[1 1 4]);
-    % wc(wc == 0) = river_width(wc == 0);
-    % wc(repmat(~idx_rivers,[1 1 4])) = 0;
-end
-
-function [A, W, Rh] = Compute_Subgrid_Properties_Splinewise(A_splines, W_splines, Rh_splines, H)
-% Computes A, W, and Rh using loops to evaluate splines for each depth in H.
-% A_splines, W_splines, Rh_splines: [nrows x ncols] cell arrays of spline structures.
-% H: [nrows x ncols] depth matrix.
-
-[nrows, ncols] = size(H);
-A = NaN(nrows, ncols);
-W = NaN(nrows, ncols);
-Rh = NaN(nrows, ncols);
-
-% Loop over each cell in the matrix
-for rowc = 1:nrows
-    for colc = 1:ncols
-        % Get the corresponding depth for the current cell
-        depth = H(rowc, colc);
-
-        % Check if the spline exists and the depth is valid (not NaN)
-        if ~isempty(A_splines{rowc, colc}) && ~isnan(depth)
-            % Evaluate the splines for area, width, and hydraulic radius at the given depth
-            A(rowc, colc) = feval(A_splines{rowc, colc}, depth);
-            W(rowc, colc) = feval(W_splines{rowc, colc}, depth);
-            Rh(rowc, colc) = feval(Rh_splines{rowc, colc}, depth);
-        end
-    end
-end
-
-% Ensure physical constraints (no values below the threshold)
-A = max(A, 1e-12);
-W = max(W, 1e-12);
-Rh = max(Rh, 1e-12);
-
-end
-
-function [Area_east, Area_north, Rh_east, Rh_north] = Compute_Subgrid_Properties_Polynomialwise(A_east_coeffs, A_north_coeffs, Rh_east_coeffs, Rh_north_coeffs, yc, zc, invert_el)
-    % Computes Area_east, Area_north, Rh_east, Rh_north using stored polynomial coefficients
-    % A_east_coeffs, A_north_coeffs, Rh_east_coeffs, Rh_north_coeffs: [nrows x ncols] matrices containing polynomial coefficients.
-    % Depths: [nrows x ncols] matrix containing the flow depths at each grid cell.
-
-    % Ensure that the polynomial coefficients are in the correct shape for matrix operations
-    [nrows, ncols] = size(yc);
-
-    % Evaluate polynomials across the entire matrix using polyval
-    Area_east = zeros(size(yc)); Area_north = zeros(size(yc)); Rh_east = zeros(size(yc)); Rh_north = zeros(size(yc));
-
-    for i = 1:size(A_east_coeffs,3)
-        % Area_east = Area_east + A_east_coeffs(:,:,i).*(yc - invert_el).^i;
-        % Area_north = Area_north + A_north_coeffs(:,:,i).*(yc - invert_el).^i;
-        % Rh_east = Rh_east + Rh_east_coeffs(:,:,i).*(yc - invert_el).^i;
-        % Rh_north = Rh_north + Rh_north_coeffs(:,:,i).*(yc - invert_el).^i;
-
-        exp = i - 1;
-
-        Area_east = Area_east + A_east_coeffs(:,:,i).*(yc - zc).^exp;
-        Area_north = Area_north + A_north_coeffs(:,:,i).*(yc - zc).^exp;
-        Rh_east = Rh_east + Rh_east_coeffs(:,:,i).*(yc - zc).^exp;
-        Rh_north = Rh_north + Rh_north_coeffs(:,:,i).*(yc - zc).^exp;
-    end
-    
-    % Area_east = polyval(reshape(A_east_coeffs, nrows * ncols, []), repmat(Depths(:),2)); % Evaluates Area_east for all depths in a vectorized way
-    % Area_north = polyval(reshape(A_north_coeffs, nrows * ncols, []), Depths(:));
-    % Rh_east = polyval(reshape(Rh_east_coeffs, nrows * ncols, []), Depths(:));
-    % Rh_north = polyval(reshape(Rh_north_coeffs, nrows * ncols, []), Depths(:));
-
-    % Reshape back to the original matrix shape
-    % Area_east = reshape(Area_east, nrows, ncols);
-    % Area_north = reshape(Area_north, nrows, ncols);
-    % Rh_east = reshape(Rh_east, nrows, ncols);
-    % Rh_north = reshape(Rh_north, nrows, ncols);
-
-    % Ensure physical constraints (no values below the threshold)
-    Area_east = max(Area_east, 1e-12);
-    Area_north = max(Area_north, 1e-12);
-    Rh_east = max(Rh_east, 1e-12);
-    Rh_north = max(Rh_north, 1e-12);
-end
-
-
-function [Area_east, Area_north, Rh_east, Rh_north] = Compute_Subgrid_Properties_Lookupwise(SubgridTables, yc, zc, direction)
-%--------------------------------------------------------------------------
-% Fully matrix-based subgrid interpolation (no for loops, no interp1)
+% PURPOSE
+%   Compute local-inertial fluxes using SHARED-FACE subgrid lookup tables,
+%   compute cell storage area for continuity, and return face hydraulic
+%   quantities to the caller so they are not reconstructed twice.
 %
-% INPUTS:
-%   SubgridTables - Struct with .depths, .area_*, .Rh_*, all size [nrows x ncols x nz]
-%   yc, zc        - Water surface and bed elevation [nrows x ncols]
-%   direction     - 'east' or 'north'
+% INPUTS
+%   depth_cell   [ny x nx]     water depth above zbed [m]
+%   River_Width  [ny x nx]     kept for compatibility (not used here)
+%   zbed         [ny x nx]     bed elevation used to compute WSE [m]
+%   Resolution   scalar        coarse grid size [m]
+%   nc           scalar/array  Manning n
+%   Qc_prev      [ny x nx x 2] previous discharge on faces [m3/s]
+%   Qci_prev     placeholder, unused
+%   g, dt        scalars
+%   idx_rivers   [ny x nx]     logical mask for active donor cells
+%   Subgrid_Properties.invert_el [ny x nx] cell invert elevation [m]
+%   SubgridTables shared-face uniform-dz lookup tables
+%   Sx_face      [ny x (nx-1)] hydrostatic x-face slope from caller
+%   Sy_face      [(ny-1) x nx] hydrostatic y-face slope from caller
 %
-% OUTPUTS:
-%   Area_east / Area_north - Interpolated flow area [m²]
-%   Rh_east   / Rh_north   - Interpolated hydraulic radius [m]
-%--------------------------------------------------------------------------
+% OUTPUTS
+%   outflow      [ny x nx x 2] q = Q/Wface [m2/s]
+%   C_a          [ny x nx]     storage area [m2]
+%   Hf_x,Hf_y    [ny x nx]     hydraulic depth on padded faces [m]
+%   Wf_x,Wf_y    [ny x nx]     wetted width on padded faces [m]
+%
+% NOTES
+%   - x-faces are between (i,j) and (i,j+1), size [ny x (nx-1)]
+%   - y-faces are between (i,j) and (i+1,j), size [(ny-1) x nx]
+%   - geometry is reconstructed ONCE here and passed back to caller
 
-[nrows, ncols, nz] = size(SubgridTables.depths);
-N = nrows * ncols;
+% -------------------------------------------------------------------------
+% 0) Sizes and parameters
+% -------------------------------------------------------------------------
+ny = size(depth_cell,1);
+nx = size(depth_cell,2);
 
-% Flatten depth
-depth = max(yc - zc, 0);         % [nrows x ncols]
-depth_flat = reshape(depth, [N 1]);  % [N x 1]
+n_chan = nc;
 
-% Choose fields
-switch lower(direction)
-    case 'east'
-        area_table = SubgridTables.area_east;
-        rh_table   = SubgridTables.Rh_east;
-    case 'north'
-        area_table = SubgridTables.area_north;
-        rh_table   = SubgridTables.Rh_north;
-    otherwise
-        error('Invalid direction');
-end
+% -------------------------------------------------------------------------
+% 1) Absolute WSE and storage depth
+% -------------------------------------------------------------------------
+z_inv_cell = Subgrid_Properties.invert_el;   % [ny x nx]
+eta = zbed + depth_cell;                     % [ny x nx] absolute WSE
 
-% Reshape to [N x nz]
-depths_all = reshape(SubgridTables.depths, [N, nz]);      % [N x nz]
-areas_all  = reshape(area_table, [N, nz]);
-rhs_all    = reshape(rh_table,   [N, nz]);
+% -------------------------------------------------------------------------
+% 1b) Hydrostatic face slopes (computed INSIDE this function)
+% -------------------------------------------------------------------------
 
-% Mask invalid rows
-valid_mask = ~isnan(depths_all) & ~isnan(areas_all) & ~isnan(rhs_all);
+% ===== X faces: [ny x (nx-1)] =====
+zf_x = max(zbed(:,1:end-1), zbed(:,2:end));
+etaL_x = max(eta(:,1:end-1), zf_x);
+etaR_x = max(eta(:,2:end),   zf_x);
+Sx_face = (etaR_x - etaL_x) ./ Resolution;
 
-% Initialize output
-Area_flat = zeros(N, 1);
-Rh_flat   = ones(N, 1) * 1e-12;
+% ===== Y faces: [(ny-1) x nx] =====
+zf_y = max(zbed(1:end-1,:), zbed(2:end,:));
+etaS_y = max(eta(1:end-1,:), zf_y);
+etaN_y = max(eta(2:end,:),   zf_y);
+Sy_face = (etaS_y - etaN_y) ./ Resolution;
 
-% For each cell, find bounding indices
-above = depths_all >= depth_flat;     % [N x nz]
-below = depths_all <= depth_flat;     % [N x nz]
+d_store = max(eta - z_inv_cell, 0);          % [ny x nx]
+C_a = hp2d_lookup_uniform_shared(SubgridTables.area, d_store, SubgridTables.dz, SubgridTables.maxDepth);
+C_a(~isfinite(C_a)) = 0;
+C_a = max(C_a, 0);
 
-% First above (min depth >= d)
-above_idx = max(above .* (1:nz), [], 2);  % [N x 1]
-above_idx(above_idx == 0) = 1;
+% -------------------------------------------------------------------------
+% 2) Shared-face depths and hydraulic properties (computed ONCE)
+% -------------------------------------------------------------------------
+% =========================
+% X faces: [ny x (nx-1)]
+% =========================
+etaMax_x = max(eta(:,1:end-1), eta(:,2:end));
+d_x      = max(etaMax_x - SubgridTables.invert_x, 0);
 
-% Last below (max depth <= d)
-below_idx = max(below .* (1:nz), [], 2); % [N x 1]
-below_idx(below_idx == 0) = 1;
+Aface_x  = hp2d_lookup_uniform_shared(SubgridTables.area_x,  d_x, SubgridTables.dz, SubgridTables.maxDepth);
+Wface_x  = hp2d_lookup_uniform_shared(SubgridTables.width_x, d_x, SubgridTables.dz, SubgridTables.maxDepth);
+Rhface_x = hp2d_lookup_uniform_shared(SubgridTables.Rh_x,    d_x, SubgridTables.dz, SubgridTables.maxDepth);
 
-% Make sure they’re not the same
-same_idx = (above_idx == below_idx);
-above_idx(same_idx & above_idx < nz) = above_idx(same_idx & above_idx < nz) + 1;
+% =========================
+% Y faces: [(ny-1) x nx]
+% =========================
+etaMax_y = max(eta(1:end-1,:), eta(2:end,:));
+d_y      = max(etaMax_y - SubgridTables.invert_y, 0);
 
-% Linear indices for lookup
-idx_upper = sub2ind([N, nz], (1:N)', above_idx);
-idx_lower = sub2ind([N, nz], (1:N)', below_idx);
+Aface_y  = hp2d_lookup_uniform_shared(SubgridTables.area_y,  d_y, SubgridTables.dz, SubgridTables.maxDepth);
+Wface_y  = hp2d_lookup_uniform_shared(SubgridTables.width_y, d_y, SubgridTables.dz, SubgridTables.maxDepth);
+Rhface_y = hp2d_lookup_uniform_shared(SubgridTables.Rh_y,    d_y, SubgridTables.dz, SubgridTables.maxDepth);
 
-% Fetch values
-x1 = depths_all(idx_lower);
-x2 = depths_all(idx_upper);
-A1 = areas_all(idx_lower);
-A2 = areas_all(idx_upper);
-R1 = rhs_all(idx_lower);
-R2 = rhs_all(idx_upper);
+% Hygiene
+Aface_x(~isfinite(Aface_x))   = 0; Aface_x  = max(Aface_x, 0);
+Wface_x(~isfinite(Wface_x))   = 0; Wface_x  = max(Wface_x, 0);
+Rhface_x(~isfinite(Rhface_x)) = 0; Rhface_x = max(Rhface_x, 0);
 
-% Avoid divide-by-zero
-dx = max(x2 - x1, 1e-6);
-alpha = (depth_flat - x1) ./ dx;
+Aface_y(~isfinite(Aface_y))   = 0; Aface_y  = max(Aface_y, 0);
+Wface_y(~isfinite(Wface_y))   = 0; Wface_y  = max(Wface_y, 0);
+Rhface_y(~isfinite(Rhface_y)) = 0; Rhface_y = max(Rhface_y, 0);
 
-% Interpolate
-Area_flat = A1 + alpha .* (A2 - A1);
-Rh_flat   = R1 + alpha .* (R2 - R1);
+% Padded outputs back to caller
+Hf_x = zeros(ny,nx,'like',depth_cell);
+Hf_y = zeros(ny,nx,'like',depth_cell);
+Wf_x = zeros(ny,nx,'like',depth_cell);
+Wf_y = zeros(ny,nx,'like',depth_cell);
 
-% Apply floor
-Area_flat = max(Area_flat, 1e-12);
-Rh_flat   = max(Rh_flat, 1e-12);
+Hf_x(:,1:end-1) = max(Aface_x ./ Resolution, 0);
+Hf_y(2:end,:)   = max(Aface_y ./ Resolution, 0);
 
-% Reshape to 2D
-Area_out = reshape(Area_flat, nrows, ncols);
-Rh_out   = reshape(Rh_flat,   nrows, ncols);
+Wf_x(:,1:end-1) = Wface_x;
+Wf_y(2:end,:)   = Wface_y;
 
-% Output assignment
-if strcmp(direction, 'east')
-    Area_east = Area_out;
-    Area_north = [];
-    Rh_east = Rh_out;
-    Rh_north = [];
+% -------------------------------------------------------------------------
+% 3) Previous discharges and donor-cell roughness
+% -------------------------------------------------------------------------
+Qx_old = Qc_prev(:,1:end-1,1);   % [ny x (nx-1)] m3/s
+Qy_old = Qc_prev(1:end-1,:,2);   % [(ny-1) x nx] m3/s
+
+n_x = n_chan(:,1:end-1);
+n_y = n_chan(1:end-1,:);
+
+% -------------------------------------------------------------------------
+% 4) Active masks
+% -------------------------------------------------------------------------
+if isempty(idx_rivers)
+    active_x = true(size(Aface_x));
+    active_y = true(size(Aface_y));
 else
-    Area_north = Area_out;
-    Area_east = [];
-    Rh_north = Rh_out;
-    Rh_east = [];
+    active_x = logical(idx_rivers(:,1:end-1));
+    active_y = logical(idx_rivers(1:end-1,:));
 end
+
+active_x = active_x & (Aface_x > 0) & (Wface_x > 0) & (d_x > 0);
+active_y = active_y & (Aface_y > 0) & (Wface_y > 0) & (d_y > 0);
+
+% -------------------------------------------------------------------------
+% 5) Local-inertial update using caller-provided hydrostatic slopes
+% -------------------------------------------------------------------------
+AxRh_x = max(Aface_x .* max(Rhface_x,1e-12).^(4/3), 1e-12);
+AxRh_y = max(Aface_y .* max(Rhface_y,1e-12).^(4/3), 1e-12);
+
+den_x = 1 + g*dt .* (n_x.^2) .* abs(Qx_old) ./ AxRh_x;
+den_y = 1 + g*dt .* (n_y.^2) .* abs(Qy_old) ./ AxRh_y;
+
+Qx_new = zeros(size(Qx_old), 'like', Qx_old);
+Qy_new = zeros(size(Qy_old), 'like', Qy_old);
+
+Qx_new(active_x) = (Qx_old(active_x) - g*dt .* Aface_x(active_x) .* Sx_face(active_x)) ./ den_x(active_x);
+Qy_new(active_y) = (Qy_old(active_y) - g*dt .* Aface_y(active_y) .* Sy_face(active_y)) ./ den_y(active_y);
+
+% -------------------------------------------------------------------------
+% 6) Convert to q = Q / Wface and pack
+% -------------------------------------------------------------------------
+qx = zeros(size(Qx_new), 'like', Qx_new);
+qy = zeros(size(Qy_new), 'like', Qy_new);
+
+qx(active_x) = Qx_new(active_x) ./ max(Wface_x(active_x), 1e-12);
+qy(active_y) = Qy_new(active_y) ./ max(Wface_y(active_y), 1e-12);
+
+outflow = zeros(ny,nx,2,'like',depth_cell);
+outflow(:,1:end-1,1) = qx;
+outflow(1:end-1,:,2) = qy;
+
+outflow(~isfinite(outflow)) = 0;
 
 end

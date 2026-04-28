@@ -1,4 +1,8 @@
-function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf,Qc,Qf,Qci,Qfi,C_a] = Local_Inertial_Model_D4(flag_numerical_scheme,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical,flag_subgrid,nc,nf,River_Width, River_Depth,Qc_prev,Qf_prev,Qci_prev,Qfi_prev,C_a_prev,Subgrid_Properties,flag_overbanks,flag_inflow, SubgridTables)
+function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf,Qc,Qf,Qci,Qfi,C_a] = ...
+    Local_Inertial_Model_D4(flag_numerical_scheme,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2, ...
+    flag_reservoir,z,d_tot,d_p,roughness_cell,roughness_squared,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet, ...
+    row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical,flag_subgrid,nc,nf,River_Width,River_Depth, ...
+    Qc_prev,Qf_prev,Qci_prev,Qfi_prev,C_a_prev,Subgrid_Properties,flag_overbanks,flag_inflow,SubgridTables)
 
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %                                                                 %
@@ -8,422 +12,517 @@ function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,
 %                                                                 %
 %                 Last Updated: 5 August, 2024                    %
 %                                                                 %
+%  Updated here: March 2026                                       %
+%  - preserves original behavior when subgrid is OFF              %
+%  - avoids unnecessary Hf/Wf computations in shared-face mode    %
+%  - does NOT compute C_a inside the face block                   %
+%                                                                 %
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
-%§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§
 
-
-
-%%% Domain Dimensions
+%% Domain Dimensions
 if isgpuarray(cell_area)
-    d_t_min = gpuArray(d_tolerance/1000); % m
-    ny = gpuArray(size(z,1));
-    nx = gpuArray(size(z,2));
-else
-    d_t_min = d_tolerance/1000; % m
+    d_t_min = gpuArray(d_tolerance/1000); %#ok<NASGU>
     ny = size(z,1);
-    nx = size(z,2);  
+    nx = size(z,2);
+else
+    d_t_min = d_tolerance/1000; %#ok<NASGU>
+    ny = size(z,1);
+    nx = size(z,2);
 end
-River_Width(logical(outlet_index)) = 0;
 
+River_Width(logical(outlet_index)) = 0;
 River_Depth(logical(outlet_index)) = 0;
 
-idx_rivers = River_Width > 0; % Rivers are now cells with no zero width 
-% ---------------% Adding minimum slope to do calculations % ---------------%
+idx_rivers = River_Width > 0;
+
+%% Minimum operative depth
 if flag_inflow ~= 1
-    h_min = 1e-6;  % In cases where inflow is being modeling, this value has to be 0
+    h_min = 1e-6;
 else
     h_min = 0;
 end
 
-% --------------- Notation  % ---------------%
-%   <-matrix3D-> (left right up down) = [left ; right ; up; down] going
-%   outside of the cell
-
-% --------------- Cell Depth and Water surface Elevation  % ---------------%
-% depth_cell = 0.5*(d_tot + d_p); % This is important when inflow hydrograph is simulated
+%% Cell depth and WSE
 depth_cell = d_tot;
-% depth_cell = d_p;
-depth_cell = max(depth_cell/1000,0); % meters (fixing zero values)
+depth_cell = max(depth_cell/1000,0); % m
 
 % Current Stored Volume
 if flag_subgrid == 1 && flag_overbanks == 1
     current_volume = nansum(nansum((Resolution - River_Width).*Resolution.*max((depth_cell - River_Depth),0))) + ...
-                      nansum(nansum(Resolution.*River_Width.*depth_cell)); % m3
+                     nansum(nansum(Resolution.*River_Width.*depth_cell)); % m3
 else
-    current_volume = nansum(nansum(C_a_prev.*depth_cell)); % m3
+    if isscalar(C_a_prev)
+        current_volume = nansum(nansum(C_a_prev * depth_cell)); % m3
+    else
+        current_volume = nansum(nansum(C_a_prev .* depth_cell)); % m3
+    end
 end
 
-% Constraint at Elevation
+% Keep real DEM untouched
+z_dem = z;
 
-if flag_subgrid == 1 && flag_overbanks ~= 1
-    % We are simulating with functions describing hydraulic radius and flow
-    % area
-    z = Subgrid_Properties.invert_el;
+% Absolute water surface elevation
+y = z_dem + depth_cell;
+
+% Shared-face subgrid only in this specific case
+use_sharedface_subgrid = (flag_subgrid == 1 && flag_overbanks ~= 1);
+
+%% ---------------- Faces: hydrostatic reconstruction, slopes, Hf, and Wf ----------------
+Sx   = zeros(size(y), 'like', y);
+Sy   = zeros(size(y), 'like', y);
+Hf_x = zeros(size(y), 'like', y);
+Hf_y = zeros(size(y), 'like', y);
+
+if use_sharedface_subgrid
+    Wf_x = zeros(size(y), 'like', y);
+    Wf_y = zeros(size(y), 'like', y);
+else
+    % Preserve original coarse behavior when not using shared-face subgrid
+    Wf_x = Resolution * ones(size(y), 'like', y);
+    Wf_y = Resolution * ones(size(y), 'like', y);
 end
 
+% ===== X faces =====
+zf_x = max(z_dem(:,1:end-1), z_dem(:,2:end));
+etaL_x = max(y(:,1:end-1), zf_x);
+etaR_x = max(y(:,2:end),   zf_x);
 
-% Water Surface Elevation [m]
-y = z + depth_cell; % Total depth minus outlet flow
+Sx(:,1:end-1) = (etaR_x - etaL_x) ./ Resolution;
+Sx(:,end) = 0;
 
-%% ---------------- Faces: hydrostatic reconstruction, slopes, and Hf ----------------
-% Helper NaN row/col with correct precision (CPU or GPU)
-nan_col = nan(size(y,1),1,'like',y);
-nan_row = nan(1,size(y,2),'like',y);
+% ===== Y faces =====
+zf_y = max(z_dem(1:end-1,:), z_dem(2:end,:));
+etaS_y = max(y(1:end-1,:), zf_y);
+etaN_y = max(y(2:end,:),   zf_y);
 
-% ---- X faces (i+1/2, j)
-zf_x   = max(z(:,1:end-1), z(:,2:end));                  % bed at the face
-etaL_x = max(y(:,1:end-1), zf_x);                        % reconstructed η* from (i, j)
-etaR_x = max(y(:,2:end  ), zf_x);                        % reconstructed η* from (i+1, j)
-Sx_int = (etaR_x - etaL_x) ./ Resolution;                % slope positive to the east
-% pad to full ny×nx by appending a NaN column on the right
-Sx     = [Sx_int, nan_col];
+Sy(2:end,:) = (etaS_y - etaN_y) ./ Resolution;
+Sy(1,:) = 0;
 
-Hf_x_int = max(y(:,1:end-1), y(:,2:end)) - zf_x;         % effective face depth
-Hf_x_int = max(Hf_x_int, 0);                             % guard tiny negatives
-Hf_x     = [Hf_x_int, nan_col];
+if ~use_sharedface_subgrid
+    % ----- Original coarse-grid Hf only -----
+    Hf_x(:,1:end-1) = max(max(y(:,1:end-1), y(:,2:end)) - zf_x, 0);
+    Hf_y(2:end,:)   = max(max(y(1:end-1,:), y(2:end,:)) - zf_y, 0);
 
-% ---- Y faces (i, j+1/2)
-zf_y   = max(z(1:end-1,:), z(2:end,:));                  % bed at the face
-etaS_y = max(y(1:end-1,:), zf_y);                        % reconstructed η* from (i, j)
-etaN_y = max(y(2:end  ,:), zf_y);                        % reconstructed η* from (i, j+1)
-Sy_int = (etaS_y - etaN_y) ./ Resolution;                % slope positive to the north
-% pad to full ny×nx by prepending a NaN row on the top
-Sy     = [nan_row; Sy_int];
+    Wf_x(:,end) = 0;
+    Wf_y(1,:)   = 0;
+end
 
-Hf_y_int = max(y(1:end-1,:), y(2:end,:)) - zf_y;         % effective face depth
-Hf_y_int = max(Hf_y_int, 0);
-Hf_y     = [nan_row; Hf_y_int];
+% Boundary faces always closed
+Hf_x(:,end) = 0;
+Hf_y(1,:)   = 0;
 
-% Pack for the solver (matrix_store carries slopes; Hf carries effective depths)
-matrix_store       = 0*outflow;        % ny×nx×2
-matrix_store(:,:,1)= Sx;               % Sx at (i+1/2, j)
-matrix_store(:,:,2)= Sy;               % Sy at (i, j+1/2)
-
-Hf        = 0*outflow;                 % ny×nx×2
-Hf(:,:,1) = Hf_x;                      % Hf on x faces
-Hf(:,:,2) = Hf_y;                      % Hf on y faces
-
-%% ---------------- Wet/dry and NaN hygiene ----------------
-% A face is dry if its effective depth is zero, or invalid if either neighbor is NaN.
-dry_x = (Hf(:,:,1) <= 0);
-dry_y = (Hf(:,:,2) <= 0);
-
-% NaN masks for faces: mark a face invalid if any adjacent cell (y or z) is NaN
-nan_x_face = ...
-      isnan([z(:,1:end-1), nan_col]) | isnan([z(:,2:end),   nan_col]) ...
-   |  isnan([y(:,1:end-1), nan_col]) | isnan([y(:,2:end),   nan_col]);
-
-nan_y_face = ...
-      isnan([nan_row; z(1:end-1,:)]) | isnan([nan_row; z(2:end,:)]) ...
-   |  isnan([nan_row; y(1:end-1,:)]) | isnan([nan_row; y(2:end,:)]);
-
-% Combined masks: dry OR invalid
-mask_x = dry_x | nan_x_face;   % for (i+1/2, j)
-mask_y = dry_y | nan_y_face;   % for (i, j+1/2)
-
-% Zero slopes on masked faces
-Sx(mask_x) = 0;
-Sy(mask_y) = 0;
+% Store for solver
+matrix_store = 0*outflow;
 matrix_store(:,:,1) = Sx;
 matrix_store(:,:,2) = Sy;
 
-% Zero effective depths on masked faces (no chained indexing)
-tmp = Hf(:,:,1); tmp(mask_x) = 0; Hf(:,:,1) = tmp;
-tmp = Hf(:,:,2); tmp(mask_y) = 0; Hf(:,:,2) = tmp;
+Hf = 0*outflow;
+
+if ~use_sharedface_subgrid
+    Hf(:,:,1) = Hf_x;
+    Hf(:,:,2) = Hf_y;
+end
+
+% %% ---------------- Wet/dry and NaN hygiene ----------------
+% dry_x = (Hf(:,:,1) <= 0);
+% dry_y = (Hf(:,:,2) <= 0);
+% 
+% nan_x_face = false(size(y), 'like', idx_nan);
+% nan_y_face = false(size(y), 'like', idx_nan);
+% 
+% % x-faces: columns 1:end-1 valid
+% nan_x_face(:,1:end-1) = ...
+%       isnan(z_dem(:,1:end-1)) | isnan(z_dem(:,2:end)) ...
+%     | isnan(y(:,1:end-1))     | isnan(y(:,2:end));
+% nan_x_face(:,end) = true;
+% 
+% % y-faces: rows 2:end valid
+% nan_y_face(2:end,:) = ...
+%       isnan(z_dem(1:end-1,:)) | isnan(z_dem(2:end,:)) ...
+%     | isnan(y(1:end-1,:))     | isnan(y(2:end,:));
+% nan_y_face(1,:) = true;
+% 
+% mask_x = dry_x | nan_x_face;
+% mask_y = dry_y | nan_y_face;
+% 
+% Sx(mask_x) = 0;
+% Sy(mask_y) = 0;
+% 
+% matrix_store(:,:,1) = Sx;
+% matrix_store(:,:,2) = Sy;
+% 
+% tmp = Hf(:,:,1);
+% tmp(mask_x) = 0;
+% Hf(:,:,1) = tmp;
+% 
+% tmp = Hf(:,:,2);
+% tmp(mask_y) = 0;
+% Hf(:,:,2) = tmp;
+% 
+% if use_sharedface_subgrid
+%     tmp = Wf_x;
+%     tmp(mask_x) = 0;
+%     Wf_x = tmp;
+% 
+%     tmp = Wf_y;
+%     tmp(mask_y) = 0;
+%     Wf_y = tmp;
+% end
 
 %% ---------------- Minimum operative depth logic (h_min) ----------------
-% Any cell shallower than h_min forces its adjacent faces to behave as dry.
 if h_min > 0
-    shallow_cell = (depth_cell < h_min);            % ny×nx logical
+    shallow_cell = (depth_cell < h_min);
 
-    % Expand cell mask to faces:
-    %  - x-faces touch [i,j] and [i,j+1]
-    %  - y-faces touch [i,j] and [i+1,j]
-    shallow_x = shallow_cell | [shallow_cell(:,2:end), false(size(shallow_cell,1),1,'like',shallow_cell)];
-    shallow_y = shallow_cell | [false(1,size(shallow_cell,2),'like',shallow_cell); shallow_cell(1:end-1,:)];
+    shallow_x = false(size(shallow_cell), 'like', idx_nan);
+    shallow_y = false(size(shallow_cell), 'like', idx_nan);
 
-    % Apply to slopes
+    % x-face touches cells j and j+1
+    shallow_x(:,1:end-1) = shallow_cell(:,1:end-1) | shallow_cell(:,2:end);
+    shallow_x(:,end)     = shallow_cell(:,end);
+
+    % y-face touches cells i-1 and i
+    shallow_y(2:end,:) = shallow_cell(1:end-1,:) | shallow_cell(2:end,:);
+    shallow_y(1,:)     = shallow_cell(1,:);
+
     Sx(shallow_x) = 0;
     Sy(shallow_y) = 0;
+
     matrix_store(:,:,1) = Sx;
     matrix_store(:,:,2) = Sy;
 
-    % Apply to effective depths
-    tmp = Hf(:,:,1); tmp(shallow_x) = 0; Hf(:,:,1) = tmp;
-    tmp = Hf(:,:,2); tmp(shallow_y) = 0; Hf(:,:,2) = tmp;
+    tmp = Hf(:,:,1);
+    tmp(shallow_x) = 0;
+    Hf(:,:,1) = tmp;
+
+    tmp = Hf(:,:,2);
+    tmp(shallow_y) = 0;
+    Hf(:,:,2) = tmp;
+
+    if use_sharedface_subgrid
+        tmp = Wf_x;
+        tmp(shallow_x) = 0;
+        Wf_x = tmp;
+
+        tmp = Wf_y;
+        tmp(shallow_y) = 0;
+        Wf_y = tmp;
+    end
 end
 
-% Final safety: clip tiny negative round-off (should be rare after reconstruction)
 Hf(Hf < 0) = 0;
 
-
 %% Local-Inertial Formulation
-outflow = outflow/1000/3600*Resolution^2/Resolution; % m2 per sec. It comes from mm/h
-dt = time_step*60; % time-step in seconds
+outflow = outflow/1000/3600*Resolution^2/Resolution; % m2/s
+dt = time_step*60; % s
 g = 9.81;
 outflow_prev = outflow;
 
-% Sub-grid channels
-% Treatment using sub-grid approach for channels
-% flag_overbanks = 0; flag_subgrid = 0;
+%% Sub-grid channels / functions
 if flag_subgrid == 1 && flag_overbanks == 1
-    % All cells have sub-grid channels and floodplains following the same
-    % roughness coefficients of the 2D domain
-    % Only the original formulation is considered in this case
-    [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(depth_cell, River_Width, z, z - River_Depth , Resolution, nc, nf, Qc_prev, Qf_prev,Qci_prev,Qfi_prev,g,dt,idx_rivers,outlet_index);
-    % outflow = Q./(C_a/Resolution); % m2/s normalized by flow width
-    % C_a = ones(size(roughness_cell))*Resolution^2; % cell area in m2;
-    cell_width = Resolution; % cell width in m
-    outflow = Q./(cell_width); % m2/s normalized by flow width for the subgrid cell
-    % Treating Domain Issues
-    outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;    
-    % C_a(isnan(z)) = nan;
+    % Original overbank subgrid channel mode (unchanged)
+    [Q,Qc,Qf,Qci,Qfi,C_a] = subgrid_channel(depth_cell, River_Width, z_dem, z_dem - River_Depth , ...
+                                            Resolution, nc, nf, Qc_prev, Qf_prev, Qci_prev, Qfi_prev, ...
+                                            g, dt, idx_rivers, outlet_index);
+
+    cell_width = Resolution;
+    outflow = Q./(cell_width); % m2/s
+
+    bad = ~isfinite(outflow);
+    outflow(bad) = 0;
+
 elseif flag_subgrid == 1
-    % We are modeling using the subgrid approach with functions to describe
-    % the hydraulic radius and flow area
+    % Shared-face subgrid functions mode
     Qc = 0;
     Qf = 0;
     Qci = 0;
     Qfi = 0;
     Q = 0;
-    % -------------- Inertial Solver ------------- %
+
+    % Previous discharge [m3/s] on x and y faces
     Qc_prev = outflow_prev(:,:,1:2) * cell_area / 1000 / 3600;
     Qci_prev = 0*Qc_prev;
-    [outflow,C_a] = subgrid_channel_functions(depth_cell, River_Width, z - River_Depth,Resolution, nc, Qc_prev,Qci_prev, g, dt, idx_rivers, Subgrid_Properties, SubgridTables);
-    % Treating Domain Issues
-    outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;  
-    % C_a(isnan(d_tot)) = nan;
-    cell_width = C_a/Resolution; % cell width in m
+
+    [outflow, C_a, Hf_x, Hf_y, Wf_x, Wf_y] = subgrid_channel_functions( ...
+        depth_cell, River_Width, z_dem - River_Depth, Resolution, nc, ...
+        Qc_prev, Qci_prev, g, dt, idx_rivers, Subgrid_Properties, SubgridTables);
+
+    Hf(:,:,1) = Hf_x;
+    Hf(:,:,2) = Hf_y;
+
+    bad = ~isfinite(outflow);
+    if any(bad(:))
+        outflow(bad) = 0;
+    end
+
+    % kept for outlet logic below
+    if isscalar(C_a)
+        cell_width = C_a / Resolution;
+    else
+        cell_width = C_a ./ Resolution;
+    end
+
 else
-    % We are modeling using the original coarse grid approach with
-    % different numerical schemes
+    % Original coarse-grid inertial solver (UNCHANGED)
     Qc = 0;
     Qf = 0;
     Qci = 0;
     Qfi = 0;
     Q = 0;
-    % -------------- Inertial Solver ------------- %
-    [outflow] = Inertial_Solver(flag_numerical_scheme,outflow_prev,dt,Hf,matrix_store,roughness_cell,Resolution,idx_nan);
-    % Treating Domain Issues
-    outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;  
-    C_a = ones(size(roughness_cell))*Resolution^2; % cell area in m2;
-    cell_width = C_a/Resolution; % cell width in m
-    % C_a(isnan(d_tot)) = nan;
+
+    outflow = Inertial_Solver(flag_numerical_scheme, outflow_prev, dt, Hf, matrix_store, roughness_squared, Resolution, idx_nan);
+    
+    bad = ~isfinite(outflow);
+    if any(bad(:))
+        outflow(bad) = 0;
+    end
+
+    C_a = Resolution^2;      % scalar
+    cell_width = Resolution; % scalar
 end
 
-%% Eliminating Surplus Velocities at Wet-Dry Interfaces
-% Left 
-% idx = Hf(:,:,1) > artificial_depth & [Hf(:,2:(end-1),1),zeros(size(depth_cell,1),1)] == artificial_depth;
-% interface_flow = outflow(:,:,1);
-% depth = Hf(:,:,1);
-% if any(any(idx)) 
-%     interface_flow(idx) = depth(idx).*sqrt(g*depth(idx)); % m2 per sec
-%     outflow(:,:,1) = interface_flow;   
-% end
-% % Right
-% idx = Hf(:,:,2) > artificial_depth & [zeros(size(depth_cell,1),1), Hf(:,2:(end),2)] == artificial_depth;
-% interface_flow = outflow(:,:,2);
-% depth = Hf(:,:,2);
-% if any(any(idx))
-%     interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
-%     outflow(:,:,2) = interface_flow;
-% end
-% % Up
-% idx = Hf(:,:,3) > artificial_depth & [zeros(1,size(depth_cell,2));Hf(1:(end-1),:,3)] == artificial_depth;
-% interface_flow = outflow(:,:,3);
-% depth = Hf(:,:,3);
-% if any(any(idx))
-%     interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
-%     outflow(:,:,3) = interface_flow;
-% end
-% % Down
-% idx = Hf(:,:,4) > artificial_depth & [Hf(2:(end),:,4);zeros(1,size(depth_cell,2))] == artificial_depth;
-% interface_flow = outflow(:,:,4);
-% depth = Hf(:,:,4);
-% if any(any(idx))
-%     interface_flow(idx) = depth(idx).*sqrt(g*depth(idx));
-%     outflow(:,:,4) = interface_flow;
-% end
 %% Limiting outflow to critical velocity
 if flag_critical == 1
-    critical_velocity = Hf(:,:,1:size(outflow,3)).*sqrt(9.81*Hf(:,:,1:size(outflow,3))); % m3/s per unit width
-    outflow(outflow > critical_velocity) = critical_velocity(outflow > critical_velocity); % m2/s (normalized by flow width)
-    outflow(outflow < -critical_velocity) = (-1)*critical_velocity(outflow < -critical_velocity); % m2/s (normalized by flow width)
-end 
-q = outflow; % Flow per width [m2/s]
-outflow_rate = outflow.*(cell_width); % m3/s (total flux leaving coarse cell)
-outflow = outflow_rate./(cell_area)*1000*3600; % mm per hour (for coarse grid)
-matrix_store = outflow; % mm per hour
+    critical_velocity = Hf(:,:,1:size(outflow,3)) .* sqrt(9.81 * Hf(:,:,1:size(outflow,3)));
+    outflow = min(max(outflow, -critical_velocity), critical_velocity);
+end
+
+%% Convert q -> discharge rate Q
+q = outflow; % m2/s
+
+if use_sharedface_subgrid
+    outflow_rate = zeros(size(q), 'like', q);
+    outflow_rate(:,:,1) = q(:,:,1) .* Wf_x; % x-face discharge [m3/s]
+    outflow_rate(:,:,2) = q(:,:,2) .* Wf_y; % y-face discharge [m3/s]
+else
+    outflow_rate = outflow .* (cell_width); % original behavior
+end
+
+outflow = outflow_rate./(cell_area)*1000*3600; % mm/h
+matrix_store = outflow; % mm/h
 
 %% Limiting outflow to maximum velocity
 max_velocity = 10; % m/s
-threshold_velocity = Hf(:,:,1:size(outflow,3))*max_velocity; % m3/s per unit width
-q(q > threshold_velocity) = threshold_velocity(q > threshold_velocity); % m2/s (normalized by flow width)
-q(q < -threshold_velocity) = (-1)*threshold_velocity(q < -threshold_velocity); % m2/s (normalized by flow width) 
-outflow_rate = q.*(cell_width); % m3/s (total flux leaving coarse cell)
-outflow = outflow_rate./(cell_area)*1000*3600; % mm per hour (for coarse grid)
-matrix_store = outflow; % mm per hour
+threshold_velocity = Hf(:,:,1:size(outflow,3)) * max_velocity;
+q = min(max(q, -threshold_velocity), threshold_velocity);
+
+% Recompute discharge AFTER clipping
+if use_sharedface_subgrid
+    outflow_rate = zeros(size(q), 'like', q);
+    outflow_rate(:,:,1) = q(:,:,1) .* Wf_x;
+    outflow_rate(:,:,2) = q(:,:,2) .* Wf_y;
+else
+    outflow_rate = q .* (cell_width);
+end
+
+outflow = outflow_rate./(cell_area)*1000*3600;
+matrix_store = outflow;
 
 %% Intercell Volume
-% 1 - Right (Negative)
-% 2 - Up (Negative)
-% 3 - Outlet (Negative)
-
-% Vol_Flux = dt*Resolution*(outflow(:,:,1) - outflow(:,:,2) ...
-%                          - outflow(:,:,3) + outflow(:,:,4));
-
-% Vol_Flux = dt*(C_a/Resolution).* ...
-%                ([zeros(ny,1) , outflow(:,1:(nx-1),1)] - outflow(:,:,1) ...
-%                 - outflow(:,:,2) + [outflow(2:end,:,2); zeros(1,nx)]); % m3
-
-Vol_Flux = dt*([zeros(ny,1) , outflow_rate(:,1:(nx-1),1)] - outflow_rate(:,:,1) ...
-                - outflow_rate(:,:,2) + [outflow_rate(2:end,:,2); zeros(1,nx)]); % m3
-
+Vol_Flux = dt * ( ...
+    [zeros(ny,1,'like',outflow_rate(:,:,1)) , outflow_rate(:,1:(nx-1),1)] - outflow_rate(:,:,1) ...
+    - outflow_rate(:,:,2) + [outflow_rate(2:end,:,2); zeros(1,nx,'like',outflow_rate(:,:,2))] );
 
 if flag_subgrid == 1
-    % % Adding NE and SE fluxes
-    % outfluxes = Qci + Qfi;
-    % Vol_Flux = Vol_flux + dt*(C_a/Resolution).* ...
-    %                            ([zeros(ny,1) , outfluxes(:,1:(nx-1),1)] - outfluxes(:,:,1) ...
-    %                             - outfluxes(:,:,2) + [outfluxes(2:end,:,2); zeros(1,nx)]); % m3
-    % 
-    % hf(2:end,1:(end-1),3) = max(y(1:(end-1),2:end), y(2:end,1:(end-1))) - max(z(1:(end-1),2:end), z(2:end,1:(end-1)));
-    % hf(1:(end-1),1:(end-1),4) = max(y(2:end,2:(end)), y(1:(end-1),1:(end-1))) - max(z(2:end,2:(end)), z(1:(end-1),1:(end-1)));
+    % reserved for future optional subgrid diagonal/additional fluxes
 end
-%% Reservoir Boundary Condition - We are assuming that all flow drains
-if flag_reservoir == 1   
-	for ii = 1:length(reservoir_y)
+
+%% Reservoir Boundary Condition
+if flag_reservoir == 1
+    for ii = 1:length(reservoir_y)
         if ~isnan(yds1(ii))
-            dtsup = d_tot(reservoir_y(ii),reservoir_x(ii))./1000; % % Water depth in the cell that has the boundary condition (m)
-            dt_h = (time_step)/60; % timestep in hours
-            % ---- First Boundary Condition ----- %
-            available_volume = 1000*(max(dtsup - h1(ii),0))/dt_h; %  mm/h
+            dtsup = d_tot(reservoir_y(ii),reservoir_x(ii))./1000; % m
+            dt_h = (time_step)/60; % h
+
+            available_volume = 1000*(max(dtsup - h1(ii),0))/dt_h; % mm/h
             dh = min(k1(ii)*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
+
             Vol_Flux(reservoir_y(ii),reservoir_x(ii)) = Vol_Flux(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
             dtsup = dtsup - dh/1000;
-            % Refreshing downstream cell
-            d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;            
+            d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;
         else
             dh = 0;
         end
+
         if ~isnan(yds2(ii))
-            % Refreshing downstream cell
             d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;
-            % ---- Second Boundary Condition ----- %
-            available_volume = 1000*(max(dtsup - h2(ii),0))/dt_h; %  mm/h
+
+            available_volume = 1000*(max(dtsup - h2(ii),0))/dt_h; % mm/h
             dh = min(k3(ii)*(max(dtsup - h2(ii),0))^k4(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
+
             Vol_Flux(reservoir_y(ii),reservoir_x(ii)) = Vol_Flux(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
-            % Refreshing downstream cell
             d_tot(yds2(ii),xds2(ii)) = d_tot(yds2(ii),xds2(ii)) + dh;
         end
-	end
+    end
 end
 
 %% Output Fluxes
-qout_left = -[zeros(ny,1), matrix_store(:,(1:end-1),1)]; % See the signals following the convention
-qout_right = [matrix_store(:,:,1)];
-qout_up = matrix_store(:,:,2);
-qout_down = -[matrix_store(2:end,:,2); zeros(1,nx)];
+qout_left  = -[zeros(ny,1,'like',matrix_store(:,:,1)), matrix_store(:,1:end-1,1)];
+qout_right =  matrix_store(:,:,1);
+qout_up    =  matrix_store(:,:,2);
+qout_down  = -[matrix_store(2:end,:,2); zeros(1,nx,'like',matrix_store(:,:,2))];
 
+%% Final depth at the cell
+if isscalar(C_a)
+    d_t = d_tot + 1000 * Vol_Flux / C_a;
+else
+    d_t = d_tot + 1000 * Vol_Flux ./ C_a;
+end
 
-%% ---------------% Final depth at the cell % ---------------%
-% Cell mass balance
-% d_tot = d_p + rainfall, inflow or anything else
-d_t = d_tot + 1000 * Vol_Flux ./ C_a ; % final depth in mm
-
-if flag_subgrid == 1 && flag_overbanks % Maybe we have a change from inbank <-> overbank
-    % Eq. 15 and 16 of A subgrid channel model for simulating river hydraulics andfloodplain inundation over large and data sparse areas
-    % Inbank - Overbank
-    idx = d_t/1000 > River_Depth & d_p/1000 <= River_Depth & idx_rivers; % Cells in which there is a change from inbank to overbank
+if flag_subgrid == 1 && flag_overbanks
+    % Inbank -> overbank
+    idx = d_t/1000 > River_Depth & d_p/1000 <= River_Depth & idx_rivers;
     if sum(sum(idx)) > 0
-        d_t(idx) = 1000*(d_t(idx)/1000 - (d_t(idx)/1000 - z(idx) + (z(idx) - River_Depth(idx))).*(1 - River_Width(idx)/Resolution)); % mm 
+        d_t(idx) = 1000*(d_t(idx)/1000 - (d_t(idx)/1000 - z_dem(idx) + (z_dem(idx) - River_Depth(idx))).*(1 - River_Width(idx)/Resolution));
         [d_t(idx)] = inbank_to_overbank(River_Width(idx),River_Depth(idx),d_t(idx)/1000,Resolution);
         C_a(idx) = Resolution^2;
     end
-    % Overbank - Inbank
-    idx = d_t/1000 <= River_Depth & d_p/1000 >= River_Depth & idx_rivers; % Cells in which there is a change from overbank to inbank
+
+    % Overbank -> inbank
+    idx = d_t/1000 <= River_Depth & d_p/1000 >= River_Depth & idx_rivers;
     if sum(sum(idx)) > 0
-        factor = d_t(idx)/1000 - z(idx) + (z(idx) - River_Depth(idx));
+        factor = d_t(idx)/1000 - z_dem(idx) + (z_dem(idx) - River_Depth(idx));
         d_t(idx) = 1000*(d_t(idx)/1000 + (Resolution*(factor))./River_Width(idx) ...
-            - (d_t(idx)/1000 - z(idx) + (z(idx) - River_Depth(idx)))); % mm
+            - (d_t(idx)/1000 - z_dem(idx) + (z_dem(idx) - River_Depth(idx))));
         [d_t(idx)] = overbank_to_inbank(River_Width(idx),River_Depth(idx),d_t(idx)/1000,Resolution);
         C_a(idx) = River_Width(idx)*Resolution;
-    end 
+    end
 end
-
-lost_mass = 1/1000*abs(sum(sum(d_t(d_t<0).*C_a(d_t<0))));
-% if lost_mass > 0.1*Resolution^2
-%     error('Lost mass too high.')
-% end
 
 d_t(d_t<0) = 0;
 
-% Outlet Flow
-% --------------- Outlet Calculations  % ---------------%
-if outlet_type == 1
-    S_0 = slope_outlet*outlet_index; % Normal slope
-else
-    S_0 = zeros(size(z));
-    for i = 1:length(row_outlet)
-        % Checking left, right up, and down
-        row = row_outlet(i); % Row of outlet
-        col = col_outlet(i); % Col of outlet
-        h = max(d_t(row,col)/1000, 0);
-        S_0(row,col) = (roughness_cell(row,col)^2) * 9.81 * h^(-1/3);  % TRUE critical slope Scrit    
+%% Outlet Flow
+outlet_flow = zeros(size(d_t), 'like', d_t);
+outflow(:,:,3) = 0;
+Hf(:,:,3) = 0;
+
+if ~isempty(row_outlet)
+    outlet_sub = sub2ind(size(d_t), row_outlet(:), col_outlet(:));
+
+    % Local water depth at outlet cells [m]
+    h_out = max(d_t(outlet_sub), 0) / 1000;
+
+    % Local width at outlet cells
+    if isscalar(cell_width)
+        width_out = cell_width * ones(size(h_out), 'like', h_out);
+    else
+        width_out = cell_width(outlet_sub);
+    end
+
+    % Local cell area at outlet cells
+    if isscalar(cell_area)
+        area_out = cell_area * ones(size(h_out), 'like', h_out);
+    else
+        area_out = cell_area(outlet_sub);
+    end
+
+    % Local slope term
+    if outlet_type == 1
+        % Normal-flow slope prescribed at outlet
+        if isscalar(slope_outlet)
+            sqrtS_out = sqrt(abs(slope_outlet)) * ones(size(h_out), 'like', h_out);
+        else
+            sqrtS_out = sqrt(abs(slope_outlet(outlet_sub)));
         end
-    S_0(isinf(S_0)) = 0;
+    else
+        % Critical slope only at outlet cells
+        h_safe = max(h_out, 1e-12);
+        sqrtS_out = sqrt(9.81 .* roughness_squared(outlet_sub) .* h_safe.^(-1/3));
+        sqrtS_out(~isfinite(sqrtS_out)) = 0;
+    end
+
+    % Keep Hf(:,:,3) only at outlet cells, if you still want it stored
+    Hf3 = Hf(:,:,3);
+    Hf3(outlet_sub) = h_out;
+    Hf(:,:,3) = Hf3;
+
+    % Outlet discharge [mm/h]
+    q_out = (1 ./ roughness_cell(outlet_sub)) .* ...
+            width_out .* ...
+            h_out.^(5/3) .* ...
+            sqrtS_out ./ ...
+            area_out * 1000 * 3600;
+
+    % Limit by available water
+    qmax_out = max((d_t(outlet_sub) - 1000*h_min), 0) / (time_step/60);
+    q_out = min(q_out, qmax_out);
+    q_out(~isfinite(q_out)) = 0;
+
+    % Write back only at outlet cells
+    outlet_flow(outlet_sub) = q_out;
+    outflow(:,:,3) = outlet_flow;
+
+    % Update depth only at outlet cells
+    d_t(outlet_sub) = d_t(outlet_sub) - q_out * (time_step/60);
 end
-mask_outlet = S_0 ~= 0;
 
-% Outlet Mass Balance
-% Outlet Flow Depth
-Hf_outlet = zeros(ny,nx);
-Hf_outlet(mask_outlet) = max(d_t(mask_outlet),0)/1000; % meters
-Hf(:,:,3) = Hf_outlet;
-
-% Outlet Mass Balance
-outlet_flow = 1./roughness_cell.*cell_width.*Hf(:,:,3).^(5/3).*abs(S_0).^(0.5)./(cell_area)*1000*3600; % mm/h
-outlet_flow = min(outlet_flow,max((d_t-1000*h_min),0)/(time_step/60));
-outlet_flow(~mask_outlet) = 0;
-outflow(:,:,3) = outlet_flow;
-
-% Final Depth
-% d_t = d_t  - cell_area ./ C_a .* outlet_flow*(time_step/60); % final depth in mm
-d_t = d_t  - outlet_flow*(time_step/60); % final depth in mm
-
-
-% Mass Balance Check
-% Final Stored Volume
+%% Mass Balance Check
 if flag_subgrid == 1 && flag_overbanks == 1
     final_volume = nansum(nansum((Resolution - River_Width).*Resolution.*max((d_t/1000 - River_Depth),0))) + ...
-                      nansum(nansum(Resolution.*River_Width.*d_t/1000)); % m3
+                   nansum(nansum(Resolution.*River_Width.*d_t/1000));
 else
-    final_volume = nansum(nansum(C_a.*d_t/1000)); % m3
+    if isscalar(C_a)
+        final_volume = nansum(nansum(C_a * d_t / 1000));
+    else
+        final_volume = nansum(nansum(C_a .* d_t / 1000));
+    end
 end
 
-error_vol = (final_volume - current_volume) + nansum(nansum(Resolution^2.*1/1000*time_step/60.*outlet_flow));
-if abs(error_vol) > 10
-    ttt = 1;
-end
+% error_vol = (final_volume - current_volume) + nansum(nansum(Resolution^2.*1/1000*time_step/60.*outlet_flow));
+% if abs(error_vol) > 10
+%     ttt = 1; %#ok<NASGU>
+% end
 
-
-
-
-
-%% ---------------% Total Flow that Leaves the Cell ----------- %
-mask = outflow; 
-% mask(mask<0) = 0; % We want to get only outflow flux per cell (maybe we dont need it)
-% I_tot_end_cell = sum(mask,3)*dt/1000*1/3600*Resolution^2; % m3
+%% Total Flow that Leaves the Cell
+mask = outflow;
 I_tot_end_cell = abs(sum(mask,3))*dt/1000*1/3600*Resolution^2; % m3
 
-% surf(d_t); view(0,90);  colorbar; colormap('jet')
-% pause(0.00001)
 end
 
 function [h] = inbank_to_overbank(B,H,h_p,R)
-    h = 1000*(B.* H + (R - B).* h_p) ./ R;
+    h = 1000*(B.*H + (R - B).*h_p) ./ R;
 end
 
 function [h] = overbank_to_inbank(B,H,h_p,R)
     h = 1000*(B .* h_p + (R - B) .* (H - h_p)) ./ B;
+end
+
+function Vq = hp2d_lookup_uniform(Vtab, q, dz)
+% Fast uniform-depth lookup for GPU/CPU
+% Vtab: [ny x nx x nz]
+% q   : [ny x nx]
+% dz  : scalar depth spacing
+
+    [ny, nx, nz] = size(Vtab);
+    N = ny * nx;
+    maxDepth = (nz - 1) * dz;
+
+    qv = reshape(q, N, 1);
+    qv(~isfinite(qv)) = 0;
+    qv = max(qv, 0);
+    qv = min(qv, maxDepth);
+
+    idxL = floor(qv ./ dz) + 1;
+    idxL = min(max(idxL, 1), nz-1);
+
+    q0 = (idxL - 1) .* dz;
+    a  = (qv - q0) ./ dz;
+
+    atTop = (qv >= maxDepth);
+    idxL(atTop) = nz-1;
+    a(atTop)    = 1;
+
+    V = reshape(Vtab, N, nz);
+
+    base = (0:N-1)' * nz;
+    ind1 = base + idxL;
+    ind2 = ind1 + 1;
+
+    v1 = V(ind1);
+    v2 = V(ind2);
+
+    Vqi = v1 + a .* (v2 - v1);
+    Vqi(~isfinite(Vqi)) = 0;
+    Vqi = max(Vqi, 0);
+
+    Vq = reshape(Vqi, ny, nx);
 end

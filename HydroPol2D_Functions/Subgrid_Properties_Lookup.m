@@ -1,168 +1,345 @@
-function [SubgridTables, invert_el] = Subgrid_Properties_Lookup(DEM_raster, Reference_raster, coarse_res)
+function [SubgridTables, invert_el] = Subgrid_Properties_Lookup(DEM_raster, Reference_raster, coarse_res, varargin)
 %--------------------------------------------------------------------------
-% Subgrid_Properties_Lookup
+% Subgrid_Properties_Lookup (PAPER-STYLE LOOKUP TABLE VERSION)
 %
-% Computes lookup tables of hydraulic properties from a high-resolution DEM
-% embedded within a coarse-resolution grid using a HEC-RAS-style subgrid approach.
+% PURPOSE
+%   Build subgrid hydraulic lookup tables consistent with the paper:
 %
-% INPUTS:
-%   DEM_raster        - Struct with fields:
-%       .Z            - High-resolution DEM (2D matrix) in meters
-%       .cellsize     - Resolution of DEM in meters (e.g., 1 m)
+%     1) Cell-centered storage functions:
+%           eta  -> wetted volume
+%           eta  -> wetted area   (optional but useful)
 %
-%   Reference_raster  - Struct with .Z for coarse grid shape (e.g., 50 m cells)
-%                       Used to define how many coarse grid cells to compute
+%     2) Shared-face conveyance functions:
+%           eta  -> wetted face area
 %
-%   coarse_res        - Coarse cell size in meters (e.g., 50 m)
+%   where eta is the WATER SURFACE ELEVATION (absolute elevation, [m]).
 %
-% OUTPUTS:
-%   SubgridTables     - Struct containing 3D lookup tables (row, col, depth index):
-%       .depths       - Water depths [m] relative to invert
-%       .area         - Wetted area of each coarse cell [m²]
-%       .volume       - Volume of water in cell [m³]
-%       .width_east   - Wetted width along east face [m]
-%       .width_north  - Wetted width along north face [m]
-%       .Rh_east      - Hydraulic radius on east face [m]
-%       .Rh_north     - Hydraulic radius on north face [m]
+% MAIN IDEA
+%   - Coarse-cell storage is represented by the fine DEM contained inside
+%     each coarse cell.
+%   - Shared-face conveyance is represented by a COMMON INTERFACE built from
+%     BOTH neighboring coarse cells:
+%           z_face = max(edge_current, edge_neighbor)
+%   - If one side is NaN, that fine face segment is closed.
+%   - If all segments are invalid, the whole face is no-flow.
 %
-%   invert_el         - Minimum elevation (invert) in each coarse cell [m]
+% WHY THIS MATCHES THE PAPER
+%   - Runtime local-inertial solver should use:
+%         * cell volume <-> eta
+%         * face area    <- eta
+%   - No single coarse-cell bed elevation is used as the governing storage
+%     geometry. Instead, the full within-cell topography defines V(eta).
+%
+% INPUTS
+%   DEM_raster.Z          : fine DEM [m]
+%   DEM_raster.cellsize   : fine resolution [m]
+%   Reference_raster.Z    : coarse grid shape (dimensions used)
+%   coarse_res            : coarse cell size [m]
+%
+% OPTIONAL NAME-VALUE
+%   'dz'       : vertical lookup spacing [m], default = 0.25
+%   'maxDepth' : maximum tabulated depth ABOVE local invert [m], default = 10.0
+%   'tol_rel'  : tolerance for coarse_res/cellsize non-integer ratio, default = 5e-3
+%   'verbose'  : true/false progress printing, default = true
+%
+% OUTPUTS
+%   SubgridTables:
+%
+%       % Global depth axis (relative, for convenience only)
+%       .depth_axis             [1 x nz]
+%       .dz                     scalar
+%       .maxDepth               scalar
+%       .is_uniform             logical = true
+%
+%       % ---------------- CELL-CENTERED TABLES ----------------
+%       .eta_cell               [nyc x nxc x nz]   absolute water surface elevations [m]
+%       .area_cell              [nyc x nxc x nz]   wetted plan area [m^2]
+%       .volume_cell            [nyc x nxc x nz]   wetted volume [m^3]
+%       .invert_el              [nyc x nxc]        minimum fine elevation in cell [m]
+%       .eta_top_cell           [nyc x nxc]        highest tabulated eta [m]
+%       .Vmax_cell              [nyc x nxc]        highest tabulated volume [m^3]
+%
+%       % ---------------- SHARED X-FACE TABLES ----------------
+%       .eta_x                  [nyc x (nxc-1) x nz]   absolute water surface elevations [m]
+%       .area_x                 [nyc x (nxc-1) x nz]   wetted shared-face area [m^2]
+%       .invert_x               [nyc x (nxc-1)]        minimum common-face elevation [m]
+%       .eta_top_x              [nyc x (nxc-1)]        highest tabulated eta [m]
+%
+%       % ---------------- SHARED Y-FACE TABLES ----------------
+%       .eta_y                  [(nyc-1) x nxc x nz]   absolute water surface elevations [m]
+%       .area_y                 [(nyc-1) x nxc x nz]   wetted shared-face area [m^2]
+%       .invert_y               [(nyc-1) x nxc]        minimum common-face elevation [m]
+%       .eta_top_y              [(nyc-1) x nxc]        highest tabulated eta [m]
+%
+% NOTES
+%   - The paper fundamentally needs:
+%         * cell volume vs water surface elevation
+%         * shared-face area vs water surface elevation
+%   - The inverse relation eta(V) is obtained later by interpolation
+%     through the stored monotonic tables volume_cell <-> eta_cell.
+%   - This function assumes the fine DEM and coarse grid are aligned.
 %--------------------------------------------------------------------------
-    
-    DEM = DEM_raster.Z;                       % High-resolution DEM matrix [m]
-    cellsize = DEM_raster.cellsize;           % DEM resolution [m]
 
-    if mod(coarse_res, cellsize) ~= 0
-        error('Resample the raster to a multiple resolution of the input raster.');
+% ---------------- Parse options ----------------
+p = inputParser;
+p.addParameter('dz', 0.25, @(x)isscalar(x) && x > 0);
+p.addParameter('maxDepth', 10.0, @(x)isscalar(x) && x > 0);
+p.addParameter('tol_rel', 5e-3, @(x)isscalar(x) && x > 0);
+p.addParameter('verbose', true, @(x)islogical(x) || isnumeric(x));
+p.parse(varargin{:});
+
+dz       = p.Results.dz;
+maxDepth = p.Results.maxDepth;
+tol_rel  = p.Results.tol_rel;
+verbose  = logical(p.Results.verbose);
+
+DEM      = DEM_raster.Z;
+cellsize = DEM_raster.cellsize;
+
+% ---------------- Ratio check ----------------
+r = coarse_res / cellsize;
+r_round = round(r);
+rel_err = abs(r - r_round) / max(r, eps);
+
+if rel_err > tol_rel
+    warning(['coarse_res/cellsize is not ~integer (r = %.6f). ' ...
+             'Shared-face mapping may drift. Strongly recommend resampling DEM ' ...
+             'so coarse_res is an exact multiple of cellsize.'], r);
+end
+
+[nrows, ncols] = size(DEM);
+nrows_coarse = size(Reference_raster.Z,1);
+ncols_coarse = size(Reference_raster.Z,2);
+
+% ---------------- Uniform relative depth axis ----------------
+% This is only a GENERIC relative axis. Absolute eta axes differ by cell/face
+% because each cell/face has its own invert.
+depth_axis = 0:dz:maxDepth;
+nz = numel(depth_axis);
+
+% ---------------- Preallocate outputs ----------------
+SubgridTables = struct();
+
+SubgridTables.depth_axis = depth_axis;
+SubgridTables.dz         = dz;
+SubgridTables.maxDepth   = maxDepth;
+SubgridTables.is_uniform = true;
+
+% ---------------- CELL TABLES ----------------
+SubgridTables.eta_cell    = NaN(nrows_coarse, ncols_coarse, nz, 'like', DEM);
+SubgridTables.area_cell   = NaN(nrows_coarse, ncols_coarse, nz, 'like', DEM);
+SubgridTables.volume_cell = NaN(nrows_coarse, ncols_coarse, nz, 'like', DEM);
+
+invert_el                 = NaN(nrows_coarse, ncols_coarse, 'like', DEM);
+SubgridTables.invert_el   = NaN(nrows_coarse, ncols_coarse, 'like', DEM);
+SubgridTables.eta_top_cell= NaN(nrows_coarse, ncols_coarse, 'like', DEM);
+SubgridTables.Vmax_cell   = NaN(nrows_coarse, ncols_coarse, 'like', DEM);
+
+% ---------------- SHARED X-FACE TABLES ----------------
+nxface = max(ncols_coarse-1,1);
+SubgridTables.eta_x     = NaN(nrows_coarse, nxface, nz, 'like', DEM);
+SubgridTables.area_x    = NaN(nrows_coarse, nxface, nz, 'like', DEM);
+SubgridTables.invert_x  = NaN(nrows_coarse, nxface, 'like', DEM);
+SubgridTables.eta_top_x = NaN(nrows_coarse, nxface, 'like', DEM);
+
+% ---------------- SHARED Y-FACE TABLES ----------------
+nyface = max(nrows_coarse-1,1);
+SubgridTables.eta_y     = NaN(nyface, ncols_coarse, nz, 'like', DEM);
+SubgridTables.area_y    = NaN(nyface, ncols_coarse, nz, 'like', DEM);
+SubgridTables.invert_y  = NaN(nyface, ncols_coarse, 'like', DEM);
+SubgridTables.eta_top_y = NaN(nyface, ncols_coarse, 'like', DEM);
+
+% ---------------- Index mapping ----------------
+row_idx_start = floor((0:nrows_coarse-1) * coarse_res / cellsize) + 1;
+row_idx_end   = floor((1:nrows_coarse)   * coarse_res / cellsize);
+col_idx_start = floor((0:ncols_coarse-1) * coarse_res / cellsize) + 1;
+col_idx_end   = floor((1:ncols_coarse)   * coarse_res / cellsize);
+
+% Cache coarse-cell DEM patches for face stage
+cellPatch = cell(nrows_coarse, ncols_coarse);
+
+% ======================================================================
+% 1) CELL-CENTERED STORAGE TABLES: eta -> area, volume
+% ======================================================================
+total_cells = nrows_coarse * ncols_coarse;
+cell_count = 0;
+
+for rowc = 1:nrows_coarse
+    for colc = 1:ncols_coarse
+
+        row_idx = row_idx_start(rowc):min(nrows, row_idx_end(rowc));
+        col_idx = col_idx_start(colc):min(ncols, col_idx_end(colc));
+
+        sub_DEM = DEM(row_idx, col_idx);
+        cellPatch{rowc,colc} = sub_DEM;
+
+        if isempty(sub_DEM) || all(isnan(sub_DEM(:)))
+            cell_count = cell_count + 1;
+            continue;
+        end
+
+        sub_vec = sub_DEM(:);
+        valid = ~isnan(sub_vec);
+
+        zmin = min(sub_vec(valid));
+        invert_el(rowc,colc)               = zmin;
+        SubgridTables.invert_el(rowc,colc) = zmin;
+
+        eta_vec     = zmin + depth_axis;
+        area_vec    = zeros(nz,1,'like',DEM);
+        volume_vec  = zeros(nz,1,'like',DEM);
+
+        for k = 1:nz
+            eta = eta_vec(k);
+
+            d = eta - sub_vec;
+            d(~valid) = 0;
+            d(d < 0) = 0;
+
+            wet = d > 0;
+
+            area_vec(k)   = sum(wet) * cellsize^2;
+            volume_vec(k) = sum(d)   * cellsize^2;
+        end
+
+        SubgridTables.eta_cell(rowc,colc,:)    = reshape(eta_vec,    1,1,nz);
+        SubgridTables.area_cell(rowc,colc,:)   = reshape(area_vec,   1,1,nz);
+        SubgridTables.volume_cell(rowc,colc,:) = reshape(volume_vec, 1,1,nz);
+
+        SubgridTables.eta_top_cell(rowc,colc)  = eta_vec(end);
+        SubgridTables.Vmax_cell(rowc,colc)     = volume_vec(end);
+
+        cell_count = cell_count + 1;
+        if verbose && (mod(cell_count,100)==0 || cell_count==total_cells)
+            fprintf('Subgrid cell preprocessing: %6.2f%% (%d of %d)\n', ...
+                100*cell_count/total_cells, cell_count, total_cells);
+        end
     end
+end
 
-    [nrows, ncols] = size(DEM);              % Size of the high-resolution DEM
-    nrows_coarse = size(Reference_raster.Z, 1); % Number of rows in coarse grid
-    ncols_coarse = size(Reference_raster.Z, 2); % Number of cols in coarse grid
+% ======================================================================
+% 2) SHARED X-FACE TABLES: eta -> wetted face area
+%    Face between cell(rowc,colc) and cell(rowc,colc+1)
+% ======================================================================
+if ncols_coarse > 1
+    total_xfaces = nrows_coarse * (ncols_coarse - 1);
+    face_count = 0;
 
-    max_depth_points = 200;                  % Max number of depth samples per cell
-
-    % Preallocate 3D lookup tables
-    SubgridTables = struct();
-    % fields = {'depths', 'area', 'volume', 'area_east', 'area_north', 'width_east', 'width_north', 'Rh_east', 'Rh_north'}; % All Fields
-    fields = {'depths', 'area_east', 'area_north', 'width_east', 'width_north', 'Rh_east', 'Rh_north'}; % Required Fields
-    for f = fields
-        SubgridTables.(f{1}) = NaN(nrows_coarse, ncols_coarse, max_depth_points); % NaN-filled lookup tables
-    end
-    invert_el = NaN(nrows_coarse, ncols_coarse);  % Minimum elevation per cell [m]
-
-    % Determine fine-resolution row/column indices for each coarse cell
-    row_idx_start = floor((0:nrows_coarse-1) * coarse_res / cellsize) + 1;
-    row_idx_end = floor((1:nrows_coarse) * coarse_res / cellsize);
-    col_idx_start = floor((0:ncols_coarse-1) * coarse_res / cellsize) + 1;
-    col_idx_end = floor((1:ncols_coarse) * coarse_res / cellsize);
-
-    % Main loop: for each coarse cell
     for rowc = 1:nrows_coarse
-        for colc = 1:ncols_coarse
+        for colc = 1:(ncols_coarse-1)
 
-            % Extract fine-grid indices for this coarse cell
-            row_idx = row_idx_start(rowc):min(nrows, row_idx_end(rowc));
-            col_idx = col_idx_start(colc):min(ncols, col_idx_end(colc));
+            left_patch  = cellPatch{rowc,colc};
+            right_patch = cellPatch{rowc,colc+1};
 
-            % Get the subgrid DEM patch
-            sub_DEM = DEM(row_idx, col_idx); % Local fine-resolution patch
-
-            if all(isnan(sub_DEM(:)))        % Skip empty (all-NaN) regions
+            if isempty(left_patch) || isempty(right_patch) || ...
+               all(isnan(left_patch(:))) || all(isnan(right_patch(:)))
+                face_count = face_count + 1;
                 continue;
             end
 
-            sub_DEM_flat = sub_DEM(:);                           % Flattened DEM patch
-            invert_el(rowc, colc) = min(sub_DEM_flat);          % Base elevation (invert) for this cell
-            elevations = unique(sort(sub_DEM_flat(~isnan(sub_DEM_flat)))); % Unique valid elevations
-            min_elev = elevations(1);                           % Minimum elevation [m]
-            max_elev = elevations(end);                         % Maximum elevation [m]
-            buffer_elev = max_elev + max(0.1, 0.05 * (max_elev - min_elev)); % Buffer elevation for extrapolation
+            % Shared x-face:
+            % east edge of left cell and west edge of right cell
+            left_edge  = left_patch(:,end);
+            right_edge = right_patch(:,1);
 
-            % Smart sampling: Use unique elevation transitions + buffer
-            elev_samples = unique([elevations; linspace(min_elev, max_elev, 15)'; buffer_elev]); 
-            depths = elev_samples - min_elev;                   % Water depths relative to invert [m]
-            nDepths = length(depths);                           % Number of depth samples
+            valid_face = ~isnan(left_edge) & ~isnan(right_edge);
 
-            % Get face indices (east face = last column, north face = first row)
-            east_idx = sub_DEM == sub_DEM(:, end); east_idx = east_idx(:); % East face mask (vertical face)
-            north_idx = sub_DEM == sub_DEM(1, :); north_idx = north_idx(:); % North face mask (horizontal face)
-            sub_DEM_vec = sub_DEM(:)';                          % DEM reshaped for vector operations
-
-            % Allocate output vectors for this coarse cell
-            area = zeros(nDepths, 1);                           % Wetted area [m²]
-            volume = zeros(nDepths, 1);                         % Volume [m³]
-            width_east = zeros(nDepths, 1);                     % Wetted width at east face [m]
-            width_north = zeros(nDepths, 1);                    % Wetted width at north face [m]
-            area_east = zeros(nDepths, 1);                      % Flow area at east face [m²]
-            area_north = zeros(nDepths, 1);                     % Flow area at north face [m²]
-            Rh_east = zeros(nDepths, 1);                        % Hydraulic radius at east face [m]
-            Rh_north = zeros(nDepths, 1);                       % Hydraulic radius at north face [m]
-
-            % Loop through each sampled depth
-            for i = 1:nDepths
-                depth = depths(i);                              % Current water depth [m]
-                elev = depth + min_elev;                        % Water surface elevation [m]
-
-                depth_matrix = elev - sub_DEM_vec;              % Local depth above terrain
-                depth_matrix(depth_matrix < 0) = 0;             % Negative values mean dry cells
-                wetted = depth_matrix > 0;                      % Binary mask of wet cells
-
-                area(i) = sum(wetted) * cellsize^2;             % Wetted plan area [m²]
-                volume(i) = sum(depth_matrix .* wetted) * cellsize^2; % Volume in the cell [m³]
-
-                width_east(i) = sum(wetted(east_idx)) * cellsize;      % Wetted width along east face [m]
-                width_north(i) = sum(wetted(north_idx)) * cellsize;    % Wetted width along north face [m]
-
-                area_east(i) = sum(depth_matrix(east_idx) .* wetted(east_idx)) * cellsize; % Area east face [m²]
-                area_north(i) = sum(depth_matrix(north_idx) .* wetted(north_idx)) * cellsize; % Area north face [m²]
-
-                Rh_east(i) = area_east(i) / (width_east(i) + 2 * depth);  % Hydraulic radius east [m]
-                Rh_north(i) = area_north(i) / (width_north(i) + 2 * depth); % Hydraulic radius north [m]
+            if ~any(valid_face)
+                face_count = face_count + 1;
+                continue;
             end
 
-            % Compute relative area change between depths
-            area_diff = abs([0; diff(area)]);  % Pad to match size
-            area_rel_change = area_diff ./ max(area, 1e-6);  % Now same size as area/depths
-            important_idx = (area_rel_change > 0.01) | (area_diff > 0.05);  % Logical vector [nDepths x 1]
-            important_idx(1) = true;       % Always keep first
-            important_idx(end) = true;     % Always keep last
+            % Conservative common interface as in the paper logic:
+            z_face = max(left_edge(valid_face), right_edge(valid_face));
 
-            % Ensure anchor points at regular intervals
-            anchor_idx = false(size(depths));
-            anchor_spacing = round(length(depths) / 20);  % 20 anchors evenly spread
-            anchor_idx(1:anchor_spacing:end) = true;
-            
-            % Combine and deduplicate
-            final_idx = important_idx | anchor_idx;
-            final_idx = find(final_idx);
-            final_idx = unique(final_idx);  % Sorted indices
-            
-            % If still too many, sample evenly
-            if length(final_idx) > max_depth_points
-                final_idx = round(linspace(1, length(depths), max_depth_points));
-            end
-            
-            % Store reduced subset
-            d_end = length(final_idx);
-            SubgridTables.depths(rowc, colc, 1:d_end)       = depths(final_idx);       % Depth [m]
-            SubgridTables.area(rowc, colc, 1:d_end)         = area(final_idx);         % Surface Area [m²]
-            SubgridTables.volume(rowc, colc, 1:d_end)       = volume(final_idx);       % Volume [m³]
-            SubgridTables.area_east(rowc, colc, 1:d_end)    = area_east(final_idx);    % Area east [m2]
-            SubgridTables.area_north(rowc, colc, 1:d_end)    = area_north(final_idx);  % Area north [m2]
-            SubgridTables.width_east(rowc, colc, 1:d_end)   = width_east(final_idx);   % Width east [m]
-            SubgridTables.width_north(rowc, colc, 1:d_end)  = width_north(final_idx);  % Width north [m]
-            SubgridTables.Rh_east(rowc, colc, 1:d_end)      = Rh_east(final_idx);      % Hydraulic radius east [m]
-            SubgridTables.Rh_north(rowc, colc, 1:d_end)     = Rh_north(final_idx);     % Hydraulic radius north [m]
-            
-            % Optional: show progress percentage in command window
-            cell_count = (rowc - 1) * ncols_coarse + colc;                   % Current cell index
-            total_cells = nrows_coarse * ncols_coarse;                       % Total number of coarse cells
-            if mod(cell_count, 100) == 0 || cell_count == total_cells        % Print every 100 or at end
-                fprintf('Subgrid Preprocessing Progress: %6.2f%% (%d of %d cells)\n', ...
-                    100 * cell_count / total_cells, cell_count, total_cells);
+            zf_min = min(z_face);
+            eta_vec = zf_min + depth_axis;
+
+            area_face = zeros(nz,1,'like',DEM);
+
+            for k = 1:nz
+                eta = eta_vec(k);
+
+                d = eta - z_face;
+                d(d < 0) = 0;
+
+                area_face(k) = sum(d) * cellsize;
             end
 
+            SubgridTables.invert_x(rowc,colc)  = zf_min;
+            SubgridTables.eta_top_x(rowc,colc) = eta_vec(end);
+            SubgridTables.eta_x(rowc,colc,:)   = reshape(eta_vec,   1,1,nz);
+            SubgridTables.area_x(rowc,colc,:)  = reshape(area_face, 1,1,nz);
 
+            face_count = face_count + 1;
+            if verbose && (mod(face_count,100)==0 || face_count==total_xfaces)
+                fprintf('Subgrid x-face preprocessing: %6.2f%% (%d of %d)\n', ...
+                    100*face_count/total_xfaces, face_count, total_xfaces);
+            end
         end
     end
+end
+
+% ======================================================================
+% 3) SHARED Y-FACE TABLES: eta -> wetted face area
+%    Face between cell(rowc,colc) and cell(rowc+1,colc)
+% ======================================================================
+if nrows_coarse > 1
+    total_yfaces = (nrows_coarse - 1) * ncols_coarse;
+    face_count = 0;
+
+    for rowc = 1:(nrows_coarse-1)
+        for colc = 1:ncols_coarse
+
+            south_patch = cellPatch{rowc,colc};
+            north_patch = cellPatch{rowc+1,colc};
+
+            if isempty(south_patch) || isempty(north_patch) || ...
+               all(isnan(south_patch(:))) || all(isnan(north_patch(:)))
+                face_count = face_count + 1;
+                continue;
+            end
+
+            % Shared y-face:
+            % north edge of south cell and south edge of north cell
+            south_edge = south_patch(1,:);
+            north_edge = north_patch(end,:);
+
+            valid_face = ~isnan(south_edge) & ~isnan(north_edge);
+
+            if ~any(valid_face)
+                face_count = face_count + 1;
+                continue;
+            end
+
+            z_face = max(south_edge(valid_face), north_edge(valid_face));
+
+            zf_min = min(z_face);
+            eta_vec = zf_min + depth_axis;
+
+            area_face = zeros(nz,1,'like',DEM);
+
+            for k = 1:nz
+                eta = eta_vec(k);
+
+                d = eta - z_face;
+                d(d < 0) = 0;
+
+                area_face(k) = sum(d) * cellsize;
+            end
+
+            SubgridTables.invert_y(rowc,colc)  = zf_min;
+            SubgridTables.eta_top_y(rowc,colc) = eta_vec(end);
+            SubgridTables.eta_y(rowc,colc,:)   = reshape(eta_vec,   1,1,nz);
+            SubgridTables.area_y(rowc,colc,:)  = reshape(area_face, 1,1,nz);
+
+            face_count = face_count + 1;
+            if verbose && (mod(face_count,100)==0 || face_count==total_yfaces)
+                fprintf('Subgrid y-face preprocessing: %6.2f%% (%d of %d)\n', ...
+                    100*face_count/total_yfaces, face_count, total_yfaces);
+            end
+        end
+    end
+end
+
 end

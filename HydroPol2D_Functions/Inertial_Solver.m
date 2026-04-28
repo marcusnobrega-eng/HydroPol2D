@@ -1,5 +1,4 @@
-function [q] = Inertial_Solver(flag_numerical_scheme,q_p,dt,Hf,S,n,dx,idx_nan)
-% Calculates solution of Local Inertial Model
+function [q] = Inertial_Solver(flag_numerical_scheme,q_p,dt,Hf,S,n_sq,dx,idx_nan)% Calculates solution of Local Inertial Model
 %
 % Input:
 % flag_numerical_scheme: chooses which numerical scheme is used
@@ -10,7 +9,7 @@ function [q] = Inertial_Solver(flag_numerical_scheme,q_p,dt,Hf,S,n,dx,idx_nan)
 % dt: time-step in seconds
 % Hf: effective flow depth in the interface [m]
 % S: water surface elevation slope [m/m] at
-% n: manning's roughness coefficient [sm-1/3]
+% n_sq: manning's roughness coefficient squared [sm-1/3]^2
 % dx: space discretizaion [m]
 % idx_nan: cells outside of the domain
 %
@@ -19,10 +18,11 @@ function [q] = Inertial_Solver(flag_numerical_scheme,q_p,dt,Hf,S,n,dx,idx_nan)
 
 g = 9.81; % Gravity acceleration [m2/s]
 
+
 %% Original Bates Formulation
 if flag_numerical_scheme == 1
     q = (q_p - g*Hf*dt.*S)./ ...
-        (1 + g*dt.*n.^2.*abs(q_p)./(Hf.^(7/3))); % m2 per sec (Hf can be simplified)
+        (1 + g*dt.*n_sq.*abs(q_p)./(Hf.^(7/3))); % m2 per sec (Hf can be simplified)
 end
 
 %% Upwind Scheme
@@ -74,7 +74,7 @@ if flag_numerical_scheme == 2
 
     %%% Flow
     q = (theta.*q_p + (1-theta).*(q_upwind) - g*Hf*dt.*S)./ ...
-        (1 + g*dt.*n.^2.*abs(total_flux)./(Hf.^(7/3))); % m2 per sec
+        (1 + g*dt.*n_sq.*abs(total_flux)./(Hf.^(7/3))); % m2 per sec
 end
 
 %% ------ s-centered scheme ----- %
@@ -117,7 +117,7 @@ if flag_numerical_scheme == 3
 
     % Flow
     q = (theta.*q_p + (1-theta).*(q_average) - g*Hf*dt.*S)./ ...
-        (1 + g*dt.*n.^2.*abs(total_flux)./(Hf.^(7/3))); % m2 per sec (Hf can be simplified)
+        (1 + g*dt.*n_sq.*abs(total_flux)./(Hf.^(7/3))); % m2 per sec (Hf can be simplified)
 end
 
 end
