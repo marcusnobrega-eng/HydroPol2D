@@ -1,0 +1,4 @@
+Soil_type,Index,ksat_mm_h,n_vg,alpha_vg_1_m,theta_sat,theta_r,theta_i,Sy,ksat_gw_mm_h,Soil_Depth_m,Ltop_m,dh_max_m,l_vg
+left,1,0.5,1.2,2,0.385,0.068,0.0997,0.317,6,0.3,0.05,1,0.5
+right,2,0.3,1.09,0.8,0.385,0.068,0.0997,0.317,6,0.3,0.05,1,0.5
+center,3,0.3,1.09,0.8,0.385,0.068,0.0997,0.317,6,0.3,0.05,1,0.5

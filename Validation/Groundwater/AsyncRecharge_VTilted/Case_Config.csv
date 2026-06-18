@@ -1,0 +1,5 @@
+case_id,case_name,regime,domain,reference_type,expected_behavior
+P1-GW-ASYNC-001,Constant recharge water-table rise,local_recharge,V-tilted,analytical,Final water-table rise equals cumulative recharge divided by specific yield.
+P1-GW-ASYNC-002,Recharge accumulation equivalence,scheduler_equivalence,V-tilted,numerical_reference,Async and legacy per-step groundwater updates conserve the same final recharge volume and groundwater storage.
+P1-GW-CAP-001,Capillary rise drawdown,capillary_rise,V-tilted,analytical_formula,Shallow groundwater supplies root-zone storage and lowers the water table by the transferred water depth divided by specific yield.
+P1-GW-MOUND-001,Boussinesq recharge mound,boussinesq_mound,V-tilted,numerical_reference,A recharge pulse produces a groundwater mound close to the fine-timestep reference solution.

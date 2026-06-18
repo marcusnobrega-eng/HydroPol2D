@@ -16,7 +16,11 @@ if flags.flag_human_instability == 1
     % Hydrodynamic Force
     Human_Instability.hydro_force = max(1/2*(Human_Instability.Cd.*Human_Instability.ro_water.*Human_Instability.width1_person*h.*v.^2),0);
     % Risk Factor
-    Human_Instability.risk_t = min(Human_Instability.hydro_force./Human_Instability.available_friction,1);
+    Human_Instability.risk_t = zeros(size(h));
+    idx_supported = Human_Instability.available_friction > 0;
+    Human_Instability.risk_t(idx_supported) = Human_Instability.hydro_force(idx_supported)./Human_Instability.available_friction(idx_supported);
+    Human_Instability.risk_t(~idx_supported & h > 0) = 1;
+    Human_Instability.risk_t = min(max(Human_Instability.risk_t,0),1);
     Human_Instability.risk_t(idx_nan) = nan;
     Human_Instability.max_risk = max(Human_Instability.risk_t,Human_Instability.max_risk); % Max value
 

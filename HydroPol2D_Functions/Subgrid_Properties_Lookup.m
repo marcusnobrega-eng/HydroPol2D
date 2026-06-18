@@ -1,345 +1,510 @@
-function [SubgridTables, invert_el] = Subgrid_Properties_Lookup(DEM_raster, Reference_raster, coarse_res, varargin)
-%--------------------------------------------------------------------------
-% Subgrid_Properties_Lookup (PAPER-STYLE LOOKUP TABLE VERSION)
+function [SubgridTables, invert_el] = Subgrid_Properties_Lookup( ...
+    DEM_raster, Roughness_raster, Reference_raster, coarse_res, varargin)
+%SUBGRID_PROPERTIES_LOOKUP Build SFINCS-style lookup-subgrid tables.
 %
-% PURPOSE
-%   Build subgrid hydraulic lookup tables consistent with the paper:
+% This routine follows the subgrid corrections for the linear inertial
+% equations described by van Ormondt et al. (2025). The production solver
+% uses the SFINCS fields below:
 %
-%     1) Cell-centered storage functions:
-%           eta  -> wetted volume
-%           eta  -> wetted area   (optional but useful)
+%   Cell continuity points:
+%       z_zmin, z_zmax, z_volmax, z_level
 %
-%     2) Shared-face conveyance functions:
-%           eta  -> wetted face area
+%   Velocity points:
+%       u_zmin, u_zmax, u_havg, u_nrep, u_pwet, u_navg, u_ffit
+%       v_zmin, v_zmax, v_havg, v_nrep, v_pwet, v_navg, v_ffit
 %
-%   where eta is the WATER SURFACE ELEVATION (absolute elevation, [m]).
-%
-% MAIN IDEA
-%   - Coarse-cell storage is represented by the fine DEM contained inside
-%     each coarse cell.
-%   - Shared-face conveyance is represented by a COMMON INTERFACE built from
-%     BOTH neighboring coarse cells:
-%           z_face = max(edge_current, edge_neighbor)
-%   - If one side is NaN, that fine face segment is closed.
-%   - If all segments are invalid, the whole face is no-flow.
-%
-% WHY THIS MATCHES THE PAPER
-%   - Runtime local-inertial solver should use:
-%         * cell volume <-> eta
-%         * face area    <- eta
-%   - No single coarse-cell bed elevation is used as the governing storage
-%     geometry. Instead, the full within-cell topography defines V(eta).
-%
-% INPUTS
-%   DEM_raster.Z          : fine DEM [m]
-%   DEM_raster.cellsize   : fine resolution [m]
-%   Reference_raster.Z    : coarse grid shape (dimensions used)
-%   coarse_res            : coarse cell size [m]
-%
-% OPTIONAL NAME-VALUE
-%   'dz'       : vertical lookup spacing [m], default = 0.25
-%   'maxDepth' : maximum tabulated depth ABOVE local invert [m], default = 10.0
-%   'tol_rel'  : tolerance for coarse_res/cellsize non-integer ratio, default = 5e-3
-%   'verbose'  : true/false progress printing, default = true
-%
-% OUTPUTS
-%   SubgridTables:
-%
-%       % Global depth axis (relative, for convenience only)
-%       .depth_axis             [1 x nz]
-%       .dz                     scalar
-%       .maxDepth               scalar
-%       .is_uniform             logical = true
-%
-%       % ---------------- CELL-CENTERED TABLES ----------------
-%       .eta_cell               [nyc x nxc x nz]   absolute water surface elevations [m]
-%       .area_cell              [nyc x nxc x nz]   wetted plan area [m^2]
-%       .volume_cell            [nyc x nxc x nz]   wetted volume [m^3]
-%       .invert_el              [nyc x nxc]        minimum fine elevation in cell [m]
-%       .eta_top_cell           [nyc x nxc]        highest tabulated eta [m]
-%       .Vmax_cell              [nyc x nxc]        highest tabulated volume [m^3]
-%
-%       % ---------------- SHARED X-FACE TABLES ----------------
-%       .eta_x                  [nyc x (nxc-1) x nz]   absolute water surface elevations [m]
-%       .area_x                 [nyc x (nxc-1) x nz]   wetted shared-face area [m^2]
-%       .invert_x               [nyc x (nxc-1)]        minimum common-face elevation [m]
-%       .eta_top_x              [nyc x (nxc-1)]        highest tabulated eta [m]
-%
-%       % ---------------- SHARED Y-FACE TABLES ----------------
-%       .eta_y                  [(nyc-1) x nxc x nz]   absolute water surface elevations [m]
-%       .area_y                 [(nyc-1) x nxc x nz]   wetted shared-face area [m^2]
-%       .invert_y               [(nyc-1) x nxc]        minimum common-face elevation [m]
-%       .eta_top_y              [(nyc-1) x nxc]        highest tabulated eta [m]
-%
-% NOTES
-%   - The paper fundamentally needs:
-%         * cell volume vs water surface elevation
-%         * shared-face area vs water surface elevation
-%   - The inverse relation eta(V) is obtained later by interpolation
-%     through the stored monotonic tables volume_cell <-> eta_cell.
-%   - This function assumes the fine DEM and coarse grid are aligned.
-%--------------------------------------------------------------------------
+% Legacy HydroPol fields are also populated as aliases for diagnostics and
+% older plotting routines, but lookup-subgrid routing should query the
+% SFINCS fields directly.
 
-% ---------------- Parse options ----------------
 p = inputParser;
-p.addParameter('dz', 0.25, @(x)isscalar(x) && x > 0);
-p.addParameter('maxDepth', 10.0, @(x)isscalar(x) && x > 0);
+p.addParameter('nr_levels', 20, @(x)isscalar(x) && x >= 2);
+p.addParameter('nlevels', [], @(x)isempty(x) || (isscalar(x) && x >= 2));
 p.addParameter('tol_rel', 5e-3, @(x)isscalar(x) && x > 0);
 p.addParameter('verbose', true, @(x)islogical(x) || isnumeric(x));
+% Accepted only for backward compatibility with earlier HydroPol configs.
+p.addParameter('dz', [], @(x)isempty(x) || (isscalar(x) && x > 0));
+p.addParameter('maxDepth', [], @(x)isempty(x) || (isscalar(x) && x > 0));
 p.parse(varargin{:});
 
-dz       = p.Results.dz;
-maxDepth = p.Results.maxDepth;
-tol_rel  = p.Results.tol_rel;
-verbose  = logical(p.Results.verbose);
+if ~isempty(p.Results.nlevels)
+    nr_levels = round(p.Results.nlevels);
+else
+    nr_levels = round(p.Results.nr_levels);
+end
+tol_rel = p.Results.tol_rel;
+verbose = logical(p.Results.verbose);
 
-DEM      = DEM_raster.Z;
-cellsize = DEM_raster.cellsize;
+DEM = double(DEM_raster.Z);
+cellsize = double(DEM_raster.cellsize);
+ROUGH_INPUT = double(Roughness_raster.Z);
+ROUGH_INPUT(~isfinite(ROUGH_INPUT) | ROUGH_INPUT <= 0) = NaN;
 
-% ---------------- Ratio check ----------------
+roughness_is_fine = isequal(size(ROUGH_INPUT), size(DEM));
+roughness_is_coarse = isequal(size(ROUGH_INPUT), size(Reference_raster.Z));
+if ~roughness_is_fine && ~roughness_is_coarse
+    error(['Roughness_raster.Z must either match DEM_raster.Z for fine subgrid ', ...
+           'roughness or Reference_raster.Z for coarse fallback roughness.']);
+end
+if roughness_is_coarse
+    warning('Subgrid_Properties_Lookup:coarseRoughnessFallback', ...
+        ['Using coarse Manning values as a fallback for subgrid roughness. ', ...
+         'Fine-resolution Manning is preferred for SFINCS-style tables.']);
+end
+
 r = coarse_res / cellsize;
 r_round = round(r);
 rel_err = abs(r - r_round) / max(r, eps);
-
 if rel_err > tol_rel
-    warning(['coarse_res/cellsize is not ~integer (r = %.6f). ' ...
-             'Shared-face mapping may drift. Strongly recommend resampling DEM ' ...
-             'so coarse_res is an exact multiple of cellsize.'], r);
+    warning('Subgrid_Properties_Lookup:nonIntegerRatio', ...
+        ['coarse_res/cellsize is not approximately integer (r = %.6f). ', ...
+         'SFINCS-style subgrid tables require an exact or near-exact ', ...
+         'coarse-to-fine ratio.'], r);
+end
+if mod(r_round, 2) ~= 0
+    error('Subgrid_Properties_Lookup:oddRefinementRatio', ...
+        ['SFINCS-style velocity-point tables require an even integer ', ...
+         'coarse-to-fine refinement ratio. Got r = %d.'], r_round);
 end
 
 [nrows, ncols] = size(DEM);
-nrows_coarse = size(Reference_raster.Z,1);
-ncols_coarse = size(Reference_raster.Z,2);
+nrows_coarse = size(Reference_raster.Z, 1);
+ncols_coarse = size(Reference_raster.Z, 2);
 
-% ---------------- Uniform relative depth axis ----------------
-% This is only a GENERIC relative axis. Absolute eta axes differ by cell/face
-% because each cell/face has its own invert.
-depth_axis = 0:dz:maxDepth;
-nz = numel(depth_axis);
-
-% ---------------- Preallocate outputs ----------------
 SubgridTables = struct();
+SubgridTables.sfincs_exact = true;
+SubgridTables.nr_levels = nr_levels;
+SubgridTables.cellsize = cellsize;
+SubgridTables.coarse_res = coarse_res;
+SubgridTables.cell_area = coarse_res^2;
 
-SubgridTables.depth_axis = depth_axis;
-SubgridTables.dz         = dz;
-SubgridTables.maxDepth   = maxDepth;
-SubgridTables.is_uniform = true;
+% Compatibility metadata for older helpers; exact SFINCS mode does not use
+% a fixed vertical-depth axis.
+SubgridTables.depth_axis = 0:(nr_levels-1);
+SubgridTables.dz = 1;
+SubgridTables.maxDepth = nr_levels - 1;
+SubgridTables.is_uniform = false;
 
-% ---------------- CELL TABLES ----------------
-SubgridTables.eta_cell    = NaN(nrows_coarse, ncols_coarse, nz, 'like', DEM);
-SubgridTables.area_cell   = NaN(nrows_coarse, ncols_coarse, nz, 'like', DEM);
-SubgridTables.volume_cell = NaN(nrows_coarse, ncols_coarse, nz, 'like', DEM);
+SubgridTables.z_zmin = NaN(nrows_coarse, ncols_coarse);
+SubgridTables.z_zmax = NaN(nrows_coarse, ncols_coarse);
+SubgridTables.z_volmax = NaN(nrows_coarse, ncols_coarse);
+SubgridTables.z_level = NaN(nrows_coarse, ncols_coarse, nr_levels);
+SubgridTables.z_volume = NaN(nrows_coarse, ncols_coarse, nr_levels);
+SubgridTables.z_area = NaN(nrows_coarse, ncols_coarse, nr_levels);
 
-invert_el                 = NaN(nrows_coarse, ncols_coarse, 'like', DEM);
-SubgridTables.invert_el   = NaN(nrows_coarse, ncols_coarse, 'like', DEM);
-SubgridTables.eta_top_cell= NaN(nrows_coarse, ncols_coarse, 'like', DEM);
-SubgridTables.Vmax_cell   = NaN(nrows_coarse, ncols_coarse, 'like', DEM);
+nxface = max(ncols_coarse - 1, 1);
+nyface = max(nrows_coarse - 1, 1);
+SubgridTables.u_zmin = NaN(nrows_coarse, nxface);
+SubgridTables.u_zmax = NaN(nrows_coarse, nxface);
+SubgridTables.u_havg = NaN(nrows_coarse, nxface, nr_levels);
+SubgridTables.u_nrep = NaN(nrows_coarse, nxface, nr_levels);
+SubgridTables.u_pwet = NaN(nrows_coarse, nxface, nr_levels);
+SubgridTables.u_navg = NaN(nrows_coarse, nxface);
+SubgridTables.u_ffit = NaN(nrows_coarse, nxface);
 
-% ---------------- SHARED X-FACE TABLES ----------------
-nxface = max(ncols_coarse-1,1);
-SubgridTables.eta_x     = NaN(nrows_coarse, nxface, nz, 'like', DEM);
-SubgridTables.area_x    = NaN(nrows_coarse, nxface, nz, 'like', DEM);
-SubgridTables.invert_x  = NaN(nrows_coarse, nxface, 'like', DEM);
-SubgridTables.eta_top_x = NaN(nrows_coarse, nxface, 'like', DEM);
+SubgridTables.v_zmin = NaN(nyface, ncols_coarse);
+SubgridTables.v_zmax = NaN(nyface, ncols_coarse);
+SubgridTables.v_havg = NaN(nyface, ncols_coarse, nr_levels);
+SubgridTables.v_nrep = NaN(nyface, ncols_coarse, nr_levels);
+SubgridTables.v_pwet = NaN(nyface, ncols_coarse, nr_levels);
+SubgridTables.v_navg = NaN(nyface, ncols_coarse);
+SubgridTables.v_ffit = NaN(nyface, ncols_coarse);
 
-% ---------------- SHARED Y-FACE TABLES ----------------
-nyface = max(nrows_coarse-1,1);
-SubgridTables.eta_y     = NaN(nyface, ncols_coarse, nz, 'like', DEM);
-SubgridTables.area_y    = NaN(nyface, ncols_coarse, nz, 'like', DEM);
-SubgridTables.invert_y  = NaN(nyface, ncols_coarse, 'like', DEM);
-SubgridTables.eta_top_y = NaN(nyface, ncols_coarse, 'like', DEM);
+for side_name = ["north", "south", "west", "east"]
+    s = char(side_name);
+    SubgridTables.([s '_zmin']) = NaN(nrows_coarse, ncols_coarse);
+    SubgridTables.([s '_zmax']) = NaN(nrows_coarse, ncols_coarse);
+    SubgridTables.([s '_havg']) = NaN(nrows_coarse, ncols_coarse, nr_levels);
+    SubgridTables.([s '_nrep']) = NaN(nrows_coarse, ncols_coarse, nr_levels);
+    SubgridTables.([s '_pwet']) = NaN(nrows_coarse, ncols_coarse, nr_levels);
+    SubgridTables.([s '_navg']) = NaN(nrows_coarse, ncols_coarse);
+    SubgridTables.([s '_ffit']) = NaN(nrows_coarse, ncols_coarse);
+end
 
-% ---------------- Index mapping ----------------
 row_idx_start = floor((0:nrows_coarse-1) * coarse_res / cellsize) + 1;
-row_idx_end   = floor((1:nrows_coarse)   * coarse_res / cellsize);
+row_idx_end = floor((1:nrows_coarse) * coarse_res / cellsize);
 col_idx_start = floor((0:ncols_coarse-1) * coarse_res / cellsize) + 1;
-col_idx_end   = floor((1:ncols_coarse)   * coarse_res / cellsize);
+col_idx_end = floor((1:ncols_coarse) * coarse_res / cellsize);
 
-% Cache coarse-cell DEM patches for face stage
 cellPatch = cell(nrows_coarse, ncols_coarse);
+roughPatch = cell(nrows_coarse, ncols_coarse);
 
-% ======================================================================
-% 1) CELL-CENTERED STORAGE TABLES: eta -> area, volume
-% ======================================================================
+invert_el = NaN(nrows_coarse, ncols_coarse);
+
 total_cells = nrows_coarse * ncols_coarse;
 cell_count = 0;
+for rowc = 1:nrows_coarse
+    for colc = 1:ncols_coarse
+        row_idx = row_idx_start(rowc):min(nrows, row_idx_end(rowc));
+        col_idx = col_idx_start(colc):min(ncols, col_idx_end(colc));
+        sub_DEM = DEM(row_idx, col_idx);
+        if roughness_is_fine
+            sub_ROUGH = ROUGH_INPUT(row_idx, col_idx);
+        else
+            sub_ROUGH = ROUGH_INPUT(rowc, colc) .* ones(size(sub_DEM));
+        end
+
+        cellPatch{rowc, colc} = sub_DEM;
+        roughPatch{rowc, colc} = sub_ROUGH;
+
+        [zmin, zmax, volmax, z_level, z_volume, z_area] = ...
+            sfincs_cell_table(sub_DEM, cellsize, nr_levels);
+
+        SubgridTables.z_zmin(rowc, colc) = zmin;
+        SubgridTables.z_zmax(rowc, colc) = zmax;
+        SubgridTables.z_volmax(rowc, colc) = volmax;
+        SubgridTables.z_level(rowc, colc, :) = reshape(z_level, 1, 1, nr_levels);
+        SubgridTables.z_volume(rowc, colc, :) = reshape(z_volume, 1, 1, nr_levels);
+        SubgridTables.z_area(rowc, colc, :) = reshape(z_area, 1, 1, nr_levels);
+        invert_el(rowc, colc) = zmin;
+
+        cell_count = cell_count + 1;
+        if verbose && (mod(cell_count, 100) == 0 || cell_count == total_cells)
+            fprintf('SFINCS subgrid cell tables: %6.2f%% (%d of %d)\n', ...
+                100 * cell_count / total_cells, cell_count, total_cells);
+        end
+    end
+end
+
+SubgridTables.invert_el = invert_el;
+
+if ncols_coarse > 1
+    total_u = nrows_coarse * (ncols_coarse - 1);
+    face_count = 0;
+    for rowc = 1:nrows_coarse
+        for colc = 1:(ncols_coarse-1)
+            [tbl] = sfincs_velocity_table( ...
+                cellPatch{rowc, colc}, cellPatch{rowc, colc+1}, ...
+                roughPatch{rowc, colc}, roughPatch{rowc, colc+1}, ...
+                nr_levels, 'u');
+            SubgridTables = assign_velocity_table(SubgridTables, 'u', rowc, colc, tbl);
+            face_count = face_count + 1;
+            if verbose && (mod(face_count, 100) == 0 || face_count == total_u)
+                fprintf('SFINCS subgrid u tables:    %6.2f%% (%d of %d)\n', ...
+                    100 * face_count / total_u, face_count, total_u);
+            end
+        end
+    end
+end
+
+if nrows_coarse > 1
+    total_v = (nrows_coarse - 1) * ncols_coarse;
+    face_count = 0;
+    for rowc = 1:(nrows_coarse-1)
+        for colc = 1:ncols_coarse
+            [tbl] = sfincs_velocity_table( ...
+                cellPatch{rowc, colc}, cellPatch{rowc+1, colc}, ...
+                roughPatch{rowc, colc}, roughPatch{rowc+1, colc}, ...
+                nr_levels, 'v');
+            SubgridTables = assign_velocity_table(SubgridTables, 'v', rowc, colc, tbl);
+            face_count = face_count + 1;
+            if verbose && (mod(face_count, 100) == 0 || face_count == total_v)
+                fprintf('SFINCS subgrid v tables:    %6.2f%% (%d of %d)\n', ...
+                    100 * face_count / total_v, face_count, total_v);
+            end
+        end
+    end
+end
 
 for rowc = 1:nrows_coarse
     for colc = 1:ncols_coarse
-
-        row_idx = row_idx_start(rowc):min(nrows, row_idx_end(rowc));
-        col_idx = col_idx_start(colc):min(ncols, col_idx_end(colc));
-
-        sub_DEM = DEM(row_idx, col_idx);
-        cellPatch{rowc,colc} = sub_DEM;
-
-        if isempty(sub_DEM) || all(isnan(sub_DEM(:)))
-            cell_count = cell_count + 1;
+        patch = cellPatch{rowc, colc};
+        rough = roughPatch{rowc, colc};
+        if isempty(patch) || all(~isfinite(patch(:)))
             continue;
         end
-
-        sub_vec = sub_DEM(:);
-        valid = ~isnan(sub_vec);
-
-        zmin = min(sub_vec(valid));
-        invert_el(rowc,colc)               = zmin;
-        SubgridTables.invert_el(rowc,colc) = zmin;
-
-        eta_vec     = zmin + depth_axis;
-        area_vec    = zeros(nz,1,'like',DEM);
-        volume_vec  = zeros(nz,1,'like',DEM);
-
-        for k = 1:nz
-            eta = eta_vec(k);
-
-            d = eta - sub_vec;
-            d(~valid) = 0;
-            d(d < 0) = 0;
-
-            wet = d > 0;
-
-            area_vec(k)   = sum(wet) * cellsize^2;
-            volume_vec(k) = sum(d)   * cellsize^2;
-        end
-
-        SubgridTables.eta_cell(rowc,colc,:)    = reshape(eta_vec,    1,1,nz);
-        SubgridTables.area_cell(rowc,colc,:)   = reshape(area_vec,   1,1,nz);
-        SubgridTables.volume_cell(rowc,colc,:) = reshape(volume_vec, 1,1,nz);
-
-        SubgridTables.eta_top_cell(rowc,colc)  = eta_vec(end);
-        SubgridTables.Vmax_cell(rowc,colc)     = volume_vec(end);
-
-        cell_count = cell_count + 1;
-        if verbose && (mod(cell_count,100)==0 || cell_count==total_cells)
-            fprintf('Subgrid cell preprocessing: %6.2f%% (%d of %d)\n', ...
-                100*cell_count/total_cells, cell_count, total_cells);
+        edge_specs = {'north'; 'south'; 'west'; 'east'};
+        for iside = 1:size(edge_specs, 1)
+            side = edge_specs{iside, 1};
+            tbl = sfincs_velocity_table_single(patch, rough, nr_levels, side);
+            SubgridTables = assign_boundary_table(SubgridTables, side, rowc, colc, tbl);
         end
     end
 end
 
-% ======================================================================
-% 2) SHARED X-FACE TABLES: eta -> wetted face area
-%    Face between cell(rowc,colc) and cell(rowc,colc+1)
-% ======================================================================
-if ncols_coarse > 1
-    total_xfaces = nrows_coarse * (ncols_coarse - 1);
-    face_count = 0;
-
-    for rowc = 1:nrows_coarse
-        for colc = 1:(ncols_coarse-1)
-
-            left_patch  = cellPatch{rowc,colc};
-            right_patch = cellPatch{rowc,colc+1};
-
-            if isempty(left_patch) || isempty(right_patch) || ...
-               all(isnan(left_patch(:))) || all(isnan(right_patch(:)))
-                face_count = face_count + 1;
-                continue;
-            end
-
-            % Shared x-face:
-            % east edge of left cell and west edge of right cell
-            left_edge  = left_patch(:,end);
-            right_edge = right_patch(:,1);
-
-            valid_face = ~isnan(left_edge) & ~isnan(right_edge);
-
-            if ~any(valid_face)
-                face_count = face_count + 1;
-                continue;
-            end
-
-            % Conservative common interface as in the paper logic:
-            z_face = max(left_edge(valid_face), right_edge(valid_face));
-
-            zf_min = min(z_face);
-            eta_vec = zf_min + depth_axis;
-
-            area_face = zeros(nz,1,'like',DEM);
-
-            for k = 1:nz
-                eta = eta_vec(k);
-
-                d = eta - z_face;
-                d(d < 0) = 0;
-
-                area_face(k) = sum(d) * cellsize;
-            end
-
-            SubgridTables.invert_x(rowc,colc)  = zf_min;
-            SubgridTables.eta_top_x(rowc,colc) = eta_vec(end);
-            SubgridTables.eta_x(rowc,colc,:)   = reshape(eta_vec,   1,1,nz);
-            SubgridTables.area_x(rowc,colc,:)  = reshape(area_face, 1,1,nz);
-
-            face_count = face_count + 1;
-            if verbose && (mod(face_count,100)==0 || face_count==total_xfaces)
-                fprintf('Subgrid x-face preprocessing: %6.2f%% (%d of %d)\n', ...
-                    100*face_count/total_xfaces, face_count, total_xfaces);
-            end
-        end
-    end
+SubgridTables = add_legacy_aliases(SubgridTables);
 end
 
-% ======================================================================
-% 3) SHARED Y-FACE TABLES: eta -> wetted face area
-%    Face between cell(rowc,colc) and cell(rowc+1,colc)
-% ======================================================================
-if nrows_coarse > 1
-    total_yfaces = (nrows_coarse - 1) * ncols_coarse;
-    face_count = 0;
-
-    for rowc = 1:(nrows_coarse-1)
-        for colc = 1:ncols_coarse
-
-            south_patch = cellPatch{rowc,colc};
-            north_patch = cellPatch{rowc+1,colc};
-
-            if isempty(south_patch) || isempty(north_patch) || ...
-               all(isnan(south_patch(:))) || all(isnan(north_patch(:)))
-                face_count = face_count + 1;
-                continue;
-            end
-
-            % Shared y-face:
-            % north edge of south cell and south edge of north cell
-            south_edge = south_patch(1,:);
-            north_edge = north_patch(end,:);
-
-            valid_face = ~isnan(south_edge) & ~isnan(north_edge);
-
-            if ~any(valid_face)
-                face_count = face_count + 1;
-                continue;
-            end
-
-            z_face = max(south_edge(valid_face), north_edge(valid_face));
-
-            zf_min = min(z_face);
-            eta_vec = zf_min + depth_axis;
-
-            area_face = zeros(nz,1,'like',DEM);
-
-            for k = 1:nz
-                eta = eta_vec(k);
-
-                d = eta - z_face;
-                d(d < 0) = 0;
-
-                area_face(k) = sum(d) * cellsize;
-            end
-
-            SubgridTables.invert_y(rowc,colc)  = zf_min;
-            SubgridTables.eta_top_y(rowc,colc) = eta_vec(end);
-            SubgridTables.eta_y(rowc,colc,:)   = reshape(eta_vec,   1,1,nz);
-            SubgridTables.area_y(rowc,colc,:)  = reshape(area_face, 1,1,nz);
-
-            face_count = face_count + 1;
-            if verbose && (mod(face_count,100)==0 || face_count==total_yfaces)
-                fprintf('Subgrid y-face preprocessing: %6.2f%% (%d of %d)\n', ...
-                    100*face_count/total_yfaces, face_count, total_yfaces);
-            end
-        end
-    end
+function [zmin, zmax, volmax, z_level, z_volume, z_area] = sfincs_cell_table(z_patch, cellsize, nr_levels)
+z = z_patch(:);
+z = z(isfinite(z));
+if isempty(z)
+    zmin = NaN;
+    zmax = NaN;
+    volmax = NaN;
+    z_level = NaN(nr_levels, 1);
+    z_volume = NaN(nr_levels, 1);
+    z_area = NaN(nr_levels, 1);
+    return;
 end
 
+fine_area = cellsize^2;
+zmin = min(z);
+zmax = max(z);
+volmax = sum(max(zmax - z, 0)) * fine_area;
+Vlevels = linspace(0, volmax, nr_levels).';
+z_level = zeros(nr_levels, 1);
+z_area = zeros(nr_levels, 1);
+
+for k = 1:nr_levels
+    z_level(k) = invert_volume_exact(z, Vlevels(k), zmin, zmax, volmax, fine_area);
+    z_area(k) = sum(z_level(k) > z) * fine_area;
+end
+z_volume = Vlevels;
+end
+
+function zs = invert_volume_exact(z, V, zmin, zmax, volmax, fine_area)
+if ~isfinite(V) || V <= 0
+    zs = zmin;
+    return;
+end
+if volmax <= eps || zmax <= zmin
+    zs = zmax + V / (numel(z) * fine_area);
+    return;
+end
+if V >= volmax
+    zs = zmax + (V - volmax) / (numel(z) * fine_area);
+    return;
+end
+lo = zmin;
+hi = zmax;
+for iter = 1:60
+    mid = 0.5 * (lo + hi);
+    Vm = sum(max(mid - z, 0)) * fine_area;
+    if Vm < V
+        lo = mid;
+    else
+        hi = mid;
+    end
+end
+zs = 0.5 * (lo + hi);
+end
+
+function tbl = sfincs_velocity_table(zA, zB, nA, nB, nr_levels, direction)
+[zA, nA, zB, nB] = velocity_point_support(zA, nA, zB, nB, direction);
+zA = zA(:);
+zB = zB(:);
+nA = nA(:);
+nB = nB(:);
+validA = isfinite(zA) & isfinite(nA) & nA > 0;
+validB = isfinite(zB) & isfinite(nB) & nB > 0;
+zA = zA(validA);
+zB = zB(validB);
+nA = nA(validA);
+nB = nB(validB);
+
+if isempty(zA) || isempty(zB)
+    tbl = empty_velocity_table(nr_levels);
+    return;
+end
+
+zmin = max(min(zA), min(zB));
+zmax = max(max(zA), max(zB));
+z = [zA; zB];
+n = [nA; nB];
+tbl = sfincs_velocity_table_from_vectors(z, n, zmin, zmax, nr_levels);
+end
+
+function tbl = sfincs_velocity_table_single(z, n, nr_levels, side)
+[z, n] = boundary_velocity_support(z, n, side);
+z = z(:);
+n = n(:);
+valid = isfinite(z) & isfinite(n) & n > 0;
+z = z(valid);
+n = n(valid);
+if isempty(z)
+    tbl = empty_velocity_table(nr_levels);
+    return;
+end
+zmin = min(z);
+zmax = max(z);
+tbl = sfincs_velocity_table_from_vectors(z, n, zmin, zmax, nr_levels);
+end
+
+function [zA, nA, zB, nB] = velocity_point_support(zA, nA, zB, nB, direction)
+switch lower(char(direction))
+    case 'u'
+        halfA = max(round(size(zA, 2) / 2), 1);
+        halfB = max(round(size(zB, 2) / 2), 1);
+        zA = zA(:, (end-halfA+1):end);
+        nA = nA(:, (end-halfA+1):end);
+        zB = zB(:, 1:halfB);
+        nB = nB(:, 1:halfB);
+    case 'v'
+        halfA = max(round(size(zA, 1) / 2), 1);
+        halfB = max(round(size(zB, 1) / 2), 1);
+        zA = zA((end-halfA+1):end, :);
+        nA = nA((end-halfA+1):end, :);
+        zB = zB(1:halfB, :);
+        nB = nB(1:halfB, :);
+    otherwise
+        error('Subgrid_Properties_Lookup:badVelocityDirection', ...
+            'Velocity direction must be u or v.');
+end
+end
+
+function [z, n] = boundary_velocity_support(z, n, side)
+switch lower(char(side))
+    case 'north'
+        half = max(round(size(z, 1) / 2), 1);
+        z = z(1:half, :);
+        n = n(1:half, :);
+    case 'south'
+        half = max(round(size(z, 1) / 2), 1);
+        z = z((end-half+1):end, :);
+        n = n((end-half+1):end, :);
+    case 'west'
+        half = max(round(size(z, 2) / 2), 1);
+        z = z(:, 1:half);
+        n = n(:, 1:half);
+    case 'east'
+        half = max(round(size(z, 2) / 2), 1);
+        z = z(:, (end-half+1):end);
+        n = n(:, (end-half+1):end);
+    otherwise
+        error('Subgrid_Properties_Lookup:badBoundarySide', ...
+            'Boundary side must be north, south, west, or east.');
+end
+end
+
+function tbl = sfincs_velocity_table_from_vectors(z, n, zmin, zmax, nr_levels)
+tbl = empty_velocity_table(nr_levels);
+if isempty(z) || isempty(n) || ~isfinite(zmin) || ~isfinite(zmax)
+    return;
+end
+
+if zmax > zmin
+    levels = linspace(zmin, zmax, nr_levels).';
+else
+    levels = zmin .* ones(nr_levels, 1);
+end
+
+havg = zeros(nr_levels, 1);
+nrep = Inf(nr_levels, 1);
+pwet = zeros(nr_levels, 1);
+
+for k = 1:nr_levels
+    [havg(k), nrep(k), pwet(k)] = sfincs_velocity_values(levels(k), z, n, zmin);
+end
+
+navg = mean(n, 'omitnan');
+nM = nrep(end);
+HG_M = havg(end);
+dzfit = max(zmax - zmin, eps);
+zfit = zmax + dzfit;
+denom_fit = mean((max(zfit - max(z, zmin), 0).^(5/3)) ./ n, 'omitnan');
+if denom_fit > 0 && isfinite(denom_fit)
+    nfit = (HG_M + zfit - zmax)^(5/3) / denom_fit;
+else
+    nfit = nM;
+end
+if isfinite(navg) && isfinite(nM) && isfinite(nfit) && abs(navg - nfit) > eps
+    beta = ((navg - nM) / (navg - nfit) - 1) / dzfit;
+else
+    beta = 0;
+end
+if ~isfinite(beta)
+    beta = 0;
+end
+
+tbl.zmin = zmin;
+tbl.zmax = zmax;
+tbl.havg = havg;
+tbl.nrep = nrep;
+tbl.pwet = pwet;
+tbl.navg = navg;
+tbl.ffit = beta;
+end
+
+function [havg, nrep, pwet] = sfincs_velocity_values(zu, z, n, zmin)
+h = max(zu - z, 0);
+pwet = mean(h > 0);
+havg = mean(h);
+denom = mean((max(zu - max(z, zmin), 0).^(5/3)) ./ n, 'omitnan');
+if havg > 0 && denom > 0 && isfinite(denom)
+    nrep = havg^(5/3) / denom;
+else
+    nrep = Inf;
+end
+end
+
+function tbl = empty_velocity_table(nr_levels)
+tbl.zmin = NaN;
+tbl.zmax = NaN;
+tbl.havg = NaN(nr_levels, 1);
+tbl.nrep = NaN(nr_levels, 1);
+tbl.pwet = NaN(nr_levels, 1);
+tbl.navg = NaN;
+tbl.ffit = NaN;
+end
+
+function S = assign_velocity_table(S, prefix, rowc, colc, tbl)
+S.([prefix '_zmin'])(rowc, colc) = tbl.zmin;
+S.([prefix '_zmax'])(rowc, colc) = tbl.zmax;
+S.([prefix '_havg'])(rowc, colc, :) = reshape(tbl.havg, 1, 1, []);
+S.([prefix '_nrep'])(rowc, colc, :) = reshape(tbl.nrep, 1, 1, []);
+S.([prefix '_pwet'])(rowc, colc, :) = reshape(tbl.pwet, 1, 1, []);
+S.([prefix '_navg'])(rowc, colc) = tbl.navg;
+S.([prefix '_ffit'])(rowc, colc) = tbl.ffit;
+end
+
+function S = assign_boundary_table(S, side, rowc, colc, tbl)
+S.([side '_zmin'])(rowc, colc) = tbl.zmin;
+S.([side '_zmax'])(rowc, colc) = tbl.zmax;
+S.([side '_havg'])(rowc, colc, :) = reshape(tbl.havg, 1, 1, []);
+S.([side '_nrep'])(rowc, colc, :) = reshape(tbl.nrep, 1, 1, []);
+S.([side '_pwet'])(rowc, colc, :) = reshape(tbl.pwet, 1, 1, []);
+S.([side '_navg'])(rowc, colc) = tbl.navg;
+S.([side '_ffit'])(rowc, colc) = tbl.ffit;
+end
+
+function S = add_legacy_aliases(S)
+S.eta_cell = S.z_level;
+S.volume_cell = S.z_volume;
+S.area_cell = S.z_area;
+S.eta_top_cell = S.z_zmax;
+S.Vmax_cell = S.z_volmax;
+
+S.invert_x = S.u_zmin;
+S.eta_top_x = S.u_zmax;
+S.hrep_x = S.u_havg;
+S.phi_x = S.u_pwet;
+S.wetfrac_x = S.u_pwet;
+S.n_x = S.u_nrep;
+S.nrep_x = S.u_nrep;
+S.area_x = S.u_havg .* S.coarse_res;
+S.width_x = S.u_pwet .* S.coarse_res;
+S.K_x = (1 ./ S.u_nrep) .* max(S.u_havg, 0).^(5/3) .* S.coarse_res;
+S.perimeter_x = NaN(size(S.u_havg));
+S.Rh_x = NaN(size(S.u_havg));
+
+S.invert_y = S.v_zmin;
+S.eta_top_y = S.v_zmax;
+S.hrep_y = S.v_havg;
+S.phi_y = S.v_pwet;
+S.wetfrac_y = S.v_pwet;
+S.n_y = S.v_nrep;
+S.nrep_y = S.v_nrep;
+S.area_y = S.v_havg .* S.coarse_res;
+S.width_y = S.v_pwet .* S.coarse_res;
+S.K_y = (1 ./ S.v_nrep) .* max(S.v_havg, 0).^(5/3) .* S.coarse_res;
+S.perimeter_y = NaN(size(S.v_havg));
+S.Rh_y = NaN(size(S.v_havg));
+
+for side_name = ["north", "south", "west", "east"]
+    side = char(side_name);
+    S.(['invert_' side]) = S.([side '_zmin']);
+    S.(['eta_top_' side]) = S.([side '_zmax']);
+    S.(['hrep_' side]) = S.([side '_havg']);
+    S.(['phi_' side]) = S.([side '_pwet']);
+    S.(['wetfrac_' side]) = S.([side '_pwet']);
+    S.(['n_' side]) = S.([side '_nrep']);
+    S.(['nrep_' side]) = S.([side '_nrep']);
+    S.(['area_' side]) = S.([side '_havg']) .* S.coarse_res;
+    S.(['width_' side]) = S.([side '_pwet']) .* S.coarse_res;
+    S.(['K_' side]) = (1 ./ S.([side '_nrep'])) .* ...
+        max(S.([side '_havg']), 0).^(5/3) .* S.coarse_res;
+    S.(['perimeter_' side]) = NaN(size(S.([side '_havg'])));
+    S.(['Rh_' side]) = NaN(size(S.([side '_havg'])));
+end
 end

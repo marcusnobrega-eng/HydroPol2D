@@ -190,7 +190,7 @@ end
 % minimum bound. Therefore, if we round B_t to the 6th decimal place, we
 % sole this problem.
 
-B_t = round(B_t,6); % Rounding B_t for micrograms, maybe we dont need it
+B_t(abs(B_t) < 1e-12) = 0;
 % B_t(B_t*1000/cell_area < min_Bt) = 0; % smaller than 0.0001 g/m2
 % Adding a constraint in q_out to avoid huge numbers
 % ---------------% Imposing Constraint at Flow Rate  % ---------------% %

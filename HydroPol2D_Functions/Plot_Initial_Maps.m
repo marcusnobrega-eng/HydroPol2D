@@ -114,32 +114,33 @@ end
 
 required_vars = {'DEM_raster','LULC_raster','SOIL_raster'};
 for ii = 1:numel(required_vars)
-    if ~evalin('base', sprintf('exist(''%s'',''var'')', required_vars{ii}))
+    if ~exist(required_vars{ii}, 'var') && ...
+            ~evalin('base', sprintf('exist(''%s'',''var'')', required_vars{ii}))
         error('Required variable "%s" was not found in the workspace.', required_vars{ii});
     end
 end
 
-DEM_raster  = evalin('base','DEM_raster');
-LULC_raster = evalin('base','LULC_raster');
-SOIL_raster = evalin('base','SOIL_raster');
+DEM_raster  = getVarFromWorkspace('DEM_raster', []);
+LULC_raster = getVarFromWorkspace('LULC_raster', []);
+SOIL_raster = getVarFromWorkspace('SOIL_raster', []);
 
-flags              = getVarFromBase('flags', []);
-LAI_raster         = getVarFromBase('LAI_raster', []);
-Albedo_raster      = getVarFromBase('Albedo_raster', []);
-DTB_raster         = getVarFromBase('DTB_raster', []);
-Wshed_Properties   = getVarFromBase('Wshed_Properties', struct());
-Soil_Properties    = getVarFromBase('Soil_Properties', struct());
-LULC_Properties    = getVarFromBase('LULC_Properties', struct());
-WQ_States          = getVarFromBase('WQ_States', struct());
-gauges             = getVarFromBase('gauges', struct());
-Reservoir_Data     = getVarFromBase('Reservoir_Data', struct());
-outlet_index       = getVarFromBase('outlet_index', []);
-Subgrid_Properties = getVarFromBase('Subgrid_Properties', struct());
-GIS_data           = getVarFromBase('GIS_data', struct());
-LULC_name          = getVarFromBase('LULC_name', []);
-SOIL_name          = getVarFromBase('SOIL_name', []);
-LULC_index         = getVarFromBase('LULC_index', []);
-SOIL_index         = getVarFromBase('SOIL_index', []);
+flags              = getVarFromWorkspace('flags', []);
+LAI_raster         = getVarFromWorkspace('LAI_raster', []);
+Albedo_raster      = getVarFromWorkspace('Albedo_raster', []);
+DTB_raster         = getVarFromWorkspace('DTB_raster', []);
+Wshed_Properties   = getVarFromWorkspace('Wshed_Properties', struct());
+Soil_Properties    = getVarFromWorkspace('Soil_Properties', struct());
+LULC_Properties    = getVarFromWorkspace('LULC_Properties', struct());
+WQ_States          = getVarFromWorkspace('WQ_States', struct());
+gauges             = getVarFromWorkspace('gauges', struct());
+Reservoir_Data     = getVarFromWorkspace('Reservoir_Data', struct());
+outlet_index       = getVarFromWorkspace('outlet_index', []);
+Subgrid_Properties = getVarFromWorkspace('Subgrid_Properties', struct());
+GIS_data           = getVarFromWorkspace('GIS_data', struct());
+LULC_name          = getVarFromWorkspace('LULC_name', []);
+SOIL_name          = getVarFromWorkspace('SOIL_name', []);
+LULC_index         = getVarFromWorkspace('LULC_index', []);
+SOIL_index         = getVarFromWorkspace('SOIL_index', []);
 
 %% ======================== LOAD CUSTOM COLORMAPS =========================
 
@@ -646,8 +647,10 @@ close all
 %  LOCAL FUNCTIONS
 % ========================================================================
 
-function val = getVarFromBase(name, defaultVal)
-if evalin('base', sprintf('exist(''%s'',''var'')', name))
+function val = getVarFromWorkspace(name, defaultVal)
+if evalin('caller', sprintf('exist(''%s'',''var'')', name))
+    val = evalin('caller', name);
+elseif evalin('base', sprintf('exist(''%s'',''var'')', name))
     val = evalin('base', name);
 else
     val = defaultVal;

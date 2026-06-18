@@ -1,0 +1,2 @@
+case_id,module,status,driver,expected_behavior,primary_metrics,acceptance_threshold
+HR-001,Human risk and instability,report_ready,run_human_risk_instability_validation.m,"Simple drag-friction instability and detailed slide/topple/drowning classifier match independent force-balance references across deterministic depth/velocity grids and exact boundary cases.","risk_rmse; classification_accuracy_pct; threshold_boundary_error_count; nan_count","RMSE = 0 for deterministic checks, 100% classification agreement, zero boundary errors, zero unexplained NaN"

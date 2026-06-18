@@ -111,6 +111,7 @@ if use_inputpaths_bypass == 1
     Albedo_path = get_inputpaths_field(InputPaths,'Albedo_path','');
     LAI_path    = get_inputpaths_field(InputPaths,'LAI_path','');
     DTB_path    = get_inputpaths_field(InputPaths,'DTB_path','');
+    GW_table_path = get_inputpaths_field(InputPaths,'GW_table_path','');
 
     B1_path = get_inputpaths_field(InputPaths,'B1_path','');
     B2_path = get_inputpaths_field(InputPaths,'B2_path','');
@@ -146,6 +147,15 @@ else
     Albedo_path = xlgetstr(GD,'Albedo_path',"");
     LAI_path    = xlgetstr(GD,'LAI_path',"");
     DTB_path    = xlgetstr(GD,'DTB_path',"");
+    
+    % Optional groundwater table raster path.
+    % If the Excel field does not exist, assume no raster was provided.
+    GW_table_path = "";
+    try
+        GW_table_path = xlgetstr(GD,'GW_table_path',"");
+    catch
+        GW_table_path = "";
+    end
 
     B1_path = xlgetstr(GD,'B1_path',"");
     B2_path = xlgetstr(GD,'B2_path',"");
@@ -200,11 +210,12 @@ SOIL_raster.georef.SpatialRef.ProjectedCRS = crs_save;
 % =========================
 % OPTIONAL RASTERS (read safely)
 % =========================
-DTB_raster    = [];
-LAI_raster    = [];
-Albedo_raster = [];
-widths_raster = [];
-depths_raster = [];
+DTB_raster      = [];
+GW_table_raster = [];
+LAI_raster      = [];
+Albedo_raster   = [];
+widths_raster   = [];
+depths_raster   = [];
 
 if use_inputpaths_bypass == 1
 
@@ -217,7 +228,11 @@ if use_inputpaths_bypass == 1
     if isfile(DTB_path)
         DTB_raster = GRIDobj(char(DTB_path));
     end
-
+    
+    if isfile(GW_table_path)
+        GW_table_raster = GRIDobj(char(GW_table_path));
+    end
+    
     if isfile(LAI_path)
         LAI_raster = GRIDobj(char(LAI_path));
     end
@@ -240,7 +255,17 @@ else
     if (flags.flag_baseflow == 1 || flags.flag_groundwater_modeling == 1) && isfile(DTB_path)
         DTB_raster = GRIDobj(char(DTB_path));
     end
-
+    
+    % Optional initial groundwater table raster.
+    % If GW_table_path is missing, empty, or not a file, GW_table_raster remains [].
+    if (flags.flag_baseflow == 1 || flags.flag_groundwater_modeling == 1) && ...
+            strlength(strtrim(string(GW_table_path))) > 0 && ...
+            isfile(char(GW_table_path))
+    
+        GW_table_raster = GRIDobj(char(GW_table_path));
+    
+    end
+    
     if (flags.flag_abstraction == 1) && isfile(LAI_path)
         LAI_raster = GRIDobj(char(LAI_path));
     end
@@ -294,9 +319,10 @@ if flags.flag_resample == 1
     SOIL_raster = resample(SOIL_raster, DEM_raster, 'nearest');
     SOIL_raster.Z = round(SOIL_raster.Z);
 
-    if ~isempty(DTB_raster),    DTB_raster    = resample(DTB_raster,    DEM_raster, 'bilinear'); end
-    if ~isempty(LAI_raster),    LAI_raster    = resample(LAI_raster,    DEM_raster, 'bilinear'); end
-    if ~isempty(Albedo_raster), Albedo_raster = resample(Albedo_raster, DEM_raster, 'bilinear'); end
+    if ~isempty(DTB_raster),       DTB_raster      = resample(DTB_raster,      DEM_raster, 'bilinear'); end
+    if ~isempty(GW_table_raster),  GW_table_raster = resample(GW_table_raster, DEM_raster, 'bilinear'); end
+    if ~isempty(LAI_raster),       LAI_raster      = resample(LAI_raster,      DEM_raster, 'bilinear'); end
+    if ~isempty(Albedo_raster),    Albedo_raster   = resample(Albedo_raster,   DEM_raster, 'bilinear'); end
     if ~isempty(widths_raster), widths_raster = resample(widths_raster, DEM_raster, 'nearest');  end
     if ~isempty(depths_raster), depths_raster = resample(depths_raster, DEM_raster, 'nearest');  end
 end
@@ -306,6 +332,10 @@ end
 % =========================
 [LULC_raster, SOIL_raster, DTB_raster, LAI_raster, Albedo_raster, widths_raster, depths_raster] = ...
     align_all_to_dem(DEM_raster, LULC_raster, SOIL_raster, DTB_raster, LAI_raster, Albedo_raster, widths_raster, depths_raster);
+
+if ~isempty(GW_table_raster)
+    GW_table_raster = resample(GW_table_raster, DEM_raster, 'bilinear');
+end
 
 % =========================
 % Convert to matrices, domain mask
@@ -342,6 +372,7 @@ LULC_raster.Z = LULC;
 SOIL_raster.Z = SOIL;
 
 if ~isempty(DTB_raster),       DTB_raster.Z(idx_nan) = nan; end
+if ~isempty(GW_table_raster),  GW_table_raster.Z(idx_nan) = nan; end
 if ~isempty(LAI_raster),       LAI_raster.Z(idx_nan) = nan; end
 if ~isempty(Albedo_raster),    Albedo_raster.Z(idx_nan) = nan; end
 if ~isempty(widths_raster),    widths_raster.Z(idx_nan) = nan; end
@@ -355,6 +386,37 @@ Wshed_Properties.cell_area  = Wshed_Properties.Resolution^2;
 [ny,nx] = size(DEM);
 
 input_data_script;  % Load general data, soil, and LULC parameters.
+
+% ------------------------------------------------------------
+% Groundwater flag consistency
+% ------------------------------------------------------------
+if ~isfield(flags, 'flag_groundwater_modeling')
+    flags.flag_groundwater_modeling = 0;
+end
+if ~isfield(flags, 'flag_groundwater_async') || ~isfinite(double(flags.flag_groundwater_async))
+    flags.flag_groundwater_async = 1;
+end
+if ~isfield(flags, 'flag_capillary_rise') || ~isfinite(double(flags.flag_capillary_rise))
+    flags.flag_capillary_rise = 1;
+end
+if ~isfield(flags, 'groundwater_target_dt_min') || ~isfinite(double(flags.groundwater_target_dt_min))
+    flags.groundwater_target_dt_min = 1440;
+end
+if ~isfield(flags, 'groundwater_min_dt_min') || ~isfinite(double(flags.groundwater_min_dt_min))
+    flags.groundwater_min_dt_min = 1;
+end
+if ~isfield(flags, 'groundwater_max_head_change_m') || ~isfinite(double(flags.groundwater_max_head_change_m))
+    flags.groundwater_max_head_change_m = 0.25;
+end
+if ~isfield(flags, 'groundwater_courant') || ~isfinite(double(flags.groundwater_courant))
+    flags.groundwater_courant = 0.25;
+end
+
+if flags.flag_baseflow == 1 && flags.flag_groundwater_modeling == 0
+    error(['Invalid flag combination: flag_baseflow = 1 requires ', ...
+           'flag_groundwater_modeling = 1.']);
+end
+
 
 % ========================================================================
 % From here, keep your existing pipeline:
@@ -476,7 +538,7 @@ min_dem_value = -200; % min value that a dem can have
 
 
 % %% Resampling Maps
-% % In case we want to resample the DEM
+% % In case we want to resample the DEM 
 % if flags.flag_resample == 1
 %     resolution = GIS_data.resolution_resample; % m
 %     % DEM
@@ -559,85 +621,6 @@ min_dem_value = -200; % min value that a dem can have
 % end
 
 
-%% Subgrid Functions
-SubgridTables = [];
-if flags.flag_subgrid == 1 && flags.flag_resample == 1
-    % DEM Treatment and Filtering Algorithms
-    % Fillsinks
-    % max_depth = 0.1; % meters, positive value. If you don't want to use, delete it from the function
-    % DEM_filled = fillsinks(DEM,max_depth);
-    if flags.flag_fill_DEM == 1
-        DEM_filled = fillsinks(DEM_raster); % Filled DEM
-        DIFFDEM = DEM_filled - DEM_raster.Z;
-        DIFFDEM.Z(DIFFDEM.Z==0) = nan;
-        DEM_raster = DEM_filled;
-        % imageschs(DEM_raster,DIFFDEM.Z);
-    end
-
-    % DTM Filter
-    flags.flag_DTM = 1;
-    if flags.flag_DTM == 1
-        slope_threshold = GIS_data.slope_DTM; % percentage
-        DEM_filtered = DTM_Filter(DEM_raster.Z,Wshed_Properties.Resolution,GIS_data.slope_DTM);
-        DEM_raster.Z = DEM_filtered;
-    end
-
-    % Smooth DEM
-    if flags.flag_smooth_cells == 1
-        Vq = imgaussfilt(DEM_raster.Z,'FilterSize',3);
-        dem_diff_smooth = Vq;
-        dem = Vq; % New dem
-        DEM_raster.Z = dem;
-        close all
-    end
-
-    % Fill Again to Make Sure
-    % max_depth = 0.1; % meters, positive value. If you don't want to use, delete it from the function
-    % DEM_filled = fillsinks(DEM,max_depth);
-    if flags.flag_fill_DEM == 1
-        DEM_filled = fillsinks(DEM_raster); % Filled DEM
-        DIFFDEM = DEM_filled - DEM_raster.Z;
-        DIFFDEM.Z(DIFFDEM.Z==0) = nan;
-        DEM_raster = DEM_filled;
-        % imageschs(DEM_raster,DIFFDEM.Z);
-    end
-    % Saving high resolution DEM
-    DEM_raster_high_resolution = GRIDobj(Subgrid_DEM_path);
-    %%
-    if flags.flag_overbanks ~= 1
-        % Polynomial Subgrid
-        % Polynomial order
-        % poly_order = 2;
-        % SubgridTables = [];
-        % [Subgrid_Properties.A_spline, Subgrid_Properties.V_spline, Subgrid_Properties.Rh_east_spline, Subgrid_Properties.Rh_north_spline, Subgrid_Properties.Subgrid_Properties.W_east_spline, Subgrid_Properties.W_north_spline, Subgrid_Properties.A_east_spline, Subgrid_Properties.A_north_spline , Subgrid_Properties.Poly_NSE, Subgrid_Properties.invert_el] = Subgrid_Properties_Function(DEM_raster_high_resolution, DEM_raster, GIS_data.resolution_resample, poly_order);
-        % Lookup Subgrid
-        [SubgridTables, Subgrid_Properties.invert_el] = Subgrid_Properties_Lookup(DEM_raster_high_resolution, DEM_raster, DEM_raster.cellsize);
-        % Calculate and print size of SubgridTables in MB
-        info = whos('SubgridTables');                   % Get memory info for the variable
-        size_MB = info.bytes / 1024 / 1024;             % Convert from bytes to megabytes
-        fprintf('SubgridTables size: %.2f MB\n', size_MB);
-
-    else
-        Subgrid_Properties = [];
-    end
-elseif flags.flag_subgrid == 1
-    if flags.flag_overbanks ~= 1
-        % Saving high resolution DEM
-        DEM_raster_high_resolution = GRIDobj(Subgrid_DEM_path);
-        % Polynomial Subgrid
-        % Polynomial order
-        % poly_order = 2;
-        % SubgridTables = [];
-        % [Subgrid_Properties.A_spline, Subgrid_Properties.V_spline, Subgrid_Properties.Rh_east_spline, Subgrid_Properties.Rh_north_spline, Subgrid_Properties.Subgrid_Properties.W_east_spline, Subgrid_Properties.W_north_spline, Subgrid_Properties.A_east_spline, Subgrid_Properties.A_north_spline , Subgrid_Properties.Poly_NSE, Subgrid_Properties.invert_el] = Subgrid_Properties_Function(DEM_raster_high_resolution, DEM_raster, GIS_data.resolution_resample, poly_order);
-        % Lookup Subgrid
-        [SubgridTables, Subgrid_Properties.invert_el] = Subgrid_Properties_Lookup(DEM_raster_high_resolution, DEM_raster, DEM_raster.cellsize);
-        % Calculate and print size of SubgridTables in MB
-        info = whos('SubgridTables');                   % Get memory info for the variable
-        size_MB = info.bytes / 1024 / 1024;             % Convert from bytes to megabytes
-        fprintf('SubgridTables size: %.2f MB\n', size_MB);
-    end
-end
-
 %% Observed Gauges (name-based from General_Data table block)
 if flags.flag_obs_gauges == 1
 
@@ -654,9 +637,53 @@ if flags.flag_obs_gauges == 1
     gauges.num_obs_gauges = sum(~isnan(obs_gauges));
 
     Obs = Obs(1:gauges.num_obs_gauges,:);
-
-    gauges.easting_obs_gauges_absolute  = Obs.("Easting (m)");
-    gauges.northing_obs_gauges_absolute = Obs.("Northing (m)");
+    
+    % -------------------------------------------------------------------------
+    % Read observed gauge coordinates with flexible column-name handling
+    % -------------------------------------------------------------------------
+    obsVars = Obs.Properties.VariableNames;
+    
+    % Possible names after readtable sanitization
+    possibleEastingNames = { ...
+        'Easting (m)', ...
+        'Easting_m', ...
+        'easting_m', ...
+        'easting__m_', ...
+        'easting_m_', ...
+        'Easting_m_', ...
+        'easting' ...
+    };
+    
+    possibleNorthingNames = { ...
+        'Northing (m)', ...
+        'Northing_m', ...
+        'northing_m', ...
+        'northing__m_', ...
+        'northing_m_', ...
+        'Northing_m_', ...
+        'northing' ...
+    };
+    
+    % Find matching easting column
+    idxE = find(ismember(obsVars, possibleEastingNames), 1);
+    
+    % Find matching northing column
+    idxN = find(ismember(obsVars, possibleNorthingNames), 1);
+    
+    % Stop clearly if columns are not found
+    if isempty(idxE)
+        error('Could not find easting column in Obs. Available columns are: %s', ...
+            strjoin(obsVars, ', '));
+    end
+    
+    if isempty(idxN)
+        error('Could not find northing column in Obs. Available columns are: %s', ...
+            strjoin(obsVars, ', '));
+    end
+    
+    % Assign coordinates
+    gauges.easting_obs_gauges_absolute  = Obs.(obsVars{idxE});
+    gauges.northing_obs_gauges_absolute = Obs.(obsVars{idxN});
 
     gauges.x_coord_gauges = gauges.easting_obs_gauges_absolute;
     gauges.y_coord_gauges = gauges.northing_obs_gauges_absolute;
@@ -670,7 +697,31 @@ if flags.flag_obs_gauges == 1
     gauges.labels_observed_string = cellstr(string(Obs.("Label Name")));
 
     % Labels
-    gauges.labels_observed_string = cellstr(string(Obs.("Label Name")));
+    % -------------------------------------------------------------------------
+    % Read observed gauge labels with flexible column-name handling
+    % -------------------------------------------------------------------------
+    obsVars = Obs.Properties.VariableNames;
+    
+    possibleLabelNames = { ...
+        'Label Name', ...
+        'Label_Name', ...
+        'LabelName', ...
+        'Name', ...
+        'name', ...
+        'Gauge_Name', ...
+        'GaugeName', ...
+        'label_name', ...
+        'labelname' ...
+    };
+    
+    idxLabel = find(ismember(obsVars, possibleLabelNames), 1);
+    
+    if isempty(idxLabel)
+        error('Could not find label/name column in Obs. Available columns are: %s', ...
+            strjoin(obsVars, ', '));
+    end
+    
+    gauges.labels_observed_string = cellstr(string(Obs.(obsVars{idxLabel})));
 
     % OPTIONAL morphometric params (only if you add these columns to the table)
     % if ismember("alfa_1", Obs.Properties.VariableNames)
@@ -1005,29 +1056,126 @@ elseif flags.flag_input_ETP_map == 0
 
     % -------------------------
     % Time information
+    % Clip spreadsheet ETP forcing to model simulation window
     % -------------------------
-    ETP_Parameters.n_obs_ETP = size(input_table,1) - 2;
-
-    if ETP_Parameters.n_obs_ETP < 2
+    etp_data_start_row = 3;
+    etp_data_rows_all  = (etp_data_start_row:size(input_table,1))';
+    
+    raw_time_ETP = datetime(table2array(input_table(etp_data_rows_all,2)));
+    raw_time_ETP = raw_time_ETP(:);
+    
+    raw_n_obs_ETP = numel(raw_time_ETP);
+    
+    if raw_n_obs_ETP < 2
         error('The ETP forcing table must contain at least 2 time rows.');
     end
-
-    ETP_Parameters.time_ETP = datetime(table2array(input_table(3:end,2)));
-    ETP_Parameters.time_ETP_begin = ETP_Parameters.time_ETP(1);
-
-    ETP_Parameters.time_step_etp = minutes(ETP_Parameters.time_ETP(2) - ETP_Parameters.time_ETP(1));
-    ETP_Parameters.end_etp       = (ETP_Parameters.n_obs_ETP - 1) * ETP_Parameters.time_step_etp;
-
-    % Shift ETP time vector to model time origin
-    ETP_Parameters.delta_ETP_date = minutes(ETP_Parameters.time_ETP_begin - date_begin);
-
-    ETP_Parameters.climatologic_spatial_duration = ...
-        (0:ETP_Parameters.time_step_etp:ETP_Parameters.end_etp) + ETP_Parameters.delta_ETP_date;
-
-    % Force first time = 0 for model initialization
-    if ~isempty(ETP_Parameters.climatologic_spatial_duration)
-        ETP_Parameters.climatologic_spatial_duration(1) = 0;
+    
+    if any(isnat(raw_time_ETP))
+        error('The ETP forcing table contains invalid datetime values in column 2.');
     end
+    
+    if any(diff(raw_time_ETP) <= duration(0,0,0))
+        error('The ETP forcing timestamps must be strictly increasing.');
+    end
+    
+    model_start_datetime = date_begin;
+    model_end_datetime   = date_begin + minutes(running_control.routing_time);
+    
+    % ---------------------------------------------------------------------
+    % Keep one anchor row at or before date_begin.
+    % This guarantees that the model has a valid ETP value at model time 0.
+    % ---------------------------------------------------------------------
+    idx_etp_start = find(raw_time_ETP <= model_start_datetime, 1, 'last');
+    
+    if isempty(idx_etp_start)
+        error(['ETP spreadsheet starts after date_begin. ', ...
+               'First ETP time = %s, date_begin = %s. ', ...
+               'The ETP time-series must start at or before date_begin.'], ...
+               char(raw_time_ETP(1)), char(model_start_datetime));
+    end
+    
+    % ---------------------------------------------------------------------
+    % Keep one sentinel row at or after the model end.
+    % This prevents the internal ETP updater from reaching the final ETP row
+    % too early and treating the forcing as ended.
+    % ---------------------------------------------------------------------
+    idx_etp_end = find(raw_time_ETP >= model_end_datetime, 1, 'first');
+    
+    if isempty(idx_etp_end)
+        error(['ETP spreadsheet ends before the model simulation ends. ', ...
+               'Last ETP time = %s, model end = %s. ', ...
+               'The ETP time-series must cover the complete simulation.'], ...
+               char(raw_time_ETP(end)), char(model_end_datetime));
+    end
+    
+    % Rows retained from the spreadsheet.
+    % This includes:
+    %   - the last row at/before date_begin
+    %   - all rows inside the model window
+    %   - the first row at/after the model end
+    idx_etp_keep = idx_etp_start:idx_etp_end;
+    etp_rows_to_read = etp_data_rows_all(idx_etp_keep);
+    
+    ETP_Parameters.time_ETP = raw_time_ETP(idx_etp_keep);
+    ETP_Parameters.n_obs_ETP = numel(ETP_Parameters.time_ETP);
+    
+    if ETP_Parameters.n_obs_ETP < 2
+        error('After clipping to the model window, fewer than 2 ETP records remain.');
+    end
+    
+    ETP_Parameters.time_ETP_begin = ETP_Parameters.time_ETP(1);
+    
+    % Use the actual clipped timestamps relative to date_begin.
+    % This is safer than rebuilding an artificial 0:dt:end vector.
+    ETP_Parameters.climatologic_spatial_duration = ...
+        minutes(ETP_Parameters.time_ETP - model_start_datetime);
+    
+    % The first retained row may be before date_begin.
+    % Assign it to model time 0 so the model has an initial ETP state.
+    ETP_Parameters.climatologic_spatial_duration(1) = 0;
+    
+    % Compatibility fields used elsewhere / for diagnostics
+    if ETP_Parameters.n_obs_ETP >= 2
+        ETP_Parameters.time_step_etp = median(diff(ETP_Parameters.climatologic_spatial_duration), 'omitnan');
+    else
+        ETP_Parameters.time_step_etp = NaN;
+    end
+    
+    ETP_Parameters.end_etp = ETP_Parameters.climatologic_spatial_duration(end);
+    ETP_Parameters.delta_ETP_date = minutes(ETP_Parameters.time_ETP_begin - date_begin);
+    
+    % ---------------------------------------------------------------------
+    % Console status
+    % ---------------------------------------------------------------------
+    fprintf('\n');
+    fprintf('============================================================\n');
+    fprintf('ETP spreadsheet time-series clipping\n');
+    fprintf('============================================================\n');
+    fprintf('Model start date_begin : %s\n', char(model_start_datetime));
+    fprintf('Model end datetime     : %s\n', char(model_end_datetime));
+    fprintf('Raw ETP first time     : %s\n', char(raw_time_ETP(1)));
+    fprintf('Raw ETP last time      : %s\n', char(raw_time_ETP(end)));
+    fprintf('Raw ETP records        : %d\n', raw_n_obs_ETP);
+    fprintf('Retained ETP records   : %d\n', ETP_Parameters.n_obs_ETP);
+    fprintf('Removed before window  : %d\n', idx_etp_start - 1);
+    fprintf('Removed after window   : %d\n', raw_n_obs_ETP - idx_etp_end);
+    fprintf('Retained first time    : %s -> model time %.3f min\n', ...
+            char(ETP_Parameters.time_ETP(1)), ETP_Parameters.climatologic_spatial_duration(1));
+    fprintf('Retained last time     : %s -> model time %.3f min\n', ...
+            char(ETP_Parameters.time_ETP(end)), ETP_Parameters.climatologic_spatial_duration(end));
+    
+    if ETP_Parameters.time_ETP(1) < model_start_datetime
+        fprintf(['Status note           : first retained ETP row is before date_begin ', ...
+                 'and was assigned model time 0 for continuity.\n']);
+    end
+    
+    if ETP_Parameters.time_ETP(end) > model_end_datetime
+        fprintf(['Status note           : one ETP row after the model end was retained ', ...
+                 'as a sentinel row.\n']);
+    end
+    
+    fprintf('ETP clipping status    : OK\n');
+    fprintf('============================================================\n\n');
 
     % -------------------------
     % Allocate storage
@@ -1035,32 +1183,56 @@ elseif flags.flag_input_ETP_map == 0
     Maps.Hydro.ETP_save = zeros(size(dem,1), size(dem,2), saver_memory_maps);
     Maps.Hydro.ETR_save = zeros(size(dem,1), size(dem,2), saver_memory_maps);
 
-    % -------------------------
-    % Read station data
-    % Each station block has 6 columns:
-    % Tmax | Tmin | Tavg | u2 | RH | G
-    % -------------------------
-    ETP_Parameters.n_max_etp_stations = 50000;
-    ETP_Parameters.n_stations = 0;
+% -------------------------
+% Read station data
+% Each station block has 6 columns:
+% Tmax | Tmin | Tavg | u2 | RH | G
+%
+% Important:
+%   Use etp_rows_to_read so station data is clipped exactly the same way
+%   as ETP_Parameters.time_ETP.
+% -------------------------
+ETP_Parameters.n_max_etp_stations = 50000;
+ETP_Parameters.n_stations = 0;
 
-    for i = 1:ETP_Parameters.n_max_etp_stations
-        try
-            ETP_Parameters.maxtemp_stations(:,i) = table2array(input_table(3:end,6*(i-1) + 3));
-            ETP_Parameters.mintemp_stations(:,i) = table2array(input_table(3:end,6*(i-1) + 4));
-            ETP_Parameters.avgtemp_stations(:,i) = table2array(input_table(3:end,6*(i-1) + 5));
-            ETP_Parameters.u2_stations(:,i)      = table2array(input_table(3:end,6*(i-1) + 6));
-            ETP_Parameters.ur_stations(:,i)      = table2array(input_table(3:end,6*(i-1) + 7));
-            ETP_Parameters.G_stations(:,i)       = table2array(input_table(3:end,6*(i-1) + 8));
+% Clear these fields before filling them, so old workspace values cannot
+% survive if fewer rows/stations are retained after clipping.
+ETP_Parameters.maxtemp_stations = [];
+ETP_Parameters.mintemp_stations = [];
+ETP_Parameters.avgtemp_stations = [];
+ETP_Parameters.u2_stations      = [];
+ETP_Parameters.ur_stations      = [];
+ETP_Parameters.G_stations       = [];
+ETP_Parameters.coordinates_stations = [];
 
-            % Coordinates as stored in your original layout
-            ETP_Parameters.coordinates_stations(i,1) = table2array(input_table(1,6*(i-1) + 6));
-            ETP_Parameters.coordinates_stations(i,2) = table2array(input_table(1,6*(i-1) + 8));
+for i = 1:ETP_Parameters.n_max_etp_stations
+    try
+        ETP_Parameters.maxtemp_stations(:,i) = table2array(input_table(etp_rows_to_read,6*(i-1) + 3));
+        ETP_Parameters.mintemp_stations(:,i) = table2array(input_table(etp_rows_to_read,6*(i-1) + 4));
+        ETP_Parameters.avgtemp_stations(:,i) = table2array(input_table(etp_rows_to_read,6*(i-1) + 5));
+        ETP_Parameters.u2_stations(:,i)      = table2array(input_table(etp_rows_to_read,6*(i-1) + 6));
+        ETP_Parameters.ur_stations(:,i)      = table2array(input_table(etp_rows_to_read,6*(i-1) + 7));
+        ETP_Parameters.G_stations(:,i)       = table2array(input_table(etp_rows_to_read,6*(i-1) + 8));
 
-            ETP_Parameters.n_stations = i;
-        catch
-            break
-        end
+        % Coordinates as stored in your original layout
+        ETP_Parameters.coordinates_stations(i,1) = table2array(input_table(1,6*(i-1) + 6));
+        ETP_Parameters.coordinates_stations(i,2) = table2array(input_table(1,6*(i-1) + 8));
+
+        ETP_Parameters.n_stations = i;
+    catch
+        break
     end
+end
+
+
+% Confirm clipped station arrays match clipped time vector
+if size(ETP_Parameters.maxtemp_stations,1) ~= ETP_Parameters.n_obs_ETP
+    error('Internal ETP clipping failed: station data rows do not match clipped ETP time rows.');
+end
+
+fprintf('ETP station data rows  : %d\n', size(ETP_Parameters.maxtemp_stations,1));
+fprintf('ETP stations detected  : %d\n', ETP_Parameters.n_stations);
+fprintf('ETP station clipping   : OK\n\n');
 
     if ETP_Parameters.n_stations < 1
         error('No valid ETP meteorological stations were found in the ETP forcing table.');
@@ -1200,7 +1372,7 @@ end
 % max_depth = 0.1; % meters, positive value. If you don't want to use, delete it from the function
 % DEM_filled = fillsinks(DEM,max_depth);
 if flags.flag_fill_DEM == 1
-    DEM_filled = fillsinks(DEM_raster); % Filled DEM
+    DEM_filled = fillsinks_for_routing(DEM_raster, flags); % Filled DEM
     DIFFDEM = DEM_filled - DEM;
     DIFFDEM.Z(DIFFDEM.Z==0) = nan;
     DEM_raster = DEM_filled;
@@ -1228,7 +1400,7 @@ end
 % max_depth = 0.1; % meters, positive value. If you don't want to use, delete it from the function
 % DEM_filled = fillsinks(DEM,max_depth);
 if flags.flag_fill_DEM == 1
-    DEM_filled = fillsinks(DEM_raster); % Filled DEM
+    DEM_filled = fillsinks_for_routing(DEM_raster, flags); % Filled DEM
     DIFFDEM = DEM_filled - DEM;
     DIFFDEM.Z(DIFFDEM.Z==0) = nan;
     DEM_raster = DEM_filled;
@@ -1312,6 +1484,13 @@ dem = DEM_raster.Z;
 %% DEM Smoothening
 if flags.flag_smoothening == 1 % Valid only for streams determined with the flow accumulation
     [DEM_raster,DEM,S] = DEM_smoothening(DEM_raster,GIS_data.min_area,flags.flag_trunk,GIS_data.tau,GIS_data.K_value);
+    if flags.flag_fill_DEM == 1
+        DEM_filled = fillsinks_for_routing(DEM_raster, flags);
+        DIFFDEM = DEM_filled - DEM_raster.Z;
+        DIFFDEM.Z(DIFFDEM.Z==0) = nan;
+        DEM_raster = DEM_filled;
+        DEM = DEM_raster.Z;
+    end
 end
 
 %% Converting to 4D (if required)
@@ -1504,7 +1683,7 @@ perimeter = zeros(size(dem));
 for i = 1:size(dem,1)
     for j = 1:size(dem,2)
         if i == 1 || i == size(dem,1) || j == 1 || j == size(dem,2) % Boundaries of the domain
-            if dem(i,j) > 0 % Boundary has values
+            if dem(i,j) > min_dem_value % Boundary has values
                 perimeter(i,j) = 1;
             else
                 perimeter(i,j) = 0;
@@ -1513,7 +1692,7 @@ for i = 1:size(dem,1)
         if i ~= 1 && i ~= size(dem,1) && j ~= 1 && j ~= size(dem,2)
             if isnan(dem(i,j-1)) && isnan(dem(i,j+1)) && isnan(dem(i-1,j)) && isnan(dem(i+1,j))
                 perimeter(i,j) = 0;
-            elseif  dem(i,j) > 0 && (isnan(dem(i,j-1)) || isnan(dem(i,j+1)) || isnan(dem(i-1,j)) || isnan(dem(i+1,j)))
+            elseif  dem(i,j) > min_dem_value && (isnan(dem(i,j-1)) || isnan(dem(i,j+1)) || isnan(dem(i-1,j)) || isnan(dem(i+1,j)))
                 perimeter(i,j) = 1;
             else
                 perimeter(i,j) = 0;
@@ -1536,147 +1715,135 @@ Wshed_Properties.perimeter = perimeter;
 Wshed_Properties.domain = dem > min_dem_value; % Cells that are part of the domain
 
 
-%% Outlet Calculations - 1
-% Here we divide the number of outlets symetrically from the prior outlet
-% New way: Assuming that the outlets should be at the border of the domain, we can
-% do:
-for i = 1:length(Wshed_Properties.row_outlet)
-    % Checking left, right up, and down
-    row = Wshed_Properties.row_outlet(i); % Row
-    col = Wshed_Properties.col_outlet(i); % Col
-    % Left
-    if  row - 1 == 0 || isnan(elevation_nan(row-1,col))
-        outlet_index(Wshed_Properties.row_outlet(i),Wshed_Properties.col_outlet(i)) = 1; % This is an outlet
-    end
-    % Right
-    if  row + 1 > size(elevation_nan,1) || isnan(elevation_nan(row+1,col))
-        outlet_index(Wshed_Properties.row_outlet(i),Wshed_Properties.col_outlet(i)) = 1; % This is an outlet
-    end
-    % Up
-    if col - 1 == 0 || isnan(elevation_nan(row,col-1))
-        outlet_index(Wshed_Properties.row_outlet(i),Wshed_Properties.col_outlet(i)) = 1; % This is an outlet
-    end
-    % Down
-    if  col + 1 > size(elevation_nan,2) || isnan(elevation_nan(row,col+1))
-        outlet_index(Wshed_Properties.row_outlet(i),Wshed_Properties.col_outlet(i)) = 1; % This is an outlet
-    end
+%% Outlet Calculations - 1  -- REVISED
+
+% Number of requested outlet cells
+if ~exist('n_outlets_data','var') || isempty(n_outlets_data)
+    n_outlets_data = 1;
 end
-[Wshed_Properties.row_outlet,Wshed_Properties.col_outlet] = find(outlet_index == 1);  % Refreshing outlet
+n_outlets = max(1, round(n_outlets_data));
 
-% Minimum Row
-min_Wshed_Properties.row_outlet = min(min(Wshed_Properties.row_outlet));
-% Moving Up
-pos = find(Wshed_Properties.row_outlet == min_Wshed_Properties.row_outlet);
-col = Wshed_Properties.col_outlet(pos); col = col(1);
-row = Wshed_Properties.row_outlet(pos); row = row(1);
+% Only perimeter cells can be outlets
+valid_perimeter = perimeter > 0 & ~isnan(dem);
 
-% 0 , 45, 90, 135, 180, 225, 270, 315
-check = zeros(8,1);
-outlet_new = zeros(size(dem));
-right_loop = round(n_outlets_data/2);
-left_loop =  n_outlets_data - right_loop;
-for i = 1:right_loop
-    % 0, 45, 90, 135, 180
-    if col + 1 <= size(dem,2) && perimeter(row,col + 1) > 0  % 0
-        col = col+1;
-    elseif row - 1 >= 1 && col + 1 <= size(dem,2) && perimeter(row - 1,col + 1) > 0  % 45
-        row = row-1;
-        col = col+1;
-    elseif row - 1 >= 1 && perimeter(row-1,col) > 0  % 90
-        row = row-1;
-    elseif row - 1 >= 1 && col - 1 >= 1 && perimeter(row-1,col-1) > 0  % 135
-        row = row-1;
-        col = col-1;
-    end
-    outlet_new(row,col) = 1;
+if ~any(valid_perimeter(:))
+    error('No valid perimeter cells found for outlet placement.');
 end
 
-outlet_index = outlet_index + outlet_new; % Refreshing Outlet
-% Making Sure to not have a raster larger than 1
-outlet_index(outlet_index>0) = 1;
-
-% Maximum Row
-max_row_outlet = max(max(Wshed_Properties.row_outlet));
-pos = find(Wshed_Properties.row_outlet == max_row_outlet);
-col = Wshed_Properties.col_outlet(pos);
-row = Wshed_Properties.row_outlet(pos);
-for i = 1:left_loop
-    % 180, 225, 270, 315, 360
-    if  col - 1 >= 1 && perimeter(row,col-1) > 0  % 180
-        col = col - 1;
-    elseif row + 1 <= size(dem,1) && col - 1 >= 1 && perimeter(row+1,col - 1) > 0  % 225
-        row = row + 1;
-        col = col - 1;
-    elseif row + 1 <= size(dem,1) && perimeter(row + 1,col) > 0  % 270
-        row = row+1;
-    elseif row + 1 <= size(dem,1) && col + 1 <= size(dem,2) && perimeter(row+1,col+1) > 0  % 315
-        row = row+1;
-        col = col+1;
-    end
-    outlet_new(row,col) = 1;
-end
-
-outlet_index = outlet_index + outlet_new; % Refreshing Outlet
-
-
-% Making Sure to not have a raster larger than 1
-outlet_index(outlet_index>0) = 1;
-
-% Filling Inside Gaps
-[row_outlets,col_outlets] = find(outlet_index == 1);
-if n_outlets_data > 0
-    for i = 1:sum(sum(outlet_index))
-        row_out = row_outlets(i);
-        col_out = col_outlets(i);
-        % 0, 45, 90, 135, 180, 225, 270, 315, 360
-        r = row_out; c = col_out + 1;
-        if outlet_index(r,c) == 0 && perimeter(r,c) == 1 % 0
-            outlet_index(r,c) = 1;
+outlet_from_csv = false;
+outlet_csv_path = '';
+if exist('InputPaths','var') && isstruct(InputPaths) && ...
+        isfield(InputPaths,'Outlet_Cells_CSV') && ~isempty(InputPaths.Outlet_Cells_CSV) && ...
+        exist(InputPaths.Outlet_Cells_CSV,'file') == 2
+    outlet_csv_path = InputPaths.Outlet_Cells_CSV;
+    try
+        outlet_table = readtable(outlet_csv_path);
+        outlet_vars = outlet_table.Properties.VariableNames;
+        x_candidates = {'x_m','x','easting_m','easting','Easting','X'};
+        y_candidates = {'y_m','y','northing_m','northing','Northing','Y'};
+        x_name = '';
+        y_name = '';
+        for ii = 1:numel(x_candidates)
+            pos = find(strcmpi(outlet_vars, x_candidates{ii}), 1, 'first');
+            if ~isempty(pos)
+                x_name = outlet_vars{pos};
+                break
+            end
         end
-        r = row_out-1; c = col_out+1;
-        if outlet_index(r,c) == 0 && perimeter(r,c) == 1 % 45
-            outlet_index(r,c) = 1;
+        for ii = 1:numel(y_candidates)
+            pos = find(strcmpi(outlet_vars, y_candidates{ii}), 1, 'first');
+            if ~isempty(pos)
+                y_name = outlet_vars{pos};
+                break
+            end
         end
-        r = row_out-1; c = col_out;
-        if outlet_index(r,c) == 0 && perimeter(r,c) == 1 % 90
-            outlet_index(r,c) = 1;
+        if isempty(x_name) || isempty(y_name)
+            error('Outlet CSV must contain x_m/y_m or equivalent coordinate columns.');
         end
-        r = row_out-1; c = col_out-1;
-        if outlet_index(r,c) == 0 && perimeter(r,c) == 1 % 135
-            outlet_index(r,c) = 1;
+        x_abs = double(outlet_table.(x_name));
+        y_abs = double(outlet_table.(y_name));
+        col_csv = round((-GIS_data.xulcorner + x_abs) ./ Wshed_Properties.Resolution);
+        row_csv = round((GIS_data.yulcorner - y_abs) ./ Wshed_Properties.Resolution);
+        keep = isfinite(row_csv) & isfinite(col_csv) & ...
+               row_csv >= 1 & row_csv <= size(dem,1) & ...
+               col_csv >= 1 & col_csv <= size(dem,2);
+        row_csv = row_csv(keep);
+        col_csv = col_csv(keep);
+        if ~isempty(row_csv)
+            csv_linear = sub2ind(size(dem), row_csv, col_csv);
+            csv_linear = unique(csv_linear(:));
+            csv_linear = csv_linear(~isnan(dem(csv_linear)));
+            if ~isempty(csv_linear)
+                outlet_index = false(size(dem));
+                outlet_index(csv_linear) = true;
+                outlet_from_csv = true;
+                fprintf('Using %d outlet cells from CSV: %s\n', nnz(outlet_index), outlet_csv_path);
+            end
         end
-        r = row_out; c = col_out-1;
-        if outlet_index(r,c) == 0 && perimeter(r,c) == 1 % 180
-            outlet_index(r,c) = 1;
+        if ~outlet_from_csv
+            warning('Outlet CSV was found but no valid cells matched the DEM grid; falling back to automatic outlet placement.');
         end
-        r = row_out+1; c = col_out-1;
-        if outlet_index(r,c) == 0 && perimeter(r,c) == 1 % 225
-            outlet_index(r,c) = 1;
-        end
-        r = row_out+1; c = col_out;
-        if outlet_index(r,c) == 0 && perimeter(r,c) == 1 % 270
-            outlet_index(r,c) = 1;
-        end
-        r = row_out+1; c = col_out+1;
-        if outlet_index(r,c) == 0 && perimeter(r,c) == 1 % 315
-            outlet_index(r,c) = 1;
-        end
+    catch ME
+        warning('Could not use outlet CSV "%s": %s. Falling back to automatic outlet placement.', outlet_csv_path, ME.message);
     end
 end
 
+if ~outlet_from_csv
+    % Start from the lowest DEM cell ON THE PERIMETER
+    perim_vals = dem(valid_perimeter);
+    min_perim_el = min(perim_vals);
+    
+    candidate_seed = valid_perimeter & dem == min_perim_el;
+    [row_seed, col_seed] = find(candidate_seed, 1, 'first');
+    
+    % Reset outlet mask completely
+    % This is important: otherwise interior minimum cells remain outlets.
+    outlet_index = false(size(dem));
+    outlet_index(row_seed, col_seed) = true;
+    
+    % Expand outlets along connected perimeter cells
+    neighbor_kernel = ones(3,3);
+    
+    while nnz(outlet_index) < n_outlets
+    
+        neighbor_mask = conv2(double(outlet_index), neighbor_kernel, 'same') > 0;
+    
+        candidate_mask = neighbor_mask & valid_perimeter & ~outlet_index;
+    
+        if ~any(candidate_mask(:))
+            warning('Requested %d outlets, but only %d connected perimeter outlets could be placed.', ...
+                    n_outlets, nnz(outlet_index));
+            break
+        end
+    
+        % Prefer the lowest neighboring perimeter cell
+        candidate_vals = dem;
+        candidate_vals(~candidate_mask) = nan;
+    
+        min_candidate_el = min(candidate_vals(candidate_mask));
+    
+        next_mask = candidate_mask & candidate_vals == min_candidate_el;
+        [r_next, c_next] = find(next_mask, 1, 'first');
+    
+        outlet_index(r_next, c_next) = true;
+    end
+end
 
-idx_outlet = logical(outlet_index); % Added refreshed idx_outlet
+% Final outlet variables
+idx_outlet = logical(outlet_index);
 
+[Wshed_Properties.row_outlet, Wshed_Properties.col_outlet] = find(idx_outlet);
 
-[Wshed_Properties.row_outlet,Wshed_Properties.col_outlet] = find(outlet_index == 1); % finding rows and cols of these cells
-
-
-[Wshed_Properties.row_outlet,Wshed_Properties.col_outlet] = find(outlet_index == 1);  % Refreshing outlet
 Wshed_Properties.el_outlet = dem;
-Wshed_Properties.el_outlet(idx_outlet < 1) = nan;
-Wshed_Properties.stage_min = min(min(Wshed_Properties.el_outlet));
-[Wshed_Properties.row_min, Wshed_Properties.col_min] = find(dem == Wshed_Properties.stage_min);
+Wshed_Properties.el_outlet(~idx_outlet) = nan;
 
+outlet_vals = Wshed_Properties.el_outlet(idx_outlet);
+outlet_vals = outlet_vals(~isnan(outlet_vals));
+
+Wshed_Properties.stage_min = min(outlet_vals);
+
+[Wshed_Properties.row_min, Wshed_Properties.col_min] = ...
+    find(idx_outlet & dem == Wshed_Properties.stage_min);
 
 % % Save Map
 FileName = 'Outlet_Mask.tif';
@@ -1684,7 +1851,9 @@ FileName = fullfile(Paths.Shapes,FileName);
 % Exporting Outlet_Index as a Mask
 raster_to_export = DEM_raster; % Just to get the properties
 raster_to_export.Z = outlet_index; % Adding Outlets
-raster_to_export.Z(isnan(DEM_raster.Z)) = nan;
+try
+    raster_to_export.Z(isnan(DEM_raster.Z)) = nan;
+end
 try
     GRIDobj2geotiff(raster_to_export,FileName) % Exporting the Map
 catch me
@@ -1878,7 +2047,10 @@ depths = struct('d_0',spatial_domain,'d_avg',spatial_domain,'d_tot',spatial_doma
 velocities = struct('vel_left',spatial_domain,'vel_right',spatial_domain,'vel_up',spatial_domain,'vel_down',spatial_domain,'velocity_raster',spatial_domain,'vmax_final',spatial_domain); % struct
 
 Soil_Properties = struct('ksat',spatial_domain,'n_vg',spatial_domain,'alpha_vg',spatial_domain,'theta_sat',spatial_domain,'theta_r',spatial_domain,'theta_i',spatial_domain,'Sy',spatial_domain,'ksat_gw',spatial_domain,'I_0',spatial_domain,'Soil_Depth',spatial_domain); % struct
-LULC_Properties = struct('roughness',spatial_domain,'h_0',spatial_domain,'C_1',spatial_domain,'C_2',spatial_domain,'C_3',spatial_domain,'C_4',spatial_domain,'B_0',spatial_domain,'ADD',0); % struct
+LULC_Properties = struct('roughness',spatial_domain,'h_0',spatial_domain,'C_1',spatial_domain,'C_2',spatial_domain,'C_3',spatial_domain,'C_4',spatial_domain,'B_0',spatial_domain,'ADD',0,'root_depth_m',spatial_domain); % struct
+Soil_Properties.Ks_multiplier_near_surface = ones(size(spatial_domain));
+Soil_Properties.Ks_multiplier_root_zone = ones(size(spatial_domain));
+Soil_Properties.Ks_multiplier_transmission = ones(size(spatial_domain));
 
 % Elevation_Properties = struct('elevation_cell',spatial_domain,'elevation_left_t',spatial_domain,'elevation_right_t',spatial_domain,'elevation_up_t',spatial_domain,'elevation_down_t',spatial_domain); % struct
 
@@ -1925,21 +2097,35 @@ for i = 1:LULC_Properties.n_lulc % Types of LULC
     index = LULC_index(i,1);
     LULC_Properties.roughness(LULC_Properties.idx_lulc(:,:,i)) = lulc_parameters(i,1); % assigning values for roughness at impervious areas
     LULC_Properties.h_0(LULC_Properties.idx_lulc(:,:,i)) = lulc_parameters(i,2); % Initial Abstraction
+    if size(lulc_parameters,2) >= 9 && isfinite(lulc_parameters(i,9))
+        root_depth_i = lulc_parameters(i,9);
+    elseif LULC_index(i,1) == imp_index
+        root_depth_i = 0;
+    else
+        root_depth_i = 1.0;
+    end
+    LULC_Properties.root_depth_m(LULC_Properties.idx_lulc(:,:,i)) = max(root_depth_i, 0);
 
     % ------------ Warm-up Data ------------:
     if flags.flag_warmup == 1
         if i == 1
             % Identifying positive values of the Warmup
-            Warmup_Raster = GRIDobj(Warmup_Depth_path);
-            if sum(size(Warmup_Raster.Z)) ~= sum(size(DEM))
-                Warmup_Raster = resample(Warmup_Raster,DEM_raster);
+            try
+                Warmup_Raster = GRIDobj(Warmup_Depth_path);
+                if sum(size(Warmup_Raster.Z)) ~= sum(size(DEM))
+                    Warmup_Raster = resample(Warmup_Raster,DEM_raster);
+                end
+                Warmup_Depths = double(Warmup_Raster.Z);
+                idx_warmup = Warmup_Depths >= 0;
+                depths.d_0 =  idx_warmup.*Warmup_Depths*1000; % Depths in m converting to mm
+                % Treat inf values
+                depths.d_0(idx_nan) = nan; % carefull here
+                depths.d_0(idx_nan == 0 & isnan(depths.d_0)) = 0;
+                depths.d_t = depths.d_0;
+            catch
+                warning('Warm-up raster not found. Assuming no initial depths.')
+                depths.d_t = depths.d_0;
             end
-            Warmup_Depths = double(Warmup_Raster.Z);
-            idx_warmup = Warmup_Depths >= 0;
-            depths.d_0 =  idx_warmup.*Warmup_Depths*1000; % Depths in m converting to mm
-            % Treat inf values
-            depths.d_0(idx_nan) = nan; % carefull here
-            depths.d_0(idx_nan == 0 & isnan(depths.d_0)) = 0;
         end
     else
         depths.d_0(LULC_Properties.idx_lulc(:,:,i)) = lulc_parameters(i,3);
@@ -2019,6 +2205,21 @@ for i = 1:Soil_Properties.n_soil
     Soil_Properties.theta_i(idx_soil(:,:,i))    = soil_parameters(i,6);
     Soil_Properties.Sy(idx_soil(:,:,i))         = soil_parameters(i,7);
     Soil_Properties.ksat_gw(idx_soil(:,:,i))    = soil_parameters(i,8);
+    if size(soil_parameters,2) >= 10 && isfinite(soil_parameters(i,10))
+        Soil_Properties.Ks_multiplier_near_surface(idx_soil(:,:,i)) = soil_parameters(i,10);
+    else
+        Soil_Properties.Ks_multiplier_near_surface(idx_soil(:,:,i)) = 1;
+    end
+    if size(soil_parameters,2) >= 11 && isfinite(soil_parameters(i,11))
+        Soil_Properties.Ks_multiplier_root_zone(idx_soil(:,:,i)) = soil_parameters(i,11);
+    else
+        Soil_Properties.Ks_multiplier_root_zone(idx_soil(:,:,i)) = 1;
+    end
+    if size(soil_parameters,2) >= 12 && isfinite(soil_parameters(i,12))
+        Soil_Properties.Ks_multiplier_transmission(idx_soil(:,:,i)) = soil_parameters(i,12);
+    else
+        Soil_Properties.Ks_multiplier_transmission(idx_soil(:,:,i)) = 1;
+    end
     Soil_Properties.m_vg = 1 - 1 ./ Soil_Properties.n_vg;
 
 end
@@ -2038,19 +2239,8 @@ LULC_Properties.River_K_coeff = River_K_coeff;
 Soil_Properties.ksat(LULC_Properties.idx_imp) = 0; % Impervious areas
 Soil_Properties.soil_matrix = soil_matrix;
 Soil_Properties.idx_soil = idx_soil;
-if flags.flag_warmup == 1
-    % Identifying positive values of the Warmup
-    Warmup_Raster_Moisture = GRIDobj(Initial_Soil_Moisture_path);
-    if sum(size(Warmup_Raster_Moisture.Z)) ~= sum(size(DEM))
-        Warmup_Raster_Moisture = resample(Warmup_Raster_Moisture,DEM_raster);
-    end
-    Initial_Soil_Moisture = double(Warmup_Raster_Moisture.Z);
-    %     Initial_Soil_Moisture = Initial_Soil_Moisture./Initial_Soil_Moisture*10; % DELETE
-    idx_warmup_moisture = Warmup_Depths >= 0;
-    Soil_Properties.I_0 =  idx_warmup_moisture.*Initial_Soil_Moisture; % Depths in m
-    % Treat inf values
-    Soil_Properties.I_0(idx_nan) = nan; % carefull here
-end
+% Soil initial storage from Initial_Soil_Moisture_path is handled later
+% in the unified "Initial Vadose Zone Volume" block, after zwt_init is known.
 
 % Initial Moisture
 Soil_Properties.I_0(LULC_Properties.idx_imp) = 0; % Impervious areas
@@ -2146,7 +2336,9 @@ if flags.flag_rainfall == 1 && flags.flag_spatial_rainfall ~= 1
 end
 %% Pre allocating more arrays
 Total_Inflow = 0;
-depths.d_t = spatial_domain;
+if flags.flag_warmup ~= 1
+    depths.d_t = spatial_domain;
+end
 outflow_rate.outflow_cms_t = spatial_domain;
 % ----------------- Space dependent arrays -----------------
 
@@ -2451,18 +2643,30 @@ Hydro_States.S   = zeros(size(DEM));
 % CELL AREA / SUBGRID EFFECTIVE AREA
 % ======================================================================
 if flags.flag_subgrid == 1
+    if flags.flag_overbanks == 1
+        warning('HydroPol2D:LegacySubgridOverbanks', ...
+            ['flag_subgrid=1 with flag_overbanks=1 uses the legacy River_Width/River_Depth overbank pathway. ', ...
+             'Phase 1 validation covers lookup-table subgrid hydraulics with flag_overbanks=0.']);
+    end
+
     C_a = Wshed_Properties.cell_area * ones(ny, nx);
     C_a(isnan(dem)) = nan;
 
-    % Change values in river areas
-    index = (depths.d_0 / 1000 < Wshed_Properties.River_Depth) & (Wshed_Properties.River_Width > 0);
-    C_a(index) = Wshed_Properties.River_Width(index) * Wshed_Properties.Resolution;
+    if flags.flag_overbanks == 1
+        % Legacy overbank pathway: effective area comes from explicit river
+        % width/depth rasters. Lookup-table subgrid storage is handled by
+        % SubgridTables and keeps C_a at the coarse-cell area.
+        index = (depths.d_0 / 1000 < Wshed_Properties.River_Depth) & (Wshed_Properties.River_Width > 0);
+        C_a(index) = Wshed_Properties.River_Width(index) * Wshed_Properties.Resolution;
+    end
 
     % Make sure inflow cells use full raster cell area
     if flags.flag_inflow == 1
         C_a(Wshed_Properties.inflow_mask) = Wshed_Properties.cell_area;
-        Wshed_Properties.River_Width(Wshed_Properties.inflow_mask) = 0;
-        Wshed_Properties.River_Depth(Wshed_Properties.inflow_mask) = 0;
+        if flags.flag_overbanks == 1
+            Wshed_Properties.River_Width(Wshed_Properties.inflow_mask) = 0;
+            Wshed_Properties.River_Depth(Wshed_Properties.inflow_mask) = 0;
+        end
     end
 else
     C_a = Wshed_Properties.cell_area * ones(ny, nx);
@@ -2615,12 +2819,13 @@ end
 % Soil Thickness Input
 try
     Soil_Properties.Soil_Depth = double(DTB_raster.Z);
-
-    % Constraint at aquifer modeling
-
-    % Too shalow aquifers Constraint
-    Soil_Properties.Soil_Depth(~idx_nan & isnan(Soil_Properties.Soil_Depth)) = 1; % Cells with no data inside of the domain
-    Soil_Properties.Soil_Depth(Soil_Properties.Soil_Depth < 1) = 1; % Aquifers smaller than 0.5 m
+    
+    % Fill only missing values inside the domain.
+    Soil_Properties.Soil_Depth(~idx_nan & isnan(Soil_Properties.Soil_Depth)) = 1;
+    
+    % Keep a small minimum depth for numerical safety.
+    % This preserves Case 2 because Case 2 has DTB = 0.30 m.
+    Soil_Properties.Soil_Depth(Soil_Properties.Soil_Depth < 0.1) = 0.1;
 
     % Assuming the average of soil depth
     avg_soil_depth = nanmean(nanmean(Soil_Properties.Soil_Depth));
@@ -2654,6 +2859,428 @@ flags.flag_automatic_calibration = 0;
 if flags.flag_waterquality ~= 1
     clear WQ_States % We delete WQ_States if we are not modeling it
     WQ_States = []; % Just adding an empty array to use in other functions
+end
+
+%% Calculating River Matrix to Estimate Groundwater
+if flags.flag_groundwater_modeling == 1
+    FD = FLOWobj(DEM_raster); % Flow direction
+    As  = flowacc(FD); % Flow Accumulation
+    Wshed_Properties.fac_area = As.Z*(Wshed_Properties.cell_area/1000/1000); % km2
+else
+    Lateral_Groundwater_Flux = 0; % m3/s/km of river
+end
+idx_rivers = Wshed_Properties.fac_area >= GIS_data.min_area;  % Logical Matrix with 1 being pixels with rivers
+Wshed_Properties.idx_rivers = idx_rivers;
+
+if flags.flag_baseflow == 1
+    % Activate this to ensure very shallow depth in rivers
+    % Soil_Properties.Soil_Depth(Wshed_Properties.idx_rivers) = 0.5; % m
+end
+
+%% Groundwater States
+
+% Bottom of soil column / bedrock elevation [m]
+BC_States.z0 = elevation - Soil_Properties.Soil_Depth;
+BC_States.z0(idx_nan) = nan;
+
+% Fallback initial groundwater depth above bedrock [m]
+h_depth = 0.01;
+
+% Initial groundwater table elevation [m]
+% Priority:
+%   1) Use GW_table_raster if available after preprocessing/resampling.
+%   2) If not available, fall back to z0 + 0.01 m.
+if exist('GW_table_raster','var') && ~isempty(GW_table_raster)
+
+    BC_States.h_0 = double(GW_table_raster.Z);
+
+    % Constraint at DEM elevation
+    min_zwt = 0.05;                                % Minimum vadose depth [m]
+    BC_States.h_0 = min(BC_States.h_0, elevation - min_zwt);
+
+    % Safety check: by this point GW_table_raster should already be aligned
+    % to the DEM/model domain.
+    if ~isequal(size(BC_States.h_0), size(BC_States.z0))
+        error(['GW_table_raster exists, but its size does not match the model domain. ', ...
+               'Check raster loading/resampling/alignment before Groundwater States.']);
+    end
+
+    % Apply model-domain mask
+    BC_States.h_0(idx_nan) = nan;
+
+    % If the raster has missing values inside the valid domain, fill only
+    % those cells with the fallback groundwater depth above bedrock.
+    idx_missing_gw = ~idx_nan & (isnan(BC_States.h_0) | isinf(BC_States.h_0));
+
+    if any(idx_missing_gw(:))
+        BC_States.h_0(idx_missing_gw) = BC_States.z0(idx_missing_gw) + h_depth;
+
+        warning(['GW_table_raster was loaded, but it contains missing/invalid values inside the model domain. ', ...
+                 'Those cells were filled using z0 + ', num2str(h_depth), ' m.']);
+    else
+        disp('Initial groundwater table loaded from GW_table_raster.');
+    end
+
+else
+
+    % No GW raster was provided or loaded.
+    % Fall back to constant initial groundwater depth above bedrock.
+    BC_States.h_0 = BC_States.z0 + h_depth;
+    BC_States.h_0(idx_nan) = nan;
+
+    warning(['GW_table_raster not found. Falling back to constant initial groundwater depth of ', ...
+             num2str(h_depth), ' m above bedrock.']);
+
+end
+
+BC_States.h_t = BC_States.h_0;
+
+% Example for visual check
+% surfmap(BC_States.h_t - elevation);
+
+%% Initial Vadose Zone Volume
+% -------------------------------------------------------------------------
+% Initial unsaturated thickness from groundwater table
+% -------------------------------------------------------------------------
+GW_Depth_init = BC_States.h_t - (elevation - Soil_Properties.Soil_Depth);
+
+zwt_init = Soil_Properties.Soil_Depth - GW_Depth_init;
+zwt_init = max(zwt_init, 0);
+zwt_init(idx_nan) = nan;
+
+% -------------------------------------------------------------------------
+% Unified initial soil water storage [mm]
+%
+% Case A:
+%   No warmup soil-storage raster:
+%       I_0 = (theta_i - theta_r) * zwt_init * 1000
+%
+% Case B:
+%   flag_warmup = 1 and Initial_Soil_Moisture_path exists:
+%       Initial_Soil_Moisture_path is interpreted as I0 [mm]
+%       I_0 is read directly from raster
+%       theta_i is back-calculated for consistency:
+%           theta_i = theta_r + I_0 / (zwt_init * 1000)
+%
+% IMPORTANT:
+%   I_0 is storage ABOVE residual water content [mm].
+% -------------------------------------------------------------------------
+
+use_initial_soil_moisture_raster = false;
+
+if flags.flag_warmup == 1 && ...
+        exist('Initial_Soil_Moisture_path','var') && ...
+        strlength(string(Initial_Soil_Moisture_path)) > 0 && ...
+        isfile(char(Initial_Soil_Moisture_path))
+
+    use_initial_soil_moisture_raster = true;
+end
+
+if use_initial_soil_moisture_raster
+
+    % ------------------------------------------------------------
+    % Warmup raster gives initial soil bucket storage I0 [mm]
+    % NOTE:
+    % Despite the legacy name Initial_Soil_Moisture_path, the raster values
+    % are interpreted here as soil water storage above residual [mm].
+    % ------------------------------------------------------------
+    try
+        Initial_Soil_Moisture_raster = GRIDobj(char(Initial_Soil_Moisture_path));
+    
+        % Align to DEM grid
+        Initial_Soil_Moisture_raster = resample( ...
+            Initial_Soil_Moisture_raster, DEM_raster, 'bilinear');
+    
+        I0_raster_mm = double(Initial_Soil_Moisture_raster.Z);
+    
+        % Clean invalid cells
+        I0_raster_mm(idx_nan) = nan;
+        I0_raster_mm(I0_raster_mm < 0) = 0;
+    
+        % Maximum active storage allowed by theta_sat and theta_r
+        I0_max_mm = max(Soil_Properties.theta_sat - Soil_Properties.theta_r, 0) .* ...
+            zwt_init .* 1000;
+    
+        % Do not allow raster storage to exceed physically available pore space
+        I0_raster_mm = min(I0_raster_mm, I0_max_mm);
+    
+        % Assign storage directly
+        Soil_Properties.I_0 = I0_raster_mm;
+    
+        % Back-calculate equivalent theta_i for consistency
+        theta_i_from_I0 = Soil_Properties.theta_r + ...
+            Soil_Properties.I_0 ./ max(zwt_init .* 1000, eps);
+    
+        % Clip theta_i physically
+        theta_i_from_I0 = max(theta_i_from_I0, Soil_Properties.theta_r);
+        theta_i_from_I0 = min(theta_i_from_I0, Soil_Properties.theta_sat);
+    
+        theta_i_from_I0(idx_nan) = nan;
+    
+        Soil_Properties.theta_i = theta_i_from_I0;
+    
+        Soil_Properties.initial_soil_storage_source = 'Initial_Soil_Moisture_path_I0_mm';
+    catch
+        warning('No initial soil moisture raster found. Assuming initial soil moisture from tables.')
+    end
+
+else
+
+    % ------------------------------------------------------------
+    % Class-based theta_i from SOIL_table.
+    % This may be entered directly, computed field capacity, or manual
+    % field capacity depending on input_data_bypass_script settings.
+    % ------------------------------------------------------------
+    Soil_Properties.I_0 = ...
+        max(Soil_Properties.theta_i - Soil_Properties.theta_r, 0) .* ...
+        zwt_init .* 1000;
+
+    Soil_Properties.initial_soil_storage_source = 'SOIL_table_theta_i';
+
+end
+
+% Domain mask
+Soil_Properties.I_0(idx_nan) = nan;
+
+% Impervious cells have no soil infiltration storage
+Soil_Properties.I_0(LULC_Properties.idx_imp) = 0;
+
+% Apply minimum soil moisture only to valid, non-impervious cells
+valid_soil_storage = ~idx_nan & ~LULC_Properties.idx_imp & isfinite(Soil_Properties.I_0);
+
+if isscalar(min_soil_moisture)
+    Soil_Properties.I_0(valid_soil_storage) = ...
+        max(Soil_Properties.I_0(valid_soil_storage), min_soil_moisture);
+else
+    Soil_Properties.I_0(valid_soil_storage) = ...
+        max(Soil_Properties.I_0(valid_soil_storage), min_soil_moisture(valid_soil_storage));
+end
+
+% Final states
+Soil_Properties.I_p = Soil_Properties.I_0;
+Soil_Properties.I_t = Soil_Properties.I_0;
+
+layer_options = struct('near_surface_depth_m', 0.10, 'min_layer_thickness_m', 0.005);
+[Soil_Properties, LULC_Properties] = derive_layered_soil_profile( ...
+    Soil_Properties, LULC_Properties, BC_States, elevation, idx_nan, layer_options);
+Soil_Properties = initialize_layered_soil_storage(Soil_Properties, idx_nan);
+
+GW_Depth_check = BC_States.h_t - (elevation - Soil_Properties.Soil_Depth);
+zwt_check = Soil_Properties.Soil_Depth - GW_Depth_check;
+
+fprintf('\n===== SUBSURFACE INITIALIZATION CHECK =====\n');
+fprintf('Soil I0 source  = %s\n', Soil_Properties.initial_soil_storage_source);
+fprintf('Mean Soil_Depth = %.4f m\n', mean(Soil_Properties.Soil_Depth(:), 'omitnan'));
+fprintf('Mean h_t        = %.4f m\n', mean(BC_States.h_t(:), 'omitnan'));
+fprintf('Mean elevation  = %.4f m\n', mean(elevation(:), 'omitnan'));
+fprintf('Mean theta_i    = %.4f\n', mean(Soil_Properties.theta_i(:), 'omitnan'));
+fprintf('Mean I_t        = %.4f mm\n', mean(Soil_Properties.I_t(:), 'omitnan'));
+fprintf('==========================================\n');
+fprintf('==========================================\n');
+
+%% Characterizing River Roughness
+% Inbank Manning (only using the first entry)
+if flags.flag_obs_gauges == 1
+    Wshed_Properties.Inbank_Manning = LULC_Properties.roughness; % Only first entry used
+    try
+        Wshed_Properties.Inbank_Manning(idx_rivers) = River_Manning(1); % Only first entry used
+    catch
+        Wshed_Properties.Inbank_Manning(idx_rivers) = 0.035;
+    end
+    % Overbank Manning (assuming the same of the LULC) )
+    Wshed_Properties.Overbank_Manning = LULC_Properties.roughness; % Can be altered
+else
+    Wshed_Properties.Inbank_Manning = LULC_Properties.roughness; % Only first entry used
+    Wshed_Properties.Inbank_Manning(idx_rivers) = LULC_Parameters.River_Manning; % Only first entry used
+    % Overbank Manning (assuming the same of the LULC) )
+    Wshed_Properties.Overbank_Manning = LULC_Properties.roughness; % Can be altered
+end
+
+LULC_Properties.River_K_coeff = River_K_coeff; % River recharge coefficient
+
+% Enforcing chosen roughness coefficient for river cells
+if flags.flag_reduce_DEM == 1 && flags.flag_subgrid == 0
+    LULC_Properties.roughness(idx_facc) = LULC_Parameters.River_Manning;
+end
+
+%% Subgrid Functions
+SubgridTables = [];
+if flags.flag_subgrid == 1 && flags.flag_resample == 1
+    % DEM Treatment and Filtering Algorithms
+    % Fillsinks
+    % max_depth = 0.1; % meters, positive value. If you don't want to use, delete it from the function
+    % DEM_filled = fillsinks(DEM,max_depth);
+    if flags.flag_fill_DEM == 1
+        DEM_filled = fillsinks_for_routing(DEM_raster, flags); % Filled DEM
+        DIFFDEM = DEM_filled - DEM_raster.Z;
+        DIFFDEM.Z(DIFFDEM.Z==0) = nan;
+        DEM_raster = DEM_filled;
+        % imageschs(DEM_raster,DIFFDEM.Z);
+    end
+
+    % DTM Filter
+    flags.flag_DTM = 1;
+    if flags.flag_DTM == 1
+        slope_threshold = GIS_data.slope_DTM; % percentage
+        DEM_filtered = DTM_Filter(DEM_raster.Z,Wshed_Properties.Resolution,GIS_data.slope_DTM);
+        DEM_raster.Z = DEM_filtered;
+    end
+
+    % Smooth DEM
+    if flags.flag_smooth_cells == 1
+        Vq = imgaussfilt(DEM_raster.Z,'FilterSize',3);
+        dem_diff_smooth = Vq;
+        dem = Vq; % New dem
+        DEM_raster.Z = dem;
+        close all
+    end
+
+    % Fill Again to Make Sure
+    % max_depth = 0.1; % meters, positive value. If you don't want to use, delete it from the function
+    % DEM_filled = fillsinks(DEM,max_depth);
+    if flags.flag_fill_DEM == 1
+        DEM_filled = fillsinks_for_routing(DEM_raster, flags); % Filled DEM
+        DIFFDEM = DEM_filled - DEM_raster.Z;
+        DIFFDEM.Z(DIFFDEM.Z==0) = nan;
+        DEM_raster = DEM_filled;
+        % imageschs(DEM_raster,DIFFDEM.Z);
+    end
+    % Saving high resolution DEM
+    DEM_raster_high_resolution = GRIDobj(Subgrid_DEM_path);
+    %%
+    if flags.flag_overbanks ~= 1
+        % Polynomial Subgrid
+        % Polynomial order
+        % poly_order = 2;
+        % SubgridTables = [];
+        % [Subgrid_Properties.A_spline, Subgrid_Properties.V_spline, Subgrid_Properties.Rh_east_spline, Subgrid_Properties.Rh_north_spline, Subgrid_Properties.Subgrid_Properties.W_east_spline, Subgrid_Properties.W_north_spline, Subgrid_Properties.A_east_spline, Subgrid_Properties.A_north_spline , Subgrid_Properties.Poly_NSE, Subgrid_Properties.invert_el] = Subgrid_Properties_Function(DEM_raster_high_resolution, DEM_raster, GIS_data.resolution_resample, poly_order);
+        % Lookup Subgrid
+        Roughness_raster = DEM_raster; % clone structure
+        Roughness_raster.Z = LULC_Properties.roughness;
+        subgrid_nr_levels = 20;
+        subgrid_dz_m = 0.02;
+        subgrid_max_depth_m = 10.0;
+        if exist('InputData_Bypass', 'var') && isfield(InputData_Bypass, 'subgrid')
+            if isfield(InputData_Bypass.subgrid, 'subgrid_nr_levels')
+                subgrid_nr_levels = InputData_Bypass.subgrid.subgrid_nr_levels;
+            end
+            if isfield(InputData_Bypass.subgrid, 'subgrid_dz_m')
+                subgrid_dz_m = InputData_Bypass.subgrid.subgrid_dz_m;
+            end
+            if isfield(InputData_Bypass.subgrid, 'subgrid_max_depth_m')
+                subgrid_max_depth_m = InputData_Bypass.subgrid.subgrid_max_depth_m;
+            end
+        end
+        [SubgridTables, Subgrid_Properties.invert_el] = Subgrid_Properties_Lookup( ...
+            DEM_raster_high_resolution, ...
+            Roughness_raster, ...
+            DEM_raster, ...
+            Wshed_Properties.Resolution, ...
+            'nr_levels', subgrid_nr_levels, ...
+            'dz', subgrid_dz_m, ...
+            'maxDepth', subgrid_max_depth_m);
+        hp2d_validate_subgrid_tables(SubgridTables);
+        % Calculate and print size of SubgridTables in MB
+        info = whos('SubgridTables');                   % Get memory info for the variable
+        size_MB = info.bytes / 1024 / 1024;             % Convert from bytes to megabytes
+        fprintf('SubgridTables size: %.2f MB\n', size_MB);
+
+    else
+        Subgrid_Properties = [];
+    end
+elseif flags.flag_subgrid == 1
+    if flags.flag_overbanks ~= 1
+        % Saving high resolution DEM
+        DEM_raster_high_resolution = GRIDobj(Subgrid_DEM_path);
+        % Polynomial Subgrid
+        % Polynomial order
+        % poly_order = 2;
+        % SubgridTables = [];
+        % [Subgrid_Properties.A_spline, Subgrid_Properties.V_spline, Subgrid_Properties.Rh_east_spline, Subgrid_Properties.Rh_north_spline, Subgrid_Properties.Subgrid_Properties.W_east_spline, Subgrid_Properties.W_north_spline, Subgrid_Properties.A_east_spline, Subgrid_Properties.A_north_spline , Subgrid_Properties.Poly_NSE, Subgrid_Properties.invert_el] = Subgrid_Properties_Function(DEM_raster_high_resolution, DEM_raster, GIS_data.resolution_resample, poly_order);
+        % Lookup Subgrid
+        Roughness_raster = DEM_raster; % clone structure
+        Roughness_raster.Z = LULC_Properties.roughness;  % your Manning map [s/m^(1/3)]
+        subgrid_nr_levels = 20;
+        subgrid_dz_m = 0.02;
+        subgrid_max_depth_m = 10.0;
+        if exist('InputData_Bypass', 'var') && isfield(InputData_Bypass, 'subgrid')
+            if isfield(InputData_Bypass.subgrid, 'subgrid_nr_levels')
+                subgrid_nr_levels = InputData_Bypass.subgrid.subgrid_nr_levels;
+            end
+            if isfield(InputData_Bypass.subgrid, 'subgrid_dz_m')
+                subgrid_dz_m = InputData_Bypass.subgrid.subgrid_dz_m;
+            end
+            if isfield(InputData_Bypass.subgrid, 'subgrid_max_depth_m')
+                subgrid_max_depth_m = InputData_Bypass.subgrid.subgrid_max_depth_m;
+            end
+        end
+        [SubgridTables, Subgrid_Properties.invert_el] = Subgrid_Properties_Lookup( ...
+            DEM_raster_high_resolution, ...   % fine DEM
+            Roughness_raster, ...             % fine Manning raster
+            DEM_raster, ...                   % coarse reference grid
+            Wshed_Properties.Resolution, ...  % coarse resolution [m]
+            'nr_levels', subgrid_nr_levels, ...
+            'dz', subgrid_dz_m, ...
+            'maxDepth', subgrid_max_depth_m);
+        hp2d_validate_subgrid_tables(SubgridTables);
+        % Calculate and print size of SubgridTables in MB
+        info = whos('SubgridTables');                   % Get memory info for the variable
+        size_MB = info.bytes / 1024 / 1024;             % Convert from bytes to megabytes
+        fprintf('SubgridTables size: %.2f MB\n', size_MB);
+    end
+end
+
+%% Dam Break Parameters
+% If dam breaking is simulated
+% if flags.flag_dam_break == 1
+%     input_table_breaker = readtable('Damns_breaks_points.xlsx');
+%     breakers.easting_absolute = table2array(input_table_breaker(:,2)); % Easting Coordinates
+%     breakers.northing_absolute = table2array(input_table_breaker(:,3)); % Northing Coordinates
+%     breakers.ID = table2array(input_table_breaker(:,1)); % ID
+%     % --- Converting coordinates to local coordinates in pixels
+%     breakers.easting= round((-GIS_data.xulcorner + breakers.easting_absolute)/Wshed_Properties.Resolution);
+%     breakers.northing = round((GIS_data.yulcorner - breakers.northing_absolute)/Wshed_Properties.Resolution);
+%     flag_break_1 = 1; flag_break_2 = 1;
+% end
+
+% We need to finish this part. Also, we need to fix it in the main while
+
+%% Outlet Perimeter B.C.
+% If you want to assign outlet normal flow boundary conditions to all
+% domain perimeter, activate the following code
+% outlet_index = Wshed_Properties.perimeter;
+if flags.flag_boundary == 1
+    outlet_index = Wshed_Properties.perimeter; % Perimeter of the domain is the outlet
+    % Taking away cells that are not in the perimeter but are inflow cells
+    if flags.flag_inflow == 1
+        outlet_index(logical(Wshed_Properties.inflow_mask)) = 0;
+    end
+
+    idx_outlet = logical(outlet_index);
+    [Wshed_Properties.row_outlet, Wshed_Properties.col_outlet] = find(idx_outlet);
+
+    Wshed_Properties.el_outlet = dem;
+    Wshed_Properties.el_outlet(~idx_outlet) = nan;
+    if any(idx_outlet(:))
+        Wshed_Properties.stage_min = min(Wshed_Properties.el_outlet(idx_outlet), [], 'omitnan');
+        [Wshed_Properties.row_outlet_stage_min, Wshed_Properties.col_outlet_stage_min] = ...
+            find(idx_outlet & dem == Wshed_Properties.stage_min);
+    end
+
+    if exist('Paths','var') && isfield(Paths,'Shapes') && exist('DEM_raster','var')
+        FileName = fullfile(Paths.Shapes, 'Outlet_Mask.tif');
+        raster_to_export = DEM_raster;
+        raster_to_export.Z = double(outlet_index);
+        try
+            raster_to_export.Z(isnan(DEM_raster.Z)) = nan;
+        catch
+        end
+        try
+            GRIDobj2geotiff(raster_to_export, FileName);
+        catch
+            warning('Final perimeter outlet mask not exported.');
+        end
+    end
 end
 
 %% Converting Arrays to Single Precision
@@ -2745,7 +3372,7 @@ if flags.flag_single == 1
     Rainfall_Parameters = structfun(@single, Rainfall_Parameters, 'UniformOutput', false);
     recording_parameters = structfun(@single, recording_parameters, 'UniformOutput', false);
     running_control = structfun(@single, running_control, 'UniformOutput', false);
-    Soil_Properties = structfun(@single, Soil_Properties, 'UniformOutput', false);
+    Soil_Properties = convert_struct_fields_recursive(Soil_Properties, @single);
     Wshed_Properties = structfun(@single, Wshed_Properties, 'UniformOutput', false);
 
     if exist('gauges','var') && isstruct(gauges)
@@ -2942,111 +3569,21 @@ if flags.flag_single == 1
     k = single(1);
 
 end
-%% Calculating River Matrix to Estimate Groundwater
-if flags.flag_groundwater_modeling == 1
-    FD = FLOWobj(DEM_raster); % Flow direction
-    As  = flowacc(FD); % Flow Accumulation
-    Wshed_Properties.fac_area = As.Z*(Wshed_Properties.cell_area/1000/1000); % km2
-else
-    Lateral_Groundwater_Flux = 0; % m3/s/km of river
-end
-idx_rivers = Wshed_Properties.fac_area >= GIS_data.min_area;  % Logical Matrix with 1 being pixels with rivers
-Wshed_Properties.idx_rivers = idx_rivers;
-
-if flags.flag_baseflow == 1
-    % Activate this to ensure very shallow depth in rivers
-    Soil_Properties.Soil_Depth(Wshed_Properties.idx_rivers) = 0.5; % m
-end
-
-%% Groundwater States
-if flags.flag_baseflow == 1
-    BC_States.z0 = elevation - Soil_Properties.Soil_Depth; % Bedrock elevation [m]
-    BC_States.z0(idx_nan) = nan;
-
-    % Initial Conditions for the domain
-    h_depth = 0.01; % [m]
-
-    warning(['A constant initial groundwater depth of ', num2str(h_depth), ' m is being applied throughout the domain.', ...
-        newline, 'If you want to apply a spatially variable map of groundwater depth,', ...
-        newline, 'replace the line below with your custom raster/grid import.']);
-
-    % Apply space-invariant groundwater depth
-    BC_States.h_0 = BC_States.z0 + h_depth;
-    BC_States.h_t = BC_States.h_0;
-
-    % Example for visual check
-    % surfmap(BC_States.h_t - elevation);
-else
-    BC_States.z0 = elevation;
-    BC_States.h_0 = elevation - Soil_Properties.Soil_Depth;
-    BC_States.h_t = BC_States.h_0;
-end
-
-% BC_States.h_0 = BC_States.z0  ; BC_States.h_0(idx_nan) = nan;
-
-%% Initial Vadose Zone Volume
-Soil_Properties.I_0 = Soil_Properties.theta_i .* Soil_Properties.Soil_Depth * 1000; % mm
-
-% Imposing min_soil_moisture to all cells bellow the threshold
-Soil_Properties.I_0 = max(Soil_Properties.I_0,min_soil_moisture);
-Soil_Properties.I_p = max(Soil_Properties.I_0,min_soil_moisture);
-Soil_Properties.I_t = max(Soil_Properties.I_0,min_soil_moisture);
-
-%% Characterizing River Roughness
-% Inbank Manning (only using the first entry)
-if flags.flag_obs_gauges == 1
-    Wshed_Properties.Inbank_Manning = LULC_Properties.roughness; % Only first entry used
-    try
-        Wshed_Properties.Inbank_Manning(idx_rivers) = River_Manning(1); % Only first entry used
-    catch
-        Wshed_Properties.Inbank_Manning(idx_rivers) = 0.035;
-    end
-    % Overbank Manning (assuming the same of the LULC) )
-    Wshed_Properties.Overbank_Manning = LULC_Properties.roughness; % Can be altered
-else
-    Wshed_Properties.Inbank_Manning = LULC_Properties.roughness; % Only first entry used
-    Wshed_Properties.Inbank_Manning(idx_rivers) = LULC_Parameters.River_Manning; % Only first entry used
-    % Overbank Manning (assuming the same of the LULC) )
-    Wshed_Properties.Overbank_Manning = LULC_Properties.roughness; % Can be altered
-end
-
-LULC_Properties.River_K_coeff = River_K_coeff; % River recharge coefficient
-
-% Enforcing chosen roughness coefficient for river cells
-if flags.flag_reduce_DEM == 1 && flags.flag_subgrid == 0
-    LULC_Properties.roughness(idx_facc) = LULC_Parameters.River_Manning;
-end
-
-%% Dam Break Parameters
-% If dam breaking is simulated
-% if flags.flag_dam_break == 1
-%     input_table_breaker = readtable('Damns_breaks_points.xlsx');
-%     breakers.easting_absolute = table2array(input_table_breaker(:,2)); % Easting Coordinates
-%     breakers.northing_absolute = table2array(input_table_breaker(:,3)); % Northing Coordinates
-%     breakers.ID = table2array(input_table_breaker(:,1)); % ID
-%     % --- Converting coordinates to local coordinates in pixels
-%     breakers.easting= round((-GIS_data.xulcorner + breakers.easting_absolute)/Wshed_Properties.Resolution);
-%     breakers.northing = round((GIS_data.yulcorner - breakers.northing_absolute)/Wshed_Properties.Resolution);
-%     flag_break_1 = 1; flag_break_2 = 1;
-% end
-
-% We need to finish this part. Also, we need to fix it in the main while
-
-%% Outlet Perimeter B.C.
-% If you want to assign outlet normal flow boundary conditions to all
-% domain perimeter, activate the following code
-% outlet_index = Wshed_Properties.perimeter;
-if flags.flag_boundary == 1
-    outlet_index = Wshed_Properties.perimeter; % Perimeter of the domain is the outlet
-    % Taking away cells that are not in the perimeter but are inflow cells
-    if flags.flag_inflow == 1
-        outlet_index(logical(Wshed_Properties.inflow_mask)) = 0;
-    end
-end
-
 
 %% Plotting Input Rasters
-Plot_Initial_Maps; % Script to plot initial maps
+try
+    if strcmpi(strtrim(getenv('HYDROPOL2D_SKIP_INITIAL_PLOTS')), '1')
+        warning('HydroPol2D:InitialMapPlotSkipped', ...
+            'Initial input-map plotting skipped by HYDROPOL2D_SKIP_INITIAL_PLOTS=1.');
+    else
+        Plot_Initial_Maps; % Script to plot initial maps
+    end
+catch plot_initial_maps_error
+    warning('HydroPol2D:InitialMapPlotSkipped', ...
+        ['Initial input-map plotting failed and was skipped. ', ...
+        'Hydraulic preprocessing will continue. Original error: %s'], ...
+        plot_initial_maps_error.message);
+end
 
 %% Manifest
 % WRITE MODEL PARAMETER MANIFEST
@@ -3237,7 +3774,7 @@ end
 %% Clearing Variables
 
 % clearvars  -except register saver_memory_maps idx_rivers rainfall_spatial_aggregation model_folder Input_Rainfall Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters GIS_data Inflow_Parameters ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties topo_path idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx	ny	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	theta_r_fulldomain	theta_sat	theta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person
-clearvars  -except run_start_datetime hydropol2d_tools temp_dir folderName_2 folderName run_start_str results_dir use_inputpaths_bypass use_inputdata_bypass SubgridTables extra_parameters_ETP export_root_dir enable_logging input_excel_file input_sheets_folder add_input_sheets_to_path clean_output_folder run_postprocessing Paths DEM_raster_high_resolution LAI_raster NDVI_raster DTB_raster Albedo_raster C_a input_evaporation input_transpiration Stage_Parameters Qc Qf Qci Qfi register saver_memory_maps extra_parameters Lateral_Groundwater_Flux idx_rivers min_soil_moisture rainfall_spatial_aggregation  model_folder Input_Rainfall Input_Evaporation Input_Transpiration Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters Spatial_ETP_Parameters GIS_data Inflow_Parameters Snow_Properties ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Subgrid_Properties Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties topo_path idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  delta_e_agg delta_tr_agg	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx	ny	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	theta_r_fulldomain	theta_sat	theta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person outflow_bates
+clearvars  -except run_start_datetime hydropol2d_tools temp_dir folderName_2 folderName run_start_str results_dir use_inputpaths_bypass use_inputdata_bypass SubgridTables extra_parameters_ETP export_root_dir enable_logging input_excel_file input_sheets_folder add_input_sheets_to_path clean_output_folder run_postprocessing Paths InputPaths ValidationCase Cases RunSummary SummaryRow icase case_id case_dir case_root static_dir full_root summary_dir config_dir output_root input_data_bypass_script_path DEM_raster_high_resolution LAI_raster NDVI_raster DTB_raster Albedo_raster C_a input_evaporation input_transpiration Stage_Parameters Qc Qf Qci Qfi register saver_memory_maps extra_parameters Lateral_Groundwater_Flux idx_rivers min_soil_moisture rainfall_spatial_aggregation  model_folder Input_Rainfall Input_Evaporation Input_Transpiration Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters Spatial_ETP_Parameters GIS_data Inflow_Parameters Snow_Properties ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Subgrid_Properties Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties topo_path idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  delta_e_agg delta_tr_agg	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx	ny	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	theta_r_fulldomain	theta_sat	theta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person outflow_bates
 
 
 %% Converting Arrays to GPU Arrays, if required
@@ -3331,7 +3868,7 @@ if flags.flag_GPU == 1
     Rainfall_Parameters = structfun(@gpuArray, Rainfall_Parameters, 'UniformOutput', false);
     recording_parameters = structfun(@gpuArray, recording_parameters, 'UniformOutput', false);
     running_control = structfun(@gpuArray, running_control, 'UniformOutput', false);
-    Soil_Properties = structfun(@gpuArray, Soil_Properties, 'UniformOutput', false);
+    Soil_Properties = convert_struct_fields_recursive(Soil_Properties, @gpuArray);
     Wshed_Properties = structfun(@gpuArray, Wshed_Properties, 'UniformOutput', false);
 
     if exist('gauges','var') && isstruct(gauges)
@@ -4378,6 +4915,22 @@ function S = cast_struct_numeric_to_single(S)
             S.(f) = single(v);
         elseif isstruct(v)
             S.(f) = cast_struct_numeric_to_single(v);
+        else
+            % leave chars, strings, datetime, cells, objects unchanged
+        end
+    end
+end
+
+function S = convert_struct_fields_recursive(S, converter)
+    fn = fieldnames(S);
+    for i = 1:numel(fn)
+        f = fn{i};
+        v = S.(f);
+
+        if isnumeric(v) || islogical(v)
+            S.(f) = converter(v);
+        elseif isstruct(v)
+            S.(f) = convert_struct_fields_recursive(v, converter);
         else
             % leave chars, strings, datetime, cells, objects unchanged
         end

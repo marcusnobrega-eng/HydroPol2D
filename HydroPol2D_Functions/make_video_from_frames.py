@@ -48,13 +48,14 @@
 # ============================================================
 
 
+'''
 ml python/3.12.1
 source /oak/stanford/groups/gorelick/Marcus/ffmpeg_pyenv/bin/activate
 
 FFMPEG=$(python3 -c "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())")
 
-PNG_DIR="/oak/stanford/groups/gorelick/HydroPol2D/Case_Studies/Stanford/Stanford_Big_Flood_10m/Outputs/Png_Animations"
-OUT_MP4="${PNG_DIR}/stanford_lidar.mp4"
+PNG_DIR="/oak/stanford/groups/gorelick/HydroPol2D/Case_Studies/India/2000m/Outputs/Png_Animations"
+OUT_MP4="${PNG_DIR}/indofloos_2000m.mp4"
 
 $FFMPEG -y -framerate 12 \
   -pattern_type glob -i "${PNG_DIR}/*.png" \

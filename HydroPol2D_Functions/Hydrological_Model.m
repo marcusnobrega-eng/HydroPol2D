@@ -5,6 +5,11 @@
 % Added recharge calculation. Added 2D boussinesq solution to the
 % groundwater model
 
+use_lookup_subgrid_volume = flags.flag_subgrid == 1 && flags.flag_overbanks ~= 1 ...
+    && exist('SubgridTables', 'var') && ~isempty(SubgridTables);
+if use_lookup_subgrid_volume
+    d_t_before_hydrology = depths.d_t;
+end
 
 % Interception Module
 interception_module
@@ -23,6 +28,18 @@ Groundwater_Module
 
 % Inflow
 depths.d_t = depths.d_t + BC_States.inflow;
+
+% Lookup-table subgrid stores water by volume, not by representative area.
+% Hydrologic source/sink modules update depth in mm, so convert the net
+% areal change to volume over the full coarse cell and invert the storage
+% curve back to representative depth.
+if use_lookup_subgrid_volume
+    delta_depth_mm = depths.d_t - d_t_before_hydrology;
+    delta_depth_mm(~isfinite(delta_depth_mm)) = 0;
+    depths.d_t = 1000 .* hp2d_subgrid_apply_volume_change( ...
+        max(d_t_before_hydrology ./ 1000, 0), delta_depth_mm, ...
+        SubgridTables, Wshed_Properties.cell_area);
+end
 
 % Depths
 if min(min(depths.d_t)) < -1e-8
@@ -55,5 +72,4 @@ if flags.flag_subgrid == 1 && flags.flag_overbanks == 1% Maybe we have a change 
         C_a(idx) = Wshed_Properties.River_Width(idx)*Wshed_Properties.Resolution;
     end
 end
-
 

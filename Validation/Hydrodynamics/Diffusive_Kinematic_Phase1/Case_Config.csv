@@ -1,0 +1,9 @@
+case_id,module,phase,evidence_type,truth_source,driver,flags,status
+P1-HYDRO-KIN-PLANE-001,Hydrodynamics,Phase 1,analytical_solution,Kinematic-wave tilted-plane limit,run_diffusive_kinematic_hydrodynamics_validation.m,flag_kinematic=1,report_ready
+P1-HYDRO-KIN-VTILT-001,Hydrodynamics,Phase 1,exact_bookkeeping,Mass conservation and bilateral symmetry on V-tilted domain,run_diffusive_kinematic_hydrodynamics_validation.m,flag_kinematic=1,report_ready
+P1-HYDRO-KIN-RITTER-001,Hydrodynamics,Phase 1,diagnostic_analytical,Ritter dry-bed dam-break solution,run_diffusive_kinematic_hydrodynamics_validation.m,flag_kinematic=1,diagnostic_pass
+P1-BC-STAGE-KIN-001,Stage hydrograph boundary,Phase 1,exact_bookkeeping,Prescribed stage and volume ledger,run_diffusive_kinematic_hydrodynamics_validation.m,flag_kinematic=1; flag_stage_hydrograph=1,report_ready
+P1-HYDRO-DIFF-PLANE-001,Hydrodynamics,Phase 1,approximation_benchmark,Kinematic-wave tilted-plane limit,run_diffusive_kinematic_hydrodynamics_validation.m,flag_diffusive=1,report_ready
+P1-HYDRO-DIFF-VTILT-001,Hydrodynamics,Phase 1,exact_bookkeeping,Mass conservation and bilateral symmetry on V-tilted domain,run_diffusive_kinematic_hydrodynamics_validation.m,flag_diffusive=1,report_ready
+P1-HYDRO-DIFF-RITTER-001,Hydrodynamics,Phase 1,diagnostic_analytical,Ritter dry-bed dam-break solution,run_diffusive_kinematic_hydrodynamics_validation.m,flag_diffusive=1,diagnostic_failed
+P1-BC-STAGE-DIFF-001,Stage hydrograph boundary,Phase 1,exact_bookkeeping,Prescribed stage and volume ledger,run_diffusive_kinematic_hydrodynamics_validation.m,flag_diffusive=1; flag_stage_hydrograph=1,report_ready

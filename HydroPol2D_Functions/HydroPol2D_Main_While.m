@@ -47,13 +47,69 @@
 
 % flags.flag_subgrid = 0;
 
+
+%% ------------------------------------------------------------------------
+% Routing model selector
+% -------------------------------------------------------------------------
+% Full momentum test:
+%   flag_full_momentum = 1
+%   all other routing solvers = 0
+% -------------------------------------------------------------------------
+if ~isfield(flags, 'flag_full_momentum') || isempty(flags.flag_full_momentum)
+    flags.flag_full_momentum = 0;
+end
+if ~isfield(flags, 'flag_inertial') || isempty(flags.flag_inertial)
+    flags.flag_inertial = 1;
+end
+if ~isfield(flags, 'flag_diffusive') || isempty(flags.flag_diffusive)
+    flags.flag_diffusive = 0;
+end
+if ~isfield(flags, 'flag_kinematic') || isempty(flags.flag_kinematic)
+    flags.flag_kinematic = 0;
+end
+if ~isfield(flags, 'flag_CA') || isempty(flags.flag_CA)
+    flags.flag_CA = 0;
+end
+
+active_routing_flags = [flags.flag_full_momentum, flags.flag_inertial, ...
+    flags.flag_diffusive, flags.flag_kinematic, flags.flag_CA] == 1;
+if nnz(active_routing_flags) > 1
+    error(['Exactly one routing formulation must be active. Set only one of ', ...
+        'flag_full_momentum, flag_inertial, flag_diffusive, flag_kinematic, or flag_CA to 1.']);
+end
+if nnz(active_routing_flags) == 0
+    flags.flag_inertial = 1;
+end
+if isfield(flags, 'flag_subgrid') && flags.flag_subgrid == 1 && flags.flag_full_momentum == 1
+    error(['Lookup-table subgrid routing is currently validated only with ', ...
+        'the local-inertial solver. Set flag_full_momentum=0 and ', ...
+        'flag_inertial=1, or disable flag_subgrid.']);
+end
+
+GW_Depth_check = BC_States.h_t - (elevation - Soil_Properties.Soil_Depth);
+zwt_check = Soil_Properties.Soil_Depth - GW_Depth_check;
+
+fprintf('Mean Soil_Depth = %.4f m\n', mean(Soil_Properties.Soil_Depth(:), 'omitnan'));
+fprintf('Mean h_t        = %.4f m\n', mean(BC_States.h_t(:), 'omitnan'));
+fprintf('Mean elevation  = %.4f m\n', mean(elevation(:), 'omitnan'));
+fprintf('Mean zwt        = %.4f m\n', mean(zwt_check(:), 'omitnan'));
+fprintf('Min zwt         = %.4f m\n', min(zwt_check(:), [], 'omitnan'));
+fprintf('Max zwt         = %.4f m\n', max(zwt_check(:), [], 'omitnan'));
+fprintf('Mean I_t        = %.4f mm\n', mean(Soil_Properties.I_t(:), 'omitnan'));
+
+% Outlet type:
+%   1 = normal-flow outlet
+%   2 = critical-flow outlet
+% outlet_type = 1;
+
+
 flags.flag_dashboard = 0;
-running_control.report_every_percent = 0.25;
+running_control.report_every_percent = 5;
 zero_matrix = zeros(ny,nx); zero_matrix(idx_nan) = nan;
 tic
 k = 1; % time-step counter
 C = 0; % initial infiltration capacity
-t = running_control.min_time_step; % inital time
+t = running_control.min_time_step/60; % inital time
 progress_percent = (t / running_control.routing_time) * 100;
 saver_count = 1; % starts in 1 but the next pointer should be 2, this is auto fixed when t reach the next time aggregation.
 update_spatial_BC;
@@ -128,9 +184,66 @@ catch
     Subgrid_Properties = [];
 end
 % Subgrid_Properties = [];
-% 
+%
 roughness_squared = LULC_Properties.roughness.^2;
-% 
+%
+
+%% ------------------------------------------------------------------------
+% Full momentum / routing compatibility guards
+% -------------------------------------------------------------------------
+% These guards make the main loop robust when the selected solver does not
+% need subgrid-channel memory, or when a workspace was created before these
+% variables existed.
+% -------------------------------------------------------------------------
+if ~exist('SubgridTables','var') || isempty(SubgridTables)
+    SubgridTables = [];
+end
+
+if ~exist('Qc','var')  || isempty(Qc);  Qc  = 0; end
+if ~exist('Qf','var')  || isempty(Qf);  Qf  = 0; end
+if ~exist('Qci','var') || isempty(Qci); Qci = 0; end
+if ~exist('Qfi','var') || isempty(Qfi); Qfi = 0; end
+
+if ~exist('C_a','var') || isempty(C_a)
+    C_a = Wshed_Properties.Resolution^2;
+end
+
+%% ------------------------------------------------------------------------
+% Routing-memory initialization
+% -------------------------------------------------------------------------
+% For local inertial / diffusive / kinematic:
+%   outflow_bates(:,:,1:3) = [x-face flux, y-face flux, outlet sink]
+%
+% For full momentum:
+%   outflow_bates(:,:,1) = x-face flux [mm/h]
+%   outflow_bates(:,:,2) = y-face flux [mm/h]
+%   outflow_bates(:,:,3) = outlet sink [mm/h]
+%   outflow_bates(:,:,4) = hu [m2/s]
+%   outflow_bates(:,:,5) = hv [m2/s]
+% -------------------------------------------------------------------------
+
+if ~exist('outflow_bates','var') || isempty(outflow_bates)
+
+    if flags.flag_full_momentum == 1
+        outflow_bates = zeros(ny,nx,5,'like',depths.d_t);
+    else
+        outflow_bates = zeros(ny,nx,3,'like',depths.d_t);
+    end
+
+else
+
+    % If switching from local inertial memory to full momentum memory,
+    % expand from 3 pages to 5 pages.
+    if flags.flag_full_momentum == 1 && size(outflow_bates,3) < 5
+
+        outflow_old = outflow_bates;
+
+        outflow_bates = zeros(ny,nx,5,'like',depths.d_t);
+        outflow_bates(:,:,1:size(outflow_old,3)) = outflow_old;
+
+    end
+
+end
 
 % Initial System Storage
 S_c = nansum(nansum(Wshed_Properties.Resolution^2.*Hydro_States.S/1000)); % Canopy
@@ -147,7 +260,7 @@ S_GW = nansum(nansum(Wshed_Properties.Resolution^2.*Soil_Properties.Sy.*(BC_Stat
 S_prev = S_c + S_p + S_UZ + S_GW;
 
 % Initial Activation
-if flags.flag_inertial == 1
+if flags.flag_CA ~= 1
     outflow_prev = outflow_bates;
 end
 catch_index = 1;
@@ -235,18 +348,82 @@ mass_balance_history.cum_errors_m3 = zeros(n_reports_est,5);
 mass_balance_history.cum_errors_mm = zeros(n_reports_est,5);
 mass_balance_history.count         = 0;
 
+%% ------------------------------------------------------------------------
+% Full momentum conservative memory
+% -------------------------------------------------------------------------
+% hux_prev = hu [m2/s]
+% huy_prev = hv [m2/s]
+%
+% These are the cell-centered conservative momentum states used by
+% Full_Momentum_Model_D4.
+%
+% IMPORTANT:
+%   They must persist from one accepted time step to the next.
+%   They play the same role as outflow_prev in the local inertial model.
+% -------------------------------------------------------------------------
+
+if flags.flag_full_momentum == 1
+
+    hux_prev = zeros(ny,nx,'like',depths.d_t);
+    huy_prev = zeros(ny,nx,'like',depths.d_t);
+
+    hux_prev(idx_nan) = 0;
+    huy_prev(idx_nan) = 0;
+
+end
+
+%% ------------------------------------------------------------------------
+% Face-based outlet preprocessing for full momentum
+% -------------------------------------------------------------------------
+% outlet_index is treated as a CANDIDATE outlet mask.
+% The function activates only faces where local topography descends outward.
+% Option A = only one outlet face per cell.
+% -------------------------------------------------------------------------
+
+if flags.flag_full_momentum == 1
+
+    Outlet_Properties = define_outlet_faces_steepest_descent( ...
+        Elevation_Properties.elevation_cell, ...
+        idx_nan, ...
+        Wshed_Properties.Resolution, ...
+        'CandidateMask', outlet_index, ...
+        'MinSlope', 1.0e-6, ...
+        'TieTolerance', 1.0e-12, ...
+        'TiePriority', {'right','left','up','down'});
+
+else
+
+    Outlet_Properties = [];
+
+end
+
 %% #################### Main Loop (HydroPol2D)  ################ %
 
 profile on
 while t <= (running_control.routing_time + running_control.min_time_step/60) % Running up to the end of the simulation
     %tic
     try
-        
+
+        %% ------------------------------------------------------------
+        % Save previous accepted hydraulic memory for rollback
+        % -------------------------------------------------------------
+        % Full momentum stores hu/hv inside outflow_bates(:,:,4:5).
+        % If the step fails, we restore the last accepted outflow memory.
+        % -------------------------------------------------------------
+        if flags.flag_full_momentum == 1
+            outflow_prev_before_step  = outflow_prev;
+            outflow_bates_before_step = outflow_bates;
+        end
+        if isfield(Soil_Properties, 'Layers') && isstruct(Soil_Properties.Layers)
+            Soil_Layers_before_step = Soil_Properties.Layers;
+        end
+        if exist('GW_States', 'var') && isstruct(GW_States)
+            GW_States_before_step = GW_States;
+        end
         % -------------- Hydrological Model --------------- %
-        % BC_States.delta_p_agg(BC_States.delta_p_agg >= 0) = 100* (time_step/60); % 1 mm/h
-        % time_step = 1; % min
-        
         Hydrological_Model; % Runs the interception + infiltration + GW routing model
+
+ 
 
         % Preallocating cels for Cellular Automata
         if flags.flag_D8 == 1 && flags.flag_diffusive == 1
@@ -299,14 +476,95 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                         Kinematic_Wave_Model(flags.flag_numerical_scheme,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
                         flags.flag_reservoir,Elevation_Properties.elevation_cell,...
                         depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical,flags.flag_subgrid,Wshed_Properties.Inbank_Manning,Wshed_Properties.Overbank_Manning,Wshed_Properties.River_Width, Wshed_Properties.River_Depth,Qc,Qf,Qci,Qfi,C_a);
+                elseif flags.flag_full_momentum == 1
+
+                    % --------------------- Full Momentum Formulation --------------------- %
+                    [flow_rate.qout_left_t, flow_rate.qout_right_t, ...
+                        flow_rate.qout_up_t,   flow_rate.qout_down_t, ...
+                        outlet_states.outlet_flow, depths.d_t, ...
+                        CA_States.I_tot_end_cell, outflow_bates, Hf, ...
+                        Qc, Qf, Qci, Qfi, C_a] = ...
+                        Full_Momentum_Model_D4( ...
+                        flags.flag_numerical_scheme, ...
+                        Reservoir_Data.x_index, Reservoir_Data.y_index, ...
+                        Reservoir_Data.k1, Reservoir_Data.h1, ...
+                        Reservoir_Data.k2, Reservoir_Data.k3, ...
+                        Reservoir_Data.h2, Reservoir_Data.k4, ...
+                        Reservoir_Data.y_ds1_index, Reservoir_Data.x_ds1_index, ...
+                        Reservoir_Data.y_ds2_index, Reservoir_Data.x_ds2_index, ...
+                        flags.flag_reservoir, ...
+                        Elevation_Properties.elevation_cell, ...
+                        depths.d_tot, depths.d_p, ...
+                        LULC_Properties.roughness, roughness_squared, ...
+                        Wshed_Properties.cell_area, ...
+                        time_step, ...
+                        Wshed_Properties.Resolution, ...
+                        outlet_index, outlet_type, slope_outlet, ...
+                        Wshed_Properties.row_outlet, Wshed_Properties.col_outlet, ...
+                        CA_States.depth_tolerance, ...
+                        outflow_prev, ...
+                        idx_nan, ...
+                        flags.flag_critical, ...
+                        flags.flag_subgrid, ...
+                        Wshed_Properties.Inbank_Manning, ...
+                        Wshed_Properties.Overbank_Manning, ...
+                        Wshed_Properties.River_Width, ...
+                        Wshed_Properties.River_Depth, ...
+                        Qc, Qf, Qci, Qfi, C_a, ...
+                        Subgrid_Properties, ...
+                        flags.flag_overbanks, ...
+                        flags.flag_inflow, ...
+                        SubgridTables, ...
+                        Outlet_Properties);
+
+                    %% ------------------------------------------------------------
+                    % Safety check: outlet sink should never be negative
+                    %% ------------------------------------------------------------
+                    if any(outlet_states.outlet_flow(:) < -1e-12)
+                        error('Negative outlet_states.outlet_flow produced inside Full_Momentum_Model_D4.');
+                    end
+
+                    if size(outflow_bates,3) >= 3
+                        if any(outflow_bates(:,:,3) < -1e-12, 'all')
+                            error('Negative outflow_bates(:,:,3) produced inside Full_Momentum_Model_D4.');
+                        end
+                    end
+
+                    outlet_states.outlet_flow = max(outlet_states.outlet_flow, 0);
+                    outflow_bates(:,:,3) = max(outflow_bates(:,:,3), 0);
+
+                    %% ------------------------------------------------------------
+                    % Velocity diagnostics from full-momentum memory
+                    %% ------------------------------------------------------------
+                    h_now = max(depths.d_t/1000, 0);  % [m]
+
+                    hu_now = outflow_bates(:,:,4);    % [m2/s]
+                    hv_now = outflow_bates(:,:,5);    % [m2/s]
+
+                    u_now = zeros(size(h_now), 'like', h_now);
+                    v_now = zeros(size(h_now), 'like', h_now);
+
+                    wet_now = h_now > max(CA_States.depth_tolerance/1000, 1e-8);
+
+                    u_now(wet_now) = hu_now(wet_now) ./ h_now(wet_now);
+                    v_now(wet_now) = hv_now(wet_now) ./ h_now(wet_now);
+
+                    velocities.velocity_raster = sqrt(u_now.^2 + v_now.^2);
+                    velocities.velocity_raster(idx_nan) = NaN;
+
+                    vel_tmp = velocities.velocity_raster;
+                    vel_tmp(~isfinite(vel_tmp)) = 0;
+                    velocities.max_velocity = max(vel_tmp(:));
+
+
                 else
                     % -------------------- Local Inertial Formulation ----------------%
-                
+
                     if flags.flag_subgrid == 1
                         % New standalone paper-style shared-face subgrid solver
                         [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t, ...
-                         outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf, ...
-                         Qc,Qf,Qci,Qfi,C_a,eta_t,V_t] = ...
+                            outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf, ...
+                            Qc,Qf,Qci,Qfi,C_a,eta_t,V_t] = ...
                             Local_Inertial_Model_D4_Subgrid( ...
                             flags.flag_numerical_scheme, ...
                             Reservoir_Data.x_index,Reservoir_Data.y_index, ...
@@ -326,9 +584,15 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                             Wshed_Properties.River_Width, Wshed_Properties.River_Depth, ...
                             Qc, Qf, Qci, Qfi, C_a, ...
                             Subgrid_Properties, flags.flag_inflow, SubgridTables);
-                
+
                     else
-                        % Original baseline local inertial solver
+                        % -------------------- Local Inertial Formulation ----------------%
+                        %                         [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf,Qc,Qf,Qci,Qfi,C_a] = ...
+                        %                             Local_Inertial_Model_D4_old(flags.flag_numerical_scheme,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
+                        %                             flags.flag_reservoir,Elevation_Properties.elevation_cell,...
+                        %                             depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical,flags.flag_subgrid,Wshed_Properties.Inbank_Manning,Wshed_Properties.Overbank_Manning,Wshed_Properties.River_Width, Wshed_Properties.River_Depth,Qc,Qf,Qci,Qfi,C_a,Subgrid_Properties,flags.flag_overbanks,flags.flag_inflow, SubgridTables);
+                        %
+                        %                         % Original baseline local inertial solver
                         [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf,Qc,Qf,Qci,Qfi,C_a] = ...
                             Local_Inertial_Model_D4( ...
                             flags.flag_numerical_scheme, ...
@@ -349,18 +613,19 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                             Wshed_Properties.River_Width, Wshed_Properties.River_Depth, ...
                             Qc, Qf, Qci, Qfi, C_a, ...
                             Subgrid_Properties, flags.flag_overbanks, flags.flag_inflow, SubgridTables);
+
                     end
-                
+
                 end
             end
         end
-        
-%         zzz_time_tesk(k,1) = toc;
-% 
-%         if k == 1000
-%             ttt = 1;
-%             profile off;
-%         end
+
+        %         zzz_time_tesk(k,1) = toc;
+        %
+        %         if k == 1000
+        %             ttt = 1;
+        %             profile off;
+        %         end
 
         %% Outflows become inflows directly into qin_t (avoid extra full-size inflow arrays)
         flow_rate.qin_t(:) = 0;
@@ -401,15 +666,15 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         water_balance_error_volume = abs(sum(sum(depths.d_t(depths.d_t<0))))*Wshed_Properties.Resolution^2*0.001; % m3
         water_balance_error_mm = water_balance_error_volume/Wshed_Properties.drainage_area*1000; % mm
 
-%         if water_balance_error_volume > running_control.volume_error % We need to define better this parameter
-%             factor_time = 1;
-%             catch_index = catch_index + 5;
-%             error('Mass balance error too high.')
-%         else
-%             catch_index = 1;
-%             factor_time = factor_time + 1;
-%             running_control.max_time_step = min(running_control.max_time_step*(1+0.05*factor_time),max_dt);
-%         end
+        %         if water_balance_error_volume > running_control.volume_error % We need to define better this parameter
+        %             factor_time = 1;
+        %             catch_index = catch_index + 5;
+        %             error('Mass balance error too high.')
+        %         else
+        %             catch_index = 1;
+        %             factor_time = factor_time + 1;
+        %             running_control.max_time_step = min(running_control.max_time_step*(1+0.05*factor_time),max_dt);
+        %         end
         % depths.d_t = max(depths.d_t,0);  % Taking away negative masses
 
 
@@ -501,11 +766,12 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         depths.d_p = depths.d_t;
         Soil_Properties.I_p = Soil_Properties.I_t;
 
-        if flags.flag_inertial == 1
-            % Saving previous outflows
-            outflow_prev = outflow_bates; % Corrected previous outflow
-        end
+        if flags.flag_inertial == 1 || flags.flag_full_momentum == 1 || ...
+                flags.flag_diffusive == 1 || flags.flag_kinematic == 1
 
+            outflow_prev = outflow_bates;
+
+        end
         % Saving Results in time_observations - Only Valid for Calibration
         save_automatic_cabralition_outputs;
 
@@ -535,6 +801,8 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
 
             %% Mass Balance Check
             mass_balance_check
+            close all
+            % surfmap(depths.d_t); pause(0.1)
 
             % ------------------------------------------------------------------------
             % Convert module mass-balance errors to catchment-equivalent diagnostics
@@ -653,7 +921,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             error('Instability. in the Water Quality Model.')
         end
 
-        
+
 
     catch ME % In case an error occurs in the model
         disp(ME.message)
@@ -684,11 +952,43 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         t = t + time_step;
         depths.d_t = depths.d_p;
         Soil_Properties.I_t = Soil_Properties.I_p;
+        if exist('Soil_Layers_before_step','var') && ...
+                isfield(Soil_Properties, 'Layers') && isstruct(Soil_Properties.Layers)
+            Soil_Properties.Layers = Soil_Layers_before_step;
+            Soil_Properties = sync_layered_soil_storage(Soil_Properties, idx_nan);
+        end
+        if exist('GW_States_before_step', 'var')
+            GW_States = GW_States_before_step;
+        end
+
+        %% ------------------------------------------------------------
+        % Roll back full-momentum conservative memory after rejected step
+        % -------------------------------------------------------------
+        % If a step fails, hux_prev/huy_prev may already contain the rejected
+        % momentum state returned by Full_Momentum_Model_D4_2. Restore the
+        % last accepted state before retrying with a smaller time step.
+        % -------------------------------------------------------------
+        if flags.flag_full_momentum == 1
+            hux_prev = hux_prev_before_step;
+            huy_prev = huy_prev_before_step;
+
+            hux_prev(idx_nan) = 0;
+            huy_prev(idx_nan) = 0;
+        end
+
         if flags.flag_baseflow == 1
             BC_States.h_t = BC_States.h_0;
         end
         % current_storage = previous_storage;
         update_spatial_BC
+
+        if  t/running_control.routing_time*100 > 100
+            % Save Workspace for post-processing in case something breaks
+            % afterwards
+            try
+                save('modeled_results.mat', '-v7.3')
+            end
+        end
 
     end
 end
@@ -757,6 +1057,14 @@ if flags.flag_GPU == 1
     outlet_states        = gather_deep(outlet_states);
     velocities           = gather_deep(velocities);
     gauges               = gather_deep(gauges);
+
+    if exist('hux_prev','var'); hux_prev = gather_deep(hux_prev); end
+    if exist('huy_prev','var'); huy_prev = gather_deep(huy_prev); end
+    if exist('eta_t','var');    eta_t    = gather_deep(eta_t);    end
+    if exist('V_t','var');      V_t      = gather_deep(V_t);      end
+    if exist('Hf','var');       Hf       = gather_deep(Hf);       end
+    if exist('outflow_bates','var'); outflow_bates = gather_deep(outflow_bates); end
+    if exist('outflow_prev','var');  outflow_prev  = gather_deep(outflow_prev);  end
 
     % IMPORTANT: gather flags LAST (or keep it as CPU-only always)
     flags                = gather_deep(flags);

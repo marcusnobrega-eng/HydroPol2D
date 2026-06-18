@@ -136,12 +136,17 @@ if running_control.delta_time_save > 0 || k == 1
     %% --------------------------------------------------------------------
     % Cell-centered velocity components
     % ---------------------------------------------------------------------
-    if flags.flag_inertial == 1 || flags.flag_diffusive == 1 || flags.flag_kinematic == 1
+    if flags.flag_inertial == 1 || flags.flag_diffusive == 1 || ...
+       flags.flag_kinematic == 1 || flags.flag_full_momentum == 1
+    
         velocities.right_component = 0.5 * (velocities.vel_right - velocities.vel_left);
         velocities.up_component    = 0.5 * (velocities.vel_up    - velocities.vel_down);
+    
     else
+    
         velocities.right_component = velocities.vel_right - velocities.vel_left;
         velocities.up_component    = velocities.vel_up    - velocities.vel_down;
+    
     end
 
     %% --------------------------------------------------------------------
@@ -237,14 +242,85 @@ if running_control.delta_time_save > 0 || k == 1
     end
 
     %% --------------------------------------------------------------------
+    % Candidate 3: Full-momentum SWE CFL timestep
+    % Active only when flags.flag_full_momentum == 1
+    %
+    % SERGHEI-like CFL:
+    %   dt <= CFL * dx / max( |u| + sqrt(g*h), |v| + sqrt(g*h) )
+    %
+    % Important:
+    % - Do NOT remove stagnant cells here. Even if u = v = 0, the gravity wave
+    %   speed sqrt(g*h) still restricts the timestep.
+    % - Use cell water depth, not face Hf, for the SWE wave celerity.
+    % ---------------------------------------------------------------------
+    if flags.flag_full_momentum == 1
+    
+        g_swe = 9.81;
+    
+        % Cell-centered water depth [m]
+        h_swe = max(depths.d_t / 1000, 0);
+    
+        % Dry tolerance [m]
+        if isfield(CA_States, 'depth_tolerance')
+            h_dry_swe = max(CA_States.depth_tolerance / 1000, 1e-8);
+        else
+            h_dry_swe = 1e-8;
+        end
+    
+        % Cell-centered velocity components [m/s]
+        u_swe = abs(velocities.right_component);
+        v_swe = abs(velocities.up_component);
+    
+        % Remove invalid values
+        u_swe(~isfinite(u_swe)) = 0;
+        v_swe(~isfinite(v_swe)) = 0;
+    
+        % Gravity wave speed [m/s]
+        c_swe = sqrt(g_swe * h_swe);
+    
+        % Full SWE signal speed per cell [m/s]
+        speed_x = u_swe + c_swe;
+        speed_y = v_swe + c_swe;
+        speed_swe = max(speed_x, speed_y);
+    
+        % Ignore dry cells only. Do NOT ignore stagnant wet cells.
+        speed_swe(h_swe <= h_dry_swe) = NaN;
+        speed_swe(~isfinite(speed_swe)) = NaN;
+    
+        % CFL number for explicit full momentum.
+        % SERGHEI uses CFL <= 0.5. Use the model's alfa_min but cap at 0.5.
+        CFL_full_momentum = min(Courant_Parameters.alfa_min, 0.5);
+    
+        dt_full_momentum = nanmin( ...
+            CFL_full_momentum * Wshed_Properties.Resolution ./ speed_swe, ...
+            [], 'all');
+    
+        if isnan(dt_full_momentum) || isinf(dt_full_momentum)
+            dt_full_momentum = running_control.max_time_step;
+        end
+    
+        % Store diagnostics
+        Courant_Parameters.dt_full_momentum = dt_full_momentum;
+        Courant_Parameters.CFL_full_momentum = CFL_full_momentum;
+        Courant_Parameters.max_speed_full_momentum = max(speed_swe(:), [], 'omitnan');
+    
+    else
+    
+        dt_full_momentum = running_control.max_time_step;
+    
+    end
+    %% --------------------------------------------------------------------
     % Final timestep = minimum of all active stability constraints
     % ---------------------------------------------------------------------
-    new_timestep = min(dt_adv, dt_wave);
-
-    if velocities.max_velocity == 0 && k == 1
-        new_timestep = running_control.time_step_model * 60; % seconds
-    elseif velocities.max_velocity == 0
-        new_timestep = running_control.max_time_step; % seconds
+    if flags.flag_full_momentum == 1
+        % new_timestep = min([dt_adv, dt_wave, dt_full_momentum]);
+        new_timestep = dt_full_momentum;
+    else
+        if flags.flag_timestep == 1 % 1 we use all terms
+            new_timestep = min(dt_adv, dt_wave);
+        else
+            new_timestep = dt_wave;
+        end
     end
 
     %% --------------------------------------------------------------------

@@ -82,6 +82,13 @@ if flags.flag_ETP == 1
     % ------------------------------------------------------------------
     I_t_before_ET = Soil_Properties.I_t;
     d_t_before_ET = depths.d_t;
+    has_layered_soil = isfield(Soil_Properties, 'Layers') && ...
+        isstruct(Soil_Properties.Layers) && ...
+        isfield(Soil_Properties.Layers, 'near_surface_storage_mm');
+    if has_layered_soil
+        Soil_Properties = sync_layered_soil_storage(Soil_Properties, idx_nan);
+        I_t_before_ET = Soil_Properties.I_t;
+    end
 
 
     % ------------------------------------------------------------------
@@ -149,26 +156,35 @@ if flags.flag_ETP == 1
     % ------------------------------------------------------------------
     if any(idx_soil_available(:))
 
-        % Maximum extractable ET rate based on PRE-ET soil storage [mm/day]
-        max_soil_ET_rate = (I_t_before_ET(idx_soil_available) ...
-            - min_soil_moisture(idx_soil_available)) ./ max(dt_days, eps);
+        if has_layered_soil
+            et_demand_depth_mm = ETR_demand .* dt_days;
+            [Soil_Properties, actual_et_depth_mm] = extract_layered_et( ...
+                Soil_Properties, et_demand_depth_mm, idx_soil_available, idx_nan);
 
-        max_soil_ET_rate = max(max_soil_ET_rate, 0);
+            Hydro_States.ETR(idx_soil_available) = ...
+                actual_et_depth_mm(idx_soil_available) ./ max(dt_days, eps);
+        else
+            % Maximum extractable ET rate based on PRE-ET soil storage [mm/day]
+            max_soil_ET_rate = (I_t_before_ET(idx_soil_available) ...
+                - min_soil_moisture(idx_soil_available)) ./ max(dt_days, eps);
 
-        % Actual ET rate [mm/day]
-        Hydro_States.ETR(idx_soil_available) = min( ...
-            ETR_demand(idx_soil_available), ...
-            max_soil_ET_rate);
+            max_soil_ET_rate = max(max_soil_ET_rate, 0);
 
-        % Update soil storage using the exact same pre-ET storage basis
-        Soil_Properties.I_t(idx_soil_available) = ...
-            I_t_before_ET(idx_soil_available) ...
-            - Hydro_States.ETR(idx_soil_available) .* dt_days;
+            % Actual ET rate [mm/day]
+            Hydro_States.ETR(idx_soil_available) = min( ...
+                ETR_demand(idx_soil_available), ...
+                max_soil_ET_rate);
 
-        % Enforce lower bound
-        Soil_Properties.I_t(idx_soil_available) = max( ...
-            Soil_Properties.I_t(idx_soil_available), ...
-            min_soil_moisture(idx_soil_available));
+            % Update soil storage using the exact same pre-ET storage basis
+            Soil_Properties.I_t(idx_soil_available) = ...
+                I_t_before_ET(idx_soil_available) ...
+                - Hydro_States.ETR(idx_soil_available) .* dt_days;
+
+            % Enforce lower bound
+            Soil_Properties.I_t(idx_soil_available) = max( ...
+                Soil_Properties.I_t(idx_soil_available), ...
+                min_soil_moisture(idx_soil_available));
+        end
 
         % No surface evaporation term for these cells
         BC_States.delta_E(idx_soil_available) = 0;

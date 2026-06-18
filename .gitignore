@@ -1,0 +1,45 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Editor / backup files
+*.asv
+*~
+
+# Generated archives and media
+*.zip
+*.mp4
+*.mov
+*.avi
+*.gif
+
+# HydroPol2D generated run outputs
+Outputs/
+Modeling_Results/
+Temporary_Files/
+Rasters_Water_Depths/
+Rasters_WSE/
+Rasters_Velocity/
+Rasters_Hazard/
+Rasters_Infiltration/
+GIFs_MP4/
+Figures_PDF/
+Figures_FIG/
+Tables_CSV/
+
+# Large/generated MATLAB result workspaces
+modeled_results.mat
+workspace_plane.mat
+save_map*.mat
+current_time_series_outputs.mat
+hydropol2d_preprocessing_manifest*.mat
+Case_Rasters_And_Config.mat
+*_Analysis_Results.mat
+
+# Large raster forcing downloads; keep small CSV forcing files tracked
+Examples/*/Forcing/**/*.tif
+Examples/*/Forcing/**/*.tiff
+Examples/*/Forcing/**/*.nc
+Examples/*/Forcing/**/*.hdf
+Examples/*/Forcing/**/*.h5
+

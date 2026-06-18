@@ -1,0 +1,2 @@
+case_id,module,status,driver,expected_behavior,primary_metrics,acceptance_threshold
+P1-RAIN-MAP-001,Spatial rainfall and satellite maps,report_ready,run_spatial_rainfall_raster_validation.m,"Tiny GeoTIFF rainfall-intensity fields produce exact cellwise accumulated depths, stepwise volumes, and total rainfall volume after temporal accumulation.","cellwise_rainfall_error_m; total_rainfall_volume_error_pct; max_step_volume_error_pct; rainfall_storage_residual_m3","cellwise error <1e-9 m, total-volume error <0.1%, step-volume error <0.1%"

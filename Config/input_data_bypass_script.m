@@ -157,24 +157,24 @@ InputData_Bypass.general = struct();
 %   60 min    = 60
 %
 % Choose values consistent with your numerical setup.
-InputData_Bypass.general.time_step_model      = 5/60;   % [min] Base model time step = 5 s
-InputData_Bypass.general.min_time_step        = 0.05;      % [sec] Example minimum adaptive step
-InputData_Bypass.general.max_time_step        = 5;  % [sec] Maximum allowed adaptive step
+InputData_Bypass.general.time_step_model      = 1/60;   % [min] Base model time step = 5 s
+InputData_Bypass.general.min_time_step        = 0.01;      % [sec] Example minimum adaptive step
+InputData_Bypass.general.max_time_step        = 10;  % [sec] Maximum allowed adaptive step
 InputData_Bypass.general.time_step_increments = 0.001;  % [sec] Legacy increment used internally
-InputData_Bypass.general.time_step_change     = 0.10;   % [-] Legacy adaptive change factor
+InputData_Bypass.general.time_step_change     = 0.0001;   % [-] Legacy adaptive change factor
 
 % -------------------------------------------------------------------------
 % Courant / stability controls
 % -------------------------------------------------------------------------
-InputData_Bypass.general.alfa_min = 0.70;   % [-]
-InputData_Bypass.general.alfa_max = 0.70;   % [-]
+InputData_Bypass.general.alfa_min = 0.50;   % [-]
+InputData_Bypass.general.alfa_max = 0.50;   % [-]
 
 % -------------------------------------------------------------------------
 % Simulation start/end dates
 % -------------------------------------------------------------------------
 % REQUIRED by updated input_data_script.
-InputData_Bypass.general.date_begin = datetime(2022,12,31,0,0,0);
-InputData_Bypass.general.date_end   = datetime(2023,1,2,18,0,0);
+InputData_Bypass.general.date_begin   = datetime(2025,5,1,0,0,0);
+InputData_Bypass.general.date_end     = datetime(2025,5,3,0,0,0);
 
 % Optional direct override of routing time [min]
 % If omitted, input_data_script computes:
@@ -189,7 +189,7 @@ InputData_Bypass.general.date_end   = datetime(2023,1,2,18,0,0);
 %   IMERG half-hourly   -> 30
 %   MSWEP 3-hourly      -> 180
 %   Daily ETP maps      -> 1440
-InputData_Bypass.general.dt_rainfall_maps_min      = 30;   % [min]
+InputData_Bypass.general.dt_rainfall_maps_min      = 10;   % [min]
 InputData_Bypass.general.dt_transpiration_maps_min = 1440;  % [min]
 InputData_Bypass.general.dt_evaporation_maps_min   = 1440;  % [min]
 
@@ -211,14 +211,14 @@ InputData_Bypass.general.rainfall_filename_example = ...
 % -------------------------------------------------------------------------
 % Outlet / map saving / visualization controls
 % -------------------------------------------------------------------------
-InputData_Bypass.general.slope_outlet                  = 0.2; % [m/m]
-InputData_Bypass.general.n_outlets_data                = 1;     % legacy default usually 1
-InputData_Bypass.general.record_time_maps              = 15;    % [min]
-InputData_Bypass.general.record_time_hydrographs       = 15;     % [min]
+InputData_Bypass.general.slope_outlet                  = 0.02; % [m/m]
+InputData_Bypass.general.n_outlets_data                = 50;     % legacy default usually 1
+InputData_Bypass.general.record_time_maps              = 1;    % [min]
+InputData_Bypass.general.record_time_hydrographs       = 1;     % [min]
 InputData_Bypass.general.Pol_min                       = 0.001; % plotting threshold
 InputData_Bypass.general.depth_wse                     = 0.01;  % [m]
 InputData_Bypass.general.flag_wse                      = 0;     % 0/1
-InputData_Bypass.general.record_time_spatial_rainfall  = 15;    % [min]
+InputData_Bypass.general.record_time_spatial_rainfall  = 10;    % [min]
 InputData_Bypass.general.time_save_ETP                 = 1440;  % [min]
 InputData_Bypass.general.record_time_spatial_ETP       = 1440;  % [min] REQUIRED
 InputData_Bypass.general.Krs_ETP                       = 0.13;  % legacy constant
@@ -251,7 +251,7 @@ InputData_Bypass.general.min_area  = 0.5;      % km2
 InputData_Bypass.general.tau       = 0.2;     % between 0 and 1
 InputData_Bypass.general.K_value   = 10;      % between 0 and 20
 InputData_Bypass.general.sl        = 0.001;   % m/m
-InputData_Bypass.general.resolution_resample   = 10; % m
+InputData_Bypass.general.resolution_resample   = 30; % m
 InputData_Bypass.general.slope_DTM = 0.05;    % 
 
 % -------------------------------------------------------------------------
@@ -311,13 +311,13 @@ InputData_Bypass.flags = struct();
 % -------------------------------------------------------------------------
 % Forcing and boundary flags
 % -------------------------------------------------------------------------
-InputData_Bypass.flags.flag_rainfall                     = 1;
+InputData_Bypass.flags.flag_rainfall                     = 0;
 InputData_Bypass.flags.flag_spatial_rainfall             = 0;
 InputData_Bypass.flags.flag_ETP                          = 0;
 InputData_Bypass.flags.flag_input_rainfall_map           = 0;
 InputData_Bypass.flags.flag_rainfall_multiple_runs       = 0;
 InputData_Bypass.flags.flag_data_source                  = 0;
-InputData_Bypass.flags.flag_inflow                       = 0;
+InputData_Bypass.flags.flag_inflow                       = 1;
 InputData_Bypass.flags.flag_satellite_rainfall           = 0;
 InputData_Bypass.flags.flag_alternated_blocks            = 0;
 InputData_Bypass.flags.flag_huff                         = 0;
@@ -328,20 +328,27 @@ InputData_Bypass.flags.flag_input_ETP_map                = 0;
 % Numerical / hydrologic core flags
 % -------------------------------------------------------------------------
 InputData_Bypass.flags.flag_timestep                     = 1;
-InputData_Bypass.flags.flag_infiltration                 = 1;
-InputData_Bypass.flags.flag_critical                     = 1;
+InputData_Bypass.flags.flag_infiltration                 = 0;
+InputData_Bypass.flags.flag_critical                     = 0;
 InputData_Bypass.flags.flag_D8                           = 0;
 InputData_Bypass.flags.flag_CA                           = 0;
 InputData_Bypass.flags.flag_inertial                     = 1;
+InputData_Bypass.flags.flag_full_momentum                = 0; 
 InputData_Bypass.flags.flag_waterbalance                 = 0;
 InputData_Bypass.flags.flag_waterquality                 = 0;
 InputData_Bypass.flags.flag_reservoir                    = 0;
 InputData_Bypass.flags.flag_wq_model                     = 0;
 InputData_Bypass.flags.flag_groundwater_modeling         = 0;
+InputData_Bypass.flags.flag_groundwater_async            = 1;
+InputData_Bypass.flags.flag_capillary_rise               = 1;
+InputData_Bypass.flags.groundwater_target_dt_min         = 1440;
+InputData_Bypass.flags.groundwater_min_dt_min            = 1;
+InputData_Bypass.flags.groundwater_max_head_change_m     = 0.25;
+InputData_Bypass.flags.groundwater_courant               = 0.25;
 InputData_Bypass.flags.flag_real_time_satellite_rainfall = 0;
 InputData_Bypass.flags.flag_dam_break                    = 0;
-InputData_Bypass.flags.flag_human_instability            = 0; % can be 0, 1, or 3
-InputData_Bypass.flags.flag_boundary                     = 1;
+InputData_Bypass.flags.flag_human_instability            = 1; % can be 0, 1, or 3
+InputData_Bypass.flags.flag_boundary                     = 0;
 InputData_Bypass.flags.flag_numerical_scheme             = 1;
 InputData_Bypass.flags.flag_outlet_type                  = 1;
 InputData_Bypass.flags.flag_adaptive_timestepping        = 1;
@@ -357,15 +364,15 @@ InputData_Bypass.flags.flag_abstraction                  = 0;
 InputData_Bypass.flags.flag_overbanks                    = 0;
 InputData_Bypass.flags.flag_snow_modeling                = 0;
 InputData_Bypass.flags.flag_WQ_Rasters                   = 0;
-InputData_Bypass.flags.flag_GPU                          = 1;
-InputData_Bypass.flags.flag_single                       = 1;
+InputData_Bypass.flags.flag_GPU                          = 0;
+InputData_Bypass.flags.flag_single                       = 0;
 InputData_Bypass.flags.flag_warmup                       = 0;
 InputData_Bypass.flags.flag_initial_buildup              = 0;
 InputData_Bypass.flags.flag_resample                     = 1;
-InputData_Bypass.flags.flag_smoothening                  = 1;
+InputData_Bypass.flags.flag_smoothening                  = 0;
 InputData_Bypass.flags.flag_trunk                        = 0;
-InputData_Bypass.flags.flag_fill_DEM                     = 1;
-InputData_Bypass.flags.flag_smooth_cells                 = 1;
+InputData_Bypass.flags.flag_fill_DEM                     = 0;
+InputData_Bypass.flags.flag_smooth_cells                 = 0;
 InputData_Bypass.flags.flag_reduce_DEM                   = 0;
 InputData_Bypass.flags.flag_export_maps                  = 1;
 InputData_Bypass.flags.flag_river_heigth_compensation    = 0;
@@ -404,32 +411,7 @@ InputData_Bypass.Human_Instability.gravity       = 9.81;  % [m/s^2]
 %% ========================================================================
 % SECTION 4 — LULC CLASS TABLE
 % ========================================================================
-% PURPOSE
-%   Defines all land-cover classes and their hydraulic / hydrologic
-%   parameters directly in MATLAB, replacing LULC_parameters.xlsx when
-%   bypass mode is active.
-%
-% HOW THIS MAPS TO THE ORIGINAL MODEL
-%   Later, input_data_script will translate this block into the same legacy
-%   variables used by HydroPol2D:
-%
-%       LULC_name
-%       LULC_index
-%       lulc_parameters
-%       n_lulc
-%       imp_index
-%
-% COLUMN MEANING (must preserve this order)
-%   1) LC                  : class name
-%   2) Index               : raster code used in the LULC map
-%   3) roughness           : Manning n [m^(-1/3) s]
-%   4) h_0_mm              : interception / storage-related parameter [mm]
-%   5) d_0_mm              : depression storage / related parameter [mm]
-%   6) C1                  : empirical parameter 1
-%   7) C2                  : empirical parameter 2
-%   8) C3                  : empirical parameter 3
-%   9) C4                  : empirical parameter 4
-%  10) index_impervious    : impervious class ID
+% Replaces LULC_parameters.xlsx in bypass mode.
 % ========================================================================
 
 LULC_table = table();
@@ -470,60 +452,16 @@ LULC_table.C2 = [0.20;0.20;0.22;0.25;0.30;0.25;0.10;0.00;0.18;0.18;0.15];
 LULC_table.C3 = [800;900;1000;1400;2000;1600;200;0;700;700;500];
 LULC_table.C4 = [1.20;1.20;1.20;1.30;1.30;1.25;1.10;0.00;1.20;1.20;1.15];
 
-% IMPORTANT:
-% The updated input_data_script extracts:
-%   imp_index = parameters(1,end)
-% so the legacy behavior expects the impervious ID to be stored in the LAST
-% column, and in the FIRST retained row.
-%
-% To remain consistent with that legacy extraction:
-%   - place the impervious class ID in row 1, last column
-%   - other rows may be NaN
-%
-% If you later improve input_data_script, this can be made cleaner.
-LULC_table.index_impervious = [ ...
-    50; ...
-    NaN; ...
-    NaN; ...
-    NaN; ...
-    NaN; ...
-    NaN; ...
-    NaN; ...
-    NaN; ...
-    NaN; ...
-    NaN; ...
-    NaN];
+% The impervious index is read explicitly by column name when available.
+LULC_table.index_impervious = [50; NaN; NaN; NaN; NaN; NaN; NaN; NaN; NaN; NaN; NaN];
+LULC_table.root_depth_m = [1.50;1.00;0.60;1.00;0.00;0.10;0.00;0.00;0.40;1.00;0.15];
 
 InputData_Bypass.LULC.table = LULC_table;
 
 %% ========================================================================
 % SECTION 5 — SOIL CLASS TABLE
 % ========================================================================
-% PURPOSE
-%   Defines all soil classes and hydraulic parameters directly in MATLAB,
-%   replacing SOIL_parameters.xlsx when bypass mode is active.
-%
-% HOW THIS MAPS TO THE ORIGINAL MODEL
-%   Later, input_data_script will translate this block into the same legacy
-%   variables used by HydroPol2D:
-%
-%       SOIL_name
-%       SOIL_index
-%       soil_parameters
-%       n_soil
-%
-% COLUMN MEANING (must preserve this order)
-%   1) Soil_type      : class name
-%   2) Index          : raster code used in the SOIL map
-%   3) ksat_mm_h      : saturated hydraulic conductivity [mm/h]
-%   4) n_vg           : van Genuchten n [-]
-%   5) alpha_vg_1_m   : van Genuchten alpha [1/m]
-%   6) theta_sat      : saturated volumetric water content [cm3/cm3]
-%   7) theta_r        : residual volumetric water content [cm3/cm3]
-%   8) theta_i        : initial volumetric water content [cm3/cm3]
-%   9) Sy             : specific yield [-]
-%  10) ksat_gw_mm_h   : groundwater saturated conductivity [mm/h]
-%  11) Soil_Depth_m   : effective soil depth / DTB [m]
+% Replaces SOIL_parameters.xlsx in bypass mode.
 % ========================================================================
 
 SOIL_table = table();
@@ -545,15 +483,18 @@ SOIL_table.Soil_type = { ...
 
 SOIL_table.Index = [1;2;3;4;5;6;7;8;9;10;11;12;0];
 
-SOIL_table.ksat_mm_h = [0.3;0.5;0.6;1.0;1.0;1.5;7.6;3.4;10.9;3.4;29.9;117.8;0.3];
-SOIL_table.n_vg = [1.09;1.23;1.31;1.31;1.23;1.48;1.68;1.56;1.89;1.37;1.75;2.68;1.09];
-SOIL_table.alpha_vg_1_m = [0.8;1.0;1.5;1.9;1.5;3.0;2.0;3.6;6.0;1.6;11.0;14.5;0.8];
-SOIL_table.theta_sat = [0.385;0.423;0.321;0.309;0.432;0.330;0.432;0.399;0.387;0.481;0.390;0.430;0.385];
-SOIL_table.theta_r   = [0.068;0.089;0.075;0.095;0.089;0.065;0.067;0.078;0.100;0.034;0.049;0.045;0.068];
-SOIL_table.theta_i   = [0.0997;0.1224;0.0996;0.1164;0.1233;0.0915;0.1220;0.1104;0.1287;0.1234;0.1172;0.1225;0.0997];
-SOIL_table.Sy        = [0.03;0.04;0.06;0.08;0.09;0.11;0.14;0.18;0.22;0.12;0.25;0.30;0.03];
-SOIL_table.ksat_gw_mm_h = [6;10;12;20;20;30;152;68;218;68;598;2356;6];
-SOIL_table.Soil_Depth_m = ones(13,1);
+SOIL_table.ksat_mm_h     = [0.3;0.5;0.6;1.0;1.0;1.5;7.6;3.4;10.9;3.4;29.9;117.8;0.3];
+SOIL_table.n_vg          = [1.09;1.23;1.31;1.31;1.23;1.48;1.68;1.56;1.89;1.37;1.75;2.68;1.09];
+SOIL_table.alpha_vg_1_m  = [0.8;1.0;1.5;1.9;1.5;3.0;2.0;3.6;6.0;1.6;11.0;14.5;0.8];
+SOIL_table.theta_sat     = [0.385;0.423;0.321;0.309;0.432;0.330;0.432;0.399;0.387;0.481;0.390;0.430;0.385];
+SOIL_table.theta_r       = [0.068;0.089;0.075;0.095;0.089;0.065;0.067;0.078;0.100;0.034;0.049;0.045;0.068];
+SOIL_table.theta_i       = [0.0997;0.1224;0.0996;0.1164;0.1233;0.0915;0.1220;0.1104;0.1287;0.1234;0.1172;0.1225;0.0997];
+SOIL_table.Sy            = [0.03;0.04;0.06;0.08;0.09;0.11;0.14;0.18;0.22;0.12;0.25;0.30;0.03];
+SOIL_table.ksat_gw_mm_h  = [6;10;12;20;20;30;152;68;218;68;598;2356;6];
+SOIL_table.Soil_Depth_m  = ones(13,1);
+SOIL_table.Ks_multiplier_near_surface = ones(13,1);
+SOIL_table.Ks_multiplier_root_zone = ones(13,1);
+SOIL_table.Ks_multiplier_transmission = ones(13,1);
 
 InputData_Bypass.SOIL.table = SOIL_table;
 
@@ -684,10 +625,10 @@ else
     % ------------------------------------------------------------
     % Fallback example (used only if no file is found)
     % ------------------------------------------------------------
-    Rainfall_Parameters.time_rainfall      = [0; 60; 120; 180; 240]; % [min]
-    Rainfall_Parameters.intensity_rainfall = [0; 15; 35; 5; 0];      % [mm/h]
-    Rainfall_Parameters.time_step_rainfall = 60;                      % [min]
-    Rainfall_Parameters.rainfall_duration  = 240;                     % [min]
+    Rainfall_Parameters.time_rainfall      = [0; 24*60]; % [min]
+    Rainfall_Parameters.intensity_rainfall = [20;20];      % [mm/h]
+    Rainfall_Parameters.time_step_rainfall = 24*60;                      % [min]
+    Rainfall_Parameters.rainfall_duration  = 24*60;                     % [min]
     Rainfall_Parameters.n_obs_rainfall     = numel(Rainfall_Parameters.time_rainfall);
 end
 
@@ -1032,22 +973,40 @@ Reservoir_Data = struct();
 Reservoir_Data.index = [1];
 
 % Upstream control point
-Reservoir_Data.x_us = [500100.0];   % [m]
-Reservoir_Data.y_us = [4099900.0];  % [m]
+Reservoir_Data.x_us = [];   % [m]
+Reservoir_Data.y_us = [];  % [m]
 
 % Primary outlet
-Reservoir_Data.k1 = [1.0];
-Reservoir_Data.h1 = [0.5];          % [m]
-Reservoir_Data.k2 = [1.0];
-Reservoir_Data.x_ds1 = [500150.0];  % [m]
-Reservoir_Data.y_ds1 = [4099850.0]; % [m]
+Reservoir_Data.k1 = [];
+Reservoir_Data.h1 = [];          % [m]
+Reservoir_Data.k2 = [];
+Reservoir_Data.x_ds1 = [];  % [m]
+Reservoir_Data.y_ds1 = []; % [m]
 
 % Secondary outlet / spillway
-Reservoir_Data.k3 = [1.0];
-Reservoir_Data.h2 = [1.0];          % [m]
-Reservoir_Data.k4 = [1.0];
-Reservoir_Data.x_ds2 = [500200.0];  % [m]
-Reservoir_Data.y_ds2 = [4099800.0]; % [m]
+Reservoir_Data.k3 = [];
+Reservoir_Data.h2 = [];          % [m]
+Reservoir_Data.k4 = [];
+Reservoir_Data.x_ds2 = [];  % [m]
+Reservoir_Data.y_ds2 = []; % [m]
+
+% % Upstream control point
+% Reservoir_Data.x_us = [500100.0];   % [m]
+% Reservoir_Data.y_us = [4099900.0];  % [m]
+% 
+% % Primary outlet
+% Reservoir_Data.k1 = [1.0];
+% Reservoir_Data.h1 = [0.5];          % [m]
+% Reservoir_Data.k2 = [1.0];
+% Reservoir_Data.x_ds1 = [500150.0];  % [m]
+% Reservoir_Data.y_ds1 = [4099850.0]; % [m]
+% 
+% % Secondary outlet / spillway
+% Reservoir_Data.k3 = [1.0];
+% Reservoir_Data.h2 = [1.0];          % [m]
+% Reservoir_Data.k4 = [1.0];
+% Reservoir_Data.x_ds2 = [500200.0];  % [m]
+% Reservoir_Data.y_ds2 = [4099800.0]; % [m]
 
 InputData_Bypass.Reservoir_Data = Reservoir_Data;
 

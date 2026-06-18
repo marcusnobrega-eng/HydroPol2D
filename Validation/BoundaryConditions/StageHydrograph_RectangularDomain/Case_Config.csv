@@ -1,0 +1,2 @@
+case_id,module,status,driver,expected_behavior,primary_metrics,acceptance_threshold
+BC-STAGE-001,Stage hydrograph boundary,planned,HP2D_Wrapper.m,"Prescribed boundary stage is enforced and produces expected stage propagation and volume response.","stage_error_m; volume_response_error_pct; profile_RMSE_m; mass_balance_error_pct","stage at numerical tolerance and <0.1% water-balance error"

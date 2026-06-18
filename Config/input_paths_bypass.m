@@ -166,9 +166,18 @@ InputPaths.LULC_path = get_override(Overrides, 'LULC_path', fullfile(static_root
 InputPaths.SOIL_path = get_override(Overrides, 'SOIL_path', fullfile(static_root, 'SOIL.tif'));
 
 % Optional static rasters
-InputPaths.DTB_path         = get_override(Overrides, 'DTB_path',         fullfile(static_root, 'DTB.tif'));
-InputPaths.LAI_path         = get_override(Overrides, 'LAI_path',         fullfile(static_root, 'LAI.tif'));
-InputPaths.Albedo_path      = get_override(Overrides, 'Albedo_path',      fullfile(static_root, 'Albedo.tif'));
+InputPaths.DTB_path = get_override( ...
+    Overrides, 'DTB_path', fullfile(static_root, 'DTB.tif'));
+
+InputPaths.GW_table_path = get_override( ...
+    Overrides, 'GW_table_path', fullfile(static_root, 'GW_table.tif'));
+
+InputPaths.LAI_path = get_override( ...
+    Overrides, 'LAI_path', fullfile(static_root, 'LAI.tif'));
+
+InputPaths.Albedo_path = get_override( ...
+    Overrides, 'Albedo_path', fullfile(static_root, 'Albedo.tif'));
+
 InputPaths.Subgrid_DEM_path = get_override(Overrides, 'Subgrid_DEM_path', fullfile(static_root, 'Subgrid_DEM.tif'));
 InputPaths.RiverWidths_path = get_override(Overrides, 'RiverWidths_path', fullfile(static_root, 'RiverWidths.tif'));
 InputPaths.RiverDepths_path = get_override(Overrides, 'RiverDepths_path', fullfile(static_root, 'RiverDepths.tif'));
@@ -209,6 +218,9 @@ InputPaths.Evaporation_Rasters_Folder = get_override( ...
 
 InputPaths.Inflow_Hydrograph_CSV = get_override( ...
     Overrides, 'Inflow_Hydrograph_CSV', fullfile(forcing_root, 'Inflow', 'inflow_hydrograph.csv'));
+
+InputPaths.Outlet_Cells_CSV = get_override( ...
+    Overrides, 'Outlet_Cells_CSV', fullfile(forcing_root, 'Outlet', 'outlet_cells.csv'));
 
 InputPaths.Stage_Hydrograph_CSV = get_override( ...
     Overrides, 'Stage_Hydrograph_CSV', fullfile(forcing_root, 'Stage', 'stage_hydrograph.csv'));
@@ -313,6 +325,7 @@ print_path_status('Evaporation folder',   InputPaths.Evaporation_Rasters_Folder,
 
 fprintf('\n--- CSV / TABULAR INPUTS ---\n');
 print_path_status('Inflow CSV',          InputPaths.Inflow_Hydrograph_CSV, 'file');
+print_path_status('Outlet cells CSV',    InputPaths.Outlet_Cells_CSV, 'file');
 print_path_status('Stage CSV',           InputPaths.Stage_Hydrograph_CSV,  'file');
 print_path_status('Observed Gauges CSV', InputPaths.Observed_Gauges_CSV,   'file');
 print_path_status('ETP spreadsheet',     InputPaths.ETP_input_spreadsheet, 'file');

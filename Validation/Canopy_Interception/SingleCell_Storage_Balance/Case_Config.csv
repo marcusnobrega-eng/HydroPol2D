@@ -1,0 +1,2 @@
+case_id,module,status,driver,expected_behavior,primary_metrics,acceptance_threshold
+CANOPY-001,Canopy interception,planned,module_driver,"Canopy storage fills, throughfall begins at capacity, evaporation draws storage down, LAI=0 bypasses interception.","storage_residual_m3; throughfall_onset_error_mm; evaporation_drawdown_error_m3","<1e-6 m3"

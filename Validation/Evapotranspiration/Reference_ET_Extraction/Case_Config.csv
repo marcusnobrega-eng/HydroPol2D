@@ -1,0 +1,2 @@
+case_id,module,status,driver,expected_behavior,primary_metrics,acceptance_threshold
+P1-ET-VT,Evapotranspiration,report_ready,module_driver,"Potential ET is reproduced and actual ET is limited by soil root access open-water storage dry cells impervious cells and invalid masks on the V-tilted grid.","max_etp_error_mm_d; max_soil_et_error_mm; max_surface_evap_error_mm; max_storage_error_mm; mass_residual_m3","<1e-6 m3 storage residual plus numerical-precision ET and storage errors"

@@ -1,0 +1,13 @@
+metric,value,units,note
+Q_noinf,11.1111111111111,m3/s,Rainfall-only no-infiltration steady discharge
+final_Q,11.0983234568066,m3/s,Final outlet discharge
+final_Q_ratio_to_noinf,0.998849111112597,-,Final outlet discharge divided by no-infiltration Qss
+max_sat_excess_area,100,%,Maximum area classified as saturation-excess
+final_sat_excess_area,99,%,Final saturation-excess area percentage
+time_sat_area_50pct,2.16666666666667,h,First time saturation-excess area exceeds 50%
+time_sat_area_90pct,2.66666666666667,h,First time saturation-excess area exceeds 90%
+time_mean_f_below_threshold,2.66666666666667,h,First time mean infiltration falls below threshold
+time_Q_above_95pct_noinf,3.16666666666667,h,First time outlet Q exceeds 95% of no-infiltration Qss
+final_mean_I_t,15.850056291008,mm,Final mean above-residual vadose storage
+final_mean_fill,100.000355148315,%,Final mean storage fill percentage
+final_mass_residual,6.20546123817446,mm,Water-balance residual. Interpret carefully if GW maps are missing.

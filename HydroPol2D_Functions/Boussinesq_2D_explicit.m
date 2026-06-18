@@ -448,9 +448,15 @@ end
 
 
 function dt_max = compute_stable_dt(u_x, u_y, dx, dy, Courant)
-    dt_max = min(Courant*dx./abs(u_x), Courant*dy./abs(u_y));
-    dt_max = min(min(dt_max));
-    dt_max(isinf(dt_max)) = nan;
+    dt_x = Courant * dx ./ abs(u_x);
+    dt_y = Courant * dy ./ abs(u_y);
+    candidates = [dt_x(:); dt_y(:)];
+    candidates = candidates(isfinite(candidates) & candidates > 0);
+    if isempty(candidates)
+        dt_max = inf;
+    else
+        dt_max = min(candidates);
+    end
 end
 % 
 function h = apply_free_flow_bc(h, mask)

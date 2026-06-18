@@ -25,7 +25,7 @@ function recover_hydropol2d_from_temp(tempDir, demFile, outputRoot, varargin)
 %
 % OPTIONAL NAME-VALUE INPUTS
 % -------------------------------------------------------------------------
-% 'date_begin'             : datetime(2025,6,1,0,0,0)
+% 'date_begin'             : datetime(2025,6,1,0,0),0
 % 'date_end_intended'      : datetime(...) only for sanity check
 % 'map_save_timestep'      : hours(3)
 % 'flag_elapsed_time'      : false

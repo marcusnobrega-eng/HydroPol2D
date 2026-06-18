@@ -1,0 +1,17 @@
+Case 4 V-Tilted Groundwater Propagation Event Summary
+============================================================
+
+max_outlet_Q                           :       11.111 m3/s     | Maximum outlet discharge generated without rainfall
+final_outlet_Q                         :   0.00033038 m3/s     | Final outlet discharge
+max_wet_area                           :          100 %        | Maximum surface wet area
+max_surface_saturated_area             :          NaN %        | Maximum area with water table near land surface
+max_exfil_area                         :          NaN %        | Maximum area with positive exfiltration above threshold
+time_first_wet_10pct                   :            0 h        | First time wet area exceeds 10%
+time_first_exfil_10pct                 :          NaN h        | First time exfiltration area exceeds 10%
+time_first_surface_sat_10pct           :          NaN h        | First time surface-saturated area exceeds 10%
+final_mean_zwt                         :          NaN m        | Final mean depth to water table
+final_min_zwt                          :          NaN m        | Final minimum depth to water table
+final_GW_storage_change                :          NaN m3       | Final groundwater storage change relative to initial
+final_surface_storage                  :       17.499 m3       | Final surface water storage
+final_cumulative_outlet                :   8.2099e+05 m3       | Cumulative outlet volume
+final_mass_residual                    :      -433.86 mm       | No-rainfall residual: -dStorage - outlet volume

@@ -1,0 +1,20 @@
+case_id,use_vtilted_domain,domain_role,zone_or_profile,analytical_reference_application,notes
+P1-CANOPY-001,yes,spatial embedding,"left hillslope, channel strip, right hillslope","Canopy bucket solution is evaluated per LAI zone; channel strip provides LAI=0 bypass.",Use v-tilted static LAI raster for model run.
+P1-SNOW-001,yes,spatial embedding,all zones,Degree-day snow balance is evaluated uniformly or by elevation/temperature zone.,Use simple prescribed cold/warm forcing.
+P1-INFIL-GA-001,yes,cell/zone extraction,left and right hillslopes,Green-Ampt solution is evaluated for homogeneous soil-zone cells.,Use one or more soil classes with known Ks/psi/dtheta.
+P1-INFIL-PHILIP-001,yes,cell/zone extraction,left and right hillslopes,Philip solution is evaluated for selected homogeneous cells.,Secondary infiltration check.
+P1-ET-001,yes,spatial embedding,all zones,Reference ET and extraction limits are evaluated using zone storage and albedo/LAI context.,Still compare to independent ET/reference limiter.
+P1-GW-LINRES-001,yes,catchment response abstraction,central channel/outlet,Linear reservoir recession is fitted to synthetic baseflow response.,Parameter-recovery check.
+P1-GW-MOUND-001,yes,profile benchmark,longitudinal and cross-slope profiles,Manufactured/recharge-mound solution is compared to groundwater profile response.,Gated by groundwater diagnostics.
+P1-HYDRO-RITTER,no,separate benchmark domain,dam-break profile,Ritter solution requires its own idealized geometry.,Keep separate.
+P1-HYDRO-NBW,no,separate benchmark domain,wave profile,Non-breaking wave benchmark requires its own geometry.,Keep separate.
+P1-HYDRO-STEADY-001,yes,channel profile,central channel strip,Manning/GVF reference is compared to steady channel response.,Use v-tilted channel strip.
+P1-ROUTE-KIN-001,yes,routing plane/profile,hillslope to outlet,Kinematic-wave timing/reference is sampled along v-tilted slopes after audit.,Audit gate remains.
+P1-ROUTE-DIFF-001,yes,routing plane/profile,hillslope to outlet,Diffusive-wave attenuation reference is sampled along v-tilted slopes after audit.,Audit gate remains.
+P1-SUBGRID-001,yes,channel geometry,central channel strip,Channel conveyance/storage reference is applied to the v-tilted channel strip.,Use channel width/depth settings when subgrid is active.
+P1-RES-001,yes,embedded structure,outlet/control cell,Rating-curve ODE is applied to an outlet/reservoir control element.,Reservoir formula remains analytical.
+P1-BC-INFLOW-001,yes,boundary test,upstream boundary to outlet,Imposed hydrograph volume is routed through v-tilted domain ledger.,No breach-specific section.
+P1-BC-STAGE-001,yes,boundary test,downstream/stage boundary,Stage-volume reference is evaluated against v-tilted channel geometry.,Prescribed stage boundary.
+P1-RAIN-MAP-001,yes,input parser/domain bookkeeping,all cells,Tiny or zone-coded raster rainfall totals are integrated over v-tilted cell areas.,Spatial rainfall validation remains exact bookkeeping.
+P1-WQ-001,yes,flux-driven module check,selected hillslope/channel cells,Wash-off ODE is evaluated using prescribed runoff flux over v-tilted cells.,Formula verification only.
+P1-HR-001,yes,map classification,all cells,Depth/velocity threshold classes are evaluated over synthetic v-tilted depth/velocity fields.,Rule verification.

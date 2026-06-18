@@ -1,0 +1,2 @@
+case_id,module,status,driver,expected_behavior,primary_metrics,acceptance_threshold
+P1-SNOW-001,Snow module,planned,module_driver,"Cold precipitation accumulates, transitional precipitation follows the implemented 4 to 7 C snow-fraction rule, warm precipitation bypasses snow storage, and melt/sublimation close the snowpack balance.","swe_rmse_mm; partition_error_mm; melt_error_mm; sublimation_error_mm; mass_residual_m3","<1e-6 m3 residual and series errors below 1e-8 in native units"

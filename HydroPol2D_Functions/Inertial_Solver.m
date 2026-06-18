@@ -31,8 +31,8 @@ if flag_numerical_scheme == 2
     q_upwind = 0*q_p;
     mask_negative(:,:,1) = q_p(:,:,1)  < 0;
     mask_negative(:,:,2) = q_p(:,:,2)  < 0; % This one might be positve
-    nx = size(n,2);
-    ny = size(n,1);
+    nx = size(n_sq,2);
+    ny = size(n_sq,1);
     mid_x = 2:(nx-1);
     mid_y = 2:(ny-1);
 
@@ -121,6 +121,3 @@ if flag_numerical_scheme == 3
 end
 
 end
-
-
-

@@ -1,0 +1,2 @@
+Slope,Manning_n,Rain_excess_mmhr,Rain_duration_min,Catchment_area_m2,Initial_volume_m3,Rain_volume_total_m3,Outlet_volume_total_m3,Final_stored_volume_m3,Expected_final_volume_initial_plus_rain_m3,Accounted_final_volume_stored_plus_outlet_m3,Final_residual_m3,Final_mass_error_pct
+0.05,0.015,100,180,2000000,64022.6246835619,600000,1065085.34894968,166269.825720006,664022.624683562,1231355.17466968,567332.549986123,85.4387379129564

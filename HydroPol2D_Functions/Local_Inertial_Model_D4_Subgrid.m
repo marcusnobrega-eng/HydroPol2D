@@ -4,552 +4,314 @@ function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,
     flag_reservoir,z,d_tot,d_p,roughness_cell,roughness_squared,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet, ...
     row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical,nc,nf,River_Width,River_Depth, ...
     Qc_prev,Qf_prev,Qci_prev,Qfi_prev,C_a_prev,Subgrid_Properties,flag_inflow,SubgridTables)
-%--------------------------------------------------------------------------
-% Local_Inertial_Model_D4_Subgrid
+%LOCAL_INERTIAL_MODEL_D4_SUBGRID SFINCS-style lookup-subgrid local inertial solver.
 %
-% PURPOSE
-% -------------------------------------------------------------------------
-% Standalone local-inertial solver for the shared-face subgrid
-% formulation.
-%
-% This solver is intended for isolated testing of the new subgrid method.
-% It includes:
-%   - shared-face subgrid hydraulics
-%   - continuity solved in the VOLUME domain
-%   - reservoir boundary condition logic
-%   - outlet flow logic
-%   - same style of outputs used by HydroPol2D
-%
-% IMPORTANT STATE INTERPRETATION
-% -------------------------------------------------------------------------
-% In this standalone subgrid solver:
-%
-%   d_tot, d_p, d_t   -> representative depth above cell invert [mm]
-%
-% and the absolute water surface elevation is:
-%
-%   eta = invert_el + d_rep
-%
-% where:
-%   invert_el = minimum fine elevation inside each coarse cell [m]
-%
-% Therefore, this function does NOT interpret d_tot as depth above the DEM.
-%
-% CONTINUITY
-% -------------------------------------------------------------------------
-% The continuity equation is solved in stored volume:
-%
-%   V^(n+1) = V^n + Vol_Flux
-%
-% and then the updated representative depth is obtained by inverting the
-% preprocessed cell storage curve.
-%
-% REQUIRED EXTERNAL HELPER
-% -------------------------------------------------------------------------
-% This function calls the helper:
-%
-%   subgrid_channel_function(...)
-%
-%
-% NOTES
-% -------------------------------------------------------------------------
-% 1) This function is subgrid-only. No legacy/non-subgrid branch is present.
-% 2) River_Width, River_Depth, Qc_prev, Qf_prev, Qci_prev, Qfi_prev, nf are
-%    kept in the signature for future integration compatibility, but are not
-%    used in this paper-style shared-face formulation.
-% 3) Internally, SI units are used for hydraulic computations:
-%       depth  -> m
-%       eta    -> m
-%       V      -> m3
-%       q      -> m2/s
-%       Q      -> m3/s
-%--------------------------------------------------------------------------
+% This production branch follows van Ormondt et al. (2025): continuity is
+% updated in wet volume, water levels are recovered from cell volume tables,
+% and momentum is solved with grid-average unit discharge q_G using
+% velocity-point lookup tables for H_G, n_rep, and wet fraction.
 
-%% ------------------------------------------------------------------------
-% 1) DOMAIN AND BASIC SETTINGS
-% -------------------------------------------------------------------------
-if isgpuarray(cell_area)
-    ny = size(z,1);
-    nx = size(z,2);
+unused_inputs = {flag_numerical_scheme, z, d_p, roughness_cell, roughness_squared, ...
+    d_tolerance, flag_critical, nc, nf, River_Width, River_Depth, Qc_prev, ...
+    Qf_prev, Qci_prev, Qfi_prev, C_a_prev, Subgrid_Properties, flag_inflow}; %#ok<NASGU>
+
+[ny, nx] = size(d_tot);
+dt_total = time_step * 60;
+g = 9.81;
+
+if isempty(idx_nan)
+    inactive = false(ny, nx);
 else
-    ny = size(z,1);
-    nx = size(z,2);
+    inactive = logical(idx_nan);
 end
 
-dt = time_step * 60;  % [s]
-g  = 9.81;
+zmin_cell = SubgridTables.z_zmin;
+eta_n = zmin_cell + max(d_tot ./ 1000, 0);
+V_n = hp2d_sfincs_cell_volume_from_zs(SubgridTables, eta_n);
+eta_t = eta_n;
+V_t = V_n;
+C_a = hp2d_sfincs_cell_wet_area_from_zs(SubgridTables, eta_t);
 
-% Minimum operative depth, consistent with the previous D4 logic
-if flag_inflow ~= 1
-    h_min = 1e-6;     % [m]
+% HydroPol stores previous face memory in equivalent areal flux units for
+% compatibility. In the SFINCS branch, channels 1 and 2 encode q_G.
+if isempty(outflow)
+    qG_prev = zeros(ny, nx, 2, 'like', eta_n);
 else
-    h_min = 0;
+    qG_prev = zeros(ny, nx, 2, 'like', eta_n);
+    nchan = min(size(outflow, 3), 2);
+    qG_prev(:, :, 1:nchan) = outflow(:, :, 1:nchan) ./ 1000 ./ 3600 .* Resolution;
 end
 
-% Outlet cells should not behave as river-channel cells later
-River_Width(logical(outlet_index)) = 0;
-River_Depth(logical(outlet_index)) = 0;
+outflow = zeros(ny, nx, 3, 'like', eta_n);
+Hf_x = zeros(ny, nx, 'like', eta_n);
+Hf_y = zeros(ny, nx, 'like', eta_n);
+phi_x = zeros(ny, nx, 'like', eta_n); %#ok<NASGU>
+phi_y = zeros(ny, nx, 'like', eta_n); %#ok<NASGU>
+outlet_volume_total = zeros(ny, nx, 'like', eta_n);
 
-%% ------------------------------------------------------------------------
-% 2) CURRENT CELL STATE: REPRESENTATIVE DEPTH, INVERT, eta
-% -------------------------------------------------------------------------
-invert_el = Subgrid_Properties.invert_el;   % [m]
+dt_remaining = dt_total;
+dt_try = dt_total;
+min_sub_dt = max(dt_total / 64, 1e-4);
+negative_tol = 1e-9;
 
-% Current representative depth above invert [m]
-drep_n = max(d_tot/1000, 0);
+while dt_remaining > 1e-12
+    dt_sub = min(dt_try, dt_remaining);
+    [qG_candidate, Hf_x_candidate, Hf_y_candidate, phi_x_candidate, phi_y_candidate] = ...
+        sfincs_flux_update(eta_t, qG_prev, Resolution, dt_sub, g, inactive, SubgridTables);
 
-% Absolute water surface elevation [m]
-eta_n = invert_el + drep_n;
+    Q_face = qG_candidate .* Resolution;
+    Q_face = limit_face_discharge_by_available_volume(Q_face, V_t, dt_sub);
+    qG_candidate = Q_face ./ Resolution;
+    Qwest = [zeros(ny, 1, 'like', eta_n), Q_face(:, 1:(nx-1), 1)];
+    Qeast = Q_face(:, :, 1);
+    Qnorth = [zeros(1, nx, 'like', eta_n); Q_face(1:(ny-1), :, 2)];
+    Qsouth = Q_face(:, :, 2);
 
-%% ------------------------------------------------------------------------
-% 3) CURRENT STORED VOLUME AND WETTED AREA FROM LOOKUP TABLES
-% -------------------------------------------------------------------------
-V_n = hp2d_lookup_uniform( ...
-    SubgridTables.volume_cell, drep_n, ...
-    SubgridTables.dz, SubgridTables.maxDepth);
+    Vol_Flux = dt_sub .* (Qwest - Qeast + Qnorth - Qsouth);
 
-C_a = hp2d_lookup_uniform( ...
-    SubgridTables.area_cell, drep_n, ...
-    SubgridTables.dz, SubgridTables.maxDepth);
-
-current_volume = nansum(nansum(V_n));
-
-%% ------------------------------------------------------------------------
-% 4) PREVIOUS FACE q [m2/s]
-% -------------------------------------------------------------------------
-% The incoming outflow variable from HydroPol2D convention is in mm/h.
-% Convert only the x and y components back to q = Q/W [m2/s].
-q_prev = outflow(:,:,1:2) / 1000 / 3600 * Resolution^2 / Resolution;
-
-%% ------------------------------------------------------------------------
-% 5) SUBGRID SHARED-FACE LOCAL-INERTIAL UPDATE
-% -------------------------------------------------------------------------
-% This helper will be built separately next.
-%
-% Expected outputs:
-%   q_face   [ny x nx x 2]   updated face discharge per unit width [m2/s]
-%   Hf_x     [ny x nx]       effective x-face depth [m]
-%   Hf_y     [ny x nx]       effective y-face depth [m]
-%   Wf_x     [ny x nx]       wetted x-face width [m]
-%   Wf_y     [ny x nx]       wetted y-face width [m]
-%
-[q_face,Hf_x,Hf_y,Wf_x,Wf_y] = subgrid_topography_model( ...
-    flag_numerical_scheme,eta_n,q_prev,nc,Resolution,dt,h_min,idx_nan,Subgrid_Properties,SubgridTables);
-
-% Pack Hf in the same style as the previous D4 function
-Hf = zeros(ny,nx,3,'like',eta_n);
-Hf(:,:,1) = Hf_x;
-Hf(:,:,2) = Hf_y;
-
-%% ------------------------------------------------------------------------
-% 6) OPTIONAL VELOCITY LIMITERS
-% -------------------------------------------------------------------------
-if flag_critical == 1
-    critical_velocity = Hf(:,:,1:2) .* sqrt(g * Hf(:,:,1:2));
-    q_face = min(max(q_face, -critical_velocity), critical_velocity);
-end
-
-max_velocity = 10;  % [m/s]
-threshold_velocity = Hf(:,:,1:2) * max_velocity;
-q_face = min(max(q_face, -threshold_velocity), threshold_velocity);
-
-%% ------------------------------------------------------------------------
-% 7) CONVERT q -> Q
-% -------------------------------------------------------------------------
-Q_face = zeros(size(q_face), 'like', q_face);   % [m3/s]
-Q_face(:,:,1) = q_face(:,:,1) * Resolution;
-Q_face(:,:,2) = q_face(:,:,2) * Resolution;
-
-%% ------------------------------------------------------------------------
-% 8) STORE OUTFLOW IN MODEL COMPATIBLE UNITS (mm/h)
-% -------------------------------------------------------------------------
-outflow = zeros(ny,nx,3,'like',q_face);
-outflow(:,:,1:2) = Q_face ./ cell_area * 1000 * 3600;
-
-matrix_store = outflow(:,:,1:2);
-
-%% ------------------------------------------------------------------------
-% 9) CONTINUITY UPDATE IN VOLUME DOMAIN
-% -------------------------------------------------------------------------
-% Sign convention:
-%   Q_face(i,j,1) positive from cell (i,j) to cell (i,j+1)
-%   Q_face(i,j,2) positive from cell (i,j) to cell (i+1,j)
-%
-Qwest  = [zeros(ny,1,'like',Q_face(:,:,1)), Q_face(:,1:(nx-1),1)];
-Qeast  = Q_face(:,:,1);
-
-Qnorth = [zeros(1,nx,'like',Q_face(:,:,2)); Q_face(1:(ny-1),:,2)];
-Qsouth = Q_face(:,:,2);
-
-Vol_Flux = dt * (Qwest - Qeast + Qnorth - Qsouth);   % [m3]
-
-%% ------------------------------------------------------------------------
-% 10) RESERVOIR BOUNDARY CONDITION
-% -------------------------------------------------------------------------
-% Keep the same structural logic as in the previous D4 function.
-% Here it acts on representative depth and adds/removes storage volume.
-if flag_reservoir == 1
-    for ii = 1:length(reservoir_y)
-        if ~isnan(yds1(ii))
-            dtsup = drep_n(reservoir_y(ii),reservoir_x(ii)); % [m]
-            dt_h  = time_step/60;                            % [h]
-
-            available_volume = 1000 * max(dtsup - h1(ii), 0) / dt_h; % [mm/h]
-            dh = min( ...
-                k1(ii) * (max(dtsup - h1(ii),0))^k2(ii) / cell_area * 1000 * 3600, ...
-                available_volume) * dt_h;                                  % [mm]
-
-            Vol_Flux(reservoir_y(ii),reservoir_x(ii)) = ...
-                Vol_Flux(reservoir_y(ii),reservoir_x(ii)) + dh/1000 * cell_area;
-
-            drep_n(yds1(ii),xds1(ii)) = drep_n(yds1(ii),xds1(ii)) + dh/1000;
-        else
-            dh = 0;
-        end
-
-        if ~isnan(yds2(ii))
-            available_volume = 1000 * max(dtsup - h2(ii), 0) / dt_h; % [mm/h]
-            dh = min( ...
-                k3(ii) * (max(dtsup - h2(ii),0))^k4(ii) / cell_area * 1000 * 3600, ...
-                available_volume) * dt_h;                                  % [mm]
-
-            Vol_Flux(reservoir_y(ii),reservoir_x(ii)) = ...
-                Vol_Flux(reservoir_y(ii),reservoir_x(ii)) + dh/1000 * cell_area;
-
-            drep_n(yds2(ii),xds2(ii)) = drep_n(yds2(ii),xds2(ii)) + dh/1000;
-        end
-    end
-end
-
-%% ------------------------------------------------------------------------
-% 11) UPDATE CELL VOLUME
-% -------------------------------------------------------------------------
-V_t = V_n + Vol_Flux;
-V_t = max(V_t, 0);
-
-%% ------------------------------------------------------------------------
-% 12) INVERT VOLUME -> UPDATED REPRESENTATIVE DEPTH
-% -------------------------------------------------------------------------
-drep_t = hp2d_inverse_volume_uniform( ...
-    SubgridTables.volume_cell, V_t, ...
-    SubgridTables.dz, SubgridTables.maxDepth, Resolution);
-
-%% ------------------------------------------------------------------------
-% 13) UPDATED WATER SURFACE ELEVATION
-% -------------------------------------------------------------------------
-eta_t = invert_el + drep_t;
-
-%% ------------------------------------------------------------------------
-% 14) UPDATED WETTED AREA
-% -------------------------------------------------------------------------
-C_a = hp2d_lookup_uniform( ...
-    SubgridTables.area_cell, drep_t, ...
-    SubgridTables.dz, SubgridTables.maxDepth);
-
-%% ------------------------------------------------------------------------
-% 15) OUTPUT FLUXES IN SAME FORMAT AS THE PREVIOUS D4
-% -------------------------------------------------------------------------
-qout_left  = -[zeros(ny,1,'like',matrix_store(:,:,1)), matrix_store(:,1:end-1,1)];
-qout_right =  matrix_store(:,:,1);
-qout_up    =  matrix_store(:,:,2);
-qout_down  = -[matrix_store(2:end,:,2); zeros(1,nx,'like',matrix_store(:,:,2))];
-
-%% ------------------------------------------------------------------------
-% 16) FINAL REPRESENTATIVE DEPTH IN MODEL UNITS [mm]
-% -------------------------------------------------------------------------
-d_t = drep_t * 1000;
-
-%% ------------------------------------------------------------------------
-% 17) OUTLET FLOW
-% -------------------------------------------------------------------------
-% Keep the same structure as in the previous D4 function, but use the
-% representative depth and current wetted area from the subgrid formulation.
-outlet_flow = zeros(size(d_t), 'like', d_t);
-outflow(:,:,3) = 0;
-
-if ~isempty(row_outlet)
-    outlet_sub = sub2ind(size(d_t), row_outlet(:), col_outlet(:));
-
-    % Representative outlet depth [m]
-    h_out = max(d_t(outlet_sub), 0) / 1000;
-
-    % Outlet width derived from current wetted area
-    if isscalar(C_a)
-        width_out = (C_a / Resolution) * ones(size(h_out), 'like', h_out);
-        area_out  = C_a * ones(size(h_out), 'like', h_out);
-    else
-        width_out = C_a(outlet_sub) ./ Resolution;
-        area_out  = C_a(outlet_sub);
+    if flag_reservoir == 1
+        Vol_Flux = apply_reservoir_volume_exchange(Vol_Flux, eta_t, zmin_cell, ...
+            reservoir_x, reservoir_y, k1, h1, k2, k3, h2, k4, yds1, xds1, ...
+            yds2, xds2, dt_sub / 60, cell_area);
     end
 
-    % Outlet slope term
-    if outlet_type == 1
-        if isscalar(slope_outlet)
-            sqrtS_out = sqrt(abs(slope_outlet)) * ones(size(h_out), 'like', h_out);
-        else
-            sqrtS_out = sqrt(abs(slope_outlet(outlet_sub)));
-        end
-    else
-        h_safe = max(h_out, 1e-12);
-        sqrtS_out = sqrt(g .* roughness_squared(outlet_sub) .* h_safe.^(-1/3));
+    V_candidate = V_t + Vol_Flux;
+    if any(V_candidate(:) < -negative_tol) && dt_sub > min_sub_dt
+        dt_try = max(0.5 * dt_sub, min_sub_dt);
+        continue;
     end
 
-    % Save outlet hydraulic depth in Hf(:,:,3)
-    Hf3 = Hf(:,:,3);
-    Hf3(outlet_sub) = h_out;
-    Hf(:,:,3) = Hf3;
+    V_t = max(V_candidate, 0);
+    eta_t = hp2d_sfincs_zs_from_cell_volume(SubgridTables, V_t);
+    C_a = hp2d_sfincs_cell_wet_area_from_zs(SubgridTables, eta_t);
 
-    % Outlet discharge in model-compatible units [mm/h]
-    q_out = (1 ./ roughness_cell(outlet_sub)) .* ...
-            width_out .* ...
-            h_out.^(5/3) .* ...
-            sqrtS_out ./ ...
-            area_out * 1000 * 3600;
+    outlet_flow_sub = zeros(ny, nx, 'like', eta_n);
+    Hf_sub = zeros(ny, nx, 3, 'like', eta_n);
+    Hf_sub(:, :, 1) = Hf_x_candidate;
+    Hf_sub(:, :, 2) = Hf_y_candidate;
+    if ~isempty(row_outlet)
+        [outlet_flow_sub, ~, Hf_sub, V_t, eta_t, C_a] = apply_sfincs_outlet( ...
+            outlet_flow_sub, outflow, Hf_sub, V_t, eta_t, C_a, SubgridTables, ...
+            row_outlet(:), col_outlet(:), outlet_type, slope_outlet, ...
+            Resolution, dt_sub, g, ny, nx);
+    end
 
-    % Limit by available representative depth
-    qmax_out = max((d_t(outlet_sub) - 1000*h_min), 0) / (time_step/60);
-    q_out = min(q_out, qmax_out);
+    outlet_volume_total = outlet_volume_total + ...
+        outlet_flow_sub ./ 1000 ./ 3600 .* Resolution^2 .* dt_sub;
 
-    % Store outlet flow
-    outlet_flow(outlet_sub) = q_out;
-    outflow(:,:,3) = outlet_flow;
+    qG_prev = qG_candidate;
+    Hf_x = Hf_x_candidate;
+    Hf_y = Hf_y_candidate;
+    phi_x = phi_x_candidate; %#ok<NASGU>
+    phi_y = phi_y_candidate; %#ok<NASGU>
+    Hf = Hf_sub;
 
-    % Remove outlet discharge from updated storage
-    dV_out = q_out * (time_step/60) / 1000 .* area_out;   % [m3]
-    V_t(outlet_sub) = max(V_t(outlet_sub) - dV_out, 0);
-
-    % Recompute drep, eta, and wetted area after outlet removal
-    drep_t = hp2d_inverse_volume_uniform( ...
-        SubgridTables.volume_cell, V_t, ...
-        SubgridTables.dz, SubgridTables.maxDepth, Resolution);
-
-    eta_t = invert_el + drep_t;
-
-    C_a = hp2d_lookup_uniform( ...
-        SubgridTables.area_cell, drep_t, ...
-        SubgridTables.dz, SubgridTables.maxDepth);
-
-    d_t = drep_t * 1000;
+    dt_remaining = dt_remaining - dt_sub;
+    dt_try = min(dt_try * 1.25, max(dt_remaining, min_sub_dt));
 end
 
-%% ------------------------------------------------------------------------
-% 18) MASS BALANCE DIAGNOSTIC
-% -------------------------------------------------------------------------
-final_volume = nansum(nansum(V_t)); %#ok<NASGU>
-% error_vol = final_volume - current_volume; %#ok<NASGU>
+outflow(:, :, 1:2) = qG_prev(:, :, 1:2) ./ Resolution .* 1000 .* 3600;
+outlet_flow = outlet_volume_total ./ Resolution^2 .* 1000 .* 3600 ./ dt_total;
+outflow(:, :, 3) = outlet_flow;
+matrix_store = outflow(:, :, 1:2);
 
-%% ------------------------------------------------------------------------
-% 19) TOTAL FLOW THAT LEAVES THE CELL
-% -------------------------------------------------------------------------
-mask = outflow;
-I_tot_end_cell = abs(sum(mask,3)) * dt / 1000 / 3600 * Resolution^2;  % [m3]
+d_t = max(eta_t - zmin_cell, 0) .* 1000;
+I_tot_end_cell = abs(sum(outflow, 3)) .* dt_total ./ 1000 ./ 3600 .* Resolution^2;
 
-%% ------------------------------------------------------------------------
-% 20) PLACEHOLDER OUTPUTS KEPT FOR COMPATIBILITY
-% -------------------------------------------------------------------------
-Qc  = 0;
-Qf  = 0;
+qout_left = -[zeros(ny, 1, 'like', matrix_store(:, :, 1)), matrix_store(:, 1:end-1, 1)];
+qout_right = matrix_store(:, :, 1);
+qout_up = matrix_store(:, :, 2);
+qout_down = -[matrix_store(2:end, :, 2); zeros(1, nx, 'like', matrix_store(:, :, 2))];
+
+Qc = 0;
+Qf = 0;
 Qci = 0;
 Qfi = 0;
-
 end
 
-function Vq = hp2d_lookup_uniform(Vtab, q, dz, maxDepth)
-%--------------------------------------------------------------------------
-% PURPOSE
-%   Fast and clear linear interpolation on a uniform depth axis.
-%
-% INPUTS
-%   Vtab      [ny x nx x nz]  lookup table versus representative depth
-%   q         [ny x nx]       query depth above invert [m]
-%   dz        scalar          table spacing [m]
-%   maxDepth  scalar          maximum tabulated depth [m]
-%
-% OUTPUT
-%   Vq        [ny x nx]       interpolated value
-%--------------------------------------------------------------------------
+function Q_face = limit_face_discharge_by_available_volume(Q_face, V, dt)
+[ny, nx, ~] = size(Q_face);
+Qwest = [zeros(ny, 1, 'like', V), Q_face(:, 1:(nx-1), 1)];
+Qeast = Q_face(:, :, 1);
+Qnorth = [zeros(1, nx, 'like', V); Q_face(1:(ny-1), :, 2)];
+Qsouth = Q_face(:, :, 2);
 
-    [ny, nx, nz] = size(Vtab);
+out_rate = max(Qeast, 0) + max(-Qwest, 0) + max(Qsouth, 0) + max(-Qnorth, 0);
+scale = ones(ny, nx, 'like', V);
+needs_limit = out_rate .* dt > max(V, 0) & out_rate > 0;
+scale(needs_limit) = max(V(needs_limit), 0) ./ (out_rate(needs_limit) .* dt);
+scale = max(min(scale, 1), 0);
 
-    % 1) Clamp query depth to table range
-    q = max(q, 0);
-    q = min(q, maxDepth);
-
-    % 2) Compute lower bracketing index
-    %    If q = 0       -> idxL = 1
-    %    If q = dz      -> idxL = 2
-    %    If q = maxDepth -> handled below
-    idxL = floor(q ./ dz) + 1;
-
-    % Keep idxL valid so idxU = idxL + 1 stays inside table
-    idxL = max(idxL, 1);
-    idxL = min(idxL, nz - 1);
-
-    idxU = idxL + 1;
-
-    % 3) Compute interpolation weight between lower and upper levels
-    qL = (idxL - 1) .* dz;
-    w  = (q - qL) ./ dz;
-
-    % If q is exactly at or above maxDepth, force top segment with w = 1
-    atTop = (q >= maxDepth);
-    idxL(atTop) = nz - 1;
-    idxU(atTop) = nz;
-    w(atTop)    = 1;
-
-    % 4) Build spatial indices
-    [I, J] = ndgrid(1:ny, 1:nx);
-
-    % 5) Convert (i,j,k) -> linear indices for lower and upper levels
-    indL = sub2ind([ny, nx, nz], I, J, idxL);
-    indU = sub2ind([ny, nx, nz], I, J, idxU);
-
-    % 6) Gather lower and upper values
-    vL = Vtab(indL);
-    vU = Vtab(indU);
-
-    % 7) Linear interpolation
-    Vq = vL + w .* (vU - vL);
+if nx > 1
+    Qx = Q_face(:, 1:(nx-1), 1);
+    donor_scale = ones(size(Qx), 'like', Qx);
+    pos = Qx >= 0;
+    left_scale = scale(:, 1:(nx-1));
+    right_scale = scale(:, 2:nx);
+    donor_scale(pos) = left_scale(pos);
+    donor_scale(~pos) = right_scale(~pos);
+    Q_face(:, 1:(nx-1), 1) = Qx .* donor_scale;
 end
 
-%==========================================================================
-% INVERSE VOLUME LOOKUP ON A UNIFORM DEPTH AXIS
-%==========================================================================
-function drep = hp2d_inverse_volume_uniform(Vtab, Vq, dz, maxDepth, Resolution)
-%--------------------------------------------------------------------------
-% PURPOSE
-%   Invert the storage curve:
-%
-%       Vtab(drep) -> drep
-%
-%   using simple linear interpolation between adjacent tabulated depths.
-%
-% INPUTS
-%   Vtab        [ny x nx x nz]  cell volume table [m^3]
-%   Vq          [ny x nx]       queried volume [m^3]
-%   dz          scalar          tabulated depth spacing [m]
-%   maxDepth    scalar          maximum tabulated depth [m]
-%   Resolution  scalar          coarse cell size [m]
-%
-% OUTPUT
-%   drep        [ny x nx]       representative depth above invert [m]
-%
-% NOTES
-%   1) Assumes Vtab is monotonic increasing in the 3rd dimension.
-%   2) If Vq <= 0, returns drep = 0.
-%   3) If Vq exceeds the top tabulated volume, continues above the table
-%      using a prism of plan area Resolution^2:
-%
-%          drep = maxDepth + (Vq - Vtop) / Resolution^2
-%--------------------------------------------------------------------------
+if ny > 1
+    Qy = Q_face(1:(ny-1), :, 2);
+    donor_scale = ones(size(Qy), 'like', Qy);
+    pos = Qy >= 0;
+    north_scale = scale(1:(ny-1), :);
+    south_scale = scale(2:ny, :);
+    donor_scale(pos) = north_scale(pos);
+    donor_scale(~pos) = south_scale(~pos);
+    Q_face(1:(ny-1), :, 2) = Qy .* donor_scale;
+end
+end
 
-    [ny, nx, nz] = size(Vtab);
+function [qG_face, Hf_x, Hf_y, phi_x, phi_y] = sfincs_flux_update( ...
+    eta, qG_prev, dx, dt, g, inactive, S)
+[ny, nx] = size(eta);
+qG_face = zeros(ny, nx, 2, 'like', eta);
+Hf_x = zeros(ny, nx, 'like', eta);
+Hf_y = zeros(ny, nx, 'like', eta);
+phi_x = zeros(ny, nx, 'like', eta);
+phi_y = zeros(ny, nx, 'like', eta);
 
-    %----------------------------------------------------------------------
-    % Depth levels associated with the table
-    %----------------------------------------------------------------------
-    depth_axis = (0:nz-1) * dz;
+if nx > 1
+    etaL = eta(:, 1:nx-1);
+    etaR = eta(:, 2:nx);
+    zu = max(etaL, etaR);
+    face = hp2d_sfincs_velocity_state(S, zu, 'u');
+    slope = (etaR - etaL) ./ dx;
+    active = ~(inactive(:, 1:nx-1) | inactive(:, 2:nx)) & ...
+        face.HG > 0 & face.phi > 0 & isfinite(face.n) & face.n > 0 & ...
+        isfinite(slope);
+    qold = qG_prev(:, 1:nx-1, 1);
+    qnew = sfincs_lie_step(qold, face.HG, face.n, face.phi, slope, dt, g, active);
+    qG_face(:, 1:nx-1, 1) = qnew;
+    Hf_x(:, 1:nx-1) = face.HG;
+    phi_x(:, 1:nx-1) = face.phi;
+end
 
-    %----------------------------------------------------------------------
-    % Clamp negative queried volumes to zero
-    %----------------------------------------------------------------------
-    Vq = max(Vq, 0);
+if ny > 1
+    etaN = eta(1:ny-1, :);
+    etaS = eta(2:ny, :);
+    zu = max(etaN, etaS);
+    face = hp2d_sfincs_velocity_state(S, zu, 'v');
+    slope = (etaS - etaN) ./ dx;
+    active = ~(inactive(1:ny-1, :) | inactive(2:ny, :)) & ...
+        face.HG > 0 & face.phi > 0 & isfinite(face.n) & face.n > 0 & ...
+        isfinite(slope);
+    qold = qG_prev(1:ny-1, :, 2);
+    qnew = sfincs_lie_step(qold, face.HG, face.n, face.phi, slope, dt, g, active);
+    qG_face(1:ny-1, :, 2) = qnew;
+    Hf_y(1:ny-1, :) = face.HG;
+    phi_y(1:ny-1, :) = face.phi;
+end
+end
 
-    %----------------------------------------------------------------------
-    % Top volume in each cell
-    %----------------------------------------------------------------------
-    Vtop = Vtab(:,:,end);
+function qnew = sfincs_lie_step(qold, HG, nrep, phi, slope, dt, g, active)
+qnew = zeros(size(qold), 'like', qold);
+den = 1 + g .* dt .* nrep.^2 .* abs(qold) ./ max(HG.^(7/3), eps_like(qold));
+rhs = qold - g .* dt .* HG .* slope;
+% External forcing F is not used in HydroPol's current local-inertial
+% subgrid branch. The SFINCS equation term phi*F*dt is therefore zero.
+qnew(active) = rhs(active) ./ den(active);
+qnew(~active) = 0;
+qnew(~isfinite(qnew)) = 0;
+end
 
-    % For interpolation inside the table, clamp to the top tabulated volume.
-    % Above-top cases are handled afterward with prism extrapolation.
-    Vq_clamped = min(Vq, Vtop);
-
-    %----------------------------------------------------------------------
-    % Find lower bracketing index idxL such that:
-    %
-    %   Vtab(:,:,idxL) <= Vq_clamped <= Vtab(:,:,idxL+1)
-    %
-    % Since MATLAB does not directly do this per-pixel on a 3D array,
-    % we use a logical count along the 3rd dimension.
-    %----------------------------------------------------------------------
-    idxL = sum(Vtab <= Vq_clamped, 3);
-
-    % Keep idxL in valid range so that idxU = idxL + 1 stays inside the table
-    idxL = max(idxL, 1);
-    idxL = min(idxL, nz - 1);
-
-    idxU = idxL + 1;
-
-    %----------------------------------------------------------------------
-    % Build spatial indices
-    %----------------------------------------------------------------------
-    [I, J] = ndgrid(1:ny, 1:nx);
-
-    %----------------------------------------------------------------------
-    % Convert (i,j,k) into linear indices for lower and upper bracketing
-    % table values
-    %----------------------------------------------------------------------
-    indL = sub2ind([ny, nx, nz], I, J, idxL);
-    indU = sub2ind([ny, nx, nz], I, J, idxU);
-
-    %----------------------------------------------------------------------
-    % Gather lower and upper tabulated volumes
-    %----------------------------------------------------------------------
-    V1 = Vtab(indL);
-    V2 = Vtab(indU);
-
-    %----------------------------------------------------------------------
-    % Corresponding lower and upper depths
-    %----------------------------------------------------------------------
-    d1 = depth_axis(idxL);
-    d2 = depth_axis(idxU);
-
-    %----------------------------------------------------------------------
-    % Linear interpolation in volume space
-    %
-    %   a = (Vq - V1) / (V2 - V1)
-    %   d = d1 + a * (d2 - d1)
-    %----------------------------------------------------------------------
-    denom = V2 - V1;
-    bad = abs(denom) <= eps(classUnderlyingLike(Vtab));
-
-    % Prevent divide-by-zero in degenerate cases
-    denom_safe = denom;
-    denom_safe(bad) = 1;
-
-    a = (Vq_clamped - V1) ./ denom_safe;
-    a = max(min(a, 1), 0);
-    a(bad) = 0;
-
-    drep = d1 + a .* (d2 - d1);
-
-    %----------------------------------------------------------------------
-    % Above-top extrapolation using a prism of plan area Resolution^2
-    %----------------------------------------------------------------------
-    above_top = Vq > Vtop;
-    if any(above_top(:))
-        drep(above_top) = maxDepth + ...
-            (Vq(above_top) - Vtop(above_top)) ./ (Resolution^2);
+function Vol_Flux = apply_reservoir_volume_exchange(Vol_Flux, eta, zmin, ...
+    reservoir_x, reservoir_y, k1, h1, k2, k3, h2, k4, yds1, xds1, yds2, xds2, ...
+    time_step, cell_area)
+for ii = 1:length(reservoir_y)
+    dtsup = max(eta(reservoir_y(ii), reservoir_x(ii)) - zmin(reservoir_y(ii), reservoir_x(ii)), 0);
+    dt_h = time_step / 60;
+    if ~isnan(yds1(ii))
+        dh = k1(ii) * max(dtsup - h1(ii), 0)^k2(ii) / cell_area * 1000 * 3600 * dt_h;
+        Vol_Flux(reservoir_y(ii), reservoir_x(ii)) = ...
+            Vol_Flux(reservoir_y(ii), reservoir_x(ii)) - dh / 1000 * cell_area;
+        Vol_Flux(yds1(ii), xds1(ii)) = Vol_Flux(yds1(ii), xds1(ii)) + dh / 1000 * cell_area;
     end
-
-    %----------------------------------------------------------------------
-    % Final cleanup
-    %----------------------------------------------------------------------
-    drep(~isfinite(Vtab(:,:,1))) = 0;
-    drep = max(drep, 0);
+    if ~isnan(yds2(ii))
+        dh = k3(ii) * max(dtsup - h2(ii), 0)^k4(ii) / cell_area * 1000 * 3600 * dt_h;
+        Vol_Flux(reservoir_y(ii), reservoir_x(ii)) = ...
+            Vol_Flux(reservoir_y(ii), reservoir_x(ii)) - dh / 1000 * cell_area;
+        Vol_Flux(yds2(ii), xds2(ii)) = Vol_Flux(yds2(ii), xds2(ii)) + dh / 1000 * cell_area;
+    end
+end
 end
 
+function [outlet_flow, outflow, Hf, V, eta, C_a] = apply_sfincs_outlet( ...
+    outlet_flow, outflow, Hf, V, eta, C_a, S, row_outlet, col_outlet, ...
+    outlet_type, slope_outlet, dx, dt, g, ny, nx)
+outlet_sub = sub2ind(size(eta), row_outlet, col_outlet);
+side_out = outlet_boundary_side(row_outlet, col_outlet, ny, nx);
+Q_out = zeros(size(outlet_sub), 'like', eta);
+H_out = zeros(size(outlet_sub), 'like', eta);
 
-%==========================================================================
-% HELPER: eps with correct underlying class for gpuArray / numeric arrays
-%==========================================================================
-function e = classUnderlyingLike(x)
-% Returns a numeric class name suitable for eps(...)
-% Works for regular arrays and gpuArray.
+for ii = 1:numel(outlet_sub)
+    side = side_out{ii};
+    face = hp2d_sfincs_boundary_velocity_state(S, eta, side);
+    idx = outlet_sub(ii);
+    HG = face.HG(idx);
+    nrep = face.n(idx);
+    active = HG > 0 && isfinite(nrep) && nrep > 0;
+    if active
+        if outlet_type == 1
+            if isscalar(slope_outlet)
+                Sout = abs(slope_outlet);
+            else
+                Sout = abs(slope_outlet(idx));
+            end
+            qG = (1 / nrep) * HG^(5/3) * sqrt(max(Sout, 0));
+        else
+            qG = HG * sqrt(g * max(HG, 0));
+        end
+        Q_out(ii) = qG * dx;
+        H_out(ii) = HG;
+    end
+end
 
-    if isa(x, 'gpuArray')
-        e = classUnderlying(x);
+available_Q = max(V(outlet_sub), 0) ./ dt;
+Q_out = min(max(Q_out, 0), available_Q);
+q_equiv = Q_out ./ (dx^2) .* 1000 .* 3600;
+outlet_flow(outlet_sub) = q_equiv;
+outflow(:, :, 3) = outlet_flow;
+V(outlet_sub) = max(V(outlet_sub) - Q_out .* dt, 0);
+eta = hp2d_sfincs_zs_from_cell_volume(S, V);
+C_a = hp2d_sfincs_cell_wet_area_from_zs(S, eta);
+H3 = Hf(:, :, 3);
+H3(outlet_sub) = H_out;
+Hf(:, :, 3) = H3;
+end
+
+function side = outlet_boundary_side(row_outlet, col_outlet, ny, nx)
+side = cell(numel(row_outlet), 1);
+for ii = 1:numel(row_outlet)
+    r = row_outlet(ii);
+    c = col_outlet(ii);
+    if r <= 1
+        side{ii} = 'north';
+    elseif r >= ny
+        side{ii} = 'south';
+    elseif c <= 1
+        side{ii} = 'west';
+    elseif c >= nx
+        side{ii} = 'east';
     else
-        e = class(x);
+        dist = [r - 1, ny - r, c - 1, nx - c];
+        labels = {'north', 'south', 'west', 'east'};
+        [~, idx] = min(dist);
+        side{ii} = labels{idx};
+        warning('Local_Inertial_Model_D4_Subgrid:interiorOutlet', ...
+            ['Outlet cell (%d,%d) is not on a model boundary. ', ...
+             'Using nearest boundary side %s.'], r, c, side{ii});
     end
+end
+end
+
+function e = eps_like(x)
+if isa(x, 'gpuArray')
+    e = eps(classUnderlying(x));
+else
+    e = eps(class(x));
+end
 end

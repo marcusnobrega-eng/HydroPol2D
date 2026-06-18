@@ -1,0 +1,5 @@
+case_id,module,phase,evidence_type,truth_source,driver,flags,status
+P1-HYDRO-FM-PLANE-001,Hydrodynamics,Phase 1,analytical_solution,Kinematic-wave tilted-plane limit,run_full_momentum_hydrodynamics_validation.m,flag_full_momentum=1,report_ready
+P1-HYDRO-FM-VTILT-001,Hydrodynamics,Phase 1,exact_bookkeeping,Mass conservation and bilateral symmetry on V-tilted domain,run_full_momentum_hydrodynamics_validation.m,flag_full_momentum=1,report_ready
+P1-HYDRO-FM-RITTER-001,Hydrodynamics,Phase 1,analytical_solution,Ritter dry-bed dam-break solution,run_full_momentum_hydrodynamics_validation.m,flag_full_momentum=1,report_ready
+P1-BC-STAGE-FM-001,Stage hydrograph boundary,Phase 1,exact_bookkeeping,Prescribed stage and volume ledger,run_full_momentum_hydrodynamics_validation.m,flag_full_momentum=1; flag_stage_hydrograph=1,report_ready

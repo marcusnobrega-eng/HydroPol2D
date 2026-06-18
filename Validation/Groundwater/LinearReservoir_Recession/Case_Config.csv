@@ -1,0 +1,2 @@
+case_id,module,phase,evidence_type,truth_source,reference_generator,parameters_to_recover,status
+P1-GW-LINRES-001,Groundwater and recharge,Phase 1,analytical_solution,Linear reservoir recession,phase1_reference_solutions.py linear_reservoir,k,planned

@@ -1,0 +1,28 @@
+parameter,value,units,notes
+domain_id,VTILTED-P1,,Canonical Phase 1 synthetic catchment domain
+dx,20,m,Grid resolution
+length_y,1000,m,Longitudinal domain length
+left_width,800,m,Left hillslope width
+channel_width,20,m,Central channel/bare strip width
+right_width,800,m,Right hillslope width
+left_slope,0.05,m/m,Lateral slope toward channel
+right_slope,0.05,m/m,Lateral slope toward channel
+longitudinal_slope,0.02,m/m,Downstream slope
+z_outlet,0,m,Outlet base elevation
+channel_incision,0,m,No incision for first Phase 1 domain
+dtb_left,1,m,Depth to bedrock left zone
+dtb_channel,1,m,Depth to bedrock channel strip
+dtb_right,1,m,Depth to bedrock right zone
+albedo_left,0.50,,Left zone albedo
+albedo_channel,0.30,,Channel/bare strip albedo
+albedo_right,0.45,,Right zone albedo
+lai_left,0.50,,Sparse vegetation left zone
+lai_channel,0.00,,LAI=0 bypass strip for interception tests
+lai_right,2.00,,Denser vegetation right zone
+initial_sm_left,50,mm,Initial soil moisture left zone
+initial_sm_channel,30,mm,Initial soil moisture channel strip
+initial_sm_right,70,mm,Initial soil moisture right zone
+gw_depth_left,0.5,m,Groundwater depth offset left zone
+gw_depth_channel,0.5,m,Groundwater depth offset channel strip
+gw_depth_right,0.5,m,Groundwater depth offset right zone
+epsg,3857,,Synthetic projected CRS

@@ -48,19 +48,19 @@ G_stations(:,idx')  = [];
 
 % Maximum Temperature
 var_obs = maxtemp_stations(k,1:n_stations)';
-[max_temp,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid);
+[max_temp,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid,'nearest');
 % Minimum Temperature
 var_obs = mintemp_stations(k,1:n_stations)';
-[min_temp,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid);
+[min_temp,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid,'nearest');
 % Average Temperature
 var_obs = avgtemp_stations(k,1:n_stations)';
-[avg_temp,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid);
+[avg_temp,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid,'nearest');
 % U2
 var_obs = u2_stations(k,1:n_stations)';
-[u2,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid);
+[u2,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid,'nearest');
 % UR
 var_obs = ur_stations(k,1:n_stations)';
-[ur,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid);
+[ur,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid,'nearest');
 % G
 % Here, we are assuming daily evapotranspiration calculation such that G =
 % 0

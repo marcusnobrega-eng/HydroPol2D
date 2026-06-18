@@ -96,7 +96,7 @@ if flags.flag_snow_modeling == 1
 
 else
     % Depth mass balance
-    depths.d_t = depths.d_p + BC_States.Eff_Rainfall; % mm
+    depths.d_t = depths.d_t + BC_States.Eff_Rainfall; % mm
     if k == 1
         Snow_Properties.E_s = 0*depths.d_p;
         Snow_Properties.SWE_t = 0*depths.d_p;

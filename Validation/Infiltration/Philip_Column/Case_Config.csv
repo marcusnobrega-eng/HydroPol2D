@@ -1,0 +1,2 @@
+case_id,module,phase,evidence_type,truth_source,reference_generator,parameters_to_recover,status
+P1-INFIL-PHILIP-001,Infiltration,Phase 1,analytical_solution,Philip two-term infiltration,phase1_reference_solutions.py philip_infiltration,S,planned

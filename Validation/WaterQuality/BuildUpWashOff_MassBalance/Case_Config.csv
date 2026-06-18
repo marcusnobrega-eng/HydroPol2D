@@ -1,0 +1,2 @@
+case_id,module,status,driver,expected_behavior,primary_metrics,acceptance_threshold
+P1-WQ-001,Water quality,report_ready,run_water_quality_washoff_validation.m,"SWMM-style TSS dry-weather buildup and HydroPol2D mass-based washoff under fixed runoff match analytical exponential mass-balance solutions.","mass_rmse_kg; exported_load_error_pct; mass_residual_kg; negative_mass_count","mass RMSE <1e-6 kg, exported load error <0.01%, mass residual <1e-6 kg or <0.01%, no negative mass"

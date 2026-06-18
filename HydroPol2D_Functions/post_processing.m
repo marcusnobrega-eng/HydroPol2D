@@ -148,7 +148,12 @@
 
 close all
 %% Post-Processing - Graphs
-simulation_time = toc;
+post_processing_runtime_seconds = toc;
+if exist('running_control','var') && isfield(running_control,'routing_time')
+    simulation_time_minutes = running_control.routing_time;
+else
+    simulation_time_minutes = NaN;
+end
 
 %% Coloramp
 [Spectrum,Depth_Purple,Terrain_RAS_ramp,blue_ramp,blues_2,pallete,Depth_RAS,Terrain_RAS,Velocity_RAS,WSE_RAS] = coloramps();
@@ -198,9 +203,24 @@ Dirs.FigPDF   = Paths.FigPDF;
 Dirs.FigFIG   = Paths.FigFIG;
 Dirs.Tables   = Paths.Tables;
 
-Dirs.RastersWD = Paths.RastersWD;
-Dirs.RastersWSE = Paths.RastersWSE;
+Dirs.RastersWD     = Paths.RastersWD;
+Dirs.RastersWSE    = Paths.RastersWSE;
 Dirs.RastersStatic = Paths.RastersStatic;
+if isfield(Paths, 'RastersVelocity')
+    Dirs.RastersVelocity = Paths.RastersVelocity;
+else
+    Dirs.RastersVelocity = fullfile(Paths.Results, 'Rasters_Velocity');
+end
+if isfield(Paths, 'RastersHazard')
+    Dirs.RastersHazard = Paths.RastersHazard;
+else
+    Dirs.RastersHazard = fullfile(Paths.Results, 'Rasters_Hazard');
+end
+if isfield(Paths, 'RastersInfiltration')
+    Dirs.RastersInfiltration = Paths.RastersInfiltration;
+else
+    Dirs.RastersInfiltration = fullfile(Paths.Results, 'Rasters_Infiltration');
+end
 
 Dirs.WQMaps   = Paths.WQMaps;
 Dirs.HRMaps   = Paths.HRMaps;
@@ -799,54 +819,55 @@ if flags.flag_obs_gauges == 1
     fig = createStyledFigure(show_figures, paper_bg, figsize.rating_gauges);
     color_plot = linspecer(gauges.num_obs_gauges);
 
-    for i = 1:gauges.num_obs_gauges
-        % Font size based on number of gauges
-        if gauges.num_obs_gauges > 5
-            fsize = 8;
-        else
-            fsize = 14;
+    if gauges.num_obs_gauges < 20
+        for i = 1:gauges.num_obs_gauges
+            % Font size based on number of gauges
+            if gauges.num_obs_gauges > 5
+                fsize = 8;
+            else
+                fsize = 14;
+            end
+
+            % Subplot layout
+            if gauges.num_obs_gauges > 3
+                temp = double(ceil(gauges.num_obs_gauges / 3));
+                subplot(temp, 3, double(i), 'Parent', fig);
+            elseif gauges.num_obs_gauges == 2
+                subplot(1, 2, double(i), 'Parent', fig);
+            else
+                subplot(1, 1, 1, 'Parent', fig);
+            end
+
+            % Scatter plot of Q vs WSE
+            s = scatter(gather(gauges.hydrograph_cell(:, i)), gather(gauges.wse_cell(:, i)), 'o');
+            s.MarkerFaceColor = color_plot(i,:);
+            s.MarkerEdgeColor = [0.3 0.3 0.3];
+            s.SizeData = 20;
+            s.LineWidth = 0.75;
+
+            xlabel('$Q~(\mathrm{m^3/s})$', 'Interpreter', 'latex');
+            ylabel('$\mathrm{WSE~(m)}$', 'Interpreter', 'latex');
+
+            % Styling
+            title(gauges.labels_observed_string{i}, 'Interpreter', 'latex', 'FontSize', fsize);
+            set(gca, 'FontSize', fsize, ...
+                'FontName', 'Helvetica', ...
+                'TickDir', 'out', ...
+                'TickLength', [0.02 0.01], ...
+                'LineWidth', 2);
+            box on;
+            grid on;
         end
 
-        % Subplot layout
-        if gauges.num_obs_gauges > 3
-            temp = double(ceil(gauges.num_obs_gauges / 3));
-            subplot(temp, 3, double(i), 'Parent', fig);
-        elseif gauges.num_obs_gauges == 2
-            subplot(1, 2, double(i), 'Parent', fig);
-        else
-            subplot(1, 1, 1, 'Parent', fig);
+        % Export figure
+        try
+            exportgraphics(fig, fullfile(Dirs.FigPDF, 'Rating_Curve_Gauges.pdf'), 'ContentType', 'vector');
+        catch
+            fprintf('No rating curve gauges exported – PDF export error\n');
         end
 
-        % Scatter plot of Q vs WSE
-        s = scatter(gather(gauges.hydrograph_cell(:, i)), gather(gauges.wse_cell(:, i)), 'o');
-        s.MarkerFaceColor = color_plot(i,:);
-        s.MarkerEdgeColor = [0.3 0.3 0.3];
-        s.SizeData = 20;
-        s.LineWidth = 0.75;
-
-        xlabel('$Q~(\mathrm{m^3/s})$', 'Interpreter', 'latex');
-        ylabel('$\mathrm{WSE~(m)}$', 'Interpreter', 'latex');
-
-        % Styling
-        title(gauges.labels_observed_string{i}, 'Interpreter', 'latex', 'FontSize', fsize);
-        set(gca, 'FontSize', fsize, ...
-            'FontName', 'Helvetica', ...
-            'TickDir', 'out', ...
-            'TickLength', [0.02 0.01], ...
-            'LineWidth', 2);
-        box on;
-        grid on;
+        saveas(fig, fullfile(Dirs.FigFIG, 'Rating_Curve_Gauges.fig'));
     end
-
-    % Export figure
-    try
-        exportgraphics(fig, fullfile(Dirs.FigPDF, 'Rating_Curve_Gauges.pdf'), 'ContentType', 'vector');
-    catch
-        fprintf('No rating curve gauges exported – PDF export error\n');
-    end
-
-    saveas(fig, fullfile(Dirs.FigFIG, 'Rating_Curve_Gauges.fig'));
-
     % close(fig);   % leave commented while tuning figure sizes
 
     % Export data
@@ -871,59 +892,59 @@ if flags.flag_obs_gauges == 1
     else
         color_plot = linspecer(gauges.num_obs_gauges);
     end
+    if gauges.num_obs_gauges < 20
+        for i = 1:gauges.num_obs_gauges
+            % Font size by layout density
+            if gauges.num_obs_gauges > 5
+                fsize = 8;
+            else
+                fsize = 14;
+            end
 
-    for i = 1:gauges.num_obs_gauges
-        % Font size by layout density
-        if gauges.num_obs_gauges > 5
-            fsize = 8;
-        else
-            fsize = 14;
+            % Subplot layout
+            if gauges.num_obs_gauges > 3
+                temp = double(ceil(gauges.num_obs_gauges / 3));
+                subplot(temp, 3, double(i), 'Parent', fig);
+            elseif gauges.num_obs_gauges == 2
+                subplot(1, 2, double(i), 'Parent', fig);
+            else
+                subplot(1, 1, 1, 'Parent', fig);
+            end
+
+            % Left axis: Discharge
+            yyaxis left;
+            set(gca, 'YColor', pallete.blue_colors(1,:));
+            plot(gather(running_control.time_hydrograph), gather(gauges.hydrograph_cell(:,i)), ...
+                'LineWidth', 1.5, 'Color', pallete.blue_colors(2,:));
+            ylabel('$Q~(\mathrm{m^3/s})$', 'Interpreter', 'latex');
+
+            % Right axis: Depth
+            yyaxis right;
+            set(gca, 'YColor', pallete.red_colors(3,:));
+            plot(gather(running_control.time_hydrograph), gather(gauges.depth_cell(:,i)), ...
+                'LineWidth', 1.5, 'LineStyle', '--', 'Color', pallete.red_colors(3,:));
+            ylabel('$h~(\mathrm{m})$', 'Interpreter', 'latex');
+
+            % Common formatting
+            xlabel('Elapsed Time [min]', 'Interpreter', 'latex');
+            title(gauges.labels_observed_string{i}, 'Interpreter', 'latex', 'FontSize', fsize);
+            set(gca, 'FontSize', fsize, ...
+                'FontName', 'Helvetica', ...
+                'TickDir', 'out', ...
+                'LineWidth', 2, ...
+                'TickLength', [0.02 0.01]);
+            box on;
+            grid on;
         end
 
-        % Subplot layout
-        if gauges.num_obs_gauges > 3
-            temp = double(ceil(gauges.num_obs_gauges / 3));
-            subplot(temp, 3, double(i), 'Parent', fig);
-        elseif gauges.num_obs_gauges == 2
-            subplot(1, 2, double(i), 'Parent', fig);
-        else
-            subplot(1, 1, 1, 'Parent', fig);
+        % Export figure
+        try
+            exportgraphics(fig, fullfile(Dirs.FigPDF, 'Hydrograph_Gauges.pdf'), 'ContentType', 'vector');
+        catch
+            fprintf('No Hydrograph gauges exported – PDF export error\n');
         end
-
-        % Left axis: Discharge
-        yyaxis left;
-        set(gca, 'YColor', pallete.blue_colors(1,:));
-        plot(gather(running_control.time_hydrograph), gather(gauges.hydrograph_cell(:,i)), ...
-            'LineWidth', 1.5, 'Color', pallete.blue_colors(2,:));
-        ylabel('$Q~(\mathrm{m^3/s})$', 'Interpreter', 'latex');
-
-        % Right axis: Depth
-        yyaxis right;
-        set(gca, 'YColor', pallete.red_colors(3,:));
-        plot(gather(running_control.time_hydrograph), gather(gauges.depth_cell(:,i)), ...
-            'LineWidth', 1.5, 'LineStyle', '--', 'Color', pallete.red_colors(3,:));
-        ylabel('$h~(\mathrm{m})$', 'Interpreter', 'latex');
-
-        % Common formatting
-        xlabel('Elapsed Time [min]', 'Interpreter', 'latex');
-        title(gauges.labels_observed_string{i}, 'Interpreter', 'latex', 'FontSize', fsize);
-        set(gca, 'FontSize', fsize, ...
-            'FontName', 'Helvetica', ...
-            'TickDir', 'out', ...
-            'LineWidth', 2, ...
-            'TickLength', [0.02 0.01]);
-        box on;
-        grid on;
+        saveas(fig, fullfile(Dirs.FigFIG, 'Hydrograph_Gauges.fig'));
     end
-
-    % Export figure
-    try
-        exportgraphics(fig, fullfile(Dirs.FigPDF, 'Hydrograph_Gauges.pdf'), 'ContentType', 'vector');
-    catch
-        fprintf('No Hydrograph gauges exported – PDF export error\n');
-    end
-    saveas(fig, fullfile(Dirs.FigFIG, 'Hydrograph_Gauges.fig'));
-
     % close(fig);   % leave commented while tuning figure sizes
 end
 
@@ -1280,6 +1301,22 @@ if flags.flag_export_maps == 1
     end
 
     %========================
+    % 2a) Create/Clean Velocity, Hazard, and Infiltration temporal folders
+    %========================
+    myFolder_vel = Dirs.RastersVelocity;
+    myFolder_haz = Dirs.RastersHazard;
+    ensureFolder(myFolder_vel);
+    ensureFolder(myFolder_haz);
+    deleteMatchingFiles(myFolder_vel, {'*.tif', '*.tif.aux'});
+    deleteMatchingFiles(myFolder_haz, {'*.tif', '*.tif.aux'});
+    myFolder_inf = '';
+    if flags.flag_infiltration == 1
+        myFolder_inf = Dirs.RastersInfiltration;
+        ensureFolder(myFolder_inf);
+        deleteMatchingFiles(myFolder_inf, {'*.tif', '*.tif.aux'});
+    end
+
+    %========================
     % 2) Create/Clean Water Depths folder
     %========================
     myFolder_wd = Dirs.RastersWD;
@@ -1394,7 +1431,7 @@ if flags.flag_export_maps == 1
 
     for i = 1:length(running_control.time_records)
 
-        raster_exportion_percentage = i / length(running_control.time_records) * 100 
+        raster_exportion_percentage = i / length(running_control.time_records) * 100
 
         %-----------------------------------------
         % Load maps in chunks (platform independent)
@@ -1507,6 +1544,72 @@ if flags.flag_export_maps == 1
             end
 
             appendTimeSliceToNetCDF(ncFile_hydro, ncVar_hydro, raster_to_export.Z, i);
+        end
+
+        %========================
+        % Velocity temporal export
+        %========================
+        if isfield(Maps.Hydro, 'velocity') && ~isempty(Maps.Hydro.velocity) && ...
+                ndims(Maps.Hydro.velocity) >= 3 && local_i <= size(Maps.Hydro.velocity, 3)
+            if flags.flag_elapsed_time == 1
+                baseNameVel = sprintf('Velocity_t_%s_h', num2str(time_map));
+            else
+                baseNameVel = sprintf('Velocity_%s', string(time_map));
+            end
+            outTifVel = fullfile(myFolder_vel, baseNameVel + ".tif");
+
+            vel_exp = double(Maps.Hydro.velocity(:,:,local_i));
+            vel_exp(~isfinite(vel_exp)) = no_data_value;
+            vel_exp(idx_nan) = no_data_value;
+
+            raster_to_export_vel = DEM_raster;
+            raster_to_export_vel.Z = vel_exp;
+            geotiffwrite(outTifVel, raster_to_export_vel.Z, raster_to_export_vel.georef.SpatialRef, ...
+                'GeoKeyDirectoryTag', raster_to_export_vel.georef.GeoKeyDirectoryTag);
+        end
+
+        %========================
+        % Flood hazard (dv) temporal export
+        %========================
+        if isfield(Maps.Hydro, 'hazard_dv') && ~isempty(Maps.Hydro.hazard_dv) && ...
+                ndims(Maps.Hydro.hazard_dv) >= 3 && local_i <= size(Maps.Hydro.hazard_dv, 3)
+            if flags.flag_elapsed_time == 1
+                baseNameHaz = sprintf('Flood_Hazard_t_%s_h', num2str(time_map));
+            else
+                baseNameHaz = sprintf('Flood_Hazard_%s', string(time_map));
+            end
+            outTifHaz = fullfile(myFolder_haz, baseNameHaz + ".tif");
+
+            haz_exp = double(Maps.Hydro.hazard_dv(:,:,local_i));
+            haz_exp(~isfinite(haz_exp)) = no_data_value;
+            haz_exp(idx_nan) = no_data_value;
+
+            raster_to_export_haz = DEM_raster;
+            raster_to_export_haz.Z = haz_exp;
+            geotiffwrite(outTifHaz, raster_to_export_haz.Z, raster_to_export_haz.georef.SpatialRef, ...
+                'GeoKeyDirectoryTag', raster_to_export_haz.georef.GeoKeyDirectoryTag);
+        end
+
+        %========================
+        % Infiltration temporal export (cumulative depth, mm → m)
+        %========================
+        if flags.flag_infiltration == 1 && isfield(Maps.Hydro, 'I_t') && ~isempty(Maps.Hydro.I_t) && ...
+                ~isempty(myFolder_inf) && ndims(Maps.Hydro.I_t) >= 3 && local_i <= size(Maps.Hydro.I_t, 3)
+            if flags.flag_elapsed_time == 1
+                baseNameInf = sprintf('Infiltration_t_%s_h', num2str(time_map));
+            else
+                baseNameInf = sprintf('Infiltration_%s', string(time_map));
+            end
+            outTifInf = fullfile(myFolder_inf, baseNameInf + ".tif");
+
+            inf_exp = double(Maps.Hydro.I_t(:,:,local_i)) / 1000; % mm → m
+            inf_exp(~isfinite(inf_exp)) = no_data_value;
+            inf_exp(idx_nan)            = no_data_value;
+
+            raster_to_export_inf = DEM_raster;
+            raster_to_export_inf.Z = inf_exp;
+            geotiffwrite(outTifInf, raster_to_export_inf.Z, raster_to_export_inf.georef.SpatialRef, ...
+                'GeoKeyDirectoryTag', raster_to_export_inf.georef.GeoKeyDirectoryTag);
         end
 
         %========================
@@ -1695,6 +1798,23 @@ if flags.flag_export_maps == 1
     outTif = fullfile(Dirs.RastersStatic, "Maximum_Velocity.tif");
 
     zzz = velocities.vmax_final; % m/s
+    idx_wse = depths.dmax_final/1000 < depths.depth_wse;
+    zzz(isinf(zzz)) = no_data_value;
+    zzz(isnan(zzz)) = no_data_value;
+    zzz(idx_wse) = no_data_value;
+
+    raster_to_export = DEM_raster;
+    raster_to_export.Z = zzz;
+
+    geotiffwrite(outTif, raster_to_export.Z, raster_to_export.georef.SpatialRef, ...
+        'GeoKeyDirectoryTag', raster_to_export.georef.GeoKeyDirectoryTag);
+
+    %--------------------------------------
+    % Maximum Flood Hazard (depth x velocity, m^2/s)
+    %--------------------------------------
+    outTif = fullfile(Dirs.RastersStatic, "Maximum_Hazard.tif");
+
+    zzz = velocities.hazardmax_final; % m^2/s
     idx_wse = depths.dmax_final/1000 < depths.depth_wse;
     zzz(isinf(zzz)) = no_data_value;
     zzz(isnan(zzz)) = no_data_value;
@@ -2011,64 +2131,153 @@ Inundation_Maps
 %%% - Equivalent Width to Simulate in SWMM %%% - (LENHS, 2012)
 % W = kc sqrt(A) / 1.12 * (1 - sqrt(1 - {1.128 / k_c}^2))
 Wshed_Properties.width_SWMM = Wshed_Properties.compactness_coefficient*sqrt(Wshed_Properties.drainage_area)/1.12*(1 - sqrt(1 - (1.128/Wshed_Properties.compactness_coefficient)^2));
-%%% - Runoff Coefficient -
+%%% - Rainfall Volume
+rainfall_vol = 0; % catchment-average rainfall depth [mm]
 
-try
-if flags.flag_inflow == 1
-    Wshed_Properties.C_r = BC_States.outflow_volume/BC_States.inflow_volume;
-elseif flags.flag_spatial_rainfall == 1
-    Wshed_Properties.C_r = BC_States.outflow_volume/(sum(BC_States.average_spatial_rainfall / 1000)*time_step_rainfall * Wshed_Properties.drainage_area);
-else
-    Wshed_Properties.C_r = BC_States.outflow_volume/(sum(BC_States.delta_p) / 1000 * Wshed_Properties.drainage_area);
+if flags.flag_rainfall == 1
+
+    if flags.flag_spatial_rainfall == 1
+        % Spatial rainfall branch: keep the existing post-processing logic
+        tot_rain = sum(Maps.Hydro.spatial_rainfall_maps,3) ...
+            * running_control.record_time_spatial_rainfall/60/1000 ...
+            * Wshed_Properties.cell_area; % m3 for each cell
+
+        rainfall_vol = nansum(nansum(tot_rain)) ...
+            / Wshed_Properties.drainage_area * 1000; % mm
+
+    else
+        % Spatially invariant / lumped rainfall branch
+        rain_t = gather(Rainfall_Parameters.time_rainfall(:));
+        rain_i = gather(Rainfall_Parameters.intensity_rainfall(:)); % mm/h
+
+        nRain = min(numel(rain_t), numel(rain_i));
+        rain_t = rain_t(1:nRain);
+        rain_i = rain_i(1:nRain);
+
+        if flags.flag_elapsed_time ~= 1
+            % rain_t is serial date number after conversion above
+            dt_rain_hr = hours(diff([date_begin; rain_t]));
+        else
+            % rain_t is elapsed time in minutes (DOUBLE CHECK)
+            dt_rain_hr = (diff([0; rain_t]) / 60);
+        end
+
+        dt_rain_hr(dt_rain_hr < 0) = 0;
+
+        rainfall_vol = sum(rain_i .* (dt_rain_hr), 'omitnan'); % mm
+    end
 end
+
+
+%%% - Runoff Coefficient
+try
+    if flags.flag_inflow == 1
+        Wshed_Properties.C_r = BC_States.outflow_volume / BC_States.inflow_volume;
+
+    elseif flags.flag_rainfall == 1 && rainfall_vol > 0
+        rainfall_volume_m3 = rainfall_vol / 1000 * Wshed_Properties.drainage_area;
+        Wshed_Properties.C_r = BC_States.outflow_volume / rainfall_volume_m3;
+
+    else
+        Wshed_Properties.C_r = nan;
+    end
 catch
     Wshed_Properties.C_r = nan;
 end
-%%% - Rainfall Volume
-if flags.flag_spatial_rainfall ~=1 && flags.flag_rainfall == 1
-    rainfall_vol = sum(sum(BC_States.delta_p));
-elseif flags.flag_spatial_rainfall == 1 && flags.flag_rainfall == 1
-    % tot_rain = rainfall_sum*running_control.record_time_spatial_rainfall/60/1000*Wshed_Properties.cell_area; % m3 for each cell
-    tot_rain = sum(Maps.Hydro.spatial_rainfall_maps,3)*running_control.record_time_spatial_rainfall/60/1000*Wshed_Properties.cell_area; % m3 for each cell
-    rainfall_vol = nansum(nansum(tot_rain))/Wshed_Properties.drainage_area*1000; % mm for the whole catchment
-end
 
+% Assumes width_SWMM = drainage_area / watershed_length
+if Wshed_Properties.width_SWMM > 0 && Wshed_Properties.drainage_area > 0
+    Wshed_Properties.form_factor = Wshed_Properties.width_SWMM^2 / Wshed_Properties.drainage_area;
+else
+    Wshed_Properties.form_factor = NaN;
+end
 
 if flags.flag_waterquality == 0
     if flags.flag_rainfall == 0
         rainfall_vol = 0;
     end
-    % Summary_Table = table(round(Wshed_Properties.drainage_area/1000/1000,3),rainfall_vol,round(Wshed_Properties.C_r,2),round(Wshed_Properties.impervious_area/1000/1000,3),round(Wshed_Properties.compactness_coefficient,3),round(Wshed_Properties.circularity_index,3),round(Wshed_Properties.width_SWMM,3),round(Wshed_Properties.form_factor,3),round(simulation_time/60,3),round(1/1000*max(max(Max_depth_d)),round(max(outlet_states.outlet_hydrograph),4),...
-    Summary_Table = table(round(Wshed_Properties.drainage_area/1000/1000,3),rainfall_vol,round(Wshed_Properties.C_r,2),round(Wshed_Properties.impervious_area/1000/1000,3),round(Wshed_Properties.compactness_coefficient,3),round(Wshed_Properties.circularity_index,3),round(Wshed_Properties.width_SWMM,3),round(Wshed_Properties.form_factor,3),round(simulation_time/60,3),round(1/1000*max(max(max(Maps.Hydro.d))),2),round(max(outlet_states.outlet_hydrograph),4),...
-        'VariableNames',...
-        {'Drainage area (km2)','Rainfall Vol (mm)','Runoff Coefficient','Impervious Area (km2)','Compactness Coefficient','Circularity index','Equivalent Width (m)','Form Factor', ...
-        'Simulation time (minutes)','Maximum Flood Depth (m)'...
+
+    Summary_Table = table( ...
+        round(Wshed_Properties.drainage_area/1000/1000,3), ...
+        rainfall_vol, ...
+        round(Wshed_Properties.C_r,2), ...
+        round(Wshed_Properties.impervious_area/1000/1000,3), ...
+        round(Wshed_Properties.compactness_coefficient,3), ...
+        round(Wshed_Properties.circularity_index,3), ...
+        round(Wshed_Properties.width_SWMM,3), ...
+        round(Wshed_Properties.form_factor,3), ...
+        round(simulation_time_minutes,3), ...
+        round(1/1000*max(max(max(Maps.Hydro.d))),2), ...
+        round(max(outlet_states.outlet_hydrograph),4), ...
+        'VariableNames', ...
+        {'Drainage area (km2)', ...
+        'Rainfall Vol (mm)', ...
+        'Runoff Coefficient', ...
+        'Impervious Area (km2)', ...
+        'Compactness Coefficient', ...
+        'Circularity index', ...
+        'Equivalent Width (m)', ...
+        'Form Factor', ...
+        'Simulation time (minutes)', ...
+        'Maximum Flood Depth (m)', ...
         'Maximum Outflow (m^3/s)'});
+
 else
-    % Summary_Table = table(round(Wshed_Properties.drainage_area/1000/1000,3),rainfall_vol,round(Wshed_Properties.C_r,2),round(Wshed_Properties.impervious_area/1000/1000,3),round(Wshed_Properties.compactness_coefficient,3),round(Wshed_Properties.circularity_index,3),round(Wshed_Properties.width_SWMM,3),round(Wshed_Properties.form_factor,3),round(simulation_time/60,3),round(1/1000*max(max(Max_depth_d)),round(max(outlet_states.outlet_hydrograph),4),...
-    % round(max(max(Max_Pol_Conc_Map))),1000*(1/Wshed_Properties.cell_area)*round(max(max(WQ_States.B_t(~isinf(WQ_States.B_t)))),4),round(initial_mass/1000,4),round(sum(sum(WQ_States.B_t(~isinf(WQ_States.B_t))))/1000,4),1-round(sum(sum(WQ_States.B_t(~isinf(WQ_States.B_t))))/1000,4)/round(initial_mass/1000,4),round(WQ_States.EMC_outlet(end,1),2),'VariableNames',...
-    Summary_Table = table(round(Wshed_Properties.drainage_area/1000/1000,3),rainfall_vol,round(Wshed_Properties.C_r,2),round(Wshed_Properties.impervious_area/1000/1000,3),round(Wshed_Properties.compactness_coefficient,3),round(Wshed_Properties.circularity_index,3),round(Wshed_Properties.width_SWMM,3),round(Wshed_Properties.form_factor,3),round(simulation_time/60,3),round(1/1000*max(max(max(Maps.Hydro.d))),2),round(max(outlet_states.outlet_hydrograph),4),...
-        round(max(max(max(Maps.WQ_States.Pol_Conc_Map))),3),1000*(1/Wshed_Properties.cell_area)*round(max(max(WQ_States.B_t(~isinf(WQ_States.B_t)))),4),round(initial_mass/1000,4),round(sum(sum(WQ_States.B_t(~isinf(WQ_States.B_t))))/1000,4),1-round(sum(sum(WQ_States.B_t(~isinf(WQ_States.B_t))))/1000,4)/round(initial_mass/1000,4),round(WQ_States.EMC_outlet(end,1),2),'VariableNames',...
-        {'Drainage area (km2)','Rainfall Vol (mm)','Runoff Coefficient','Impervious Area (km2)','Compactness Coefficient','Circularity index','Equivalent Width (m)','Form Factor','Simulation time (minutes)','Maximum Flood Depth (m)','Maximum Outflow (m^3/s)',...
-        'Maximum Concentration (mg/L)','Maximum Stored Mass of Pollutant  (g/m2)','Initial Pollutant Mass  (ton)','Final Pollutant Mass  (ton)','Wash-off Ratio','EMC (mg/L)'});
+    Summary_Table = table( ...
+        round(Wshed_Properties.drainage_area/1000/1000,3), ...
+        rainfall_vol, ...
+        round(Wshed_Properties.C_r,2), ...
+        round(Wshed_Properties.impervious_area/1000/1000,3), ...
+        round(Wshed_Properties.compactness_coefficient,3), ...
+        round(Wshed_Properties.circularity_index,3), ...
+        round(Wshed_Properties.width_SWMM,3), ...
+        round(Wshed_Properties.form_factor,3), ...
+        round(simulation_time_minutes,3), ...
+        round(1/1000*max(max(max(Maps.Hydro.d))),2), ...
+        round(max(outlet_states.outlet_hydrograph),4), ...
+        round(max(max(max(Maps.WQ_States.Pol_Conc_Map))),3), ...
+        1000*(1/Wshed_Properties.cell_area)*round(max(max(WQ_States.B_t(~isinf(WQ_States.B_t)))),4), ...
+        round(initial_mass/1000,4), ...
+        round(sum(sum(WQ_States.B_t(~isinf(WQ_States.B_t))))/1000,4), ...
+        1 - round(sum(sum(WQ_States.B_t(~isinf(WQ_States.B_t))))/1000,4) / round(initial_mass/1000,4), ...
+        round(WQ_States.EMC_outlet(end,1),2), ...
+        'VariableNames', ...
+        {'Drainage area (km2)', ...
+        'Rainfall Vol (mm)', ...
+        'Runoff Coefficient', ...
+        'Impervious Area (km2)', ...
+        'Compactness Coefficient', ...
+        'Circularity index', ...
+        'Equivalent Width (m)', ...
+        'Form Factor', ...
+        'Simulation time (minutes)', ...
+        'Maximum Flood Depth (m)', ...
+        'Maximum Outflow (m^3/s)', ...
+        'Maximum Concentration (mg/L)', ...
+        'Maximum Stored Mass of Pollutant  (g/m2)', ...
+        'Initial Pollutant Mass  (ton)', ...
+        'Final Pollutant Mass  (ton)', ...
+        'Wash-off Ratio', ...
+        'EMC (mg/L)'});
 end
-% writetable(Summary_Table)
+
 FileName_String = 'Summary_Table';
 FileName = fullfile(Dirs.Tables, [FileName_String '.csv']);
 
-writetable(Summary_Table,FileName);
+writetable(Summary_Table, FileName);
 
 
 % Show Summary Results
 fprintf('Drainage area (km2) = %f\n',round(Wshed_Properties.drainage_area/1000/1000,3))
-fprintf('Rainfall Vol (mm) = %f\n',rainfall_vol)
+fprintf('Rainfall Vol (mm) = %s\n', string(rainfall_vol))
 fprintf('Runoff Coefficient = %f\n',round(Wshed_Properties.C_r,2))
 fprintf('Impervious Area (km2) = %f\n',round(Wshed_Properties.impervious_area/1000/1000,3))
 fprintf('Compactness Coefficient = %f\n',round(Wshed_Properties.compactness_coefficient,3))
 fprintf('Equivalent Width (m) = %f\n',round(Wshed_Properties.width_SWMM,3));
 fprintf('Form Factor = %f\n',round(Wshed_Properties.form_factor,3))
 fprintf('Circularity Index = %f\n',round(Wshed_Properties.circularity_index,3));
-fprintf('Simulation time (minutes) = %f\n', round(simulation_time/60,3));
+fprintf('Simulation time (minutes) = %f\n', round(simulation_time_minutes,3));
+fprintf('Post-processing runtime (minutes) = %f\n', round(post_processing_runtime_seconds/60,3));
 % Summary
 % fprintf('Maximum Flood Depth (m) = %f\n', round(1/1000*max(max(Max_depth_d))));
 fprintf('Maximum Flood Depth (m) = %f\n', round(1/1000*max(max(max(Maps.Hydro.d))),2));
@@ -2629,318 +2838,318 @@ function initializeTimeSeriesNetCDF(ncFile, Z, R, varName, longName, units, ...
 %   - CRS is taken directly from the DEM raster reference
 % ------------------------------------------------------------
 
-    if exist(ncFile, 'file')
-        delete(ncFile);
-    end
+if exist(ncFile, 'file')
+    delete(ncFile);
+end
 
-    Z = double(Z);
-    [nRows, nCols] = size(Z);
-    nTimes = numel(timeValues);
-    timeValues = double(timeValues(:));
+Z = double(Z);
+[nRows, nCols] = size(Z);
+nTimes = numel(timeValues);
+timeValues = double(timeValues(:));
 
-    % -----------------------------------------------------
-    % Detect raster reference type
-    % -----------------------------------------------------
-    isGeographic = isa(R, 'map.rasterref.GeographicCellsReference') || ...
-                   isa(R, 'map.rasterref.GeographicPostingsReference');
+% -----------------------------------------------------
+% Detect raster reference type
+% -----------------------------------------------------
+isGeographic = isa(R, 'map.rasterref.GeographicCellsReference') || ...
+    isa(R, 'map.rasterref.GeographicPostingsReference');
 
-    % -----------------------------------------------------
-    % Variable names and default metadata
-    % -----------------------------------------------------
-    if isGeographic
-        xName    = 'lon';
-        yName    = 'lat';
-        xStdName = 'longitude';
-        yStdName = 'latitude';
-        xLong    = 'longitude';
-        yLong    = 'latitude';
-        xUnits   = 'degrees_east';
-        yUnits   = 'degrees_north';
-        crsName  = 'WGS 84';
-        epsgCode = 'EPSG:4326';
-        gridMappingName = 'latitude_longitude';
-        wktString = '';
-    else
-        xName    = 'x';
-        yName    = 'y';
-        xStdName = 'projection_x_coordinate';
-        yStdName = 'projection_y_coordinate';
-        xLong    = 'x coordinate of projection';
-        yLong    = 'y coordinate of projection';
-        xUnits   = 'm';
-        yUnits   = 'm';
-        crsName  = 'projected';
-        epsgCode = '';
-        gridMappingName = 'transverse_mercator'; % sensible default for UTM
-        wktString = '';
-    end
+% -----------------------------------------------------
+% Variable names and default metadata
+% -----------------------------------------------------
+if isGeographic
+    xName    = 'lon';
+    yName    = 'lat';
+    xStdName = 'longitude';
+    yStdName = 'latitude';
+    xLong    = 'longitude';
+    yLong    = 'latitude';
+    xUnits   = 'degrees_east';
+    yUnits   = 'degrees_north';
+    crsName  = 'WGS 84';
+    epsgCode = 'EPSG:4326';
+    gridMappingName = 'latitude_longitude';
+    wktString = '';
+else
+    xName    = 'x';
+    yName    = 'y';
+    xStdName = 'projection_x_coordinate';
+    yStdName = 'projection_y_coordinate';
+    xLong    = 'x coordinate of projection';
+    yLong    = 'y coordinate of projection';
+    xUnits   = 'm';
+    yUnits   = 'm';
+    crsName  = 'projected';
+    epsgCode = '';
+    gridMappingName = 'transverse_mercator'; % sensible default for UTM
+    wktString = '';
+end
 
-    % -----------------------------------------------------
-    % Build coordinate vectors from raster reference
-    % -----------------------------------------------------
-    colCenters = 1:nCols;
-    rowCenters = 1:nRows;
+% -----------------------------------------------------
+% Build coordinate vectors from raster reference
+% -----------------------------------------------------
+colCenters = 1:nCols;
+rowCenters = 1:nRows;
 
-    [xCoords, ~] = intrinsicToWorld(R, colCenters, ones(1, nCols));
-    [~, yCoords] = intrinsicToWorld(R, ones(1, nRows), rowCenters);
+[xCoords, ~] = intrinsicToWorld(R, colCenters, ones(1, nCols));
+[~, yCoords] = intrinsicToWorld(R, ones(1, nRows), rowCenters);
 
-    xCoords = double(xCoords(:));
-    yCoords = double(yCoords(:));
+xCoords = double(xCoords(:));
+yCoords = double(yCoords(:));
 
-    % -----------------------------------------------------
-    % Store y increasing for GIS/NetCDF compatibility
-    % If original raster has descending y, append function
-    % must flip rows before writing.
-    % -----------------------------------------------------
-    flipY = false;
-    if numel(yCoords) >= 2 && yCoords(2) < yCoords(1)
-        yCoords = flipud(yCoords);
-        flipY = true;
-    end
+% -----------------------------------------------------
+% Store y increasing for GIS/NetCDF compatibility
+% If original raster has descending y, append function
+% must flip rows before writing.
+% -----------------------------------------------------
+flipY = false;
+if numel(yCoords) >= 2 && yCoords(2) < yCoords(1)
+    yCoords = flipud(yCoords);
+    flipY = true;
+end
 
-    % -----------------------------------------------------
-    % Try to infer CRS metadata from MATLAB CRS object
-    % -----------------------------------------------------
-    if isGeographic
-        try
-            if isprop(R, 'GeographicCRS') && ~isempty(R.GeographicCRS)
-                g = R.GeographicCRS;
-                if isprop(g, 'Name') && ~isempty(g.Name)
-                    crsName = char(g.Name);
-                end
+% -----------------------------------------------------
+% Try to infer CRS metadata from MATLAB CRS object
+% -----------------------------------------------------
+if isGeographic
+    try
+        if isprop(R, 'GeographicCRS') && ~isempty(R.GeographicCRS)
+            g = R.GeographicCRS;
+            if isprop(g, 'Name') && ~isempty(g.Name)
+                crsName = char(g.Name);
             end
-        catch
         end
-    else
-        try
-            if isprop(R, 'ProjectedCRS') && ~isempty(R.ProjectedCRS)
-                p = R.ProjectedCRS;
-
-                if isprop(p, 'Name') && ~isempty(p.Name)
-                    crsName = char(p.Name);
-                end
-
-                % Try direct authority
-                try
-                    if isprop(p, 'Authority') && isprop(p, 'AuthorityCode') && ...
-                            ~isempty(p.Authority) && ~isempty(p.AuthorityCode)
-                        epsgCode = sprintf('%s:%s', ...
-                            char(string(p.Authority)), char(string(p.AuthorityCode)));
-                    end
-                catch
-                end
-
-                % Try direct EPSG code
-                if isempty(epsgCode)
-                    try
-                        if isprop(p, 'EPSGCode') && ~isempty(p.EPSGCode)
-                            epsgCode = sprintf('EPSG:%d', p.EPSGCode);
-                        end
-                    catch
-                    end
-                end
-
-                % Infer from name + geographic CRS if needed
-                if isempty(epsgCode)
-                    try
-                        epsgCode = inferEPSGFromCRS(p);
-                    catch
-                    end
-                end
-
-                % WKT
-                try
-                    wktString = p.WKT;
-                catch
-                    try
-                        wktString = evalc('disp(p)');
-                    catch
-                        wktString = '';
-                    end
-                end
-
-                % Projection method -> CF grid_mapping_name
-                try
-                    if isprop(p, 'ProjectionMethod') && ~isempty(p.ProjectionMethod)
-                        pm = lower(char(string(p.ProjectionMethod)));
-
-                        if contains(pm, 'transverse mercator')
-                            gridMappingName = 'transverse_mercator';
-                        elseif contains(pm, 'lambert conformal conic')
-                            gridMappingName = 'lambert_conformal_conic';
-                        elseif contains(pm, 'mercator')
-                            gridMappingName = 'mercator';
-                        elseif contains(pm, 'albers')
-                            gridMappingName = 'albers_conical_equal_area';
-                        elseif contains(pm, 'polar stereographic')
-                            gridMappingName = 'polar_stereographic';
-                        elseif contains(pm, 'stereographic')
-                            gridMappingName = 'stereographic';
-                        end
-                    end
-                catch
-                end
-            end
-        catch
-        end
+    catch
     end
-
-    % -----------------------------------------------------
-    % Create coordinate variables
-    % -----------------------------------------------------
-    nccreate(ncFile, xName, ...
-        'Dimensions', {xName, numel(xCoords)}, ...
-        'Datatype', 'double', ...
-        'Format', 'netcdf4');
-
-    nccreate(ncFile, yName, ...
-        'Dimensions', {yName, numel(yCoords)}, ...
-        'Datatype', 'double', ...
-        'Format', 'netcdf4');
-
-    nccreate(ncFile, 'time', ...
-        'Dimensions', {'time', nTimes}, ...
-        'Datatype', 'double', ...
-        'Format', 'netcdf4');
-
-    % CRS variable
-    nccreate(ncFile, 'crs', ...
-        'Datatype', 'int32', ...
-        'Format', 'netcdf4');
-
-    % Data variable
-    nccreate(ncFile, varName, ...
-        'Dimensions', {xName, numel(xCoords), yName, numel(yCoords), 'time', nTimes}, ...
-        'Datatype', 'single', ...
-        'FillValue', single(fillValue), ...
-        'Format', 'netcdf4', ...
-        'DeflateLevel', deflateLevel, ...
-        'Shuffle', true);
-
-    % -----------------------------------------------------
-    % Write coordinate vectors
-    % -----------------------------------------------------
-    ncwrite(ncFile, xName, xCoords);
-    ncwrite(ncFile, yName, yCoords);
-    ncwrite(ncFile, 'time', timeValues);
-    ncwrite(ncFile, 'crs', int32(0));
-
-    % -----------------------------------------------------
-    % Coordinate attributes
-    % -----------------------------------------------------
-    ncwriteatt(ncFile, xName, 'standard_name', xStdName);
-    ncwriteatt(ncFile, xName, 'long_name', xLong);
-    ncwriteatt(ncFile, xName, 'units', xUnits);
-    ncwriteatt(ncFile, xName, 'axis', 'X');
-
-    ncwriteatt(ncFile, yName, 'standard_name', yStdName);
-    ncwriteatt(ncFile, yName, 'long_name', yLong);
-    ncwriteatt(ncFile, yName, 'units', yUnits);
-    ncwriteatt(ncFile, yName, 'axis', 'Y');
-
-    ncwriteatt(ncFile, 'time', 'standard_name', 'time');
-    ncwriteatt(ncFile, 'time', 'long_name', 'time');
-    ncwriteatt(ncFile, 'time', 'units', timeUnits);
-    ncwriteatt(ncFile, 'time', 'calendar', timeCalendar);
-    ncwriteatt(ncFile, 'time', 'axis', 'T');
-
-    % -----------------------------------------------------
-    % CRS attributes
-    % -----------------------------------------------------
-    ncwriteatt(ncFile, 'crs', 'grid_mapping_name', gridMappingName);
-
-    if ~isempty(crsName)
-        ncwriteatt(ncFile, 'crs', 'long_name', crsName);
-    end
-
-    if ~isempty(epsgCode)
-        ncwriteatt(ncFile, 'crs', 'epsg_code', epsgCode);
-    end
-
-    if ~isempty(wktString)
-        try
-            ncwriteatt(ncFile, 'crs', 'spatial_ref', wktString);
-        catch
-        end
-        try
-            ncwriteatt(ncFile, 'crs', 'crs_wkt', wktString);
-        catch
-        end
-    end
-
-    if ~isGeographic
-        % Projection parameters if available
-        try
+else
+    try
+        if isprop(R, 'ProjectedCRS') && ~isempty(R.ProjectedCRS)
             p = R.ProjectedCRS;
 
-            if isprop(p, 'ProjectionParameters') && ~isempty(p.ProjectionParameters)
-                pp = p.ProjectionParameters;
-
-                tryWriteProjectionParam(ncFile, 'crs', pp, 'LatitudeOfNaturalOrigin',      'latitude_of_projection_origin');
-                tryWriteProjectionParam(ncFile, 'crs', pp, 'LongitudeOfNaturalOrigin',     'longitude_of_central_meridian');
-                tryWriteProjectionParam(ncFile, 'crs', pp, 'ScaleFactorAtNaturalOrigin',   'scale_factor_at_central_meridian');
-                tryWriteProjectionParam(ncFile, 'crs', pp, 'FalseEasting',                 'false_easting');
-                tryWriteProjectionParam(ncFile, 'crs', pp, 'FalseNorthing',                'false_northing');
-                tryWriteProjectionParam(ncFile, 'crs', pp, 'StandardParallel',             'standard_parallel');
+            if isprop(p, 'Name') && ~isempty(p.Name)
+                crsName = char(p.Name);
             end
-        catch
-        end
 
-        % Geographic ellipsoid info
-        try
-            g = R.ProjectedCRS.GeographicCRS;
-            if isprop(g, 'Spheroid') && ~isempty(g.Spheroid)
-                sph = g.Spheroid;
-                if isprop(sph, 'SemimajorAxis') && ~isempty(sph.SemimajorAxis)
-                    ncwriteatt(ncFile, 'crs', 'semi_major_axis', double(sph.SemimajorAxis));
+            % Try direct authority
+            try
+                if isprop(p, 'Authority') && isprop(p, 'AuthorityCode') && ...
+                        ~isempty(p.Authority) && ~isempty(p.AuthorityCode)
+                    epsgCode = sprintf('%s:%s', ...
+                        char(string(p.Authority)), char(string(p.AuthorityCode)));
                 end
-                if isprop(sph, 'InverseFlattening') && ~isempty(sph.InverseFlattening)
-                    ncwriteatt(ncFile, 'crs', 'inverse_flattening', double(sph.InverseFlattening));
+            catch
+            end
+
+            % Try direct EPSG code
+            if isempty(epsgCode)
+                try
+                    if isprop(p, 'EPSGCode') && ~isempty(p.EPSGCode)
+                        epsgCode = sprintf('EPSG:%d', p.EPSGCode);
+                    end
+                catch
                 end
             end
-            if isprop(g, 'PrimeMeridian') && ~isempty(g.PrimeMeridian)
-                ncwriteatt(ncFile, 'crs', 'longitude_of_prime_meridian', double(g.PrimeMeridian));
+
+            % Infer from name + geographic CRS if needed
+            if isempty(epsgCode)
+                try
+                    epsgCode = inferEPSGFromCRS(p);
+                catch
+                end
             end
-        catch
+
+            % WKT
+            try
+                wktString = p.WKT;
+            catch
+                try
+                    wktString = evalc('disp(p)');
+                catch
+                    wktString = '';
+                end
+            end
+
+            % Projection method -> CF grid_mapping_name
+            try
+                if isprop(p, 'ProjectionMethod') && ~isempty(p.ProjectionMethod)
+                    pm = lower(char(string(p.ProjectionMethod)));
+
+                    if contains(pm, 'transverse mercator')
+                        gridMappingName = 'transverse_mercator';
+                    elseif contains(pm, 'lambert conformal conic')
+                        gridMappingName = 'lambert_conformal_conic';
+                    elseif contains(pm, 'mercator')
+                        gridMappingName = 'mercator';
+                    elseif contains(pm, 'albers')
+                        gridMappingName = 'albers_conical_equal_area';
+                    elseif contains(pm, 'polar stereographic')
+                        gridMappingName = 'polar_stereographic';
+                    elseif contains(pm, 'stereographic')
+                        gridMappingName = 'stereographic';
+                    end
+                end
+            catch
+            end
         end
-    else
-        % Basic WGS84 geographic info
-        ncwriteatt(ncFile, 'crs', 'semi_major_axis', 6378137.0);
-        ncwriteatt(ncFile, 'crs', 'inverse_flattening', 298.257223563);
-        ncwriteatt(ncFile, 'crs', 'longitude_of_prime_meridian', 0.0);
-    end
-
-    % -----------------------------------------------------
-    % Data variable attributes
-    % -----------------------------------------------------
-    ncwriteatt(ncFile, varName, 'long_name', longName);
-    ncwriteatt(ncFile, varName, 'units', units);
-    ncwriteatt(ncFile, varName, 'coordinates', sprintf('%s %s time', xName, yName));
-    ncwriteatt(ncFile, varName, 'grid_mapping', 'crs');
-
-    % -----------------------------------------------------
-    % Global attributes
-    % -----------------------------------------------------
-    ncwriteatt(ncFile, '/', 'title', [longName ' time series']);
-    ncwriteatt(ncFile, '/', 'source', 'HydroPol2D export');
-    ncwriteatt(ncFile, '/', 'history', ['Created on ' datestr(now, 'yyyy-mm-dd HH:MM:ss')]);
-    ncwriteatt(ncFile, '/', 'Conventions', 'CF-1.8');
-    ncwriteatt(ncFile, '/', 'crs_name', crsName);
-
-    if ~isempty(epsgCode)
-        ncwriteatt(ncFile, '/', 'coordinate_reference_system', epsgCode);
-    end
-
-    if flipY
-        ncwriteatt(ncFile, '/', 'note_on_y_axis', ...
-            'Y coordinates were stored in increasing order; raster rows must be flipped before writing time slices.');
-    end
-
-    try
-        ncwriteatt(ncFile, '/', 'GeoKeyDirectoryTag', evalc('disp(geoKeyTag)'));
     catch
-        % do nothing
     end
+end
+
+% -----------------------------------------------------
+% Create coordinate variables
+% -----------------------------------------------------
+nccreate(ncFile, xName, ...
+    'Dimensions', {xName, numel(xCoords)}, ...
+    'Datatype', 'double', ...
+    'Format', 'netcdf4');
+
+nccreate(ncFile, yName, ...
+    'Dimensions', {yName, numel(yCoords)}, ...
+    'Datatype', 'double', ...
+    'Format', 'netcdf4');
+
+nccreate(ncFile, 'time', ...
+    'Dimensions', {'time', nTimes}, ...
+    'Datatype', 'double', ...
+    'Format', 'netcdf4');
+
+% CRS variable
+nccreate(ncFile, 'crs', ...
+    'Datatype', 'int32', ...
+    'Format', 'netcdf4');
+
+% Data variable
+nccreate(ncFile, varName, ...
+    'Dimensions', {xName, numel(xCoords), yName, numel(yCoords), 'time', nTimes}, ...
+    'Datatype', 'single', ...
+    'FillValue', single(fillValue), ...
+    'Format', 'netcdf4', ...
+    'DeflateLevel', deflateLevel, ...
+    'Shuffle', true);
+
+% -----------------------------------------------------
+% Write coordinate vectors
+% -----------------------------------------------------
+ncwrite(ncFile, xName, xCoords);
+ncwrite(ncFile, yName, yCoords);
+ncwrite(ncFile, 'time', timeValues);
+ncwrite(ncFile, 'crs', int32(0));
+
+% -----------------------------------------------------
+% Coordinate attributes
+% -----------------------------------------------------
+ncwriteatt(ncFile, xName, 'standard_name', xStdName);
+ncwriteatt(ncFile, xName, 'long_name', xLong);
+ncwriteatt(ncFile, xName, 'units', xUnits);
+ncwriteatt(ncFile, xName, 'axis', 'X');
+
+ncwriteatt(ncFile, yName, 'standard_name', yStdName);
+ncwriteatt(ncFile, yName, 'long_name', yLong);
+ncwriteatt(ncFile, yName, 'units', yUnits);
+ncwriteatt(ncFile, yName, 'axis', 'Y');
+
+ncwriteatt(ncFile, 'time', 'standard_name', 'time');
+ncwriteatt(ncFile, 'time', 'long_name', 'time');
+ncwriteatt(ncFile, 'time', 'units', timeUnits);
+ncwriteatt(ncFile, 'time', 'calendar', timeCalendar);
+ncwriteatt(ncFile, 'time', 'axis', 'T');
+
+% -----------------------------------------------------
+% CRS attributes
+% -----------------------------------------------------
+ncwriteatt(ncFile, 'crs', 'grid_mapping_name', gridMappingName);
+
+if ~isempty(crsName)
+    ncwriteatt(ncFile, 'crs', 'long_name', crsName);
+end
+
+if ~isempty(epsgCode)
+    ncwriteatt(ncFile, 'crs', 'epsg_code', epsgCode);
+end
+
+if ~isempty(wktString)
+    try
+        ncwriteatt(ncFile, 'crs', 'spatial_ref', wktString);
+    catch
+    end
+    try
+        ncwriteatt(ncFile, 'crs', 'crs_wkt', wktString);
+    catch
+    end
+end
+
+if ~isGeographic
+    % Projection parameters if available
+    try
+        p = R.ProjectedCRS;
+
+        if isprop(p, 'ProjectionParameters') && ~isempty(p.ProjectionParameters)
+            pp = p.ProjectionParameters;
+
+            tryWriteProjectionParam(ncFile, 'crs', pp, 'LatitudeOfNaturalOrigin',      'latitude_of_projection_origin');
+            tryWriteProjectionParam(ncFile, 'crs', pp, 'LongitudeOfNaturalOrigin',     'longitude_of_central_meridian');
+            tryWriteProjectionParam(ncFile, 'crs', pp, 'ScaleFactorAtNaturalOrigin',   'scale_factor_at_central_meridian');
+            tryWriteProjectionParam(ncFile, 'crs', pp, 'FalseEasting',                 'false_easting');
+            tryWriteProjectionParam(ncFile, 'crs', pp, 'FalseNorthing',                'false_northing');
+            tryWriteProjectionParam(ncFile, 'crs', pp, 'StandardParallel',             'standard_parallel');
+        end
+    catch
+    end
+
+    % Geographic ellipsoid info
+    try
+        g = R.ProjectedCRS.GeographicCRS;
+        if isprop(g, 'Spheroid') && ~isempty(g.Spheroid)
+            sph = g.Spheroid;
+            if isprop(sph, 'SemimajorAxis') && ~isempty(sph.SemimajorAxis)
+                ncwriteatt(ncFile, 'crs', 'semi_major_axis', double(sph.SemimajorAxis));
+            end
+            if isprop(sph, 'InverseFlattening') && ~isempty(sph.InverseFlattening)
+                ncwriteatt(ncFile, 'crs', 'inverse_flattening', double(sph.InverseFlattening));
+            end
+        end
+        if isprop(g, 'PrimeMeridian') && ~isempty(g.PrimeMeridian)
+            ncwriteatt(ncFile, 'crs', 'longitude_of_prime_meridian', double(g.PrimeMeridian));
+        end
+    catch
+    end
+else
+    % Basic WGS84 geographic info
+    ncwriteatt(ncFile, 'crs', 'semi_major_axis', 6378137.0);
+    ncwriteatt(ncFile, 'crs', 'inverse_flattening', 298.257223563);
+    ncwriteatt(ncFile, 'crs', 'longitude_of_prime_meridian', 0.0);
+end
+
+% -----------------------------------------------------
+% Data variable attributes
+% -----------------------------------------------------
+ncwriteatt(ncFile, varName, 'long_name', longName);
+ncwriteatt(ncFile, varName, 'units', units);
+ncwriteatt(ncFile, varName, 'coordinates', sprintf('%s %s time', xName, yName));
+ncwriteatt(ncFile, varName, 'grid_mapping', 'crs');
+
+% -----------------------------------------------------
+% Global attributes
+% -----------------------------------------------------
+ncwriteatt(ncFile, '/', 'title', [longName ' time series']);
+ncwriteatt(ncFile, '/', 'source', 'HydroPol2D export');
+ncwriteatt(ncFile, '/', 'history', ['Created on ' datestr(now, 'yyyy-mm-dd HH:MM:ss')]);
+ncwriteatt(ncFile, '/', 'Conventions', 'CF-1.8');
+ncwriteatt(ncFile, '/', 'crs_name', crsName);
+
+if ~isempty(epsgCode)
+    ncwriteatt(ncFile, '/', 'coordinate_reference_system', epsgCode);
+end
+
+if flipY
+    ncwriteatt(ncFile, '/', 'note_on_y_axis', ...
+        'Y coordinates were stored in increasing order; raster rows must be flipped before writing time slices.');
+end
+
+try
+    ncwriteatt(ncFile, '/', 'GeoKeyDirectoryTag', evalc('disp(geoKeyTag)'));
+catch
+    % do nothing
+end
 end
 
 
@@ -2948,79 +3157,79 @@ function epsgCode = inferEPSGFromCRS(projectedCRS)
 % inferEPSGFromCRS
 % Try to infer EPSG code from MATLAB projcrs/geocrs information.
 
-    epsgCode = '';
+epsgCode = '';
 
-    % 1) Direct authority code
-    try
-        if isprop(projectedCRS, 'Authority') && isprop(projectedCRS, 'AuthorityCode') && ...
-                ~isempty(projectedCRS.Authority) && ~isempty(projectedCRS.AuthorityCode)
-            epsgCode = sprintf('%s:%s', ...
-                char(string(projectedCRS.Authority)), ...
-                char(string(projectedCRS.AuthorityCode)));
-            return
+% 1) Direct authority code
+try
+    if isprop(projectedCRS, 'Authority') && isprop(projectedCRS, 'AuthorityCode') && ...
+            ~isempty(projectedCRS.Authority) && ~isempty(projectedCRS.AuthorityCode)
+        epsgCode = sprintf('%s:%s', ...
+            char(string(projectedCRS.Authority)), ...
+            char(string(projectedCRS.AuthorityCode)));
+        return
+    end
+catch
+end
+
+% 2) Direct EPSGCode property
+try
+    if isprop(projectedCRS, 'EPSGCode') && ~isempty(projectedCRS.EPSGCode)
+        epsgCode = sprintf('EPSG:%d', projectedCRS.EPSGCode);
+        return
+    end
+catch
+end
+
+% 3) Infer from name + geographic CRS + projection method
+try
+    pName = lower(string(projectedCRS.Name));
+catch
+    pName = "";
+end
+
+try
+    gName = lower(string(projectedCRS.GeographicCRS.Name));
+catch
+    gName = "";
+end
+
+try
+    pMethod = lower(string(projectedCRS.ProjectionMethod));
+catch
+    pMethod = "";
+end
+
+% Example: "WGS 84 / UTM zone 43N"
+try
+    tok = regexp(char(pName), 'utm zone\s+(\d{1,2})([ns])', 'tokens', 'once');
+    if ~isempty(tok) && contains(gName, 'wgs 84') && contains(pMethod, 'transverse mercator')
+        zoneNum = str2double(tok{1});
+        hemi = lower(tok{2});
+
+        if hemi == 'n'
+            epsgCode = sprintf('EPSG:%d', 32600 + zoneNum);
+        else
+            epsgCode = sprintf('EPSG:%d', 32700 + zoneNum);
         end
-    catch
+        return
     end
-
-    % 2) Direct EPSGCode property
-    try
-        if isprop(projectedCRS, 'EPSGCode') && ~isempty(projectedCRS.EPSGCode)
-            epsgCode = sprintf('EPSG:%d', projectedCRS.EPSGCode);
-            return
-        end
-    catch
-    end
-
-    % 3) Infer from name + geographic CRS + projection method
-    try
-        pName = lower(string(projectedCRS.Name));
-    catch
-        pName = "";
-    end
-
-    try
-        gName = lower(string(projectedCRS.GeographicCRS.Name));
-    catch
-        gName = "";
-    end
-
-    try
-        pMethod = lower(string(projectedCRS.ProjectionMethod));
-    catch
-        pMethod = "";
-    end
-
-    % Example: "WGS 84 / UTM zone 43N"
-    try
-        tok = regexp(char(pName), 'utm zone\s+(\d{1,2})([ns])', 'tokens', 'once');
-        if ~isempty(tok) && contains(gName, 'wgs 84') && contains(pMethod, 'transverse mercator')
-            zoneNum = str2double(tok{1});
-            hemi = lower(tok{2});
-
-            if hemi == 'n'
-                epsgCode = sprintf('EPSG:%d', 32600 + zoneNum);
-            else
-                epsgCode = sprintf('EPSG:%d', 32700 + zoneNum);
-            end
-            return
-        end
-    catch
-    end
+catch
+end
 end
 
 
 function tryWriteProjectionParam(ncFile, crsVarName, projParams, matlabField, cfField)
 % Safely write a projection parameter if it exists.
 
-    try
-        if isprop(projParams, matlabField)
-            val = projParams.(matlabField);
-            if ~isempty(val) && isnumeric(val)
-                ncwriteatt(ncFile, crsVarName, cfField, double(val));
-            end
+try
+    if isprop(projParams, matlabField)
+        val = projParams.(matlabField);
+        if ~isempty(val) && isnumeric(val)
+            ncwriteatt(ncFile, crsVarName, cfField, double(val));
         end
-    catch
     end
+catch
+end
 end
 
 
@@ -3033,9 +3242,9 @@ function appendTimeSliceToNetCDF(ncFile, varName, Z, timeIndex)
 %   Y coordinates were stored in increasing order,
 %   so raster rows are flipped before transpose.
 
-    Z = single(Z);
-    Z = flipud(Z);
-    ncwrite(ncFile, varName, Z.', [1 1 timeIndex]);
+Z = single(Z);
+Z = flipud(Z);
+ncwrite(ncFile, varName, Z.', [1 1 timeIndex]);
 end
 
 function fig = createStyledFigure(show_figures, paper_bg, figsize_inches)

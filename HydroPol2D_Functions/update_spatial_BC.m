@@ -277,35 +277,73 @@ gridSize = BC_States.gridSize;
 %% ═══════════════════════════════════════════════════════════════════════
 %  Stage-Hydrograph Boundary Condition (exact time-average over [t_previous,t])
 % ═══════════════════════════════════════════════════════════════════════
+% if flags.flag_stage_hydrograph == 1
+%     if k == 1
+%         stage_depth = zeros(Stage_Parameters.n_stage_gauges,1);
+%     else
+%         stage_depth_previous = stage_depth;
+%     end
+%     dt_step = max(t - t_previous, 0);
+% 
+%     if dt_step > 0
+%         for z = 1:Stage_Parameters.n_stage_gauges
+%             [stage_depth(z,1), BC_States.cursor_stage] = localAverageStateOverStep( ...
+%                 Stage_Parameters.time_stage, ...
+%                 Stage_Parameters.stage(:,z), ...
+%                 t_previous, ...
+%                 t, ...
+%                 BC_States.cursor_stage);
+%         end
+%     else
+%         % fallback for zero-duration step
+%         BC_States.cursor_stage = localAdvanceEndStampedCursor( ...
+%             Stage_Parameters.time_stage, ...
+%             t, ...
+%             BC_States.cursor_stage);
+% 
+%         iz_stage = localClampIndex(BC_States.cursor_stage, 1, size(Stage_Parameters.stage,1));
+% 
+%         for z = 1:Stage_Parameters.n_stage_gauges
+%             stage_depth(z,1) = Stage_Parameters.stage(iz_stage,z);
+%         end
+%     end
+% end
+% 
+% if k == 1
+%    stage_depth_previous = stage_depth;
+% end
+
+% Stage-Hydrograph Boundary Condition - benchmark mode
 if flags.flag_stage_hydrograph == 1
 
     stage_depth = zeros(Stage_Parameters.n_stage_gauges,1);
-    dt_step = max(t - t_previous, 0);
 
-    if dt_step > 0
-        for z = 1:Stage_Parameters.n_stage_gauges
-            [stage_depth(z,1), BC_States.cursor_stage] = localAverageStateOverStep( ...
-                Stage_Parameters.time_stage, ...
-                Stage_Parameters.stage(:,z), ...
-                t_previous, ...
-                t, ...
-                BC_States.cursor_stage);
+    for z = 1:Stage_Parameters.n_stage_gauges
+
+        z2 = find(Stage_Parameters.time_stage <= t,1,'last');
+
+        if isempty(z2)
+            z2 = 1;
         end
-    else
-        % fallback for zero-duration step
-        BC_States.cursor_stage = localAdvanceEndStampedCursor( ...
-            Stage_Parameters.time_stage, ...
-            t, ...
-            BC_States.cursor_stage);
 
-        iz_stage = localClampIndex(BC_States.cursor_stage, 1, size(Stage_Parameters.stage,1));
+        stage_depth(z,1) = Stage_Parameters.stage(z2,z);
 
-        for z = 1:Stage_Parameters.n_stage_gauges
-            stage_depth(z,1) = Stage_Parameters.stage(iz_stage,z);
-        end
     end
-end
 
+    % Apply Stage Boundary Condition
+    for i = 1:Stage_Parameters.n_stage_gauges
+
+        stage_cells = Wshed_Properties.stage_mask(:,:,i);
+
+        % Stage is assumed to be water depth in meters.
+        % Convert to mm for model state.
+        depths.d_t(logical(stage_cells)) = 1000 * stage_depth(i,1);
+
+    end
+
+    stage_depth_previous = stage_depth;
+
+end
 %% Apply Stage Boundary Condition
 if flags.flag_stage_hydrograph == 1
     for i = 1:Stage_Parameters.n_stage_gauges
@@ -378,31 +416,53 @@ if flags.flag_rainfall > 0
     % accumulated_incremental(...), so it is already a depth [mm] for the
     % active model-step interval.
     % ---------------------------------------------------------------------
-    if flags.flag_spatial_rainfall ~= 1 && ...
-            flags.flag_input_rainfall_map ~= 1 && ...
-            flags.flag_satellite_rainfall ~= 1 && ...
-            flags.flag_real_time_satellite_rainfall ~= 1
+if flags.flag_spatial_rainfall ~= 1 && ...
+        flags.flag_input_rainfall_map ~= 1 && ...
+        flags.flag_satellite_rainfall ~= 1 && ...
+        flags.flag_real_time_satellite_rainfall ~= 1
 
-        dt_step = max(t - t_previous, 0);
+    dt_step = max(t - t_previous, 0);
 
-        if dt_step > 0
-            [avg_rain_rate_mm_h, BC_States.cursor_lumped_rain] = localAverageRateOverStep( ...
-                Rainfall_Parameters.time_rainfall, ...
-                Rainfall_Parameters.intensity_rainfall(:), ...
-                t_previous, ...
-                t, ...
-                BC_States.cursor_lumped_rain);
+    % Default value for storage/diagnostics.
+    % This prevents undefined avg_rain_rate_mm_h when dt_step == 0.
+    avg_rain_rate_mm_h = 0;
 
-            if isnan(avg_rain_rate_mm_h)
-                warning('No rainfall data for this time. Assuming 0 mm/h.')
-                avg_rain_rate_mm_h = 0;
-            end
+    if dt_step > 0
 
-            BC_States.delta_p_agg = avg_rain_rate_mm_h * dt_step / 60; % [mm]
-        else
-            BC_States.delta_p_agg = 0;
+        [avg_rain_rate_mm_h, BC_States.cursor_lumped_rain] = localAverageRateOverStep( ...
+            Rainfall_Parameters.time_rainfall, ...
+            Rainfall_Parameters.intensity_rainfall(:), ...
+            t_previous, ...
+            t, ...
+            BC_States.cursor_lumped_rain);
+
+        if isnan(avg_rain_rate_mm_h)
+            warning('No rainfall data for this time. Assuming 0 mm/h.')
+            avg_rain_rate_mm_h = 0;
         end
 
+        BC_States.delta_p_agg = avg_rain_rate_mm_h * dt_step / 60; % [mm]
+
+    else
+
+        BC_States.delta_p_agg = 0;
+
+    end
+
+    % -----------------------------------------------------------------
+    % Current rainfall diagnostic for temporary time-series output.
+    % For lumped rainfall, the catchment-average rainfall rate is simply
+    % the lumped rainfall rate [mm/h].
+    % -----------------------------------------------------------------
+    BC_States.current_avg_spatial_rainfall = avg_rain_rate_mm_h;
+
+    if isfield(BC_States,'current_rainfall_mean_map') && ...
+            ~isempty(BC_States.current_rainfall_mean_map)
+
+        BC_States.current_rainfall_mean_map(:) = avg_rain_rate_mm_h;
+        BC_States.current_rainfall_mean_map(idx_nan) = nan;
+
+    end
         % ---------------------------------------------------------------------
         % Spatial rainfall from gauges (piecewise constant rate field in mm/h)
         % ---------------------------------------------------------------------

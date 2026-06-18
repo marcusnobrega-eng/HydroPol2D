@@ -1,0 +1,2 @@
+case_id,module,status,driver,expected_behavior,primary_metrics,acceptance_threshold
+ROUTE-001,Routing alternatives,planned_audit_required,audit_then_HP2D,"Kinematic and diffusive routing are audited/corrected, then compared with CA/D8 on controlled synthetic planes.","implementation_findings; hydrograph_RMSE; NSE; peak_timing_error; mass_balance_error_pct","audit pass required before validation; then <0.1% water-balance error"

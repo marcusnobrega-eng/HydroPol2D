@@ -79,6 +79,10 @@ end
 % #################### Main Loop (HydroPol2D)  ################ %
 while t <= (running_control.routing_time + running_control.min_time_step/60) % Running up to the end of the simulation
     try
+        if isfield(Soil_Properties, 'Layers') && isstruct(Soil_Properties.Layers)
+            Soil_Layers_before_step = Soil_Properties.Layers;
+        end
+
         % -------------- Hydrological Model --------------- %
         Hydrological_Model; % Runs the interception + infiltration + GW routing model
 
@@ -331,6 +335,11 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         t = t + time_step;
         depths.d_t = depths.d_p;
         Soil_Properties.I_t = Soil_Properties.I_p;
+        if exist('Soil_Layers_before_step','var') && ...
+                isfield(Soil_Properties, 'Layers') && isstruct(Soil_Properties.Layers)
+            Soil_Properties.Layers = Soil_Layers_before_step;
+            Soil_Properties = sync_layered_soil_storage(Soil_Properties, idx_nan);
+        end
         if flags.flag_baseflow == 1
             BC_States.h_t = BC_States.h_0;
         end
@@ -445,4 +454,3 @@ end
 
 
 %% Save Workspace for post-processing
-

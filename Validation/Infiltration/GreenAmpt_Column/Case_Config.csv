@@ -1,0 +1,2 @@
+case_id,module,phase,evidence_type,truth_source,reference_generator,parameters_to_recover,status
+P1-INFIL-GA-001,Infiltration,Phase 1,analytical_solution,Green-Ampt implicit cumulative infiltration,phase1_reference_solutions.py green_ampt,Ks,planned

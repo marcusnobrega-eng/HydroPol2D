@@ -1,0 +1,2 @@
+case_id,module,phase,evidence_type,truth_source,reference_generator,parameters_to_recover,status
+P1-ROUTE-DIFF-001,Routing alternatives,Phase 1,analytical_or_cross_model_solution,Diffusive wave attenuation reference,TBD,n_or_diffusivity,planned_audit_required

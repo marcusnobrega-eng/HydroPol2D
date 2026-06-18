@@ -1,7 +1,7 @@
 function [map] = human_risk(flag,v,h,ro,g,mu,cd,slope,m,y,w,d)   
     if flag == 3
         % Person's Geometry for h<y
-        sub_temp_1 = h./cosd(slope) < y./2;
+        sub_temp_1 = h./cosd(slope) <= y./2;
         V_s1 = sub_temp_1.*(((2*h.*d^2).*pi())./(cosd(slope).*4));
         A_s1 = sub_temp_1.*((2*h.*d^2)./cosd(slope));
         X_gs1 = sub_temp_1.*(d/2);

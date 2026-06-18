@@ -94,7 +94,7 @@ GLOBAL_VIDEO = struct();
 
 GLOBAL_VIDEO.VISIBLE = true;            % show figures (set false for speed / headless)
 GLOBAL_VIDEO.FPS = 4;                   % global fps for videos
-GLOBAL_VIDEO.TARGET_HEIGHT_PX = 720;    % "720p-ish" height target
+GLOBAL_VIDEO.TARGET_HEIGHT_PX = 1024;    % "720p-ish" height target
 GLOBAL_VIDEO.AVI_QUALITY = 95;          % 0–100 (if supported by profile)
 GLOBAL_VIDEO.CONVERT_TO_MP4 = true;     % if ffmpeg exists, converts AVI -> MP4
 GLOBAL_VIDEO.MP4_CRF = 23;              % 18–28 typical (lower=better)
@@ -260,7 +260,7 @@ grid_resolution = Wshed_Properties.Resolution;
 tmax = 10;
 
 z = DEM_maps;
-z(z <= 0) = inf;
+z(z <= -200) = inf;
 h_min = min(z(~isinf(z)));
 zmax = max(z(~isinf(z)));
 zmax = round(zmax / 10) * 10 * 1.05;
@@ -275,15 +275,23 @@ for t = 1:tmax
     surf(x_grid, y_grid, F, 'LineStyle', 'none');
 
     view((t - 1) * 360 / tmax, (t - 1) * 90 / tmax);
-
-    axis([min(x_grid) max(x_grid) min(y_grid) max(y_grid) h_min zmax]);
+    
+    try
+        axis([min(x_grid) max(x_grid) min(y_grid) max(y_grid) h_min zmax]);
+    catch
+        axis([min(x_grid) max(x_grid) min(y_grid) max(y_grid) h_min zmax + 1]);  
+    end
     zlabel('Elevation [m]', 'Interpreter', 'latex', 'FontSize', 14);
     xlabel('Easting [m]', 'Interpreter', 'latex', 'FontSize', 14);
     ylabel('Northing [m]', 'Interpreter', 'latex', 'FontSize', 14);
     title('Elevation Model', 'Interpreter', 'latex', 'FontSize', 14);
 
     colormap(Terrain_RAS);
-    caxis([h_min, zmax]);
+    try
+        caxis([h_min, zmax]);
+    catch
+        caxis([h_min, h_min + 1])
+    end
     k = colorbar;
     k.Label.String = 'Elevation [m]';
     k.Label.Interpreter = 'latex';
@@ -331,6 +339,10 @@ z1max = max(Max_depth_d(:)) / 1000 + max(DEM_maps(:));
 z1min = min(Max_depth_d(:)) / 1000 + min(DEM_maps(:));
 z2max = max(Max_depth_d(:)) / 1000;
 z2min = min(Max_depth_d(:)) / 1000;
+
+if z2max == z1min
+    z2max = z1min + 1;
+end
 
 xmax = size(DEM_maps, 2);
 ymax = size(DEM_maps, 1);
@@ -477,6 +489,10 @@ hold(ax,'on');
 
 z2max = max(Max_depth_d(:)) / 1000;
 z2min = min(Max_depth_d(:)) / 1000;
+
+if z2max == z2min
+    z2max = z2min + 1;
+end
 
 xmax = size(DEM_maps, 2);
 ymax = size(DEM_maps, 1);
@@ -1110,6 +1126,7 @@ if flags.flag_ETP == 1
 end
 
 %% Cumulative Recharge (STATIC) - FIXED TYPO
+try
 if flags.flag_infiltration == 1
     close all
     figure('units','inches','position',[2,2,6.5,4])
@@ -1152,7 +1169,7 @@ if flags.flag_infiltration == 1
     saveas(gcf,fullfile(OUT.FIG,'Recharge.fig'))
     close all
 end
-
+end
 %% =========================
 % Spatial Rainfall Videos (Rainfall_Intensities + Rainfall_Maps)
 % =========================

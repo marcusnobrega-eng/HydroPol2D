@@ -1,0 +1,2 @@
+case_id,module,phase,evidence_type,truth_source,reference_generator,parameters_to_recover,status
+P1-ROUTE-KIN-001,Routing alternatives,Phase 1,analytical_solution,Kinematic wave plane/channel,TBD,n,planned_audit_required

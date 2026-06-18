@@ -29,7 +29,7 @@ function [recharge_rate, updated_soil_moisture, cumulative_recharge] = simulate_
 %
 %  ➤ Inputs:
 %      • infiltration_rate      - Infiltration flux into bucket [m/s]
-%      • initial_soil_moisture  - Bucket storage above θ_i [m]
+%      • initial_soil_moisture  - Bucket storage above θ_r [m]
 %      • alpha                  - Unused; kept for backward compatibility
 %      • dt                     - Time step [s]
 %      • min_soil_moisture      - Lower storage bound [m]
@@ -43,7 +43,7 @@ function [recharge_rate, updated_soil_moisture, cumulative_recharge] = simulate_
 %      • cumulative_recharge    - Updated cumulative recharge [mm]
 %
 %  ➤ Required parameters in caller workspace:
-%        Soil_Properties.theta_i
+%        Soil_Properties.theta_i      % optional/reference initial condition
 %        Soil_Properties.theta_sat
 %        Soil_Properties.theta_r
 %        Soil_Properties.ksat          [mm/h]
@@ -112,28 +112,42 @@ S = min(S, max_soil_moisture);
 
 %% -----------------------------------------------------------------------
 % 2) Compute effective unsaturated thickness from current capacity
-%    max_soil_moisture = z_wt * (theta_s - theta_i)
+%    max_soil_moisture = z_wt * (theta_s - theta_r)
 % ------------------------------------------------------------------------
-por_eff = max(theta_s - theta_i, 1e-12);
-zwt = max_soil_moisture ./ por_eff;                    % [m]
+% IMPORTANT:
+% HydroPol2D's current infiltration module stores I_t as above-residual
+% vadose water storage. Therefore, the effective storage porosity is:
+%
+%     theta_s - theta_r
+%
+% not:
+%
+%     theta_s - theta_i
+% ------------------------------------------------------------------------
+
+por_eff = max(theta_s - theta_r, 1e-12);
+
+zwt = max_soil_moisture ./ por_eff;    % [m]
 zwt = max(zwt, 0);
 
-% Effective drainage length
-Lgw = max(0.5 .* zwt, 1e-6);                           % [m]
+% Effective drainage length for the reduced Darcy recharge closure [m]
+% This MUST be defined before grad = 1 + h_soil ./ Lgw.
+Lgw = max(0.5 .* zwt, 1e-6);           % [m]
+
 
 %% -----------------------------------------------------------------------
 % 3) Bucket storage -> representative water content
-%    Storage S is defined above theta_i over the current unsaturated depth
+%    Storage S is defined above theta_r over the current unsaturated depth
 % ------------------------------------------------------------------------
+
 zwt_safe = max(zwt, 1e-6);
 
-theta = theta_i + S ./ zwt_safe;
-theta = max(theta, theta_i);
+theta = theta_r + S ./ zwt_safe;
+theta = max(theta, theta_r);
 theta = min(theta, theta_s);
 
 Se = (theta - theta_r) ./ max(theta_s - theta_r, 1e-12);
 Se = min(max(Se, 1e-6), 1);
-
 %% -----------------------------------------------------------------------
 % 4) van Genuchten pressure head h(theta) [m]
 % ------------------------------------------------------------------------

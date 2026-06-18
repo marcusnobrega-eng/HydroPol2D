@@ -533,7 +533,7 @@ fprintf('STEP 2/3 | Running HydroPol2D_Main_While\n');
 fprintf('This step executes the main HydroPol2D numerical simulation.\n');
 fprintf('------------------------------------------------------------\n\n');
 
-HydroPol2D_Main_While;
+HydroPol2D_Main_While
 
 % 3) Post-processing
 if run_postprocessing
@@ -671,9 +671,11 @@ function Paths = init_results_tree(exportRootDir, cleanOutputFolder)
     Paths.FigFIG        = fullfile(Paths.Results, 'Figures_FIG');
     Paths.Tables        = fullfile(Paths.Results, 'Tables_CSV');
 
-    Paths.RastersWD     = fullfile(Paths.Results, 'Rasters_Water_Depths');
-    Paths.RastersWSE    = fullfile(Paths.Results, 'Rasters_WSE');
-    Paths.RastersStatic = fullfile(Paths.Results, 'Rasters_Static');
+    Paths.RastersWD       = fullfile(Paths.Results, 'Rasters_Water_Depths');
+    Paths.RastersWSE      = fullfile(Paths.Results, 'Rasters_WSE');
+    Paths.RastersStatic   = fullfile(Paths.Results, 'Rasters_Static');
+    Paths.RastersVelocity = fullfile(Paths.Results, 'Rasters_Velocity');
+    Paths.RastersHazard   = fullfile(Paths.Results, 'Rasters_Hazard');
 
     Paths.WQMaps        = fullfile(Paths.Results, 'Rasters_WQ');
     Paths.HRMaps        = fullfile(Paths.Results, 'Rasters_Human_Risk');
@@ -696,6 +698,8 @@ function Paths = init_results_tree(exportRootDir, cleanOutputFolder)
     mkdir_if_missing(Paths.RastersWD);
     mkdir_if_missing(Paths.RastersWSE);
     mkdir_if_missing(Paths.RastersStatic);
+    mkdir_if_missing(Paths.RastersVelocity);
+    mkdir_if_missing(Paths.RastersHazard);
 
     mkdir_if_missing(Paths.WQMaps);
     mkdir_if_missing(Paths.HRMaps);

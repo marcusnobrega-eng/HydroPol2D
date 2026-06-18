@@ -50,7 +50,7 @@ E_ow = nansum(nansum(coarse_cell_area.*BC_States.delta_E/1000)); % m3
 Qout = nansum(nansum(outlet_states.outlet_flow.*coarse_cell_area))/1000/3600*time_step*60; % m3
 E_s = nansum(nansum(coarse_cell_area .* Snow_Properties.E_s/1000)); % m3 of snow sublimation
 
-if flags.flag_baseflow ~= 1
+if flags.flag_groundwater_modeling == 0
     Qout = Qout + nansum(nansum(recharge_rate.*coarse_cell_area*time_step*60)); % We are not modeling groundwater, but the recharge rate
 end
 
@@ -63,6 +63,10 @@ else
 end
 S_UZ = nansum(nansum(coarse_cell_area.*Soil_Properties.I_t/1000)); % UZ storage
 S_GW = nansum(nansum(coarse_cell_area.*Soil_Properties.Sy.*(BC_States.h_t - (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth)))); % GW Storage
+if flags.flag_groundwater_modeling == 1 && exist('GW_States', 'var') && ...
+        isstruct(GW_States) && isfield(GW_States, 'pending_net_exchange_m')
+    S_GW = S_GW + nansum(nansum(coarse_cell_area .* GW_States.pending_net_exchange_m));
+end
 S_SWE = nansum(nansum(coarse_cell_area.*Snow_Properties.SWE_t/1000)); % Snow water equivalent storge 
 
 [dS, fluxes, S_prev, error] = system_mass_balance(P, Qin, E_int, ETR, E_ow, Qout, E_s, S_c, S_p, S_UZ, S_GW, S_SWE, S_prev);
@@ -92,6 +96,11 @@ else
                       nansum(nansum(C_a.*Hydro_States.S/1000)) + ...
                       nansum(nansum(C_a.*Soil_Properties.I_t/1000)) + ...
                       nansum(nansum(C_a.*Soil_Properties.Sy.*(BC_States.h_t - (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth)))); % m3
+end
+
+if flags.flag_groundwater_modeling == 1 && exist('GW_States', 'var') && ...
+        isstruct(GW_States) && isfield(GW_States, 'pending_net_exchange_m')
+    current_storage = current_storage + nansum(nansum(C_a .* GW_States.pending_net_exchange_m));
 end
 
 loss_volume = inf_volume;

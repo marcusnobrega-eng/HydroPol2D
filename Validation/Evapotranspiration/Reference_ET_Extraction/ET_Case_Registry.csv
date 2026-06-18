@@ -1,0 +1,8 @@
+case_id,case_name,regime,mode,dt_h,evap_map_mm_d,transp_map_mm_d,internal_etp_mm_d,open_water_ep_mm_d,ponded_depth_mm,near_storage_mm,root_storage_mm,trans_storage_mm,min_soil_storage_mm,root_depth_m,near_thickness_m,root_thickness_m,trans_thickness_m,notes
+P1-ET-VT-000,PotentialET_FAO_VTilted,potential_et_formula,formula,24,NaN,NaN,NaN,NaN,0,0,0,0,0,0.6,0.1,0.5,0.4,FAO-style potential and open-water ET check on the V-tilted elevation/albedo grid.
+P1-ET-VT-001,OpenWaterStorageLimit,open_water_limit,map,24,0,0,0,6,3,20,30,80,0,0.6,0.1,0.5,0.4,Open-water evaporation demand exceeds ponded storage and must be capped by available surface water.
+P1-ET-VT-002,SoilDemandLimited_Loam,soil_demand_limited,map,24,1,3,0,0,0,20,30,80,0,0.6,0.1,0.5,0.4,Root-zone soil water is abundant so actual soil ET should equal prescribed map demand.
+P1-ET-VT-003,SoilStorageLimited_DryRootZone,soil_storage_limited,map,24,2,6,0,0,0,2,1,80,0,0.6,0.1,0.5,0.4,Root-accessible storage is smaller than demand so extraction must stop when accessible storage is exhausted.
+P1-ET-VT-004,PartialRootAccess_ShortGrass,partial_root_access,map,24,2,6,0,0,0,10,0,80,0,0.05,0.1,0,0.9,Root depth is shallower than the near-surface layer so only the rooted fraction of near-surface water is extractable.
+P1-ET-VT-005,InternalETPMode_SoilAndWater,internal_etp_mode,internal,12,0,0,6,8,5,20,30,80,0,0.6,0.1,0.5,0.4,Internal ETP mode uses Hydro_States.ETP for soil cells and Hydro_States.Ep for ponded channel cells.
+P1-ET-VT-006,ImperviousDryInvalidMasks,mask_handling,map,24,2,4,0,0,0,10,10,0,0,0.6,0.1,0.5,0.4,Dry cells below the minimum storage threshold impervious cells and invalid cells must not extract soil ET.

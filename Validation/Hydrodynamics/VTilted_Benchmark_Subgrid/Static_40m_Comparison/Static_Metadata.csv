@@ -1,0 +1,9 @@
+file,crop_shape,coarse_shape
+Albedo.tif,50x80,25x40
+DEM.tif,50x80,25x40
+DTB.tif,50x80,25x40
+GW_table.tif,50x80,25x40
+Initial_SM.tif,50x80,25x40
+LAI.tif,50x80,25x40
+LULC.tif,50x80,25x40
+SOIL.tif,50x80,25x40

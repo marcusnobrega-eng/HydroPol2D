@@ -1,0 +1,2 @@
+case_id,module,status,driver,expected_behavior,primary_metrics,acceptance_threshold
+P1-RES-001,Reservoir and control structures,report_ready,run_reservoir_rating_curve_validation.m,"Outflow follows the rating curve Q=k(h-h0)^b, storage follows the exact depletion ODE within numerical integration tolerance, and the release-storage ledger closes.","storage_rmse_m3; outflow_rmse_m3_s; recovered_k_error_pct; mass_balance_error_pct","storage RMSE <2 m3, outflow RMSE <0.01 m3/s, recovered k error <0.1%, mass residual <1e-8%"

@@ -1,0 +1,2 @@
+case_id,module,phase,evidence_type,truth_source,reference_generator,parameters_to_recover,status
+P1-HYDRO-STEADY-001,Hydrodynamics,Phase 1,analytical_solution,Manning uniform flow and simple GVF/backwater reference,phase1_reference_solutions.py manning_rectangular,NA,planned

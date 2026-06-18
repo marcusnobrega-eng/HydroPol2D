@@ -72,7 +72,7 @@ if use_inputdata_bypass == 1
         'flag_rainfall','flag_spatial_rainfall','flag_ETP','flag_input_rainfall_map', ...
         'flag_rainfall_multiple_runs','flag_data_source','flag_inflow','flag_satellite_rainfall', ...
         'flag_alternated_blocks','flag_huff','flag_stage_hydrograph','flag_input_ETP_map', ...
-        'flag_timestep','flag_infiltration','flag_critical','flag_D8','flag_CA','flag_inertial', ...
+        'flag_timestep','flag_infiltration','flag_critical','flag_D8','flag_CA','flag_inertial', 'flag_full_momentum' ...
         'flag_waterbalance','flag_waterquality','flag_reservoir','flag_wq_model','flag_groundwater_modeling', ...
         'flag_real_time_satellite_rainfall','flag_dam_break','flag_human_instability','flag_boundary', ...
         'flag_numerical_scheme','flag_outlet_type','flag_adaptive_timestepping','flag_neglect_infiltration_river', ...
@@ -215,7 +215,28 @@ if use_inputdata_bypass == 1
             if ~isfield(InputData_Bypass,'Input_Rainfall')
                 error('Bypass mode requires InputData_Bypass.Input_Rainfall when flag_input_rainfall_map = 1.');
             end
+
             Input_Rainfall = normalize_map_input(InputData_Bypass.Input_Rainfall,'Input_Rainfall');
+
+            % ------------------------------------------------------------
+            % Bypass map-schedule validation
+            % ------------------------------------------------------------
+            % At this point the bypass script has already prepared the final
+            % Input_Rainfall schedule. This schedule may have been created
+            % from a date-aware raster archive or from a manually defined
+            % relative-time list. Either way, the solver expects the final
+            % internal convention:
+            %
+            %   Input_Rainfall.time             = minutes from date_begin
+            %   Input_Rainfall.labels_Directory = existing raster files
+            %
+            % Therefore, here we do not rebuild the manifest. We only check
+            % that the final schedule is complete and safe to use.
+            % ------------------------------------------------------------
+            Input_Rainfall = validate_relative_map_schedule( ...
+                Input_Rainfall, ...
+                'Input_Rainfall [bypass map schedule]', ...
+                running_control.routing_time);
         else
             Input_Rainfall = struct();
         end
@@ -230,9 +251,28 @@ if use_inputdata_bypass == 1
             error('Bypass mode requires InputData_Bypass.Input_Transpiration and InputData_Bypass.Input_Evaporation when flag_input_ETP_map = 1.');
         end
 
-        % In standalone mode, respect the user-provided schedules
+        % ------------------------------------------------------------
+        % Bypass ETP map-schedule validation
+        % ------------------------------------------------------------
+        % The bypass script prepares the final map schedules. This script
+        % only normalizes and validates them. This preserves the legacy
+        % HydroPol2D internal format while preventing silent incomplete
+        % ETP forcing.
+        % ------------------------------------------------------------
         Input_Transpiration = normalize_map_input(InputData_Bypass.Input_Transpiration,'Input_Transpiration');
         Input_Evaporation   = normalize_map_input(InputData_Bypass.Input_Evaporation,'Input_Evaporation');
+
+        Input_Transpiration = validate_relative_map_schedule( ...
+            Input_Transpiration, ...
+            'Input_Transpiration [bypass map schedule]', ...
+            running_control.routing_time);
+
+        Input_Evaporation = validate_relative_map_schedule( ...
+            Input_Evaporation, ...
+            'Input_Evaporation [bypass map schedule]', ...
+            running_control.routing_time);
+
+        validate_paired_etp_maps(Input_Transpiration, Input_Evaporation);
     end
 
     % ---------------- Satellite / real-time rainfall generated schedules ----------------
@@ -602,10 +642,48 @@ if flags.flag_input_rainfall_map == 1 || flags.flag_satellite_rainfall == 1 || f
         'Time [min]', ...
         'Raster Directory with values in mm/h' ...
     );
-
-    Input_Rainfall.time = T_rain.time;
+    % Clean rainfall rows read from spreadsheet.
+    % Keep only rows with a valid numeric time and a non-empty raster path.
+    rain_time = double(T_rain.time(:));
+    
+    rain_dir = T_rain.directory;
+    if iscell(rain_dir)
+        rain_dir = string(rain_dir(:));
+    elseif ischar(rain_dir)
+        rain_dir = string({rain_dir});
+    else
+        rain_dir = string(rain_dir(:));
+    end
+    
+    valid_rain_rows = isfinite(rain_time) & ...
+                      ~ismissing(rain_dir) & ...
+                      strlength(strtrim(rain_dir)) > 0 & ...
+                      lower(strtrim(rain_dir)) ~= "nan";
+    
+    rain_time = rain_time(valid_rain_rows);
+    rain_dir  = rain_dir(valid_rain_rows);
+    
+    Input_Rainfall.time = rain_time;
     Input_Rainfall.num_obs_maps = numel(Input_Rainfall.time);
-    Input_Rainfall.labels_Directory = cellstr(T_rain.directory);
+    Input_Rainfall.labels_Directory = cellstr(rain_dir);
+
+    % ---------------------------------------------------------------------
+    % Excel-mode rainfall map rule
+    % ---------------------------------------------------------------------
+    % The spreadsheet is treated as the user-defined source of truth.
+    % Times are relative to date_begin, in minutes. We do NOT parse dates
+    % from filenames and we do NOT generate a new rainfall manifest here.
+    %
+    % Validation is applied only to flag_input_rainfall_map. Legacy
+    % satellite / real-time satellite modes may overwrite the time vector
+    % below and are preserved as-is to avoid breaking older workflows.
+    % ---------------------------------------------------------------------
+    if flags.flag_input_rainfall_map == 1
+        Input_Rainfall = validate_relative_map_schedule( ...
+            Input_Rainfall, ...
+            'Input_Rainfall [Excel relative schedule]', ...
+            running_control.routing_time);
+    end
 
     flags.flag_spatial_rainfall = 1;
     flags.flag_rainfall = 1;
@@ -614,27 +692,77 @@ end
 % Input transpiration and evaporation Maps
 if flags.flag_input_ETP_map == 1
 
-    T_tr = xlblock_2col( ...
-        GD, ...
-        'Sattelite transpiration', ...
-        'Time [day]', ...
-        'Raster Directory with values in mm/day' ...
-    );
+    % ---------------------------------------------------------------------
+    % Excel-mode ETP map rule
+    % ---------------------------------------------------------------------
+    % Preferred convention from now on:
+    %   Time [min] = minutes from date_begin
+    %
+    % Backward compatibility:
+    %   If an old spreadsheet still uses Time [day], read it and convert
+    %   days to minutes internally.
+    %
+    % In both cases, the spreadsheet remains the source of truth. The code
+    % does not parse dates from filenames and does not generate a new daily
+    % time vector.
+    % ---------------------------------------------------------------------
 
-    T_ev = xlblock_2col( ...
-        GD, ...
-        'Sattelite Evaporation', ...
-        'Time [day]', ...
-        'Raster Directory with values in mm/day' ...
-    );
+    try
+        T_tr = xlblock_2col( ...
+            GD, ...
+            'Sattelite transpiration', ...
+            'Time [min]', ...
+            'Raster Directory with values in mm/day' ...
+        );
+        tr_time_factor = 1;      % already minutes
+    catch
+        T_tr = xlblock_2col( ...
+            GD, ...
+            'Sattelite transpiration', ...
+            'Time [day]', ...
+            'Raster Directory with values in mm/day' ...
+        );
+        tr_time_factor = 1440;   % days -> minutes
+    end
 
-    Input_Transpiration.time = T_tr.time;
+    try
+        T_ev = xlblock_2col( ...
+            GD, ...
+            'Sattelite Evaporation', ...
+            'Time [min]', ...
+            'Raster Directory with values in mm/day' ...
+        );
+        ev_time_factor = 1;      % already minutes
+    catch
+        T_ev = xlblock_2col( ...
+            GD, ...
+            'Sattelite Evaporation', ...
+            'Time [day]', ...
+            'Raster Directory with values in mm/day' ...
+        );
+        ev_time_factor = 1440;   % days -> minutes
+    end
+
+    Input_Transpiration.time = T_tr.time * tr_time_factor;
     Input_Transpiration.num_obs_maps = numel(Input_Transpiration.time);
     Input_Transpiration.labels_Directory = cellstr(T_tr.directory);
 
-    Input_Evaporation.time = T_ev.time;
+    Input_Evaporation.time = T_ev.time * ev_time_factor;
     Input_Evaporation.num_obs_maps = numel(Input_Evaporation.time);
     Input_Evaporation.labels_Directory = cellstr(T_ev.directory);
+
+    % Validate both relative schedules and then check that they are paired.
+    Input_Transpiration = validate_relative_map_schedule( ...
+        Input_Transpiration, ...
+        'Input_Transpiration [Excel relative schedule]', ...
+        running_control.routing_time);
+
+    Input_Evaporation = validate_relative_map_schedule( ...
+        Input_Evaporation, ...
+        'Input_Evaporation [Excel relative schedule]', ...
+        running_control.routing_time);
+
+    validate_paired_etp_maps(Input_Transpiration, Input_Evaporation);
 end
 
 if flags.flag_satellite_rainfall == 1
@@ -658,35 +786,25 @@ elseif flags.flag_real_time_satellite_rainfall == 1
     flags.flag_satellite_rainfall = 0;
 end
 
-if flags.flag_input_ETP_map == 1
-    time_maps = 1440; % Only valid for 1day maps
-    Input_Transpiration.time = (0:time_maps:running_control.routing_time); % time in minutes
-    Input_Transpiration.num_obs_maps = sum(~isnan(Input_Transpiration.time));
-    Input_Transpiration.time = Input_Transpiration.time(1:Input_Transpiration.num_obs_maps);
-
-    Input_Evaporation.time = (0:time_maps:running_control.routing_time); % time in minutes
-    Input_Evaporation.num_obs_maps = sum(~isnan(Input_Evaporation.time));
-    Input_Evaporation.time = Input_Evaporation.time(1:Input_Evaporation.num_obs_maps);
-end
+% -------------------------------------------------------------------------
+% IMPORTANT FOR EXCEL MODE
+% -------------------------------------------------------------------------
+% Do NOT overwrite ETP map times here.
+%
+% In Excel mode, Input_Transpiration.time and Input_Evaporation.time are
+% user-defined relative schedules read directly from General_Data. They were
+% already validated above. Older versions of this script rebuilt these time
+% vectors with 0:1440:routing_time, but that silently ignored the spreadsheet
+% schedule and could break user-defined forcing setups.
+% -------------------------------------------------------------------------
 
 %%%%%%%%%%%%%% LULC DATA %%%%%%%%%%%%%%%%%%%
 input_table = readtable('LULC_parameters.xlsx');
-input_data = table2array(input_table(:,2:end)); % numbers
-LULC_name = input_table(:,1);
-lulc_parameters = input_data(:,2:end);
-n_lulc = sum(lulc_parameters(:,1)>=0); % Number of LULC
-lulc_parameters = lulc_parameters(1:n_lulc,:);
-imp_index = lulc_parameters(1,end);
-LULC_index = input_data(:,1);
+[LULC_name, lulc_parameters, n_lulc, imp_index, LULC_index] = unpack_class_table(input_table,'LULC');
 
 %%%%%%%%%%%%%% SOIL DATA %%%%%%%%%%%%%%%%%%%
 input_table = readtable('SOIL_parameters.xlsx');
-input_data = table2array(input_table(:,2:end)); % numbers
-soil_parameters = input_data(:,2:end); % Number of Soil Types
-n_soil = sum(soil_parameters(:,1)>=0);
-soil_parameters = soil_parameters(1:n_soil,:);
-SOIL_index = input_data(:,1);
-SOIL_name = input_table(:,1);
+[SOIL_name, soil_parameters, n_soil, ~, SOIL_index] = unpack_class_table(input_table,'SOIL');
 
 % Rainfall
 if flags.flag_rainfall == 1 && flags.flag_alternated_blocks ~= 1 && flags.flag_huff ~= 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_spatial_rainfall ~= 1 && flags.flag_real_time_satellite_rainfall ~= 1 && flags.flag_satellite_rainfall ~= 1
@@ -954,6 +1072,34 @@ clear input_table
 end
 
 %% ========================================================================
+% FORCING SCHEDULE SUMMARY
+% ========================================================================
+% These printouts are intentionally lightweight. They make it easier to
+% confirm, before the solver starts, that rainfall and ETP map schedules are
+% using the expected relative-time convention.
+
+if exist('Input_Rainfall','var') && isstruct(Input_Rainfall) && ...
+        isfield(Input_Rainfall,'time') && ~isempty(Input_Rainfall.time)
+    fprintf('\n[Forcing summary] Rainfall maps\n');
+    fprintf('  Records        : %d\n', numel(Input_Rainfall.time));
+    fprintf('  First time min : %.6g\n', Input_Rainfall.time(1));
+    fprintf('  Last time min  : %.6g\n', Input_Rainfall.time(end));
+    fprintf('  Routing time   : %.6g min\n', running_control.routing_time);
+end
+
+if exist('Input_Transpiration','var') && exist('Input_Evaporation','var') && ...
+        isstruct(Input_Transpiration) && isstruct(Input_Evaporation) && ...
+        isfield(Input_Transpiration,'time') && isfield(Input_Evaporation,'time') && ...
+        ~isempty(Input_Transpiration.time) && ~isempty(Input_Evaporation.time)
+    fprintf('\n[Forcing summary] ETP maps\n');
+    fprintf('  Transpiration records : %d\n', numel(Input_Transpiration.time));
+    fprintf('  Evaporation records   : %d\n', numel(Input_Evaporation.time));
+    fprintf('  First time min        : %.6g\n', Input_Transpiration.time(1));
+    fprintf('  Last time min         : %.6g\n', Input_Transpiration.time(end));
+    fprintf('  Routing time          : %.6g min\n', running_control.routing_time);
+end
+
+%% ========================================================================
 % LOCAL HELPER FUNCTIONS
 % ========================================================================
 
@@ -1021,15 +1167,195 @@ function M = normalize_map_input(M, label)
     M.num_obs_maps = numel(M.time);
 end
 
+function M = validate_relative_map_schedule(M, label, routing_time)
+%VALIDATE_RELATIVE_MAP_SCHEDULE Validate a relative-time raster schedule.
+%
+% This helper is intentionally conservative and mode-safe.
+%
+% It is used for:
+%   1) Excel-mode map inputs, where the spreadsheet provides time + path.
+%   2) Bypass-mode final map schedules after the bypass script has prepared
+%      them.
+%
+% It does NOT:
+%   - parse dates from filenames
+%   - create expected archive filenames
+%   - clip forcing by date_begin/date_end
+%   - overwrite user-entered times
+%
+% Required internal convention:
+%   M.time              : minutes from date_begin
+%   M.labels_Directory  : raster file paths
+%
+% Coverage rule:
+%   If more than one map is supplied, the last map is assumed valid until
+%   one additional final time step. Therefore, maps at 0:60:1380 cover a
+%   1440-minute simulation. Maps at 0:60:1440 also pass.
+
+    if nargin < 3 || isempty(routing_time)
+        error('%s validation requires routing_time.', label);
+    end
+
+    if ~isstruct(M)
+        error('%s must be a struct.', label);
+    end
+
+    if ~isfield(M,'time')
+        error('%s is missing field "time".', label);
+    end
+
+    if ~isfield(M,'labels_Directory')
+        error('%s is missing field "labels_Directory".', label);
+    end
+
+    M.time = double(M.time(:));
+
+    if isstring(M.labels_Directory)
+        M.labels_Directory = cellstr(M.labels_Directory);
+    elseif ischar(M.labels_Directory)
+        M.labels_Directory = {M.labels_Directory};
+    elseif iscell(M.labels_Directory)
+        M.labels_Directory = M.labels_Directory(:);
+    else
+        error('%s.labels_Directory must be a cell array, string array, or char.', label);
+    end
+
+    n_time = numel(M.time);
+    n_file = numel(M.labels_Directory);
+
+    if n_time ~= n_file
+        error(['%s has inconsistent schedule length.\n' ...
+               'Number of times: %d\n' ...
+               'Number of files: %d'], ...
+               label, n_time, n_file);
+    end
+
+    if n_time < 1
+        error('%s must contain at least one map record.', label);
+    end
+
+    if any(~isfinite(M.time))
+        error('%s.time contains NaN or Inf values.', label);
+    end
+
+    if any(diff(M.time) < 0)
+        error('%s.time must be sorted in non-decreasing order.', label);
+    end
+
+    emptyPath = false(n_file,1);
+    for i = 1:n_file
+        thisPath = string(M.labels_Directory{i});
+        emptyPath(i) = ismissing(thisPath) || strlength(strtrim(thisPath)) == 0;
+    end
+
+    if any(emptyPath)
+        bad = find(emptyPath, 1, 'first');
+        error('%s contains empty file path(s). First empty entry index: %d', label, bad);
+    end
+
+    missingFile = false(n_file,1);
+    for i = 1:n_file
+        missingFile(i) = exist(char(M.labels_Directory{i}), 'file') ~= 2;
+    end
+
+    if any(missingFile)
+        bad = find(missingFile);
+        nShow = min(10, numel(bad));
+
+        msg = sprintf('%s has missing raster file(s): %d missing out of %d.\n', ...
+            label, numel(bad), n_file);
+
+        msg = [msg sprintf('First missing file(s):\n')];
+
+        for k = 1:nShow
+            msg = [msg sprintf('  %d) %s\n', bad(k), char(M.labels_Directory{bad(k)}))]; %#ok<AGROW>
+        end
+
+        error('%s', msg);
+    end
+
+    if M.time(1) > 0
+        error(['%s does not cover the beginning of the simulation.\n' ...
+               'First forcing time = %.6g min, but it must be <= 0 min.'], ...
+               label, M.time(1));
+    end
+
+    if routing_time < 0
+        error('%s received a negative routing_time: %.6g min.', label, routing_time);
+    end
+
+    if n_time == 1
+        warning(['%s contains only one map. HydroPol2D will treat it as a static forcing map ' ...
+                 'covering the full simulation.'], label);
+    else
+        dt_last = M.time(end) - M.time(end-1);
+
+        if dt_last <= 0
+            error('%s has repeated or invalid final time step.', label);
+        end
+
+        coverage_end = M.time(end) + dt_last;
+
+        if coverage_end < routing_time - 1e-9
+            error(['%s does not cover the full simulation duration.\n' ...
+                   'routing_time      = %.6g min\n' ...
+                   'last forcing time = %.6g min\n' ...
+                   'last inferred end = %.6g min'], ...
+                   label, routing_time, M.time(end), coverage_end);
+        end
+    end
+
+    M.num_obs_maps = numel(M.time);
+end
+
+function validate_paired_etp_maps(Input_Transpiration, Input_Evaporation)
+%VALIDATE_PAIRED_ETP_MAPS Check that transpiration and evaporation maps pair.
+%
+% HydroPol2D treats map-based ETP as two synchronized components:
+% transpiration and evaporation. This helper ensures that both components
+% have the same number of maps and the same relative-time schedule.
+
+    if ~isfield(Input_Transpiration,'time') || ~isfield(Input_Evaporation,'time')
+        error('ETP map validation requires both structures to contain a time field.');
+    end
+
+    if ~isfield(Input_Transpiration,'num_obs_maps') || ~isfield(Input_Evaporation,'num_obs_maps')
+        error('ETP map validation requires both structures to contain num_obs_maps.');
+    end
+
+    n_tr = numel(Input_Transpiration.time);
+    n_ev = numel(Input_Evaporation.time);
+
+    if n_tr ~= n_ev
+        error(['ETP map schedules are inconsistent.\n' ...
+               'Transpiration maps: %d\n' ...
+               'Evaporation maps:   %d'], ...
+               n_tr, n_ev);
+    end
+
+    if any(abs(Input_Transpiration.time(:) - Input_Evaporation.time(:)) > 1e-9)
+        error('ETP map schedules are inconsistent: transpiration and evaporation times do not match.');
+    end
+
+    if Input_Transpiration.num_obs_maps ~= Input_Evaporation.num_obs_maps
+        error(['ETP map schedules are inconsistent.\n' ...
+               'Input_Transpiration.num_obs_maps = %d\n' ...
+               'Input_Evaporation.num_obs_maps   = %d'], ...
+               Input_Transpiration.num_obs_maps, Input_Evaporation.num_obs_maps);
+    end
+end
+
 function [class_names, parameters, n_classes, imp_index, class_index] = unpack_class_table(S, label)
     imp_index = [];
     if istable(S)
         T = S;
         class_names = T(:,1);
+        variable_names = T.Properties.VariableNames;
         input_data = table2array(T(:,2:end));
     elseif isstruct(S) && isfield(S,'table')
         T = S.table;
         class_names = T(:,1);
+        variable_names = T.Properties.VariableNames;
         input_data = table2array(T(:,2:end));
     else
         class_names = require_field(S,'names');
@@ -1048,8 +1374,43 @@ function [class_names, parameters, n_classes, imp_index, class_index] = unpack_c
     parameters  = parameters(1:n_classes,:);
 
     if strcmpi(label,'LULC')
-        imp_index = parameters(1,end);
+        imp_col = find_class_column(variable_names, {'index_impervious','impervious_index'});
+        if ~isempty(imp_col)
+            imp_values = input_data(:, imp_col - 1);
+            imp_values = imp_values(isfinite(imp_values));
+            if ~isempty(imp_values)
+                imp_index = imp_values(1);
+            elseif size(parameters,2) >= 9 && isfinite(parameters(1,8))
+                imp_index = parameters(1,8);
+            else
+                imp_index = parameters(1,end);
+            end
+        elseif size(parameters,2) >= 9 && isfinite(parameters(1,8))
+            imp_index = parameters(1,8);
+        else
+            imp_index = parameters(1,end);
+        end
     end
+end
+
+function col = find_class_column(variable_names, candidates)
+    col = [];
+    normalized = cellfun(@normalize_class_column_name, variable_names, 'UniformOutput', false);
+    for i = 1:numel(candidates)
+        target = normalize_class_column_name(candidates{i});
+        idx = find(strcmp(normalized, target), 1);
+        if ~isempty(idx)
+            col = idx;
+            return
+        end
+    end
+end
+
+function name = normalize_class_column_name(name)
+    name = lower(char(name));
+    name = regexprep(name, '[^a-z0-9]+', '_');
+    name = regexprep(name, '_+', '_');
+    name = regexprep(name, '^_+|_+$', '');
 end
 
 function RP = normalize_rainfall_parameters(RP)

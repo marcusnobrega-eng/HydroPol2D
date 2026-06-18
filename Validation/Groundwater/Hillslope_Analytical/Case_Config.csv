@@ -1,0 +1,3 @@
+case_id,case_name,regime,reference_type,expected_behavior
+P1-GW-HILL-STEADY-001,Steady Dupuit hillslope,steady_dupuit,analytical_solution,Steady water-table profile follows the Dupuit unconfined aquifer solution under uniform recharge and fixed drain head.
+P1-GW-HILL-TRANSIENT-001,Transient linearized Boussinesq hillslope,transient_linearized_boussinesq,analytical_solution,Small perturbation of saturated thickness decays as the first eigenmode of the linearized Boussinesq equation.

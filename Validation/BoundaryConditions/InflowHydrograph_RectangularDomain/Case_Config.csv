@@ -1,0 +1,2 @@
+case_id,module,status,driver,expected_behavior,primary_metrics,acceptance_threshold
+P1-BC-INFLOW-001,Inflow hydrograph boundary,report_ready,run_inflow_hydrograph_validation.m,"Known triangular inflow hydrograph enters a rectangular full-momentum domain, matches the exact imposed volume, routes downstream, and closes the outlet-storage ledger.","imposed_volume_error_pct; mass_balance_error_pct; outlet_peak_m3_s; peak_timing_lag_min; peak_magnitude_error_pct","imposed-volume error <0.01%, water-balance error <0.1%, downstream response >1e-4 m3/s"
