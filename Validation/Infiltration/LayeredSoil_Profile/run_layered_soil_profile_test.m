@@ -1,15 +1,23 @@
 % P1-INFIL-LAYERS-001: test layered soil profile fallback rules.
 
 case_dir = fileparts(mfilename('fullpath'));
-repo_root = fullfile(case_dir, '..', '..', '..', '..');
-functions_dir = fullfile(repo_root, 'HydroPol2D_Model', 'HydroPol2D_Functions');
+model_root = case_dir;
+while ~isfolder(fullfile(model_root, 'HydroPol2D_Functions'))
+    parent_dir = fileparts(model_root);
+    if strcmp(parent_dir, model_root)
+        error('HydroPol2D:Validation:ModelRootNotFound', ...
+            'Could not locate the HydroPol2D repository from %s.', case_dir);
+    end
+    model_root = parent_dir;
+end
+functions_dir = fullfile(model_root, 'HydroPol2D_Functions');
+addpath(functions_dir);
+hydropol2d_add_runtime_paths(model_root);
 output_dir = fullfile(case_dir, 'Outputs', 'Validation');
 
 if ~exist(output_dir, 'dir')
     mkdir(output_dir);
 end
-addpath(functions_dir);
-
 scenario = ["deep_profile"; "root_shallower_than_surface"; "bedrock_shallower_than_root"; "water_table_at_surface"; "water_table_in_root_zone"];
 soil_depth = [2.00; 1.00; 0.06; 2.00; 2.00];
 root_depth = [1.20; 0.05; 1.00; 1.00; 1.50];

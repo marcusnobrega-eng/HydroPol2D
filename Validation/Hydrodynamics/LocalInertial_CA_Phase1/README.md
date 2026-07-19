@@ -15,7 +15,7 @@ Evidence level:
 Run:
 
 ```matlab
-cd HydroPol2D_Model/Validation/Hydrodynamics/LocalInertial_CA_Phase1
+cd Validation/Hydrodynamics/LocalInertial_CA_Phase1
 run_local_inertial_ca_hydrodynamics_validation
 ```
 

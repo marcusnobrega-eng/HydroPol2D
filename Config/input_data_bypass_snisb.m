@@ -106,7 +106,6 @@ InputData_Bypass.general.K_value             = 10;
 InputData_Bypass.general.sl                  = 0.001;
 InputData_Bypass.general.slope_DTM           = 0.05;
 InputData_Bypass.general.resolution_resample = 30;
-InputData_Bypass.general.topo_path           = InputPaths.topo_path;
 
 % Required by input_data_script even when design storms are disabled.
 InputData_Bypass.general.RP                = 10;

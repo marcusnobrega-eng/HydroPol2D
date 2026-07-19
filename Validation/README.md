@@ -18,7 +18,7 @@ The shared Phase 1 spatial case-study domain is `Phase1_VTilted_Catchment`. Use 
 Generate or refresh Phase 1 reference outputs with:
 
 ```bash
-python3 HydroPol2D_Model/Validation/scripts/phase1_reference_solutions.py --case all --output HydroPol2D_Model/Validation/Reference_Outputs/Phase1
+python3 Validation/scripts/phase1_reference_solutions.py --case all --output Validation/Reference_Outputs/Phase1
 ```
 
 ## Validation order

@@ -1,15 +1,22 @@
 clear; clc;
 
 case_dir = fileparts(mfilename('fullpath'));
-repo_root = fullfile(case_dir, '..', '..', '..', '..');
-model_root = fullfile(repo_root, 'HydroPol2D_Model');
+model_root = case_dir;
+while ~isfolder(fullfile(model_root, 'HydroPol2D_Functions'))
+    parent_dir = fileparts(model_root);
+    if strcmp(parent_dir, model_root)
+        error('HydroPol2D:Validation:ModelRootNotFound', ...
+            'Could not locate the HydroPol2D repository from %s.', case_dir);
+    end
+    model_root = parent_dir;
+end
+repo_root = model_root;
 functions_dir = fullfile(model_root, 'HydroPol2D_Functions');
-topo_path = fullfile(model_root, 'topotoolbox-master');
 base_static_dir = fullfile(model_root, 'Validation', 'Phase1_VTilted_Catchment', 'Static');
 config_dir = fullfile(case_dir, 'Config');
 
-addpath(genpath(functions_dir));
-addpath(genpath(topo_path));
+addpath(functions_dir);
+hydropol2d_add_runtime_paths(model_root);
 addpath(config_dir);
 
 registry_path = fullfile(config_dir, 'Infiltration_Case_Registry.csv');
@@ -42,7 +49,7 @@ for icase = 1:height(Cases)
 
     try
         Paths = make_validation_paths(output_root, true);
-        InputPaths = make_input_paths(static_dir, topo_path, functions_dir, case_root);
+        InputPaths = make_input_paths(static_dir, functions_dir, case_root);
         input_data_bypass_script_path = fullfile(config_dir, 'input_data_bypass_script.m');
         use_inputpaths_bypass = 1;
         use_inputdata_bypass = 1;
@@ -78,11 +85,9 @@ RunSummary = evaluate_full_model_summary(RunSummary);
 writetable(RunSummary, fullfile(summary_dir, 'VTilted_Infiltration_FullModel_Summary.csv'));
 disp(RunSummary);
 
-function InputPaths = make_input_paths(static_dir, topo_path, functions_dir, case_root)
+function InputPaths = make_input_paths(static_dir, functions_dir, case_root)
 InputPaths = struct();
 InputPaths.case_root = case_root;
-InputPaths.topo_path = topo_path;
-InputPaths.hydropol2d_tools = functions_dir;
 InputPaths.DEM_path = fullfile(static_dir, 'DEM.tif');
 InputPaths.LULC_path = fullfile(static_dir, 'LULC.tif');
 InputPaths.SOIL_path = fullfile(static_dir, 'SOIL.tif');

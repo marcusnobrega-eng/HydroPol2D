@@ -173,9 +173,6 @@ if use_inputdata_bypass == 1
     GIS_data.sl        = require_field(G,'sl');
     GIS_data.slope_DTM = require_field(G,'slope_DTM');
 
-    % ---------------- TopoToolBox Folder ----------------
-    topo_path = require_field(G,'topo_path');
-
     % ---------------- Human Instability ----------------
     if flags.flag_human_instability == 1 || flags.flag_human_instability == 3
         if ~isfield(InputData_Bypass,'Human_Instability')
@@ -344,9 +341,6 @@ if use_inputdata_bypass == 1
         Rainfall_Parameters.rainfall_duration = Rainfall_Parameters.time_rainfall(end);
         running_control.routing_time = max(running_control.routing_time, Rainfall_Parameters.rainfall_duration);
     end
-
-    % ---------------- Load TopoToolBox Tools ----------------
-    addpath(genpath(char(topo_path)));
 
     % ---------------- Inflow Hydrograph ----------------
     if flags.flag_inflow == 1
@@ -541,9 +535,6 @@ GIS_data.tau       = xlnum(GD,'tau');
 GIS_data.K_value   = xlnum(GD,'K_value');
 GIS_data.sl        = xlnum(GD,'sl');
 GIS_data.slope_DTM = xlnum(GD,'slope_DTM');
-
-% ---------------- TopoToolBox Folder ----------------
-topo_path = xlget(GD,'topo_path');
 
 % Human Instability
 if flags.flag_human_instability == 1
@@ -865,9 +856,6 @@ elseif flags.flag_huff == 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_
     Rainfall_Parameters.rainfall_duration = Rainfall_Parameters.time_rainfall(end); % min
     running_control.routing_time = max(running_control.routing_time,Rainfall_Parameters.rainfall_duration);
 end
-
-% Load TopoToolBox Tools
-addpath(genpath(char(topo_path)));
 
 %%% ---- Inflow Hydrograph ---- %%%
 input_table = readtable('Inflow_Hydrograph.xlsx');

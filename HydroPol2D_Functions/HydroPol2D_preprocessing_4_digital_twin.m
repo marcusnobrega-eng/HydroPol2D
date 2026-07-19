@@ -1,13 +1,8 @@
 %% Convert Rasters and Pre-Processing
 
 %input_table = readtable('General_Data_HydroPol2D.xlsx');
-% Load TopoToolBox Tools
-topo_path = table2cell(input_table(1,31));
-addpath(genpath(char(topo_path)));
-
-% Load Model Functions
-HydroPol2D_tools = char(table2cell(input_table(9,31)));
-addpath(genpath(char(HydroPol2D_tools)));
+runtime_model_root = fileparts(fileparts(mfilename('fullpath')));
+hydropol2d_add_runtime_paths(runtime_model_root);
 
 % Input Data Paths
 DEM_path = char(table2cell((input_table(3,31))));
@@ -427,7 +422,7 @@ end
 %     FD = FLOWobj(DEM_raster); % Flow direction
 %     As  = flowacc(FD); % Flow Accumulation
 %     Wshed_Properties.fac_area = As.Z*(Wshed_Properties.cell_area/1000/1000); % km2
-% 
+%
 %     % Catchment area of each gauge
 %     for i = 1:length(gauges.easting_obs_gauges)
 %         obs_gauges.catchment_area(i,1) = Wshed_Properties.fac_area(gauges.northing_obs_gauges(i,1),gauges.easting_obs_gauges(i,1)); % km2
@@ -1158,7 +1153,7 @@ if flags.flag_rainfall == 1 && flags.flag_spatial_rainfall ==1 && flags.flag_inp
     Spatial_Rainfall_Parameters.y_grid = GIS_data.yulcorner - Wshed_Properties.Resolution*[1:1:size(DEM_raster.Z,1)]'; % Pixel northing coordinates
     rainfall = Spatial_Rainfall_Parameters.rainfall_raingauges(1,1:Spatial_Rainfall_Parameters.n_raingauges)'; % Values of rainfall at t for each rain gauge
     idx_rainfall = isnan(rainfall);
-    % idx_rainfall = logical(isnan(rainfall) | rainfall == 0);    
+    % idx_rainfall = logical(isnan(rainfall) | rainfall == 0);
     rainfall(idx_rainfall) = []; % Taking out nans
     Spatial_Rainfall_Parameters.x_coordinate(idx_rainfall) = []; % Taking out nans
     Spatial_Rainfall_Parameters.y_coordinate(idx_rainfall) = []; % Taking out nans
@@ -1177,12 +1172,12 @@ if flags.flag_rainfall == 1 && flags.flag_spatial_rainfall == 1 && flags.flag_in
     try
         input_rainfall = GRIDobj(Input_Rainfall.labels_Directory{1}{1});
     catch
-        
+
         [temp,R] = geotiffread(Input_Rainfall.labels_Directory{1}{1});
         refmat = [0 1; 1 0; -0.5 -90.5];
         temp_dem.georef.SpatialRef=R;
         temp_dem.georef.SpatialRef.CoordinateSystemType = 'geographic';
-        temp_dem.georef.SpatialRef.ProjectedCRS.GeographicCRS = DEM_raster.georef.SpatialRef.ProjectedCRS.GeographicCRS;    
+        temp_dem.georef.SpatialRef.ProjectedCRS.GeographicCRS = DEM_raster.georef.SpatialRef.ProjectedCRS.GeographicCRS;
 
     end
     if flags.flag_resample == 1
@@ -1190,7 +1185,7 @@ if flags.flag_rainfall == 1 && flags.flag_spatial_rainfall == 1 && flags.flag_in
             if sum(input_rainfall.refmat(:) == DEM_raster.refmat(:)) ~= 6 % we have 6 information in refmat
                 % Resample other two rasters
                 input_rainfall = resample(input_rainfall,DEM_raster,'bilinear');
-                MASK = DEM_raster; MASK.Z = ~isnan(MASK.Z); 
+                MASK = DEM_raster; MASK.Z = ~isnan(MASK.Z);
                 input_rainfall = clip(input_rainfall,MASK);
             else
             % Resample other two rasters
@@ -1394,7 +1389,7 @@ if flags.flag_single == 1
     ny_max = single(ny_max);
     if flags.flag_waterquality == 1
         Out_Conc = single(Out_Conc);
-    end    
+    end
     outlet_index = single(outlet_index);
     outlet_runoff_volume = single(outlet_runoff_volume);
     outlet_type = single(outlet_type);
@@ -1416,14 +1411,14 @@ if flags.flag_groundwater_modeling == 1
     FD = FLOWobj(DEM_raster); % Flow direction
     As  = flowacc(FD); % Flow Accumulation
     Wshed_Properties.fac_area = As.Z*(Wshed_Properties.cell_area/1000/1000); % km2
-    idx_rivers = Wshed_Properties.fac_area >= GIS_data.min_area;  % Logical Matrix with 1 being pixels with rivers   
+    idx_rivers = Wshed_Properties.fac_area >= GIS_data.min_area;  % Logical Matrix with 1 being pixels with rivers
 else
     Lateral_Groundwater_Flux = 0; % m3/s/km of river
     idx_rivers = zeros(size(DEM_raster.Z));
 end
 
 %% Clearing Variables
-clearvars  -except Lateral_Groundwater_Flux idx_rivers register register_data register_data_2 min_soil_moisture model_folder Input_Rainfall Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters GIS_data Inflow_Parameters ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties topo_path idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx_max	ny_max	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	teta_i_fulldomain	teta_sat	teta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person
+clearvars  -except Lateral_Groundwater_Flux idx_rivers register register_data register_data_2 min_soil_moisture model_folder Input_Rainfall Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters GIS_data Inflow_Parameters ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties topotoolbox_lite_root idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx_max	ny_max	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	teta_i_fulldomain	teta_sat	teta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person
 
 %% Converting Arrays to GPU Arrays, if required
 % Converting to GPU Arrays

@@ -1,11 +1,21 @@
 clear; clc;
 
 case_dir = fileparts(mfilename('fullpath'));
-repo_root = fullfile(case_dir, '..', '..', '..', '..');
-functions_dir = fullfile(repo_root, 'HydroPol2D_Model', 'HydroPol2D_Functions');
+model_root = case_dir;
+while ~isfolder(fullfile(model_root, 'HydroPol2D_Functions'))
+    parent_dir = fileparts(model_root);
+    if strcmp(parent_dir, model_root)
+        error('HydroPol2D:Validation:ModelRootNotFound', ...
+            'Could not locate the HydroPol2D repository from %s.', case_dir);
+    end
+    model_root = parent_dir;
+end
+repo_root = model_root;
+functions_dir = fullfile(model_root, 'HydroPol2D_Functions');
 addpath(functions_dir);
+hydropol2d_add_runtime_paths(model_root);
 
-domain_dir = fullfile(repo_root, 'HydroPol2D_Model', 'Validation', 'Phase1_VTilted_Catchment');
+domain_dir = fullfile(model_root, 'Validation', 'Phase1_VTilted_Catchment');
 dem_path = fullfile(domain_dir, 'Static', 'DEM.tif');
 
 out_dir = fullfile(case_dir, 'Outputs', 'Validation');

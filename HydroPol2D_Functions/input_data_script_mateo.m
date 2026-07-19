@@ -124,9 +124,6 @@ GIS_data.alfa_2 = input_table_DEM(7);
 GIS_data.beta_1 = input_table_DEM(8);
 GIS_data.beta_2 = input_table_DEM(9);
 
-% TopoToolbox Folder
-topo_path = table2cell(input_table(1,31));
-
 % Human Instability
 if flags.flag_human_instability == 1
     human_table = readtable('human_risk.xlsx');
@@ -294,9 +291,6 @@ elseif flags.flag_huff == 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_
     % Routing Time >= Rainfall Duration
     running_control.routing_time = max(running_control.routing_time,Rainfall_Parameters.rainfall_duration);    
 end
-
-% Load TopoToolBox Tools
-addpath(genpath(char(topo_path)));
 
 % Inflow
 input_table = readtable('Inflow_Hydrograph.xlsx');

@@ -56,7 +56,6 @@ InputData_Bypass.general.tau = 0;
 InputData_Bypass.general.K_value = 0;
 InputData_Bypass.general.sl = 0;
 InputData_Bypass.general.slope_DTM = 0;
-InputData_Bypass.general.topo_path = InputPaths.topo_path;
 InputData_Bypass.general.RP = 1;
 InputData_Bypass.general.Rainfall_Duration = Cfg.duration_h * 60;
 InputData_Bypass.general.K = 1;

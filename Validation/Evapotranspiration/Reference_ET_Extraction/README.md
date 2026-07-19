@@ -21,7 +21,7 @@ claim.
 ## Run
 
 ```matlab
-run('HydroPol2D_Model/Validation/Evapotranspiration/Reference_ET_Extraction/run_vtilted_et_validation_suite.m')
+run('Validation/Evapotranspiration/Reference_ET_Extraction/run_vtilted_et_validation_suite.m')
 ```
 
 ## Outputs

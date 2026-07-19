@@ -2,8 +2,8 @@
 % HydroPol2D | Main Run Script
 % Developer: Marcus Nobrega, Ph.D.
 % Main launcher for HydroPol2D
-% ----------------------------- Version 15.0 ------------------------------
-% Last official model update: 07/18/2024
+% ----------------------------- Version 1.16.0 ----------------------------
+% Last official model update: 07/18/2026
 %
 % PURPOSE
 %   This script is the main entry point to run a complete HydroPol2D
@@ -32,7 +32,7 @@
 % BYPASS MODE
 %   In bypass mode this launcher uses:
 %
-%       InputPaths = input_paths_bypass(topo_path, hydropol2d_tools, Overrides)
+%       InputPaths = input_paths_bypass(model_root, Overrides)
 %
 %   together with:
 %
@@ -47,6 +47,20 @@
 %% Clean MATLAB environment
 clear; clc;
 
+launcher_root = fileparts(mfilename('fullpath'));
+model_root = launcher_root;
+while ~isfolder(fullfile(model_root, 'HydroPol2D_Functions'))
+    parent_root = fileparts(model_root);
+    if strcmp(parent_root, model_root)
+        error('HydroPol2D:Launcher:ModelRootNotFound', ...
+            'Could not locate the HydroPol2D repository root from: %s', ...
+            launcher_root);
+    end
+    model_root = parent_root;
+end
+addpath(fullfile(model_root, 'HydroPol2D_Functions'));
+runtime = hydropol2d_add_runtime_paths(model_root); %#ok<NASGU>
+
 %% ========================================================================
 % USER INPUTS (EDIT ONLY THIS SECTION)
 % ========================================================================
@@ -54,7 +68,7 @@ clear; clc;
 % -------------------------------------------------------------------------
 % [MODE SELECTOR]
 %   'excel'  -> legacy spreadsheet workflow
-%   'bypass' -> Config/input_paths_bypass.m(topo_path, hydropol2d_tools, Overrides)
+%   'bypass' -> Config/input_paths_bypass.m(model_root, Overrides)
 %               + Config/input_data_bypass_script.m
 % -------------------------------------------------------------------------
 run_mode = 'bypass';   % 'excel' or 'bypass'
@@ -72,8 +86,7 @@ enable_logging      = true;   % write log file
 % ========================================================================
 
 % Main HydroPol2D Excel input file
-input_excel_file = ...
-    '/oak/stanford/groups/gorelick/HydroPol2D/Case_Studies/India_Full/Input_Data_Sheets/General_Data.xlsx';
+input_excel_file = fullfile(model_root, 'Input_Data_Sheets', 'General_Data.xlsx');
 
 % Optional folder containing input spreadsheets
 add_input_sheets_to_path = true;
@@ -87,21 +100,13 @@ input_sheets_folder      = 'Input_Data_Sheets';
 % -------------------------------------------------------------------------
 % Path to the function that builds InputPaths for this case
 % -------------------------------------------------------------------------
-input_paths_function = 'Config/input_paths_bypass.m';
+input_paths_function = fullfile(launcher_root, 'Config', 'input_paths_bypass.m');
 
 % -------------------------------------------------------------------------
 % Path to the case-specific MATLAB bypass input-data script
 % -------------------------------------------------------------------------
-input_data_bypass_script_path = 'Config/input_data_bypass_script.m';
-
-% -------------------------------------------------------------------------
-% Global tool folders (machine-specific, not case-specific)
-% -------------------------------------------------------------------------
-topo_path_user = ...
-    '/oak/stanford/groups/gorelick/HydroPol2D/Topotoolbox/topotoolbox-master';
-
-hydropol2d_tools_user = ...
-    '/oak/stanford/groups/gorelick/HydroPol2D/HydroPol2D_Functions';
+input_data_bypass_script_path = fullfile(launcher_root, 'Config', ...
+    'input_data_bypass_script.m');
 
 % -------------------------------------------------------------------------
 % Optional path/file overrides for bypass mode
@@ -161,7 +166,7 @@ hydropol2d_tools_user = ...
 %
 % Overrides are passed to:
 %
-%   InputPaths = input_paths_bypass(topo_path, hydropol2d_tools, Overrides)
+%   InputPaths = input_paths_bypass(model_root, Overrides)
 %
 % and take precedence over the default structure above.
 %
@@ -170,10 +175,10 @@ hydropol2d_tools_user = ...
 % Uncomment only the fields you want to override.
 %
 % EXAMPLES
-%   Overrides.DEM_path = '/oak/.../DEM.tif';
-%   Overrides.Rainfall_Rasters_Folder = '/oak/.../Rainfall';
-%   Overrides.ETP_input_spreadsheet = '/oak/.../ETP_input_data.xlsx';
-%   Overrides.export_root_dir = '/oak/.../Outputs';
+%   Overrides.DEM_path = '/path/to/case/Static/DEM.tif';
+%   Overrides.Rainfall_Rasters_Folder = '/path/to/case/Forcing/Rainfall';
+%   Overrides.ETP_input_spreadsheet = '/path/to/case/Forcing/ETP_input_data.xlsx';
+%   Overrides.export_root_dir = '/path/to/case/Outputs';
 %
 % IMPORTANT NOTES
 % -------------------------------------------------------------------------
@@ -186,37 +191,23 @@ hydropol2d_tools_user = ...
 Overrides = struct();
 
 % ===== Example overrides (leave commented unless needed) ==================
-% Overrides.DEM_path                     = '/oak/stanford/groups/gorelick/Marcus/Case/Static/DEM.tif';
-% Overrides.LULC_path                    = '/oak/stanford/groups/gorelick/Marcus/Case/Static/LULC.tif';
-% Overrides.SOIL_path                    = '/oak/stanford/groups/gorelick/Marcus/Case/Static/SOIL.tif';
-% Overrides.DTB_path                     = '/oak/stanford/groups/gorelick/Marcus/Case/Static/DTB.tif';
-% Overrides.LAI_path                     = '/oak/stanford/groups/gorelick/Marcus/Case/Static/LAI.tif';
-% Overrides.Albedo_path                  = '/oak/stanford/groups/gorelick/Marcus/Case/Static/Albedo.tif';
-% Overrides.Subgrid_DEM_path             = '/oak/stanford/groups/gorelick/Marcus/Case/Static/Subgrid_DEM.tif';
-% Overrides.RiverWidths_path             = '/oak/stanford/groups/gorelick/Marcus/Case/Static/RiverWidths.tif';
-% Overrides.RiverDepths_path             = '/oak/stanford/groups/gorelick/Marcus/Case/Static/RiverDepths.tif';
-%
-% Overrides.Warmup_Depth_path            = '/oak/stanford/groups/gorelick/Marcus/Case/Static/Warmup_Depth.tif';
-% Overrides.Initial_Buildup_path         = '/oak/stanford/groups/gorelick/Marcus/Case/Static/Initial_Buildup.tif';
-% Overrides.Initial_Soil_Moisture_path   = '/oak/stanford/groups/gorelick/Marcus/Case/Static/Initial_Soil_Moisture.tif';
-%
-% Overrides.B1_path                      = '/oak/stanford/groups/gorelick/Marcus/Case/Static/B1.tif';
-% Overrides.B2_path                      = '/oak/stanford/groups/gorelick/Marcus/Case/Static/B2.tif';
-% Overrides.W1_path                      = '/oak/stanford/groups/gorelick/Marcus/Case/Static/W1.tif';
-% Overrides.W2_path                      = '/oak/stanford/groups/gorelick/Marcus/Case/Static/W2.tif';
-
-%
-Overrides.Rainfall_Rasters_Folder      = '/oak/stanford/groups/gorelick/Marcus/India/IMERG_30min_mmhr';
-% Overrides.Transpiration_Rasters_Folder = '/oak/stanford/groups/gorelick/Marcus/Case/Forcing/Transpiration';
-% Overrides.Evaporation_Rasters_Folder   = '/oak/stanford/groups/gorelick/Marcus/Case/Forcing/Evaporation';
-%
-% Overrides.Inflow_Hydrograph_CSV        = '/oak/stanford/groups/gorelick/Marcus/Case/Forcing/Inflow/inflow_hydrograph.csv';
-% Overrides.Stage_Hydrograph_CSV         = '/oak/stanford/groups/gorelick/Marcus/Case/Forcing/Stage/stage_hydrograph.csv';
-% Overrides.Observed_Gauges_CSV          = '/oak/stanford/groups/gorelick/Marcus/Case/Forcing/Observed_Gauges/observed_gauges.csv';
-% Overrides.ETP_input_spreadsheet        = '/oak/stanford/groups/gorelick/Marcus/Case/Forcing/Evapotranspiration/ETP_input_data.xlsx';
-% Overrides.Rainfall_Timeseries_File     = '/oak/stanford/groups/gorelick/Marcus/Case/Forcing/Rainfall/Rainfall_Intensity_Data.xlsx';
-
-% % Overrides.export_root_dir             = '/oak/stanford/groups/gorelick/Marcus/Case/Outputs';
+% Overrides.DEM_path                     = '/path/to/case/Static/DEM.tif';
+% Overrides.LULC_path                    = '/path/to/case/Static/LULC.tif';
+% Overrides.SOIL_path                    = '/path/to/case/Static/SOIL.tif';
+% Overrides.DTB_path                     = '/path/to/case/Static/DTB.tif';
+% Overrides.LAI_path                     = '/path/to/case/Static/LAI.tif';
+% Overrides.Albedo_path                  = '/path/to/case/Static/Albedo.tif';
+% Overrides.RiverWidths_path             = '/path/to/case/Static/RiverWidths.tif';
+% Overrides.RiverDepths_path             = '/path/to/case/Static/RiverDepths.tif';
+% Overrides.Rainfall_Rasters_Folder      = '/path/to/case/Forcing/Rainfall';
+% Overrides.Transpiration_Rasters_Folder = '/path/to/case/Forcing/Transpiration';
+% Overrides.Evaporation_Rasters_Folder   = '/path/to/case/Forcing/Evaporation';
+% Overrides.Inflow_Hydrograph_CSV        = '/path/to/case/Forcing/Inflow/inflow_hydrograph.csv';
+% Overrides.Stage_Hydrograph_CSV         = '/path/to/case/Forcing/Stage/stage_hydrograph.csv';
+% Overrides.Observed_Gauges_CSV          = '/path/to/case/Forcing/Observed_Gauges/observed_gauges.csv';
+% Overrides.ETP_input_spreadsheet        = '/path/to/case/Forcing/Evapotranspiration/ETP_input_data.xlsx';
+% Overrides.Rainfall_Timeseries_File     = '/path/to/case/Forcing/Rainfall/rainfall.csv';
+% Overrides.export_root_dir              = '/path/to/case/Outputs';
 %
 % Overrides.forcing_sort_order           = 'ascend';     % or 'descend'
 % Overrides.raster_extensions            = {'.tif','.tiff'};
@@ -228,8 +219,6 @@ Overrides.Rainfall_Rasters_Folder      = '/oak/stanford/groups/gorelick/Marcus/I
 % ========================================================================
 
 % Export root directory for this run
-% export_root_dir = ...
-%     '/oak/stanford/groups/gorelick/HydroPol2D/Case_Studies/IndiaFull/2500m_CPU/Modeling_Results';
 if ~exist('export_root_dir', 'var') || isempty(export_root_dir)
     export_root_dir = fullfile(pwd, 'Outputs');
 end
@@ -262,8 +251,7 @@ if strcmpi(run_mode,'excel')
 else
     fprintf('Input paths func : %s\n', input_paths_function);
     fprintf('Input data script: %s\n', input_data_bypass_script_path);
-    fprintf('TopoToolbox path : %s\n', topo_path_user);
-    fprintf('HP2D tools path  : %s\n', hydropol2d_tools_user);
+    fprintf('HydroPol2D root  : %s\n', model_root);
     fprintf('Overrides fields : %d\n', numel(fieldnames(Overrides)));
 end
 
@@ -319,25 +307,6 @@ elseif strcmpi(run_mode,'bypass')
         error('Bypass input-data script not found:\n  %s', input_data_bypass_script_path);
     end
 
-    if ~(ischar(topo_path_user) || isstring(topo_path_user))
-        error('The variable "topo_path_user" must be a character array or string.');
-    end
-
-    if ~(ischar(hydropol2d_tools_user) || isstring(hydropol2d_tools_user))
-        error('The variable "hydropol2d_tools_user" must be a character array or string.');
-    end
-
-    topo_path_user = char(topo_path_user);
-    hydropol2d_tools_user = char(hydropol2d_tools_user);
-
-    if ~exist(topo_path_user, 'dir')
-        error('TopoToolbox folder not found:\n  %s', topo_path_user);
-    end
-
-    if ~exist(hydropol2d_tools_user, 'dir')
-        error('HydroPol2D tools folder not found:\n  %s', hydropol2d_tools_user);
-    end
-
     if ~isstruct(Overrides)
         error('In bypass mode, "Overrides" must be a struct.');
     end
@@ -352,7 +321,7 @@ end
 % -------------------------------------------------------------------------
 if strcmpi(run_mode,'excel') && add_input_sheets_to_path
     if exist(input_sheets_folder, 'dir')
-        addpath(genpath(input_sheets_folder));
+        addpath(input_sheets_folder);
         fprintf('Added input sheets folder to path:\n  %s\n\n', input_sheets_folder);
     else
         warning(['HydroPol2D:InputSheetsFolderNotFound\n' ...
@@ -369,11 +338,6 @@ if strcmpi(run_mode,'excel')
     fprintf('Reading "General_Data" sheet from input Excel file...\n');
     generalDataSheet = readcell(input_excel_file, 'Sheet', 'General_Data');
     fprintf('General_Data loaded successfully.\n\n');
-
-    fprintf('Reading required tool paths from General_Data...\n');
-
-    hydropol2d_tools = string(xlget(generalDataSheet, 'hydropol2d_tools'));
-    topo_path        = string(xlget(generalDataSheet, 'topo_path'));
 
     model_folder = input_excel_file;
     GD = generalDataSheet;
@@ -398,24 +362,13 @@ elseif strcmpi(run_mode,'bypass')
     % NEW FUNCTION CALL WITH OVERRIDES
     % ---------------------------------------------------------------------
     % This is the key update:
-    %   InputPaths = input_paths_bypass(topo_path, hydropol2d_tools, Overrides)
+    %   InputPaths = input_paths_bypass(model_root, Overrides)
     % ---------------------------------------------------------------------
-    InputPaths = feval(func_name, topo_path_user, hydropol2d_tools_user, Overrides);
+    InputPaths = feval(func_name, model_root, Overrides);
 
     if ~exist('InputPaths','var') || ~isstruct(InputPaths)
         error('Bypass paths function must return a struct named InputPaths.');
     end
-
-    if ~isfield(InputPaths,'hydropol2d_tools')
-        error('InputPaths.hydropol2d_tools is missing.');
-    end
-
-    if ~isfield(InputPaths,'topo_path')
-        error('InputPaths.topo_path is missing.');
-    end
-
-    hydropol2d_tools = string(InputPaths.hydropol2d_tools);
-    topo_path        = string(InputPaths.topo_path);
 
     model_folder = '';
     GD = [];
@@ -429,30 +382,9 @@ else
     error('Unsupported run mode.');
 end
 
-%% ------------------------------------------------------------------------
-% Validate and add required tool folders
-% -------------------------------------------------------------------------
-if strlength(strtrim(hydropol2d_tools)) == 0
-    error('"hydropol2d_tools" is empty.');
-end
-
-if strlength(strtrim(topo_path)) == 0
-    error('"topo_path" is empty.');
-end
-
-if ~exist(char(hydropol2d_tools), 'dir')
-    error('HydroPol2D tools folder not found:\n  %s', char(hydropol2d_tools));
-end
-
-if ~exist(char(topo_path), 'dir')
-    error('Topography/tools folder not found:\n  %s', char(topo_path));
-end
-
-addpath(genpath(char(hydropol2d_tools)));
-addpath(genpath(char(topo_path)));
-
-fprintf('Added HydroPol2D tools to path:\n  %s\n', char(hydropol2d_tools));
-fprintf('Added topo/tools folder to path:\n  %s\n\n', char(topo_path));
+runtime = hydropol2d_add_runtime_paths(model_root); %#ok<NASGU>
+fprintf('Bundled HydroPol2D runtime: %s\n\n', ...
+    fullfile(model_root, 'third_party', 'topotoolbox_lite'));
 
 %% ------------------------------------------------------------------------
 % Initialize organized output folder tree
@@ -533,7 +465,7 @@ fprintf('STEP 2/3 | Running HydroPol2D_Main_While\n');
 fprintf('This step executes the main HydroPol2D numerical simulation.\n');
 fprintf('------------------------------------------------------------\n\n');
 
-HydroPol2D_Main_While;
+HydroPol2D_Main_While
 
 % 3) Post-processing
 if run_postprocessing
@@ -580,7 +512,6 @@ function v = xlget(GD, key)
 %   v   : value stored in the cell immediately to the right of the key
 %
 % EXAMPLE
-%   topo_path = xlget(GD, 'topo_path');
 
     S = strings(size(GD));
     for r = 1:size(GD,1)
@@ -671,9 +602,11 @@ function Paths = init_results_tree(exportRootDir, cleanOutputFolder)
     Paths.FigFIG        = fullfile(Paths.Results, 'Figures_FIG');
     Paths.Tables        = fullfile(Paths.Results, 'Tables_CSV');
 
-    Paths.RastersWD     = fullfile(Paths.Results, 'Rasters_Water_Depths');
-    Paths.RastersWSE    = fullfile(Paths.Results, 'Rasters_WSE');
-    Paths.RastersStatic = fullfile(Paths.Results, 'Rasters_Static');
+    Paths.RastersWD       = fullfile(Paths.Results, 'Rasters_Water_Depths');
+    Paths.RastersWSE      = fullfile(Paths.Results, 'Rasters_WSE');
+    Paths.RastersStatic   = fullfile(Paths.Results, 'Rasters_Static');
+    Paths.RastersVelocity = fullfile(Paths.Results, 'Rasters_Velocity');
+    Paths.RastersHazard   = fullfile(Paths.Results, 'Rasters_Hazard');
 
     Paths.WQMaps        = fullfile(Paths.Results, 'Rasters_WQ');
     Paths.HRMaps        = fullfile(Paths.Results, 'Rasters_Human_Risk');
@@ -696,6 +629,8 @@ function Paths = init_results_tree(exportRootDir, cleanOutputFolder)
     mkdir_if_missing(Paths.RastersWD);
     mkdir_if_missing(Paths.RastersWSE);
     mkdir_if_missing(Paths.RastersStatic);
+    mkdir_if_missing(Paths.RastersVelocity);
+    mkdir_if_missing(Paths.RastersHazard);
 
     mkdir_if_missing(Paths.WQMaps);
     mkdir_if_missing(Paths.HRMaps);

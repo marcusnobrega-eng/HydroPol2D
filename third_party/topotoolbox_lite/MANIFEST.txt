@@ -1,0 +1,57 @@
+# HydroPol2D TopoToolbox Lite manifest
+# Upstream: TopoToolbox v2.4 (14-Jun-2022)
+# Base source: https://github.com/wschwanghart/topotoolbox/tree/2.4
+# Base tag commit: cdc21040d86bdebc4723bc28f689344db471410b
+# Upstream compatibility files retained from the previous HydroPol2D runtime:
+#   @GRIDobj/crop.m -> c67012b224ffd265f2871851ffb92b51e27b611d
+#   @STREAMobj/modify.m -> bf442e399e6f6f01f977f77c61046f944c95d2cf
+#   @STREAMobj/quantcarve.m -> 164b441e7e319656d8fe45958617f861a6bf4705
+# Generated: 2026-07-18 19:26:38 *
+# Files: 46
+
+@FLOWobj/FLOWobj.m
+@FLOWobj/drainagebasins.m
+@FLOWobj/flowacc.m
+@FLOWobj/ismulti.m
+@FLOWobj/private/copy2GRIDobj.m
+@FLOWobj/validatealignment.m
+@GRIDobj/GRIDobj.m
+@GRIDobj/GRIDobj2geotiff.m
+@GRIDobj/arcslope.m
+@GRIDobj/clip.m
+@GRIDobj/crop.m
+@GRIDobj/fillsinks.m
+@GRIDobj/ge.m
+@GRIDobj/getcoordinates.m
+@GRIDobj/hillshade.m
+@GRIDobj/identifyflats.m
+@GRIDobj/imagesc.m
+@GRIDobj/imageschs.m
+@GRIDobj/minus.m
+@GRIDobj/mrdivide.m
+@GRIDobj/mtimes.m
+@GRIDobj/plus.m
+@GRIDobj/private/builtincaller.m
+@GRIDobj/private/refmat2XY.m
+@GRIDobj/rdivide.m
+@GRIDobj/resample.m
+@GRIDobj/shufflelabel.m
+@GRIDobj/sub2coord.m
+@GRIDobj/validatealignment.m
+@STREAMobj/STREAMobj.m
+@STREAMobj/STREAMobj2XY.m
+@STREAMobj/STREAMobj2cell.m
+@STREAMobj/STREAMobj2mapstruct.m
+@STREAMobj/crs.m
+@STREAMobj/distance.m
+@STREAMobj/getnal.m
+@STREAMobj/imposemin.m
+@STREAMobj/isnal.m
+@STREAMobj/klargestconncomps.m
+@STREAMobj/modify.m
+@STREAMobj/plot.m
+@STREAMobj/quantcarve.m
+@STREAMobj/streamorder.m
+@STREAMobj/streampoi.m
+@STREAMobj/trunk.m
+@STREAMobj/validatealignment.m

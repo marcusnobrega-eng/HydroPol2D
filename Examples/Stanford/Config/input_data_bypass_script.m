@@ -117,7 +117,7 @@ InputData_Bypass = struct();
 % -------------------------------------------------------------------------
 if ~exist('InputPaths','var') || ~isstruct(InputPaths)
     error(['InputPaths was not found in the workspace. ' ...
-           'Call InputPaths = input_paths_bypass(topo_path, hydropol2d_tools, Overrides) ' ...
+           'Call InputPaths = input_paths_bypass(model_root, Overrides) ' ...
            'before running input_data_bypass_script.m.']);
 end
 
@@ -135,7 +135,6 @@ end
 %   River_K_coeff
 %   ADD, min_Bt, Bmin, Bmax
 %   GIS_data.min_area, tau, K_value, sl, slope_DTM
-%   topo_path
 %   Design_Storm_Parameters.*
 %
 % RULE
@@ -271,9 +270,8 @@ if exist('Overrides','var') && isstruct(Overrides) && isfield(Overrides,'RecordT
 end
 
 % -------------------------------------------------------------------------
-% Tool path used later by input_data_script / preprocessing
+% Bundled runtime is registered by the launcher
 % -------------------------------------------------------------------------
-InputData_Bypass.general.topo_path = InputPaths.topo_path;
 
 
 % -------------------------------------------------------------------------
@@ -662,7 +660,7 @@ Rainfall_Parameters = struct();
 % If the file does not exist, the script falls back to the simple example
 % series below.
 % -------------------------------------------------------------------------
-rainfall_file = '/oak/stanford/groups/gorelick/HydroPol2D/Case_Studies/Stanford/Forcing/Rainfall/Rainfall_Intensity_Data.xlsx';
+rainfall_file = '';  % Use InputPaths.Rainfall_Timeseries_File when provided.
 
 if isfield(InputPaths,'Rainfall_Timeseries_File') && ~isempty(InputPaths.Rainfall_Timeseries_File)
     rainfall_file = InputPaths.Rainfall_Timeseries_File;

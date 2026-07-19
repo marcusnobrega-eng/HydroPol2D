@@ -1,8 +1,21 @@
-run('/Users/mngomes/Downloads/input_data_bypass_script.m');
+% V-tilted routing compatibility inputs for historical diagnostics.
+% The base configuration is bundled with HydroPol2D; this script changes
+% only the controlled forcing and requested routing mode.
 
-if ~isfield(InputData_Bypass.flags, 'flag_full_momentum')
-    InputData_Bypass.flags.flag_full_momentum = 0;
-end
+run(fullfile(model_root, 'Config', 'input_data_bypass_script.m'));
+
+InputData_Bypass.general.date_begin = datetime(2025, 5, 1, 0, 0, 0);
+InputData_Bypass.general.date_end = InputData_Bypass.general.date_begin + minutes(240);
+InputData_Bypass.general.routing_time = 240;
+InputData_Bypass.general.record_time_maps = 10;
+InputData_Bypass.general.record_time_hydrographs = 10;
+InputData_Bypass.general.slope_outlet = 0.02;
+
+InputData_Bypass.Rainfall_Parameters.time_rainfall = [0; 15; 30; 45; 60; 75; 90];
+InputData_Bypass.Rainfall_Parameters.intensity_rainfall = 10.8 * ones(7, 1);
+InputData_Bypass.Rainfall_Parameters.time_step_rainfall = 15;
+InputData_Bypass.Rainfall_Parameters.rainfall_duration = 90;
+InputData_Bypass.Rainfall_Parameters.n_obs_rainfall = 7;
 
 routing_mode = lower(strtrim(string(getenv('HYDROPOL2D_VTILT_ROUTING'))));
 if strlength(routing_mode) == 0

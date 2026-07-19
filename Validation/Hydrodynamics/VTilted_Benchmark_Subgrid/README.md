@@ -18,6 +18,6 @@ h_projected_20m = max(eta_coarse_max - DEM_20m, 0)
 Run from MATLAB:
 
 ```matlab
-cd HydroPol2D_Model/Validation/Hydrodynamics/VTilted_Benchmark_Subgrid
+cd Validation/Hydrodynamics/VTilted_Benchmark_Subgrid
 run_vtilted_hydrograph_subgrid_validation
 ```

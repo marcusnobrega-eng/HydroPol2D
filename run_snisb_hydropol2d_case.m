@@ -54,8 +54,6 @@ end
 
 model_root = fileparts(mfilename('fullpath'));
 config_dir = fullfile(model_root, 'Config');
-hydropol2d_tools_user = fullfile(model_root, 'HydroPol2D_Functions');
-topo_path_user = fullfile(model_root, 'topotoolbox-master');
 
 input_paths_function = fullfile(config_dir, 'input_paths_bypass.m');
 input_data_bypass_script_path = fullfile(config_dir, 'input_data_bypass_snisb.m');
@@ -89,8 +87,6 @@ if enable_warmup
 end
 assert(exist(input_paths_function, 'file') == 2, 'input_paths_bypass not found.');
 assert(exist(input_data_bypass_script_path, 'file') == 2, 'SNISB input-data bypass not found.');
-assert(exist(hydropol2d_tools_user, 'dir') == 7, 'HydroPol2D tools folder not found.');
-assert(exist(topo_path_user, 'dir') == 7, 'TopoToolbox folder not found.');
 
 Overrides = struct();
 Overrides.DEM_path = dem_path;
@@ -117,11 +113,11 @@ Overrides.RoutingModel = routing_model;
 
 run_mode = 'bypass';
 addpath(config_dir);
-addpath(genpath(hydropol2d_tools_user));
-addpath(genpath(topo_path_user));
+addpath(fullfile(model_root, 'HydroPol2D_Functions'));
+hydropol2d_add_runtime_paths(model_root);
 
 [~, func_name, ~] = fileparts(input_paths_function);
-InputPaths = feval(func_name, topo_path_user, hydropol2d_tools_user, Overrides);
+InputPaths = feval(func_name, model_root, Overrides);
 
 fprintf('\n============================================================\n');
 fprintf('SNISB HydroPol2D case\n');

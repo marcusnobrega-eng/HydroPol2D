@@ -21,7 +21,7 @@
 % -------------------------------------------------------------------------
 % Example 1 — use all defaults:
 %
-%   InputPaths = input_paths_bypass(topo_path, hydropol2d_tools);
+%   InputPaths = input_paths_bypass(model_root);
 %
 % Example 2 — override only rainfall folder:
 %
@@ -29,7 +29,7 @@
 %   Overrides.Rainfall_Rasters_Folder = ...
 %       '/oak/stanford/groups/gorelick/Marcus/MyRainfallFolder';
 %
-%   InputPaths = input_paths_bypass(topo_path, hydropol2d_tools, Overrides);
+%   InputPaths = input_paths_bypass(model_root, Overrides);
 %
 % Example 3 — override multiple files:
 %
@@ -39,7 +39,7 @@
 %   Overrides.Rainfall_Rasters_Folder = '/path/to/Rainfall';
 %   Overrides.Inflow_Hydrograph_CSV = '/path/to/inflow.csv';
 %
-%   InputPaths = input_paths_bypass(topo_path, hydropol2d_tools, Overrides);
+%   InputPaths = input_paths_bypass(model_root, Overrides);
 %
 % OUTPUT
 % -------------------------------------------------------------------------
@@ -48,7 +48,7 @@
 %   InputPaths
 %
 % containing:
-%   - tool paths
+%   - model-managed runtime paths
 %   - static raster paths
 %   - optional raster paths
 %   - forcing folders
@@ -67,44 +67,29 @@
 % will sort them chronologically.
 % ========================================================================
 
-function InputPaths = input_paths_bypass(topo_path, hydropol2d_tools, Overrides)
+function InputPaths = input_paths_bypass(model_root, Overrides)
 
 InputPaths = struct();
 
 % -------------------------------------------------------------------------
 % Validate required inputs
 % -------------------------------------------------------------------------
-if nargin < 2
-    error('input_paths_bypass requires at least two inputs: topo_path and hydropol2d_tools.');
+if nargin < 1
+    error('input_paths_bypass requires model_root as its first input.');
 end
 
-if nargin < 3 || isempty(Overrides)
+if nargin < 2 || isempty(Overrides)
     Overrides = struct();
 end
 
-if ~(ischar(topo_path) || isstring(topo_path))
-    error('topo_path must be a character array or string.');
+if ~(ischar(model_root) || isstring(model_root))
+    error('model_root must be a character array or string.');
 end
-
-if ~(ischar(hydropol2d_tools) || isstring(hydropol2d_tools))
-    error('hydropol2d_tools must be a character array or string.');
-end
-
 if ~isstruct(Overrides)
     error('Overrides must be a struct.');
 end
 
-topo_path = char(topo_path);
-hydropol2d_tools = char(hydropol2d_tools);
-
-if ~exist(topo_path, 'dir')
-    error('TopoToolbox folder not found:\n  %s', topo_path);
-end
-
-if ~exist(hydropol2d_tools, 'dir')
-    error('HydroPol2D tools folder not found:\n  %s', hydropol2d_tools);
-end
-
+model_root = char(model_root);
 %% ========================================================================
 % 1) GENERAL SETTINGS
 % ========================================================================
@@ -143,14 +128,7 @@ InputPaths.raster_extensions = get_override( ...
     Overrides, 'raster_extensions', {'.tif', '.tiff'});
 
 %% ========================================================================
-% 2) TOOL PATHS
-% ========================================================================
-
-InputPaths.topo_path = topo_path;
-InputPaths.hydropol2d_tools = hydropol2d_tools;
-
-%% ========================================================================
-% 3) DEFAULT ROOTS
+% 2) DEFAULT ROOTS
 % ========================================================================
 
 static_root  = fullfile(InputPaths.case_root, 'Static');

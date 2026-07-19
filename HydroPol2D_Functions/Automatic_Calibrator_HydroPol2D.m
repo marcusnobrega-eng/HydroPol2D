@@ -47,7 +47,7 @@ psi_range = soil_based_parameters(:,5:6);
 
 
 %% Load Initial Maps and Input Data
-addpath(genpath(char(topo_path)));
+hydropol2d_add_runtime_paths(fileparts(fileparts(mfilename('fullpath'))));
 
 % Reading Initial Maps and Input Data
 initial_maps_data = readtable('HydroPol2D_Automatic_Calibrator_Data.xlsx','Sheet','Initial_Maps');

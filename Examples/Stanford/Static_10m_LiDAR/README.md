@@ -4,7 +4,7 @@ This folder contains the real 10 m Stanford terrain setup for current-model
 reruns.
 
 - `DEM.tif` is the USGS/3DEP 10 m DEM from
-  `/Users/mngomes/Downloads/USGS_10m_DEM_clipped.tif`.
+  the clipped USGS 3DEP 10 m DEM prepared for this example.
 - `LULC.tif`, `SOIL.tif`, `DTB.tif`, `LAI.tif`, and `Albedo.tif` are the
   current Stanford ancillary rasters. They are coarser than the DEM but share
   the same domain bounds, and are aligned/resampled by HydroPol2D preprocessing

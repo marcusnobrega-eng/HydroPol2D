@@ -512,7 +512,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("HydroPol2D_Model/Validation/Reference_Outputs/Phase1"),
+        default=Path("Validation/Reference_Outputs/Phase1"),
         help="Output directory for reference CSVs.",
     )
     return parser.parse_args()

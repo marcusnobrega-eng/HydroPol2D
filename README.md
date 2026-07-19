@@ -27,6 +27,8 @@ The model is particularly suited for urban, peri-urban, and rural catchments in 
 - MATLAB R2020a or newer
 - Required Toolboxes:
   - Mapping Toolbox
+  - Image Processing Toolbox
+- Optimization Toolbox when `flag_smoothening = 1`
   - Parallel Computing Toolbox (for GPU mode)
 
 ### Recommended:
@@ -51,8 +53,6 @@ Alternatively, download the ZIP from GitHub and extract it to your desired direc
 ## 2. Open MATLAB and Navigate to the Model Folder
 ```bash
 cd('path/to/your/model/folder')
-addpath(genpath(pwd))
-savepath
 ```
 Replace path/to/your/model/folder with the location where you cloned the repository.
 
@@ -62,7 +62,7 @@ Ensure the following are present in your working directory:
 - `HydroPol2D_V115.m` (main model script)
 - `/config/` folder (parameters and flags)
 - `/HydroPol2D_functions`
-- `/topotoolbox` folder
+- `/third_party/topotoolbox_lite/` (bundled terrain runtime)
 - `Input_Spreadsheets` (if excel version is used)
 
 ### 4. Set Up MATLAB
@@ -73,7 +73,7 @@ Open MATLAB or directly go in your model folder and open the file `HydroPol2D_V1
 Edit inputs in:
 
 - `/config/` folder. In particular, the file `input_data_bypass_script.m`. In case your forcing or other inputs do not follow the folder structure of the model, you may change the filepaths by editing `input_paths_bypass.m` in the same folder.
-- Edit the `HydroPol2D_V115.m` file to define the `run_mode`, the `input_excel_file` defining the `General_Data.xlsx` if `Excel` mode is activated, the `topo_path_user` defining the path of the topotoolbox folder, and the HydroPol2D functions defined by the `hydropol2d_tools_user` path.
+- Edit `HydroPol2D_V115.m` to select `run_mode` and, for Excel mode, the `General_Data.xlsx` file. HydroPol2D registers its own functions and bundled terrain runtime automatically.
 - Excel parameter files located in the `\Input_Data_Sheets` if you are running the model under the `Excel` mode, defined in the `HydroPol2D_V115.m` file.
 
 ### 6. Run the Model
@@ -222,7 +222,10 @@ Repository: [https://github.com/marcusnobrega-eng/HydroPol2D](https://github.com
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
-This project is licensed under the **MIT License** — you are free to use, modify, and distribute this software, provided proper credit is given.
+This project is licensed under the **GNU General Public License, version 3**.
+The bundled TopoToolbox runtime is documented in
+[`third_party/NOTICE.md`](third_party/NOTICE.md) and
+[`third_party/topotoolbox_lite/UPSTREAM.md`](third_party/topotoolbox_lite/UPSTREAM.md).
 
 
 # Short Course Link with 2-h classes + PPT material (Available upon request): marcusnobrega.engcivil@gmail.com

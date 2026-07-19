@@ -1,9 +1,8 @@
 function run_stanford_local_case(varargin)
 %RUN_STANFORD_LOCAL_CASE Run the local Stanford example with current code.
 %
-% This runner is intentionally separate from HydroPol2D_V115.m, which still
-% documents the original cluster-oriented workflow. It uses the local
-% HydroPol2D_Model tool folders and case inputs under Examples/Stanford.
+% This runner is intentionally separate from HydroPol2D_V115.m and uses the
+% bundled HydroPol2D runtime with case inputs under Examples/Stanford.
 
 p = inputParser;
 addParameter(p, 'Resolution', 30, @(x) isnumeric(x) && isscalar(x) && x > 0);
@@ -23,8 +22,6 @@ parse(p, varargin{:});
 case_root = fileparts(mfilename('fullpath'));
 model_root = fileparts(fileparts(case_root));
 config_dir = fullfile(case_root, 'Config');
-hydropol2d_tools_user = fullfile(model_root, 'HydroPol2D_Functions');
-topo_path_user = fullfile(model_root, 'topotoolbox-master');
 input_paths_function = fullfile(config_dir, 'input_paths_bypass.m');
 input_data_bypass_script_path = fullfile(config_dir, 'input_data_bypass_script.m');
 
@@ -50,8 +47,6 @@ if isempty(output_tag)
 end
 export_root_dir = fullfile(case_root, 'Outputs', 'Reruns_CurrentModel', output_tag);
 
-assert(exist(hydropol2d_tools_user, 'dir') == 7, 'HydroPol2D tools not found: %s', hydropol2d_tools_user);
-assert(exist(topo_path_user, 'dir') == 7, 'TopoToolbox not found: %s', topo_path_user);
 assert(exist(input_paths_function, 'file') == 2, 'input_paths_bypass not found: %s', input_paths_function);
 assert(exist(input_data_bypass_script_path, 'file') == 2, 'input_data_bypass_script not found: %s', input_data_bypass_script_path);
 assert(exist(rainfall_path, 'file') == 2, 'Rainfall timeseries not found: %s', rainfall_path);
@@ -69,8 +64,8 @@ assert(exist(lulc_path, 'file') == 2, 'LULC not found: %s', lulc_path);
 assert(exist(soil_path, 'file') == 2, 'SOIL not found: %s', soil_path);
 
 addpath(config_dir);
-addpath(genpath(hydropol2d_tools_user));
-addpath(genpath(topo_path_user));
+addpath(fullfile(model_root, 'HydroPol2D_Functions'));
+hydropol2d_add_runtime_paths(model_root);
 set(0, 'DefaultFigureVisible', 'off');
 
 Overrides = struct();
@@ -92,7 +87,7 @@ Overrides.UseGPU = logical(p.Results.UseGPU);
 Overrides.UseSingle = logical(p.Results.UseSingle);
 
 [~, func_name, ~] = fileparts(input_paths_function);
-InputPaths = feval(func_name, topo_path_user, hydropol2d_tools_user, Overrides);
+InputPaths = feval(func_name, model_root, Overrides);
 
 run_mode = 'bypass'; %#ok<NASGU>
 use_inputpaths_bypass = 1;

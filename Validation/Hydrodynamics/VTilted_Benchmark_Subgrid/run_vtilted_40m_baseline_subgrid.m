@@ -1,23 +1,29 @@
 clear; clc;
 
 case_dir = fileparts(mfilename('fullpath'));
-repo_root = fullfile(case_dir, '..', '..', '..', '..');
-model_root = fullfile(repo_root, 'HydroPol2D_Model');
+model_root = case_dir;
+while ~isfolder(fullfile(model_root, 'HydroPol2D_Functions'))
+    parent_dir = fileparts(model_root);
+    if strcmp(parent_dir, model_root)
+        error('HydroPol2D:Validation:ModelRootNotFound', ...
+            'Could not locate the HydroPol2D repository from %s.', case_dir);
+    end
+    model_root = parent_dir;
+end
+repo_root = model_root;
 functions_dir = fullfile(model_root, 'HydroPol2D_Functions');
-topo_path = fullfile(model_root, 'topotoolbox-master');
 static_root = fullfile(case_dir, 'Static_40m_Comparison');
 
 scenario = canonical_scenario_from_env();
 out_dir = fullfile(case_dir, 'Outputs', 'VTilted_40m_Comparison', char(scenario));
 
-addpath(genpath(functions_dir));
-addpath(genpath(topo_path));
-addpath('/Users/mngomes/Downloads', '-end');
+addpath(functions_dir);
+hydropol2d_add_runtime_paths(model_root);
 
 if ~exist(out_dir, 'dir'); mkdir(out_dir); end
 
 Paths = make_validation_paths(fullfile(out_dir, 'HydroPol2D_Output'), true);
-InputPaths = make_input_paths(static_root, scenario, topo_path, functions_dir);
+InputPaths = make_input_paths(static_root, scenario, functions_dir);
 
 input_data_bypass_script_path = fullfile(case_dir, 'input_data_bypass_script_vtilted_40m_compat.m');
 
@@ -66,7 +72,7 @@ switch scenario
 end
 end
 
-function InputPaths = make_input_paths(static_root, scenario, topo_path, functions_dir)
+function InputPaths = make_input_paths(static_root, scenario, functions_dir)
 switch scenario
     case "reference20m"
         static_dir = fullfile(static_root, 'Static_20m_Crop');
@@ -84,8 +90,6 @@ end
 
 InputPaths = struct();
 InputPaths.case_root = fileparts(static_dir);
-InputPaths.topo_path = topo_path;
-InputPaths.hydropol2d_tools = functions_dir;
 InputPaths.DEM_path = fullfile(static_dir, 'DEM.tif');
 InputPaths.LULC_path = fullfile(static_dir, 'LULC.tif');
 InputPaths.SOIL_path = fullfile(static_dir, 'SOIL.tif');
@@ -113,7 +117,8 @@ InputPaths.Inflow_Hydrograph_CSV = '';
 InputPaths.Stage_Hydrograph_CSV = '';
 InputPaths.Observed_Gauges_CSV = '';
 InputPaths.ETP_input_spreadsheet = '';
-InputPaths.Rainfall_Timeseries_File = '/Users/mngomes/Downloads/Rainfall_Intensity_Data.xlsx';
+InputPaths.Rainfall_Timeseries_File = fullfile(case_dir, 'Reference', ...
+    'Rainfall_Intensity_Data.csv');
 InputPaths.Outlet_Cells_CSV = outlet_csv;
 end
 

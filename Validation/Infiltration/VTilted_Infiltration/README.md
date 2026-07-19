@@ -27,7 +27,7 @@ moderately slower transmission-zone flow.
 ## Run
 
 ```matlab
-run('HydroPol2D_Model/Validation/Infiltration/VTilted_Infiltration/run_vtilted_infiltration_validation_suite.m')
+run('Validation/Infiltration/VTilted_Infiltration/run_vtilted_infiltration_validation_suite.m')
 ```
 
 ## Outputs

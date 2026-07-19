@@ -19,9 +19,7 @@ n_tests = length(C3_test)*length(C4_test);
 %% Convert Rasters and Pre-Processing
 
 input_table = readtable('general_data.xlsx');
-% Load TopoToolBox Tools
-topo_path = table2cell(input_table(1,31));
-addpath(genpath(char(topo_path)));
+hydropol2d_add_runtime_paths(fileparts(fileparts(mfilename('fullpath'))));
 
 % Read Plane Watershed Data
 % [~,~,~] = plane_watershed(0.02,0.01,1.48,2.96,0);

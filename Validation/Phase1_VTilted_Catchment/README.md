@@ -34,13 +34,13 @@ Pure hydrodynamic benchmarks with their own required geometry, such as Ritter da
 Run in Python from the repository root:
 
 ```bash
-python3 HydroPol2D_Model/Validation/Phase1_VTilted_Catchment/generate_phase1_vtilted_domain.py
+python3 Validation/Phase1_VTilted_Catchment/generate_phase1_vtilted_domain.py
 ```
 
 Or run in MATLAB:
 
 ```matlab
-run('HydroPol2D_Model/Validation/Phase1_VTilted_Catchment/generate_phase1_vtilted_domain.m')
+run('Validation/Phase1_VTilted_Catchment/generate_phase1_vtilted_domain.m')
 ```
 
 Both generators are local to this repository and do not write to external `/oak/...` paths.

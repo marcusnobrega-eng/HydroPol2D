@@ -5,9 +5,10 @@
 %% Pre-Processing 2
 input_table = readtable(model_folder);
 
-% Load Model Functions
-HydroPol2D_tools = char(table2cell(input_table(9,31)));
-addpath(genpath(char(HydroPol2D_tools)));
+% Register the packaged HydroPol2D runtime. The legacy spreadsheet no longer
+% supplies code-library paths.
+model_root = fileparts(fileparts(mfilename('fullpath')));
+hydropol2d_add_runtime_paths(model_root);
 
 
 %% Baseline Parameters

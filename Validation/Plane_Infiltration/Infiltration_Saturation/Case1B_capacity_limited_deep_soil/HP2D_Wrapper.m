@@ -32,7 +32,17 @@ end
 
 %% Set working folder and paths
 cd(project_root);
-addpath(genpath(project_root));
+model_root = project_root;
+while ~isfolder(fullfile(model_root, 'HydroPol2D_Functions'))
+    parent_root = fileparts(model_root);
+    if strcmp(parent_root, model_root)
+        error('HydroPol2D:Wrapper:ModelRootNotFound', ...
+            'Could not locate the HydroPol2D repository root from: %s', project_root);
+    end
+    model_root = parent_root;
+end
+addpath(fullfile(model_root, 'HydroPol2D_Functions'));
+hydropol2d_add_runtime_paths(model_root);
 
 %% Headless-safe plotting
 set(0, 'DefaultFigureVisible', 'off');

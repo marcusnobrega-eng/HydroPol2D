@@ -12,7 +12,7 @@ Expected behavior:
 Run:
 
 ```matlab
-run('HydroPol2D_Model/Validation/Infiltration/LayeredSoil_Profile/run_layered_soil_profile_test.m')
+run('Validation/Infiltration/LayeredSoil_Profile/run_layered_soil_profile_test.m')
 ```
 
 Required diagnostics:
@@ -35,7 +35,7 @@ Expected behavior:
 Run:
 
 ```matlab
-run('HydroPol2D_Model/Validation/Infiltration/LayeredSoil_Profile/run_layered_soil_dynamics_test.m')
+run('Validation/Infiltration/LayeredSoil_Profile/run_layered_soil_dynamics_test.m')
 ```
 
 Required diagnostics:

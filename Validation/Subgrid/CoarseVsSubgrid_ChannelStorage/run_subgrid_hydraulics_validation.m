@@ -10,6 +10,7 @@ case_dir = fileparts(mfilename('fullpath'));
 model_dir = fileparts(fileparts(fileparts(case_dir)));
 func_dir = fullfile(model_dir, 'HydroPol2D_Functions');
 addpath(func_dir);
+hydropol2d_add_runtime_paths(model_dir);
 
 out_dir = fullfile(case_dir, 'Outputs', 'Validation');
 fig_dir = fullfile(case_dir, 'Figures');
