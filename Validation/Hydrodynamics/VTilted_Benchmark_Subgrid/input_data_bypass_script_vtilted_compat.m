@@ -10,6 +10,37 @@ InputData_Bypass.general.routing_time = 240;
 InputData_Bypass.general.record_time_maps = 10;
 InputData_Bypass.general.record_time_hydrographs = 10;
 InputData_Bypass.general.slope_outlet = 0.02;
+InputData_Bypass.general.n_outlets_data = 2;
+InputData_Bypass.general.max_time_step = 1;
+InputData_Bypass.general.time_step_change = 0.001;
+InputData_Bypass.general.alfa_min = 0.4;
+InputData_Bypass.general.alfa_max = 0.4;
+
+% This is a rain-on-grid benchmark with no imposed inflow or stage boundary.
+InputData_Bypass.flags.flag_rainfall = 1;
+InputData_Bypass.flags.flag_inflow = 0;
+InputData_Bypass.flags.flag_stage_hydrograph = 0;
+InputData_Bypass.flags.flag_resample = 0;
+InputData_Bypass.flags.flag_timestep = 2;
+InputData_Bypass.flags.flag_human_instability = 0;
+InputData_Bypass.general.resolution_resample = 20;
+
+% The synthetic V-tilted raster uses classes 1 (left hillslope), 2
+% (channel strip), and 3 (right hillslope), rather than the global LULC
+% identifiers in the generic bypass configuration.
+vtilted_lulc = table();
+vtilted_lulc.LC = {'Left hillslope'; 'Channel strip'; 'Right hillslope'};
+vtilted_lulc.Index = [1; 2; 3];
+vtilted_lulc.roughness = [0.015; 0.150; 0.015];
+vtilted_lulc.h_0_mm = zeros(3, 1);
+vtilted_lulc.d_0_mm = zeros(3, 1);
+vtilted_lulc.C1 = zeros(3, 1);
+vtilted_lulc.C2 = zeros(3, 1);
+vtilted_lulc.C3 = zeros(3, 1);
+vtilted_lulc.C4 = zeros(3, 1);
+vtilted_lulc.index_impervious = 999 * ones(3, 1);
+vtilted_lulc.root_depth_m = ones(3, 1);
+InputData_Bypass.LULC.table = vtilted_lulc;
 
 InputData_Bypass.Rainfall_Parameters.time_rainfall = [0; 15; 30; 45; 60; 75; 90];
 InputData_Bypass.Rainfall_Parameters.intensity_rainfall = 10.8 * ones(7, 1);

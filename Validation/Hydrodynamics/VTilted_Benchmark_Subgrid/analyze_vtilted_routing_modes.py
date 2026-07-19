@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Analyze exact-config V-tilted routing-mode HydroPol2D runs."""
+"""Score exact-config V-tilted routing runs as a configuration benchmark."""
 
 from __future__ import annotations
 
@@ -22,6 +22,14 @@ MODES = [
     ("kinematic", "Kinematic"),
     ("diffusive", "Diffusive"),
 ]
+
+# The digitized hydrograph was created for the supplied local-inertial
+# configuration. It is useful for cross-routing regression checks, but it is
+# not an analytical solution for every routing equation.
+NSE_MIN = 0.95
+PEAK_WINDOW_TOLERANCE_MIN = 10.0
+OUTLET_VOLUME_ERROR_MAX_PCT = 5.0
+MASS_ERROR_MAX_PCT = 0.1
 
 
 def interp_at(t_source: np.ndarray, q_source: np.ndarray, t_eval: np.ndarray) -> np.ndarray:
@@ -61,12 +69,17 @@ def score_mode(mode: str, label: str, ref: pd.DataFrame) -> tuple[dict, pd.DataF
     nse = float(1.0 - np.sum(err**2) / max(np.sum((q_ref[valid] - np.mean(q_ref[valid])) ** 2), np.finfo(float).eps))
 
     i_peak_model = int(np.nanargmax(q_model))
-    i_peak_ref = int(np.nanargmax(q_ref))
     peak_model = float(q_model[i_peak_model])
-    peak_ref = float(q_ref[i_peak_ref])
     peak_time_model = float(t_model[i_peak_model])
-    peak_time_ref = float(t_ref[i_peak_ref])
-    peak_time_error = abs(peak_time_model - peak_time_ref)
+    peak_ref = float(np.nanmax(q_ref))
+    peak_times_ref = t_ref[np.isclose(q_ref, peak_ref, rtol=0.0, atol=1.0e-12)]
+    peak_window_start = float(np.min(peak_times_ref))
+    peak_window_end = float(np.max(peak_times_ref))
+    peak_time_error = max(
+        peak_window_start - peak_time_model,
+        peak_time_model - peak_window_end,
+        0.0,
+    )
     peak_mag_error_pct = 100.0 * abs(peak_model - peak_ref) / max(abs(peak_ref), np.finfo(float).eps)
 
     t_dense = t_model[(t_model >= 0) & (t_model <= t_end)]
@@ -76,9 +89,16 @@ def score_mode(mode: str, label: str, ref: pd.DataFrame) -> tuple[dict, pd.DataF
     volume_model_m3 = float(np.trapezoid(q_model_dense, t_dense * 60.0))
     outlet_volume_error_pct = 100.0 * abs(volume_model_m3 - volume_ref_m3) / max(abs(volume_ref_m3), np.finfo(float).eps)
 
-    passed_hydrograph_shape = nse > 0.95 and peak_time_error <= 20.0
-    passed_mass = abs(float(mass["mass_error_pct"])) < 0.1
-    passed_volume = outlet_volume_error_pct < 5.0
+    passed_hydrograph_shape = nse > NSE_MIN and peak_time_error <= PEAK_WINDOW_TOLERANCE_MIN
+    passed_mass = abs(float(mass["mass_error_pct"])) < MASS_ERROR_MAX_PCT
+    passed_volume = outlet_volume_error_pct < OUTLET_VOLUME_ERROR_MAX_PCT
+    passes_all_screening = passed_hydrograph_shape and passed_mass and passed_volume
+    if passes_all_screening:
+        assessment = "screening_pass"
+    elif passed_hydrograph_shape and passed_mass and not passed_volume:
+        assessment = "limited_outlet_volume"
+    else:
+        assessment = "screening_fail"
 
     metrics = {
         "case_id": f"P1-HYDRO-VTILT-{mode.upper().replace('_', '-')}-001",
@@ -90,7 +110,8 @@ def score_mode(mode: str, label: str, ref: pd.DataFrame) -> tuple[dict, pd.DataF
         "relative_l2": rel_l2,
         "nse": nse,
         "peak_time_model_min": peak_time_model,
-        "peak_time_benchmark_min": peak_time_ref,
+        "peak_time_benchmark_window_start_min": peak_window_start,
+        "peak_time_benchmark_window_end_min": peak_window_end,
         "peak_time_error_min": peak_time_error,
         "peak_model_m3s": peak_model,
         "peak_benchmark_m3s": peak_ref,
@@ -101,12 +122,16 @@ def score_mode(mode: str, label: str, ref: pd.DataFrame) -> tuple[dict, pd.DataF
         "rain_volume_m3": float(mass["rain_volume_m3"]),
         "outlet_volume_m3": float(mass["outlet_volume_m3"]),
         "final_storage_m3": float(mass["final_storage_m3"]),
+        "final_storage_pct_rainfall": 100.0 * float(mass["final_storage_m3"]) / max(
+            float(mass["rain_volume_m3"]), np.finfo(float).eps
+        ),
         "mass_residual_m3": float(mass["mass_residual_m3"]),
         "mass_error_pct": float(mass["mass_error_pct"]),
         "passed_hydrograph_shape": passed_hydrograph_shape,
         "passed_mass_balance": passed_mass,
         "passed_volume_error_5pct": passed_volume,
-        "passed_overall_exact_config": passed_hydrograph_shape and passed_mass,
+        "passes_all_screening_criteria": passes_all_screening,
+        "assessment": assessment,
     }
 
     comp = pd.DataFrame(
@@ -162,7 +187,8 @@ def main() -> None:
             "passed_hydrograph_shape",
             "passed_mass_balance",
             "passed_volume_error_5pct",
-            "passed_overall_exact_config",
+            "passes_all_screening_criteria",
+            "assessment",
         ]
     ].copy()
 

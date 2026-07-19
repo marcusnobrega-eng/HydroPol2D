@@ -1,23 +1,24 @@
-# Canonical V-Tilted Hydrograph and Subgrid Validation
+# Canonical V-Tilted Routing Regression Benchmark
 
-This validation folder adds two V-tilted cases:
+`run_vtilted_full_config_audit.m` executes the full HydroPol2D preprocessing
+and routing workflow on the 20 m V-tilted catchment. It verifies the supplied
+configuration before routing: two outlet cells, Manning values of `0.015` and
+`0.150`, no hydrologic losses, and spatially invariant rainfall of `10.8 mm/h`
+for 90 min. The simulation continues to 240 min.
 
-- `P1-HYDRO-LI-VTILT-BENCH-001`: a 20 m local-inertial run on the canonical Phase 1 V-tilted DEM compared with the benchmark hydrograph from `compare_flows.m`.
-- `P1-SUBGRID-VTILT-001`: a fair local-inertial subgrid comparison using a 20 m ordinary-grid reference and a 60 m lookup-subgrid run.
+The digitized hydrograph in `compare_flows.m` is associated with the supplied
+local-inertial configuration. It is therefore used as a configuration-regression
+benchmark, not as an analytical reference for all routing equations. The scorer
+reports hydrograph shape, mass balance, outlet-volume difference, and final
+surface storage separately. A mode satisfies the screening check only when all
+three quantitative criteria pass.
 
-The benchmark event uses `Reference/Rainfall_Intensity_Data.csv`, extracted from the supplied `Rainfall_Intensity_Data (5).xlsx` workbook. The series applies `10.8 mm/h` at `0, 15, 30, 45, 60, 75, and 90 min`, and the module-driver run uses the `180 min` bypass simulation window. Infiltration, ET, groundwater, and other losses are disabled by construction.
-
-The current module-driver configuration also applies the bypass roughness pattern: side slopes use Manning `n = 0.015`, and the central strip uses `n = 0.15`. This is closer to the bypass files than the earlier uniform-roughness diagnostic, but it is still a lightweight module-driver run rather than a full HydroPol2D bypass-wrapper execution.
-
-For the subgrid comparison, the 20 m DEM is cropped at the upstream end from 50 to 48 rows so the 3-by-3 aggregation to 60 m is exact while preserving the downstream outlet. The 60 m maximum water surface is projected back to the 20 m DEM with:
-
-```text
-h_projected_20m = max(eta_coarse_max - DEM_20m, 0)
-```
+The retired lookup-subgrid scripts remain in this folder for development
+history. They are not active validation cases.
 
 Run from MATLAB:
 
 ```matlab
 cd Validation/Hydrodynamics/VTilted_Benchmark_Subgrid
-run_vtilted_hydrograph_subgrid_validation
+run_vtilted_full_config_audit
 ```

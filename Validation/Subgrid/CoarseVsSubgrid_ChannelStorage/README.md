@@ -1,8 +1,10 @@
-# P1-SUBGRID-001: Lookup-table Subgrid Hydraulics
+# Retired Lookup-Subgrid Development Case
 
-Purpose: validate the newer lookup-table subgrid hydraulic pathway for storage, inverse depth, shared-face hydraulic geometry/conveyance, areal source/sink conversion, and controlled coupling to local-inertial and full-momentum routing.
+This folder is retained as internal development history for the lookup-table
+subgrid pathway. It is not an active HydroPol2D validation case and must not
+be used to support production or publication claims.
 
-Expected behavior:
+Historical diagnostics retained here:
 - A synthetic rectangular incised channel has the exact analytical storage-depth and wetted-area curves.
 - Shared-face lookup width, wetted perimeter, hydraulic radius, and conveyance match the rectangular-channel Manning reference for uniform roughness.
 - Rainfall/infiltration-style areal depth changes update subgrid volume exactly, then invert back to representative depth.
@@ -19,6 +21,5 @@ Required diagnostics:
 - `Figures/p1_subgrid_conveyance.png`
 - `Figures/p1_subgrid_full_momentum.png`
 
-Acceptance thresholds: storage residual `< 1e-9 m3`, conveyance error `< 0.1%`, coupled mass error `< 0.1%`, and flat full-momentum equivalence NSE `> 0.999`.
-
-Current-code result: passed. Volume RMSE is `3.28e-14 m3`, face geometry and conveyance errors are `0%`, source/sink volume residual is `2.26e-14 m3`, flat full-momentum depth RMSE is `1.96e-17 m`, incised-channel mass error is `3.16e-14%`, and the low-friction local-inertial closed-volume residual is `2.22e-16 m3`.
+The historical unit diagnostics are preserved for traceability only. They do
+not establish a valid coupled subgrid-routing implementation.

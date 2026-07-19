@@ -23,12 +23,13 @@ else
 end
 
 addpath(functions_dir);
+addpath(fullfile(model_root, 'Config'));
 hydropol2d_add_runtime_paths(model_root);
 
 if ~exist(out_dir, 'dir'); mkdir(out_dir); end
 
 Paths = make_validation_paths(fullfile(out_dir, 'HydroPol2D_Output'), true);
-InputPaths = make_vtilted_input_paths(static_dir, functions_dir);
+InputPaths = make_vtilted_input_paths(case_dir, static_dir, functions_dir);
 
 input_data_bypass_script_path = fullfile(case_dir, 'input_data_bypass_script_vtilted_compat.m');
 if exist(input_data_bypass_script_path, 'file') ~= 2
@@ -49,6 +50,9 @@ HydroPol2D_preprocessing;
 
 routing_mode = canonical_routing_mode_from_env();
 out_dir = output_dir_for_mode(case_dir, routing_mode);
+assert_canonical_vtilted_config(Wshed_Properties, flags, running_control, ...
+    Rainfall_Parameters, LULC_Properties, outlet_index, C_a, elevation, ...
+    slope_outlet, routing_mode);
 write_preprocessing_audit(out_dir, InputPaths, input_data_bypass_script_path, ...
     DEM_raster, Wshed_Properties, flags, running_control, Rainfall_Parameters, ...
     Input_Rainfall, LULC_Properties, outlet_index, elevation, C_a, slope_outlet);
@@ -95,7 +99,7 @@ else
 end
 end
 
-function InputPaths = make_vtilted_input_paths(static_dir, functions_dir)
+function InputPaths = make_vtilted_input_paths(case_dir, static_dir, functions_dir)
 InputPaths = struct();
 InputPaths.case_root = fileparts(static_dir);
 InputPaths.DEM_path = fullfile(static_dir, 'DEM.tif');
@@ -128,6 +132,54 @@ InputPaths.ETP_input_spreadsheet = '';
 InputPaths.Rainfall_Timeseries_File = fullfile(case_dir, 'Reference', ...
     'Rainfall_Intensity_Data.csv');
 InputPaths.Outlet_Cells_CSV = '';
+end
+
+function assert_canonical_vtilted_config(Wshed_Properties, flags, running_control, ...
+    Rainfall_Parameters, LULC_Properties, outlet_index, C_a, elevation, ...
+    slope_outlet, routing_mode)
+% Fail before routing if a generic bypass setting replaces the benchmark.
+assert(abs(Wshed_Properties.Resolution - 20) < 1e-12, ...
+    'V-tilted benchmark must run on the native 20 m grid.');
+assert(abs(running_control.routing_time - 240) < 1e-12, ...
+    'V-tilted benchmark routing duration must be 240 min.');
+assert(flags.flag_infiltration == 0 && flags.flag_spatial_rainfall == 0 && ...
+    flags.flag_input_rainfall_map == 0 && flags.flag_subgrid == 0, ...
+    'V-tilted benchmark must be a no-loss, spatially invariant, ordinary-grid run.');
+assert(flags.flag_boundary == 0 && abs(slope_outlet - 0.02) < 1e-12, ...
+    'V-tilted benchmark must use its two-cell 0.02 m/m outlet setup.');
+assert(nnz(outlet_index) == 2, ...
+    'V-tilted benchmark must have exactly two outlet cells.');
+assert(abs(sum(C_a(~isnan(elevation)), 'all', 'omitnan') - 1620000) < 1e-6, ...
+    'V-tilted benchmark active area must be 1,620,000 m2.');
+
+expected_t = [0; 15; 30; 45; 60; 75; 90];
+assert(isequal(double(Rainfall_Parameters.time_rainfall(:)), expected_t) && ...
+    all(abs(double(Rainfall_Parameters.intensity_rainfall(:)) - 10.8) < 1e-12), ...
+    'V-tilted benchmark rainfall must be 10.8 mm/h from 0 to 90 min.');
+assert(abs(min(LULC_Properties.roughness(:), [], 'omitnan') - 0.015) < 1e-12 && ...
+    abs(max(LULC_Properties.roughness(:), [], 'omitnan') - 0.150) < 1e-12, ...
+    'V-tilted benchmark must use Manning n = 0.015 and 0.150.');
+
+expected_flags = struct('full_momentum', 0, 'local_inertial', 0, ...
+    'cellular_automata', 0, 'kinematic', 0, 'diffusive', 0);
+switch routing_mode
+    case "full_momentum"
+        expected_flags.full_momentum = 1;
+    case "local_inertial"
+        expected_flags.local_inertial = 1;
+    case "cellular_automata"
+        expected_flags.cellular_automata = 1;
+    case "kinematic"
+        expected_flags.kinematic = 1;
+    case "diffusive"
+        expected_flags.diffusive = 1;
+end
+actual_flags = [flags.flag_full_momentum, flags.flag_inertial, flags.flag_CA, ...
+    flags.flag_kinematic, flags.flag_diffusive];
+expected_values = [expected_flags.full_momentum, expected_flags.local_inertial, ...
+    expected_flags.cellular_automata, expected_flags.kinematic, expected_flags.diffusive];
+assert(isequal(actual_flags, expected_values), ...
+    'V-tilted benchmark routing flags do not match the requested mode.');
 end
 
 function Paths = make_validation_paths(root_dir, clean_output)
@@ -203,6 +255,8 @@ audit.item = [
     "flag_spatial_rainfall";
     "flag_input_rainfall_map";
     "flag_subgrid";
+    "flag_boundary";
+    "flag_outlet_type";
     "slope_outlet";
     "n_outlet_cells";
     "outlet_rows";
@@ -233,6 +287,8 @@ audit.value = [
     string(flags.flag_spatial_rainfall);
     string(flags.flag_input_rainfall_map);
     string(flags.flag_subgrid);
+    string(flags.flag_boundary);
+    string(flags.flag_outlet_type);
     string(slope_outlet);
     string(numel(row_out));
     strjoin(string(row_out.'), ' ');

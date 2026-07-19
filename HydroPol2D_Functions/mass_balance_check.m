@@ -70,6 +70,8 @@ end
 S_SWE = nansum(nansum(coarse_cell_area.*Snow_Properties.SWE_t/1000)); % Snow water equivalent storge 
 
 [dS, fluxes, S_prev, error] = system_mass_balance(P, Qin, E_int, ETR, E_ow, Qout, E_s, S_c, S_p, S_UZ, S_GW, S_SWE, S_prev);
+% Signed residual for the current model step. The event-scale ledger is
+% accumulated and exported separately after the simulation.
 volume_error = error;
 
 % if flags.flag_subgrid == 1 && flags.flag_overbanks == 1

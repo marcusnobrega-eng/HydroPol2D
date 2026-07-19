@@ -856,7 +856,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                     max(max(depths.d_t(~isinf(depths.d_t)))), ... % Max depth [mm in your internal storage]
                     max(max(Hydro_States.f)), ... % Max Infiltration Rate
                     max(max(WQ_States.P_conc)), ... % Max Water Quality Pollutant concentration
-                    volume_error];  % Volume error [m3]
+                    volume_error];  % Current-step ledger residual [m3]
 
                 % Print formatted output for water quality
                 fprintf('==== Water Quality Stats ====\n');
@@ -866,7 +866,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 fprintf('Max Depth: %.2f m\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(4));
                 fprintf('Max Inf. Rate: %.2f mm/h\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(5));
                 fprintf('Max Water Quality Concentration: %.2e Cmg/L\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(6));
-                fprintf('Volume Error: %.3f m³\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(7));
+                fprintf('Step Ledger Residual: %.3f m³\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(7));
             else
                 perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3 = [
                     (t) / running_control.routing_time * 100, ... % Percentage complete
@@ -876,7 +876,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                     1/1000 * max(max(depths.d_t(~isinf(depths.d_t)))), ... % Max depth [m]
                     max(max(Hydro_States.f)), ... % Max Inf Rate
                     velocities.max_velocity, ... % Max Velocity
-                    volume_error];  % Volume error [m3]
+                    volume_error];  % Current-step ledger residual [m3]
 
                 % Print formatted output for general model stats
                 fprintf('---- General Model Stats ----\n');
@@ -887,7 +887,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 fprintf('Max Depth: %.2f m\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(5));
                 fprintf('Max Inf Rate: %.2f mm/h\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(6));
                 fprintf('Max Velocity: %.2f m/s\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(7));
-                fprintf('Volume Error: %.3f m³\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(8));
+                fprintf('Step Ledger Residual: %.3f m³\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(8));
             end
 
             fprintf('\n==== Mass Balance Diagnostics Over Catchment ====\n');
