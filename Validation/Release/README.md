@@ -1,4 +1,4 @@
-# v1.16.0 Terrain Runtime Checks
+# Terrain Runtime Verification
 
 These utilities document the release checks for the bundled terrain runtime.
 They are run from a clean MATLAB path so that `GRIDobj`, `FLOWobj`, and

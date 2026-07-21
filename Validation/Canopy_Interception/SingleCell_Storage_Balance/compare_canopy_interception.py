@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare P1-CANOPY-001 model output against the reference solution.
+"""Compare VAL-CANOPY-001 model output against the reference solution.
 
 When MATLAB is unavailable, `--generate-mirror-output` writes a Python mirror
 of HydroPol2D's interceptionModel formula. That mirror output is useful for
@@ -17,7 +17,7 @@ from pathlib import Path
 import sys
 
 
-CASE_ID = "P1-CANOPY-001"
+CASE_ID = "VAL-CANOPY-001"
 TOLERANCE_M3 = 1.0e-6
 SERIES_TOLERANCE_MM = 1.0e-9
 
@@ -180,7 +180,7 @@ def compare(
                 "units": "m3" if metric.endswith("_m3") else "mm",
                 "threshold": threshold,
                 "pass": str(value <= threshold).lower(),
-                "notes": f"Compared against Phase 1 canopy reference; model_source={model_source}.",
+                "notes": f"Compared against the canopy reference; model_source={model_source}.",
             }
         )
 
@@ -241,7 +241,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--reference",
         type=Path,
-        default=model_root / "Validation" / "Reference_Outputs" / "Phase1" / "canopy_bucket" / "P1-CANOPY-001_reference.csv",
+        default=model_root / "Validation" / "Reference_Outputs" / "Validation" / "canopy_bucket" / "VAL-CANOPY-001_reference.csv",
     )
     parser.add_argument(
         "--model-output",

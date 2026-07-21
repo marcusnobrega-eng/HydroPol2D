@@ -1,4 +1,4 @@
-# P1-ROUTE-KIN-001: Kinematic Wave Analytical Benchmark
+# VAL-ROUTE-KIN-001: Kinematic Wave Analytical Benchmark
 
 Purpose: validate the kinematic routing option only after implementation audit and correction.
 

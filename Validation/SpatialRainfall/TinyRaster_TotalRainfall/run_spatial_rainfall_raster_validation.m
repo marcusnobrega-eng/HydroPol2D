@@ -29,7 +29,7 @@ disp(Pass);
 
 function [Diag, CellTable, StepTable, Pass] = run_spatial_rainfall_case(raster_dir, table_dir)
 Cfg = struct();
-Cfg.case_id = "P1-RAIN-MAP-001";
+Cfg.case_id = "VAL-RAIN-MAP-001";
 Cfg.case_name = "Tiny raster spatial rainfall totals";
 Cfg.dx_m = 20;
 Cfg.ny = 4;
@@ -196,7 +196,7 @@ xlabel('Raster step'); ylabel('Rainfall volume (m^3)');
 legend('Reference', 'Raster-read', 'Location', 'best');
 title('Stepwise volume check');
 grid on;
-exportgraphics(fig, fullfile(fig_dir, 'P1_RAIN_MAP_001_TOTALS.png'), 'Resolution', 200);
+exportgraphics(fig, fullfile(fig_dir, 'VAL_RAIN_MAP_001_TOTALS.png'), 'Resolution', 200);
 close(fig);
 end
 

@@ -34,7 +34,7 @@ disp(Pass);
 
 function [Diag, Series, Pass] = run_inflow_case(ts_dir)
 Cfg = struct();
-Cfg.case_id = "P1-BC-INFLOW-001";
+Cfg.case_id = "VAL-BC-INFLOW-001";
 Cfg.case_name = "Full momentum inflow hydrograph boundary";
 Cfg.dx = 10;
 Cfg.nx = 36;
@@ -263,7 +263,7 @@ plot(Series.t_min, Series.mass_error_pct, '--', 'LineWidth', 1.4);
 ylabel('Mass residual (%)');
 xlabel('Time (min)');
 grid on;
-exportgraphics(fig, fullfile(fig_dir, 'P1_BC_INFLOW_001_HYDROGRAPH.png'), 'Resolution', 200);
+exportgraphics(fig, fullfile(fig_dir, 'VAL_BC_INFLOW_001_HYDROGRAPH.png'), 'Resolution', 200);
 close(fig);
 end
 

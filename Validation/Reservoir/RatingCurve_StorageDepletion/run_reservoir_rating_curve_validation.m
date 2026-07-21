@@ -28,7 +28,7 @@ disp(Pass);
 
 function [Diag, Series, Pass] = run_reservoir_case(ts_dir)
 Cfg = struct();
-Cfg.case_id = "P1-RES-001";
+Cfg.case_id = "VAL-RES-001";
 Cfg.case_name = "Rating-curve reservoir storage depletion";
 Cfg.area_m2 = 20000;
 Cfg.initial_stage_m = 2.50;
@@ -192,7 +192,7 @@ plot(Series.t_min, Series.mass_error_pct, '--', 'LineWidth', 1.4);
 ylabel('Mass residual (%)');
 xlabel('Time (min)');
 grid on;
-exportgraphics(fig, fullfile(fig_dir, 'P1_RES_001_RATING_CURVE.png'), 'Resolution', 200);
+exportgraphics(fig, fullfile(fig_dir, 'VAL_RES_001_RATING_CURVE.png'), 'Resolution', 200);
 close(fig);
 end
 

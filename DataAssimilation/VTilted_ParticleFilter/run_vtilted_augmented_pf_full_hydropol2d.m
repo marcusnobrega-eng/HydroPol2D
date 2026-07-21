@@ -189,7 +189,7 @@ function State = hp2d_da_prepare_base_state(PF)
 case_dir = fileparts(mfilename('fullpath'));
 model_root = hydropol2d_find_root(case_dir);
 functions_dir = fullfile(model_root, 'HydroPol2D_Functions');
-static_dir = fullfile(model_root, 'Validation', 'Phase1_VTilted_Catchment', 'Static');
+static_dir = fullfile(model_root, 'Validation', 'VTilted_Catchment', 'Static');
 da_routing = PF.full_model.routing;
 da_output_dir = PF.full_model.output_dir;
 addpath(functions_dir, '-begin');

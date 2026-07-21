@@ -4,7 +4,7 @@ case_dir = fileparts(mfilename('fullpath'));
 repo_root = fullfile(case_dir, '..', '..', '..');
 model_root = repo_root;
 functions_dir = fullfile(model_root, 'HydroPol2D_Functions');
-base_static_dir = fullfile(model_root, 'Validation', 'Phase1_VTilted_Catchment', 'Static');
+base_static_dir = fullfile(model_root, 'Validation', 'VTilted_Catchment', 'Static');
 config_dir = fullfile(case_dir, 'Config');
 
 addpath(functions_dir, '-begin');
@@ -40,7 +40,7 @@ for icase = 1:height(Cases)
     % Full-model scripts may clear caller variables; recover the immutable
     % reference rasters before each independent case.
     base_static_dir = fullfile(hydropol2d_find_root(case_dir), ...
-        'Validation', 'Phase1_VTilted_Catchment', 'Static');
+        'Validation', 'VTilted_Catchment', 'Static');
     prepare_case_static_rasters(base_static_dir, static_dir, ValidationCase);
 
     try

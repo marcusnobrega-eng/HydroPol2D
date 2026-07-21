@@ -1,4 +1,4 @@
-# P1-INFIL-GA-001: Green-Ampt Column Benchmark
+# VAL-INFIL-GA-001: Green-Ampt Column Benchmark
 
 Purpose: verify the infiltration formulation against an analytical Green-Ampt cumulative infiltration reference for a homogeneous soil column under constant rainfall.
 
@@ -11,4 +11,4 @@ Expected outputs:
 - mass residual;
 - optional synthetic inverse recovery of saturated hydraulic conductivity.
 
-Status: planned Phase 1 formula/dynamics verification.
+Status: planned formula/dynamics verification.

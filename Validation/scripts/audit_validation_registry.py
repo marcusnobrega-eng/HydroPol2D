@@ -36,8 +36,8 @@ def parse_args() -> argparse.Namespace:
         "registry",
         type=Path,
         nargs="?",
-        default=Path("Validation/Phase1_Cases.csv"),
-        help="Path to the Phase 1 registry (default: Validation/Phase1_Cases.csv)",
+        default=Path("Validation/Validation_Cases.csv"),
+        help="Path to validation registry (default: Validation/Validation_Cases.csv)",
     )
     parser.add_argument(
         "--strict",

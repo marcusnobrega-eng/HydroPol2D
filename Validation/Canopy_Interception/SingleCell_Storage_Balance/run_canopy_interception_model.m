@@ -1,4 +1,4 @@
-% P1-CANOPY-001: run HydroPol2D interceptionModel against the Phase 1 reference.
+% VAL-CANOPY-001: run HydroPol2D interceptionModel against validation reference.
 %
 % Run from the repository root or from this case folder in MATLAB:
 %   run('HydroPol2D_Model/Validation/Canopy_Interception/SingleCell_Storage_Balance/run_canopy_interception_model.m')
@@ -7,15 +7,15 @@ case_dir = fileparts(mfilename('fullpath'));
 repo_root = fullfile(case_dir, '..', '..', '..');
 functions_dir = fullfile(repo_root, 'HydroPol2D_Functions');
 reference_file = fullfile(repo_root, 'Validation', ...
-    'Reference_Outputs', 'Phase1', 'canopy_bucket', ...
-    'P1-CANOPY-001_reference.csv');
+    'Reference_Outputs', 'Validation', 'canopy_bucket', ...
+    'VAL-CANOPY-001_reference.csv');
 output_dir = fullfile(case_dir, 'Outputs', 'Validation');
 
 if ~exist(functions_dir, 'dir')
     error('HydroPol2D functions directory not found: %s', functions_dir);
 end
 if ~exist(reference_file, 'file')
-    error('Reference file not found. Generate it with phase1_reference_solutions.py: %s', reference_file);
+    error('Reference file not found. Generate it with reference_solutions.py: %s', reference_file);
 end
 if ~exist(output_dir, 'dir')
     mkdir(output_dir);

@@ -1,6 +1,6 @@
-# Asynchronous Groundwater / Recharge Validation on the Phase-1 V-Tilted Domain
+# Asynchronous Groundwater and Recharge Validation
 
-This validation suite checks Phase-1 groundwater and recharge dynamics using compact V-tilted synthetic domains. The cases test the asynchronous groundwater scheduler, recharge accumulation, capillary rise, local water-table response, and a Boussinesq recharge-mound response against either analytical or fine-timestep numerical references.
+This suite evaluates groundwater and recharge dynamics on compact V-tilted domains. The cases test the asynchronous groundwater scheduler, recharge accumulation, capillary rise, local water-table response, and a Boussinesq recharge mound against analytical or fine-timestep numerical references.
 
 Run from MATLAB:
 

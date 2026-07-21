@@ -1,9 +1,9 @@
-% P1-SNOW-001 full-model V-tilted configuration.
+% VAL-SNOW-001 full-model V-tilted configuration.
 % The parent validation runner supplies InputPaths, including the generated
 % station meteorological forcing workbook.
 
 if ~exist('InputPaths', 'var') || ~isstruct(InputPaths)
-    error('P1-SNOW-001 requires InputPaths from the full-model validation runner.');
+    error('VAL-SNOW-001 requires InputPaths from the full-model validation runner.');
 end
 
 InputData_Bypass = struct();

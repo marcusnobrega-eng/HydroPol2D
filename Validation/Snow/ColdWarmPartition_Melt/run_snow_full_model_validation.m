@@ -1,4 +1,4 @@
-% P1-SNOW-001F: full HydroPol2D V-tilted snow-and-runoff integration.
+% VAL-SNOW-001F: full HydroPol2D V-tilted snow-and-runoff integration.
 %
 % This script intentionally uses the normal preprocessing and main routing
 % loop. It is kept separate from run_snow_model.m because preprocessing
@@ -9,8 +9,8 @@ clear; clc;
 case_dir = fileparts(mfilename('fullpath'));
 repo_root = fullfile(case_dir, '..', '..', '..');
 functions_dir = fullfile(repo_root, 'HydroPol2D_Functions');
-base_static_dir = fullfile(repo_root, 'Validation', 'Phase1_VTilted_Catchment', 'Static');
-full_root = fullfile(case_dir, 'FullModelRuns', 'P1-SNOW-001F');
+base_static_dir = fullfile(repo_root, 'Validation', 'VTilted_Catchment', 'Static');
+full_root = fullfile(case_dir, 'FullModelRuns', 'VAL-SNOW-001F');
 forcing_dir = fullfile(full_root, 'Forcing');
 output_root = fullfile(full_root, 'Outputs');
 summary_dir = fullfile(case_dir, 'Outputs', 'Validation');
@@ -48,7 +48,7 @@ HydroPol2D_Main_While;
 valid = ~idx_nan;
 area_m2 = nansum(C_a(valid), 'all');
 if ~exist('system_mass_ledger', 'var')
-    error('P1-SNOW-001F did not return the requested event mass ledger.');
+    error('VAL-SNOW-001F did not return the requested event mass ledger.');
 end
 rain_volume_m3 = system_mass_ledger.cumulative_precipitation_m3;
 snow_volume_m3 = nansum(Snow_Properties.SWE_t(valid) .* C_a(valid) / 1000, 'all');
@@ -71,7 +71,7 @@ snow_module_residual_m3 = abs(mass_balance_history.cum_errors_m3(end, 2));
 finite_states = all(isfinite([Snow_Properties.SWE_t(valid); Snow_Properties.H_snow_t(valid); ...
     Snow_Properties.rho_snow(valid); depths.d_t(valid)]));
 
-Summary = table("P1-SNOW-001F", "Full V-tilted snow and runoff", rain_volume_m3, ...
+Summary = table("VAL-SNOW-001F", "Full V-tilted snow and runoff", rain_volume_m3, ...
     snow_volume_m3, surface_volume_m3, soil_volume_m3, outlet_volume_m3, ...
     initial_storage_m3, final_storage_m3, event_net_flux_m3, system_mass_residual_m3, ...
     system_mass_residual_pct, snow_module_residual_m3, finite_states, ...
@@ -174,7 +174,7 @@ end
 
 function write_full_model_timeseries(Maps, running_control, summary_dir)
 if ~isfield(Maps.Hydro, 'Snowpack') || ~isfield(Maps.Hydro, 'd')
-    error('P1-SNOW-001F did not retain snowpack and surface-water map series.');
+    error('VAL-SNOW-001F did not retain snowpack and surface-water map series.');
 end
 n = min([size(Maps.Hydro.Snowpack, 3), size(Maps.Hydro.d, 3), ...
     numel(running_control.time_records)]);
@@ -206,12 +206,12 @@ end
 function append_standard_outputs(Summary, summary_dir)
 metric_path = fullfile(summary_dir, 'Metric_Summary.csv');
 pass_path = fullfile(summary_dir, 'Pass_Fail.csv');
-metric_row = table("P1-SNOW-001F", "Full V-tilted snow and runoff", ...
+metric_row = table("VAL-SNOW-001F", "Full V-tilted snow and runoff", ...
     Summary.system_mass_residual_pct, Summary.system_mass_residual_m3, NaN, 0, ...
     Summary.passed, "Normal HydroPol2D preprocessing and routing; max_abs_error is the system mass residual [%].", ...
     'VariableNames', {'case_id','case_name','max_abs_error','mass_residual_m3', ...
     'timestep_spread_mm','fallback_cells','passed','notes'});
-pass_row = table("P1-SNOW-001F", Summary.status, Summary.passed, Summary.passed, ...
+pass_row = table("VAL-SNOW-001F", Summary.status, Summary.passed, Summary.passed, ...
     "Full V-tilted snow-and-runoff integration with internal meteorological forcing.", ...
     'VariableNames', {'case_id','status','passed','report_ready','notes'});
 

@@ -21,9 +21,9 @@ if ~exist(fig_dir, 'dir'); mkdir(fig_dir); end
 Diagnostics = [SteadyDiag; TransientDiag];
 PassFail = [pass_row(SteadyDiag, SteadyPass); pass_row(TransientDiag, TransientPass)];
 
-writetable(SteadyProfiles, fullfile(profile_dir, 'P1-GW-HILL-STEADY-001_profiles.csv'));
-writetable(TransientProfiles, fullfile(profile_dir, 'P1-GW-HILL-TRANSIENT-001_profiles.csv'));
-writetable(TransientSeries, fullfile(ts_dir, 'P1-GW-HILL-TRANSIENT-001_hydrograph.csv'));
+writetable(SteadyProfiles, fullfile(profile_dir, 'VAL-GW-HILL-STEADY-001_profiles.csv'));
+writetable(TransientProfiles, fullfile(profile_dir, 'VAL-GW-HILL-TRANSIENT-001_profiles.csv'));
+writetable(TransientSeries, fullfile(ts_dir, 'VAL-GW-HILL-TRANSIENT-001_hydrograph.csv'));
 writetable(Diagnostics, fullfile(out_dir, 'Hillslope_Groundwater_Diagnostics.csv'));
 writetable(PassFail, fullfile(out_dir, 'Hillslope_Groundwater_Pass_Fail.csv'));
 
@@ -85,7 +85,7 @@ for ir = 1:numel(resolutions)
     discharge_error_pct(ir) = abs(model_toe_q_m2_s - expected_toe_q_m2_s) / ...
         max(expected_toe_q_m2_s, eps) * 100;
 
-    case_id = repmat("P1-GW-HILL-STEADY-001", n_col, 1);
+    case_id = repmat("VAL-GW-HILL-STEADY-001", n_col, 1);
     resolution_cells = repmat(n_col, n_col, 1);
     Profiles = [Profiles; table(case_id, resolution_cells, x(:), ...
         H_model(:), H_continuous(:), H_discrete(:), error_continuous(:), ...
@@ -103,7 +103,7 @@ passed = rmse_by_resolution(fine_idx) < 1e-2 && ...
     discharge_error_pct(fine_idx) < 0.1 && ...
     convergence_ratio > 2;
 
-Diag = diagnostic_row("P1-GW-HILL-STEADY-001", "Steady Dupuit hillslope", ...
+Diag = diagnostic_row("VAL-GW-HILL-STEADY-001", "Steady Dupuit hillslope", ...
     "steady_dupuit", rmse_by_resolution(fine_idx), ...
     max_error_by_resolution(fine_idx), equilibrium_error_by_resolution(fine_idx), ...
     discharge_error_pct(fine_idx), nan, nan, convergence_ratio, passed);
@@ -185,7 +185,7 @@ peak_q_error_pct = abs(max(model_toe_q_m2_s) - max(analytical_toe_q_m2_s)) / ...
 passed = max_rmse < 0.02 && max_profile_error < 0.05 && nse > 0.99 && ...
     peak_q_error_pct < 5;
 
-Diag = diagnostic_row("P1-GW-HILL-TRANSIENT-001", ...
+Diag = diagnostic_row("VAL-GW-HILL-TRANSIENT-001", ...
     "Transient linearized Boussinesq hillslope", ...
     "transient_linearized_boussinesq", final_rmse, max_profile_error, ...
     nan, nan, nse, peak_q_error_pct, nan, passed);
@@ -224,7 +224,7 @@ analytical_q(record_idx) = Cfg.K_m_s * Cfg.base_head_m * Cfg.amplitude_m * lambd
 head_rmse(record_idx) = rmse_omitnan(err);
 max_head_error(record_idx) = max_abs_omitnan(err);
 
-case_id = repmat("P1-GW-HILL-TRANSIENT-001", numel(x), 1);
+case_id = repmat("VAL-GW-HILL-TRANSIENT-001", numel(x), 1);
 time_days_profile = repmat(time_days(record_idx), numel(x), 1);
 Profiles = [Profiles; table(case_id, time_days_profile, x(:), H_model(:), ...
     H_analytical(:), err(:), ...
@@ -246,7 +246,7 @@ nexttile;
 semilogy(SteadyProfiles.x_m(idx), abs(SteadyProfiles.analytical_error_m(idx)), 'o-');
 xlabel('Distance from divide (m)');
 ylabel('|Error| (m)');
-exportgraphics(fig, fullfile(fig_dir, 'P1_GW_HILL_STEADY_001_profile.png'), 'Resolution', 200);
+exportgraphics(fig, fullfile(fig_dir, 'VAL_GW_HILL_STEADY_001_profile.png'), 'Resolution', 200);
 close(fig);
 
 fig = figure('Visible', 'off');
@@ -268,7 +268,7 @@ plot(TransientSeries.time_days, TransientSeries.model_toe_q_m2_s, 'o-', ...
 xlabel('Time (days)');
 ylabel('Toe flux per width (m^2/s)');
 legend('HydroPol2D', 'Analytical', 'Location', 'best');
-exportgraphics(fig, fullfile(fig_dir, 'P1_GW_HILL_TRANSIENT_001_profiles_hydrograph.png'), 'Resolution', 200);
+exportgraphics(fig, fullfile(fig_dir, 'VAL_GW_HILL_TRANSIENT_001_profiles_hydrograph.png'), 'Resolution', 200);
 close(fig);
 end
 

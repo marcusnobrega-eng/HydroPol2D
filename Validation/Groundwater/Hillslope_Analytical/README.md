@@ -1,11 +1,11 @@
 # Analytical Hillslope Groundwater Benchmarks
 
-This Phase 1 validation suite checks lateral groundwater dynamics against analytical hillslope solutions.
+This validation suite checks lateral groundwater dynamics against analytical hillslope solutions.
 
 Cases:
 
-- `P1-GW-HILL-STEADY-001`: steady Dupuit hillslope with uniform recharge, no-flow divide, and fixed-head drain.
-- `P1-GW-HILL-TRANSIENT-001`: small-amplitude transient linearized Boussinesq decay mode with no-flow divide and fixed-head drain.
+- `VAL-GW-HILL-STEADY-001`: steady Dupuit hillslope with uniform recharge, no-flow divide, and fixed-head drain.
+- `VAL-GW-HILL-TRANSIENT-001`: small-amplitude transient linearized Boussinesq decay mode with no-flow divide and fixed-head drain.
 
 Run from MATLAB:
 

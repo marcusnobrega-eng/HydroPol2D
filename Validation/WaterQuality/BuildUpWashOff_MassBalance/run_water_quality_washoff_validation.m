@@ -43,15 +43,15 @@ Diagnostics = [DryDiag; SingleDiag; TwoDiag];
 MassBalance = [DryMass; SingleMass; TwoMass];
 PassFail = [DryPass; SinglePass; TwoPass];
 
-writetable(DrySeries, fullfile(ts_dir, 'P1-WQ-001_DRY_BUILDUP.csv'));
-writetable(SingleSeries, fullfile(ts_dir, 'P1-WQ-001_SINGLE_CELL.csv'));
-writetable(TwoCellSeries, fullfile(ts_dir, 'P1-WQ-001_TWO_CELL.csv'));
-writetable(struct2table(Params, 'AsArray', true), fullfile(table_dir, 'P1-WQ-001_parameters.csv'));
+writetable(DrySeries, fullfile(ts_dir, 'VAL-WQ-001_DRY_BUILDUP.csv'));
+writetable(SingleSeries, fullfile(ts_dir, 'VAL-WQ-001_SINGLE_CELL.csv'));
+writetable(TwoCellSeries, fullfile(ts_dir, 'VAL-WQ-001_TWO_CELL.csv'));
+writetable(struct2table(Params, 'AsArray', true), fullfile(table_dir, 'VAL-WQ-001_parameters.csv'));
 end
 
 function Params = base_parameters()
 Params = struct();
-Params.case_id = "P1-WQ-001";
+Params.case_id = "VAL-WQ-001";
 Params.area_m2 = 400;
 Params.runoff_mm_h = 30;
 Params.washoff_exponent = 1;
@@ -80,7 +80,7 @@ Params.washoff_coefficient = Params.lambda_h / ...
 end
 
 function [Diag, Mass, Pass, Series] = dry_buildup_case(P)
-case_id = "P1-WQ-001A";
+case_id = "VAL-WQ-001A";
 case_name = "Dry-weather TSS buildup initialization";
 reference_buildup_kg = P.max_buildup_kg_ha * ...
     (1 - exp(-P.buildup_rate_per_day * P.antecedent_dry_days)) * ...
@@ -106,7 +106,7 @@ Pass = pass_row(case_id, case_name, passed);
 end
 
 function [Diag, Mass, Pass, Series] = single_cell_washoff_case(P)
-case_id = "P1-WQ-001B";
+case_id = "VAL-WQ-001B";
 case_name = "Single-cell analytical exponential washoff";
 n_steps = round(P.duration_min / P.dt_min);
 record_every = max(1, round(P.record_dt_min / P.dt_min));
@@ -178,7 +178,7 @@ Pass = pass_row(case_id, case_name, passed);
 end
 
 function [Diag, Mass, Pass, Series] = two_cell_transfer_case(P)
-case_id = "P1-WQ-001C";
+case_id = "VAL-WQ-001C";
 case_name = "Two-cell conservative washoff transfer";
 n_steps = round(P.duration_min / P.dt_min);
 record_every = max(1, round(P.record_dt_min / P.dt_min));
@@ -335,7 +335,7 @@ xlabel('Time (min)'); ylabel('Concentration (mg/L)');
 legend('HydroPol2D', 'Analytical', 'Location', 'best');
 title('Single-cell outlet concentration');
 grid on;
-exportgraphics(fig, fullfile(fig_dir, 'P1_WQ_001_SINGLE_CELL.png'), 'Resolution', 200);
+exportgraphics(fig, fullfile(fig_dir, 'VAL_WQ_001_SINGLE_CELL.png'), 'Resolution', 200);
 close(fig);
 
 fig = figure('Visible', 'off', 'Color', 'w');
@@ -367,7 +367,7 @@ plot(TwoCellSeries.t_min, TwoCellSeries.mass_residual_kg, '--', 'LineWidth', 1.4
 ylabel('Mass residual (kg)');
 xlabel('Time (min)');
 grid on;
-exportgraphics(fig, fullfile(fig_dir, 'P1_WQ_001_TWO_CELL.png'), 'Resolution', 200);
+exportgraphics(fig, fullfile(fig_dir, 'VAL_WQ_001_TWO_CELL.png'), 'Resolution', 200);
 close(fig);
 end
 

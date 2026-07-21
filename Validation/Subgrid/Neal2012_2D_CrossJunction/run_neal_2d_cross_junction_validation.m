@@ -116,10 +116,10 @@ Cfg.south_vertices = [495 0; 495 495];
 
 switch Cfg.flow_regime
     case "overbank"
-        Cfg.case_id = "P1-SUBGRID-NEAL-2D-CROSS-001";
+        Cfg.case_id = "VAL-SUBGRID-NEAL-2D-CROSS-001";
         Cfg.total_inflow_m3s = 300;
     case "inbank"
-        Cfg.case_id = "P1-SUBGRID-NEAL-2D-CROSS-INBANK-001";
+        Cfg.case_id = "VAL-SUBGRID-NEAL-2D-CROSS-INBANK-001";
         Cfg.channel_depth_m = 3;
         Cfg.total_inflow_m3s = 50;
     otherwise

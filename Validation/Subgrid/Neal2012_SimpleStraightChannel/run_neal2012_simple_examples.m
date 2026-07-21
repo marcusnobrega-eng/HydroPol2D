@@ -66,7 +66,7 @@ fprintf('Simple Neal examples complete. %d of %d cases passed.\n', ...
 
 %% ------------------------------------------------------------------------
 function cases = define_cases()
-cases(1).id = "P1-SUBGRID-NEAL-SIMPLE-001";
+cases(1).id = "VAL-SUBGRID-NEAL-SIMPLE-001";
 cases(1).name = "FiveCell_WithinBank";
 cases(1).n_cells_coarse = 5;
 cases(1).warmup_q_m3s = 0.0;
@@ -75,7 +75,7 @@ cases(1).duration_min = 120.0;
 cases(1).qfun = @(t) 5.0 + 0.*t;
 cases(1).comparison_state = "final";
 
-cases(2).id = "P1-SUBGRID-NEAL-SIMPLE-002";
+cases(2).id = "VAL-SUBGRID-NEAL-SIMPLE-002";
 cases(2).name = "ThirtyCell_WithinBank";
 cases(2).n_cells_coarse = 30;
 cases(2).warmup_q_m3s = 0.0;
@@ -84,7 +84,7 @@ cases(2).duration_min = 420.0;
 cases(2).qfun = @(t) 5.0 + 0.*t;
 cases(2).comparison_state = "final";
 
-cases(3).id = "P1-SUBGRID-NEAL-SIMPLE-003";
+cases(3).id = "VAL-SUBGRID-NEAL-SIMPLE-003";
 cases(3).name = "TenCell_WetStart_BankfullPulse";
 cases(3).n_cells_coarse = 10;
 cases(3).warmup_q_m3s = 5.0;
@@ -479,7 +479,7 @@ pass_flag = abs(neal.MassResidual_pct) < 0.1 && ...
     neal.HydrographNSE >= coarse.HydrographNSE && ...
     neal.StageRMSE_m <= coarse.StageRMSE_m;
 
-if cfg.id ~= "P1-SUBGRID-NEAL-SIMPLE-003"
+if cfg.id ~= "VAL-SUBGRID-NEAL-SIMPLE-003"
     pass_flag = pass_flag && neal.HydrographNSE > 0.95 && neal.StageRMSE_m < 0.10;
 end
 

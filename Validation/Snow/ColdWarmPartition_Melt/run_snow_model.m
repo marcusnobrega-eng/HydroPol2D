@@ -1,6 +1,6 @@
-% P1-SNOW-001: configurable snow accumulation, melt, and initialization.
+% VAL-SNOW-001: configurable snow accumulation, melt, and initialization.
 %
-% This Phase 1 suite validates the active per-LULC snow pathway. It tests
+% This validation suite validates the active per-LULC snow pathway. It tests
 % precipitation partitioning, storage bookkeeping, raster initial states,
 % time-step scaling, class-code fallback, and the Snow_Module coupling on a
 % small V-tilted grid. It does not claim field-scale snow calibration.
@@ -110,10 +110,10 @@ finite_ok = all(isfinite([swe_cold,swe_mixed,swe_warm,melt_cold,melt_mixed,melt_
     sub_cold,sub_mixed,sub_warm]));
 passed = partition_error < 1e-12 && mass_residual_mm < 1e-10 && finite_ok;
 
-Diag = diagnostic_row("P1-SNOW-001A", "Configurable precipitation partition and storage", ...
+Diag = diagnostic_row("VAL-SNOW-001A", "Configurable precipitation partition and storage", ...
     partition_error, mass_residual_mm / 1000, 0, 0, passed, ...
     "Cold, mixed, and warm precipitation follow the configured -1 to 1 degC transition.");
-Ledger = ledger_row("P1-SNOW-001A", 30, snow_cold + snow_mixed + snow_warm, ...
+Ledger = ledger_row("VAL-SNOW-001A", 30, snow_cold + snow_mixed + snow_warm, ...
     rain_cold + rain_mixed + rain_warm, melt_cold + melt_mixed + melt_warm, ...
     sub_cold + sub_mixed + sub_warm, swe_cold + swe_mixed + swe_warm, mass_residual_mm);
 end
@@ -149,10 +149,10 @@ initial_error = max(abs([ ...
 fallback_cells = sum(Audit.cell_count(Audit.mapping_status == "fallback_area_weighted_mean"));
 passed = initial_error < 1e-12 && inconsistent_raised && fallback_cells == 1;
 
-Diag = diagnostic_row("P1-SNOW-001B", "Per-LULC parameters and raster initial states", ...
+Diag = diagnostic_row("VAL-SNOW-001B", "Per-LULC parameters and raster initial states", ...
     initial_error, 0, 0, fallback_cells, passed, ...
     "No raster, SWE-only, depth-only, both-raster, and inconsistent-raster paths were exercised.");
-Ledger = ledger_row("P1-SNOW-001B", 0, 0, 0, 0, 0, 0, 0);
+Ledger = ledger_row("VAL-SNOW-001B", 0, 0, 0, 0, 0, 0, 0);
 end
 
 function [Diag, Ledger, Series, passed] = test_timestep_refinement()
@@ -182,10 +182,10 @@ time_error = max(abs(final_swe - expected_swe_mm));
 time_spread = max(final_swe) - min(final_swe);
 mass_residual_mm = max(abs(Series.mass_residual_mm));
 passed = time_error < 1e-10 && time_spread < 1e-10 && mass_residual_mm < 1e-10;
-Diag = diagnostic_row("P1-SNOW-001C", "Time-step refinement", ...
+Diag = diagnostic_row("VAL-SNOW-001C", "Time-step refinement", ...
     time_error, mass_residual_mm / 1000, time_spread, 0, passed, ...
     "Five, fifteen, and sixty minute integrations recover the same 96 mm degree-day solution.");
-Ledger = ledger_row("P1-SNOW-001C", 0, 0, 0, 4, 0, mean(final_swe), mass_residual_mm);
+Ledger = ledger_row("VAL-SNOW-001C", 0, 0, 0, 4, 0, mean(final_swe), mass_residual_mm);
 end
 
 function [Diag, Ledger, Series, passed] = test_vtilted_snow_module(Config)
@@ -239,10 +239,10 @@ mass_residual_mm = max(abs(Series.mass_residual_mm));
 two_class_response = abs(Snow_Properties.DDF(1,1) - Snow_Properties.DDF(1,3));
 finite_ok = all(isfinite([Series.mean_swe_mm; Series.mean_surface_water_mm; Series.mean_snow_density_kg_m3]));
 passed = mass_residual_mm < 1e-8 && two_class_response > 0 && finite_ok;
-Diag = diagnostic_row("P1-SNOW-001D", "V-tilted snow and runoff coupling", ...
+Diag = diagnostic_row("VAL-SNOW-001D", "V-tilted snow and runoff coupling", ...
     0, mass_residual_mm * 9 * 400 / 1000, 0, 0, passed, ...
     "A two-class V-tilted grid routes liquid rain and melt to surface storage while retaining snowpack SWE.");
-Ledger = ledger_row("P1-SNOW-001D", cumulative_precip_mm * 9 * 400 / 1000, ...
+Ledger = ledger_row("VAL-SNOW-001D", cumulative_precip_mm * 9 * 400 / 1000, ...
     sum(Series.mean_snowfall_mm) * 9 * 400 / 1000, sum(Series.mean_rainfall_mm) * 9 * 400 / 1000, ...
     sum(Series.mean_melt_mm) * 9 * 400 / 1000, cumulative_sublimation_mm * 9 * 400 / 1000, ...
     (Series.mean_swe_mm(end) + Series.mean_surface_water_mm(end)) * 9 * 400 / 1000, ...
@@ -268,10 +268,10 @@ BypassConfigFromWorkbook = hp2d_normalize_snow_table(struct('table', BypassTable
 config_error = max(abs([ExcelConfig.class_index - BypassConfigFromWorkbook.class_index; ...
     ExcelConfig.parameter_values(:) - BypassConfigFromWorkbook.parameter_values(:)]));
 passed = config_error < 1e-12 && ~isempty(BypassConfig.class_index);
-Diag = diagnostic_row("P1-SNOW-001E", "Excel and bypass configuration equivalence", ...
+Diag = diagnostic_row("VAL-SNOW-001E", "Excel and bypass configuration equivalence", ...
     config_error, 0, 0, 0, passed, ...
     "The LULC workbook and LULC-table bypass interface produce identical snow parameter arrays.");
-Ledger = ledger_row("P1-SNOW-001E", 0, 0, 0, 0, 0, 0, 0);
+Ledger = ledger_row("VAL-SNOW-001E", 0, 0, 0, 0, 0, 0, 0);
 end
 
 function p = scalar_parameters(Config, row)
@@ -333,7 +333,7 @@ title('V-tilted snow and runoff response', 'FontWeight', 'normal');
 
 set(findall(gcf, '-property', 'FontName'), 'FontName', 'Helvetica');
 set(findall(gcf, '-property', 'LineWidth'), 'LineWidth', 1.5);
-exportgraphics(gcf, fullfile(fig_dir, 'snow_phase1_dynamics.png'), 'Resolution', 300);
-exportgraphics(gcf, fullfile(fig_dir, 'snow_phase1_dynamics.pdf'), 'ContentType', 'vector');
+exportgraphics(gcf, fullfile(fig_dir, 'snow_validation_dynamics.png'), 'Resolution', 300);
+exportgraphics(gcf, fullfile(fig_dir, 'snow_validation_dynamics.pdf'), 'ContentType', 'vector');
 close(gcf);
 end

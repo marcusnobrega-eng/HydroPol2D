@@ -1,4 +1,4 @@
-# P1-HR-001: Human Risk and Instability
+# VAL-HR-001: Human Risk and Instability
 
 Purpose: validate HydroPol2D's deterministic human-risk and instability routines against independent algebraic force-balance references.
 

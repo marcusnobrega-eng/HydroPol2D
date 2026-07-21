@@ -468,7 +468,7 @@ exportgraphics(f, fullfile(fig_dir, 'VTilted_ET_Overview.png'), 'Resolution', 22
 exportgraphics(f, fullfile(fig_dir, 'VTilted_ET_Overview.pdf'), 'ContentType','vector');
 close(f)
 
-files = dir(fullfile(cell_dir, 'P1-ET-VT-*_cells.csv'));
+files = dir(fullfile(cell_dir, 'VAL-ET-VT-*_cells.csv'));
 for i = 1:numel(files)
     T = readtable(fullfile(files(i).folder, files(i).name), 'TextType', 'string');
     make_case_map_figure(T, fig_dir);

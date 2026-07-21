@@ -1,4 +1,4 @@
-# P1-INFIL-LAYERS-001: Layered Soil Profile Fallbacks
+# VAL-INFIL-LAYERS-001: Layered Soil Profile Fallbacks
 
 Purpose: verify preprocessing logic for the proposed near-surface, root-zone, transmission-zone, and groundwater-zone discretization.
 
@@ -19,7 +19,7 @@ Required diagnostics:
 - `Outputs/Validation/Layered_Profile_Diagnostics.csv`
 - `Outputs/Validation/Pass_Fail.csv`
 
-## P1-INFIL-LAYERS-002: Layered Soil Dynamics
+## VAL-INFIL-LAYERS-002: Layered Soil Dynamics
 
 Purpose: verify active water-balance operations on the near-surface,
 root-zone, and transmission-zone storages.

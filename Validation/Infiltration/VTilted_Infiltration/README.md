@@ -1,6 +1,6 @@
 # V-Tilted Infiltration Validation Suite
 
-This suite validates meaningful infiltration regimes on the Phase 1 V-tilted
+This suite validates meaningful infiltration regimes on V-tilted validation
 catchment context. The cases are not fallback tests. They are hydrologic
 regime checks for rainfall supply, hydraulic intake capacity, finite vadose
 storage, layer percolation, shallow groundwater coupling, and spatial soil
@@ -16,13 +16,13 @@ moderately slower transmission-zone flow.
 
 ## Cases
 
-- `P1-INFIL-VT-000`: no-infiltration loam baseline.
-- `P1-INFIL-VT-001`: supply-limited sandy-loam infiltration.
-- `P1-INFIL-VT-002`: capacity-limited clay-loam infiltration.
-- `P1-INFIL-VT-003`: shallow sandy-loam storage-excess transition.
-- `P1-INFIL-VT-004`: moist sandy-loam layered percolation and recharge delay.
-- `P1-INFIL-VT-005`: shallow-groundwater loam saturation-excess response.
-- `P1-INFIL-VT-006`: sandy-loam conductivity contrast.
+- `VAL-INFIL-VT-000`: no-infiltration loam baseline.
+- `VAL-INFIL-VT-001`: supply-limited sandy-loam infiltration.
+- `VAL-INFIL-VT-002`: capacity-limited clay-loam infiltration.
+- `VAL-INFIL-VT-003`: shallow sandy-loam storage-excess transition.
+- `VAL-INFIL-VT-004`: moist sandy-loam layered percolation and recharge delay.
+- `VAL-INFIL-VT-005`: shallow-groundwater loam saturation-excess response.
+- `VAL-INFIL-VT-006`: sandy-loam conductivity contrast.
 
 ## Run
 

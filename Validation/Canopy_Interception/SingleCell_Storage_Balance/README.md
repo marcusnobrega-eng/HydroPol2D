@@ -2,7 +2,7 @@
 
 Purpose: validate canopy interception storage before coupled surface or subsurface routing.
 
-Phase 1 case-study domain: `HydroPol2D_Model/Validation/Phase1_VTilted_Catchment`. The same canopy bucket reference is evaluated by v-tilted LAI zone, including the LAI=0 channel strip for bypass behavior.
+validation case-study domain: `HydroPol2D_Model/Validation/VTilted_Catchment`. The same canopy bucket reference is evaluated by v-tilted LAI zone, including the LAI=0 channel strip for bypass behavior.
 
 Expected behavior:
 - LAI=0 bypasses canopy interception.
@@ -18,12 +18,12 @@ Required diagnostics:
 
 Acceptance threshold: storage residual `< 1e-6 m3` and bypass/throughfall-onset errors at numerical precision.
 
-## Phase 1 implementation
+## validation implementation
 
 Generate the independent reference:
 
 ```bash
-python3 HydroPol2D_Model/Validation/scripts/phase1_reference_solutions.py --case canopy_bucket --output HydroPol2D_Model/Validation/Reference_Outputs/Phase1
+python3 HydroPol2D_Model/Validation/scripts/reference_solutions.py --case canopy_bucket --output HydroPol2D_Model/Validation/Reference_Outputs/Validation
 ```
 
 Run the actual HydroPol2D interception function in MATLAB:

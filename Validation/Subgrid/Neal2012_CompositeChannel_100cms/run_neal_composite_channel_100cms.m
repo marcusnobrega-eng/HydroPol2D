@@ -29,7 +29,7 @@ Cfg.midpoint_x_m = Cfg.length_m / 2;
 
 switch forcing_type
     case "constant"
-        Cfg.case_id = "P1-SUBGRID-NEAL-COMPOSITE-100CMS-001";
+        Cfg.case_id = "VAL-SUBGRID-NEAL-COMPOSITE-100CMS-001";
         Cfg.forcing_name = "Constant 100 m3/s";
         Cfg.peak_inflow_m3s = 100;
         Cfg.duration_min = 120;
@@ -37,7 +37,7 @@ switch forcing_type
         out_dir = fullfile(case_dir, 'Outputs', 'Validation');
         fig_dir = fullfile(case_dir, 'Figures');
     case "nash"
-        Cfg.case_id = "P1-SUBGRID-NEAL-COMPOSITE-NASH100-001";
+        Cfg.case_id = "VAL-SUBGRID-NEAL-COMPOSITE-NASH100-001";
         Cfg.forcing_name = "Nash hydrograph, peak 100 m3/s at 30 min";
         Cfg.peak_inflow_m3s = 100;
         Cfg.nash_shape = 4;

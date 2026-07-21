@@ -1,52 +1,31 @@
-# HydroPol2D Phase 1 Validation
+# HydroPol2D Validation
 
-This folder contains the controlled tests used to verify the current
-HydroPol2D implementation. Phase 1 tests equations, numerical dynamics,
-mass conservation, and boundary handling against analytical solutions,
-independent reference calculations, or refined numerical references. It
-does not constitute field calibration or field validation.
+This folder contains the HydroPol2D validation suite. The cases assess equations, numerical dynamics, mass conservation, and boundary handling against analytical solutions, independent reference calculations, benchmark hydrographs, or refined numerical references.
 
-`Phase1_Cases.csv` is the release registry. Each row identifies the model
-component, the driver, the truth source, the acceptance criterion, and the
-evidence status. The detailed report is maintained separately in the
-documentation repository.
+[Validation_Cases.csv](Validation_Cases.csv) is the executable registry. Each row identifies the model component, driver, reference source, acceptance criterion, and evidence status. The full report is maintained in the documentation repository.
 
-## Run the release suite
-
-From the repository root:
+## Run the validation suite
 
 ```bash
-python3 Validation/scripts/run_phase1_release.py \
+python3 Validation/scripts/run_validation_release.py \
   --matlab /Applications/MATLAB_R2025b.app/bin/matlab
 ```
 
-The runner starts every test in a clean MATLAB process. It writes a compact
-summary to `Validation/Release/Outputs/Phase1_Release_Summary.csv` and
-returns a nonzero exit status when a report-ready test fails. The V-tilted
-infiltration formula suite and its full-domain reruns are executed separately:
-the former supplies the strict criteria and the latter checks normal model
-execution. Generated outputs are ignored by Git.
+The runner starts each test in a clean MATLAB process. It writes a compact summary to `Validation/Release/Outputs/Validation_Release_Summary.csv` and returns a nonzero status when a report-ready case fails.
 
-Run the registry check after the suite:
+Check the registry after a run:
 
 ```bash
-python3 Validation/scripts/audit_validation_registry.py Validation/Phase1_Cases.csv
+python3 Validation/scripts/audit_validation_registry.py \
+  Validation/Validation_Cases.csv
 ```
 
-## Evidence levels
+## Evidence status
 
-- `report_ready`: passed the stated Phase 1 criterion.
-- `diagnostic`: completed and retained to show the limits of an
-  approximation; it is not a validation claim for that process.
-- `limited`: passed its primary controlled metrics but has a stated
-  limitation that must accompany any use of the result.
+- `report_ready`: meets its stated acceptance criterion.
+- `diagnostic`: retained to document the behavior or limitation of an approximation; not used as acceptance evidence.
+- `limited`: meets its primary metrics and has a stated limitation that accompanies the result.
 
 ## Coverage
 
-The release suite covers canopy interception, snow, layered infiltration,
-evapotranspiration, recharge and groundwater flow, full-momentum and
-local-inertial hydrodynamics, cellular automata, kinematic and diffusive
-routing, reservoir dynamics, inflow and stage boundaries, spatial rainfall,
-water quality, human-risk classification, and the Neal (2012) local-inertial
-channel extension. The subgrid extension is tested only for its documented
-channel geometries and local-inertial routing.
+The suite covers canopy interception, snow, layered infiltration, evapotranspiration, recharge and groundwater flow, full-momentum and local-inertial hydrodynamics, cellular automata, kinematic and diffusive routing, reservoir dynamics, inflow and stage boundaries, spatial rainfall, water quality, human-risk classification, and the Neal (2012) local-inertial channel extension.

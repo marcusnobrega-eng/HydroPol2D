@@ -1,4 +1,4 @@
-# P1-ROUTE-DIFF-001: Diffusive Wave Attenuation Benchmark
+# VAL-ROUTE-DIFF-001: Diffusive Wave Attenuation Benchmark
 
 Purpose: validate the diffusive routing option only after implementation audit and correction.
 

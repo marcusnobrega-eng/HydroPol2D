@@ -19,11 +19,11 @@ ensure_dir(table_dir);
 writetable(Diagnostics, fullfile(out_dir, 'Metric_Summary.csv'));
 writetable(MassBalance, fullfile(out_dir, 'Mass_Balance.csv'));
 writetable(PassFail, fullfile(out_dir, 'Pass_Fail.csv'));
-writetable(SimpleGrid, fullfile(table_dir, 'P1-HR-001_simple_instability_grid.csv'));
-writetable(ForceGrid, fullfile(table_dir, 'P1-HR-001_force_balance_grid.csv'));
-writetable(BoundaryTable, fullfile(table_dir, 'P1-HR-001_boundary_checks.csv'));
-writetable(ConfusionTable, fullfile(table_dir, 'P1-HR-001_confusion_table.csv'));
-writetable(struct2table(Params, 'AsArray', true), fullfile(table_dir, 'P1-HR-001_parameters.csv'));
+writetable(SimpleGrid, fullfile(table_dir, 'VAL-HR-001_simple_instability_grid.csv'));
+writetable(ForceGrid, fullfile(table_dir, 'VAL-HR-001_force_balance_grid.csv'));
+writetable(BoundaryTable, fullfile(table_dir, 'VAL-HR-001_boundary_checks.csv'));
+writetable(ConfusionTable, fullfile(table_dir, 'VAL-HR-001_confusion_table.csv'));
+writetable(struct2table(Params, 'AsArray', true), fullfile(table_dir, 'VAL-HR-001_parameters.csv'));
 
 make_figures(SimpleGrid, ForceGrid, fig_dir);
 
@@ -45,7 +45,7 @@ end
 
 function Params = base_parameters()
 Params = struct();
-Params.case_id = "P1-HR-001";
+Params.case_id = "VAL-HR-001";
 Params.mu = 0.6;
 Params.Cd = 1.0;
 Params.ro_water = 1000;
@@ -62,7 +62,7 @@ Params.tolerance = 1e-12;
 end
 
 function [Diag, Mass, Pass, Grid] = simple_instability_case(P)
-case_id = "P1-HR-001A";
+case_id = "VAL-HR-001A";
 case_name = "Simple drag-friction instability index";
 
 depth_values_m = [0, 0.05, 0.15, 0.30, 0.60, 1.10, 1.30];
@@ -107,7 +107,7 @@ Pass = pass_row(case_id, case_name, passed);
 end
 
 function [Diag, Mass, Pass, Grid, BoundaryTable, ConfusionTable] = force_balance_case(P)
-case_id = "P1-HR-001B";
+case_id = "VAL-HR-001B";
 case_name = "Detailed slide-topple-drowning classifier";
 
 depth_values_m = unique([0, 0.05, 0.25, 0.50, 1.05, P.height_m * 13 / 16, ...
@@ -313,7 +313,7 @@ xlabel('Velocity (m/s)');
 ylabel('Depth (m)');
 title('Model minus reference');
 colorbar;
-exportgraphics(fig, fullfile(fig_dir, 'P1_HR_001_SIMPLE_INSTABILITY.png'), 'Resolution', 200);
+exportgraphics(fig, fullfile(fig_dir, 'VAL_HR_001_SIMPLE_INSTABILITY.png'), 'Resolution', 200);
 close(fig);
 
 force_depths = unique(ForceGrid.depth_m);
@@ -338,7 +338,7 @@ xlabel('Velocity (m/s)');
 ylabel('Depth (m)');
 title('Model minus reference class');
 colorbar;
-exportgraphics(fig, fullfile(fig_dir, 'P1_HR_001_FORCE_BALANCE.png'), 'Resolution', 200);
+exportgraphics(fig, fullfile(fig_dir, 'VAL_HR_001_FORCE_BALANCE.png'), 'Resolution', 200);
 close(fig);
 end
 

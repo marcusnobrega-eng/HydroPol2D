@@ -1,5 +1,5 @@
 Parameter,Value,Units,Description
-case_id,P1-SUBGRID-NEAL-STAGED-OVERBANK-001,-,Staged compound-channel benchmark
+case_id,VAL-SUBGRID-NEAL-STAGED-OVERBANK-001,-,Staged compound-channel benchmark
 reach_length,1000,m,Longitudinal reach length
 domain_width,300,m,Total modeled cross-section width
 fine_resolution,5,m,Explicit numerical reference

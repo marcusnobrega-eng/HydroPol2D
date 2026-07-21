@@ -25,15 +25,15 @@ Each case compares:
 
 ## Cases
 
-- `P1-SUBGRID-NEAL-SIMPLE-001`
+- `VAL-SUBGRID-NEAL-SIMPLE-001`
   - 5 coarse cells long
   - constant within-bank inflow
 
-- `P1-SUBGRID-NEAL-SIMPLE-002`
+- `VAL-SUBGRID-NEAL-SIMPLE-002`
   - 30 coarse cells long
   - constant within-bank inflow
 
-- `P1-SUBGRID-NEAL-SIMPLE-003`
+- `VAL-SUBGRID-NEAL-SIMPLE-003`
   - 10 coarse cells long
   - wet-start pulse that crosses bankfull
 

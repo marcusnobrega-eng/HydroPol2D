@@ -17,22 +17,22 @@ Diagnostics = table();
 PassFail = table();
 
 [Diag, Series, passed] = run_constant_recharge_case(functions_dir, true);
-writetable(Series, fullfile(ts_dir, 'P1-GW-ASYNC-001.csv'));
+writetable(Series, fullfile(ts_dir, 'VAL-GW-ASYNC-001.csv'));
 Diagnostics = [Diagnostics; Diag]; %#ok<AGROW>
 PassFail = [PassFail; pass_row(Diag, passed)]; %#ok<AGROW>
 
 [Diag, Series, passed] = run_scheduler_equivalence_case(functions_dir);
-writetable(Series, fullfile(ts_dir, 'P1-GW-ASYNC-002.csv'));
+writetable(Series, fullfile(ts_dir, 'VAL-GW-ASYNC-002.csv'));
 Diagnostics = [Diagnostics; Diag]; %#ok<AGROW>
 PassFail = [PassFail; pass_row(Diag, passed)]; %#ok<AGROW>
 
 [Diag, Series, passed] = run_capillary_case(functions_dir);
-writetable(Series, fullfile(ts_dir, 'P1-GW-CAP-001.csv'));
+writetable(Series, fullfile(ts_dir, 'VAL-GW-CAP-001.csv'));
 Diagnostics = [Diagnostics; Diag]; %#ok<AGROW>
 PassFail = [PassFail; pass_row(Diag, passed)]; %#ok<AGROW>
 
 [Diag, Series, passed] = run_boussinesq_mound_case(functions_dir);
-writetable(Series, fullfile(ts_dir, 'P1-GW-MOUND-001.csv'));
+writetable(Series, fullfile(ts_dir, 'VAL-GW-MOUND-001.csv'));
 Diagnostics = [Diagnostics; Diag]; %#ok<AGROW>
 PassFail = [PassFail; pass_row(Diag, passed)]; %#ok<AGROW>
 
@@ -45,7 +45,7 @@ disp(PassFail);
 
 function [Diag, Series, passed] = run_constant_recharge_case(functions_dir, async_enabled)
 Cfg = base_cfg();
-Cfg.case_id = "P1-GW-ASYNC-001";
+Cfg.case_id = "VAL-GW-ASYNC-001";
 Cfg.case_name = "Constant recharge water-table rise";
 Cfg.regime = "local_recharge";
 Cfg.flag_baseflow = 0;
@@ -81,7 +81,7 @@ end
 
 function [Diag, Series, passed] = run_scheduler_equivalence_case(functions_dir)
 CfgAsync = base_cfg();
-CfgAsync.case_id = "P1-GW-ASYNC-002";
+CfgAsync.case_id = "VAL-GW-ASYNC-002";
 CfgAsync.case_name = "Recharge accumulation equivalence";
 CfgAsync.regime = "scheduler_equivalence";
 CfgAsync.flag_baseflow = 0;
@@ -128,7 +128,7 @@ end
 
 function [Diag, Series, passed] = run_capillary_case(functions_dir)
 Cfg = base_cfg();
-Cfg.case_id = "P1-GW-CAP-001";
+Cfg.case_id = "VAL-GW-CAP-001";
 Cfg.case_name = "Capillary rise drawdown";
 Cfg.regime = "capillary_rise";
 Cfg.flag_baseflow = 0;
@@ -168,7 +168,7 @@ end
 
 function [Diag, Series, passed] = run_boussinesq_mound_case(functions_dir)
 CfgFine = base_cfg();
-CfgFine.case_id = "P1-GW-MOUND-001";
+CfgFine.case_id = "VAL-GW-MOUND-001";
 CfgFine.case_name = "Boussinesq recharge mound";
 CfgFine.regime = "boussinesq_mound";
 CfgFine.flag_baseflow = 1;
@@ -470,14 +470,14 @@ row = table(Diag.case_id, Diag.case_name, Diag.regime, status, passed, ...
 end
 
 function make_figures(ts_dir, fig_dir)
-plot_case(fullfile(ts_dir, 'P1-GW-ASYNC-001.csv'), fig_dir, ...
-    'P1_GW_ASYNC_001_head_recharge.png', ...
+plot_case(fullfile(ts_dir, 'VAL-GW-ASYNC-001.csv'), fig_dir, ...
+    'VAL_GW_ASYNC_001_head_recharge.png', ...
     'Constant recharge water-table rise');
-plot_case(fullfile(ts_dir, 'P1-GW-CAP-001.csv'), fig_dir, ...
-    'P1_GW_CAP_001_capillary.png', ...
+plot_case(fullfile(ts_dir, 'VAL-GW-CAP-001.csv'), fig_dir, ...
+    'VAL_GW_CAP_001_capillary.png', ...
     'Capillary rise drawdown');
 
-T = readtable(fullfile(ts_dir, 'P1-GW-ASYNC-002.csv'));
+T = readtable(fullfile(ts_dir, 'VAL-GW-ASYNC-002.csv'));
 fig = figure('Visible', 'off');
 tiledlayout(2, 1);
 nexttile;
@@ -487,10 +487,10 @@ nexttile;
 plot(T.time_h, T.async_pending_net_mm, '-o');
 xlabel('Time (h)'); ylabel('Pending recharge (mm)');
 title('Recharge accumulation equivalence');
-exportgraphics(fig, fullfile(fig_dir, 'P1_GW_ASYNC_002_equivalence.png'), 'Resolution', 200);
+exportgraphics(fig, fullfile(fig_dir, 'VAL_GW_ASYNC_002_equivalence.png'), 'Resolution', 200);
 close(fig);
 
-T = readtable(fullfile(ts_dir, 'P1-GW-MOUND-001.csv'));
+T = readtable(fullfile(ts_dir, 'VAL-GW-MOUND-001.csv'));
 fig = figure('Visible', 'off');
 tiledlayout(2, 1);
 nexttile;
@@ -500,7 +500,7 @@ nexttile;
 plot(T.time_h, T.async_recharge_mm_h, '-o', T.time_h, T.reference_recharge_mm_h, '--');
 xlabel('Time (h)'); ylabel('Recharge (mm/h)');
 title('Boussinesq recharge mound');
-exportgraphics(fig, fullfile(fig_dir, 'P1_GW_MOUND_001_reference.png'), 'Resolution', 200);
+exportgraphics(fig, fullfile(fig_dir, 'VAL_GW_MOUND_001_reference.png'), 'Resolution', 200);
 close(fig);
 end
 

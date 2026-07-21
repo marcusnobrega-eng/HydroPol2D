@@ -1,0 +1,9 @@
+case_id,module,phase,evidence_type,truth_source,driver,flags,status
+VAL-HYDRO-LI-PLANE-001,Hydrodynamics,final,analytical_solution,Kinematic-wave tilted-plane limit,run_local_inertial_ca_hydrodynamics_validation.m,flag_inertial=1,report_ready
+VAL-HYDRO-LI-VTILT-001,Hydrodynamics,final,exact_bookkeeping,Mass conservation and bilateral symmetry on V-tilted domain,run_local_inertial_ca_hydrodynamics_validation.m,flag_inertial=1,report_ready
+VAL-HYDRO-LI-RITTER-001,Hydrodynamics,final,method_limited_diagnostic,Ritter dry-bed dam-break solution,run_local_inertial_ca_hydrodynamics_validation.m,flag_inertial=1,method_limited_diagnostic
+VAL-BC-STAGE-LI-001,Stage hydrograph boundary,final,exact_bookkeeping,Prescribed stage and volume ledger,run_local_inertial_ca_hydrodynamics_validation.m,flag_inertial=1; flag_stage_hydrograph=1,report_ready
+VAL-HYDRO-CA-PLANE-001,Hydrodynamics,final,diagnostic_analytical,Kinematic-wave tilted-plane limit,run_local_inertial_ca_hydrodynamics_validation.m,flag_CA=1,report_ready
+VAL-HYDRO-CA-VTILT-001,Hydrodynamics,final,exact_bookkeeping,Mass conservation and bilateral symmetry on V-tilted domain,run_local_inertial_ca_hydrodynamics_validation.m,flag_CA=1,report_ready
+VAL-HYDRO-CA-RITTER-001,Hydrodynamics,final,not_applicable_to_ritter,Ritter dry-bed dam-break solution,run_local_inertial_ca_hydrodynamics_validation.m,flag_CA=1,not_applicable_to_ritter
+VAL-BC-STAGE-CA-001,Stage hydrograph boundary,final,exact_bookkeeping,Prescribed stage and volume ledger,run_local_inertial_ca_hydrodynamics_validation.m,flag_CA=1; flag_stage_hydrograph=1,report_ready

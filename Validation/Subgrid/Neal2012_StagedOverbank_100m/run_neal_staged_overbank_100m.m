@@ -46,7 +46,7 @@ end
 
 function Cfg = default_config()
 Cfg = struct();
-Cfg.case_id = "P1-SUBGRID-NEAL-STAGED-OVERBANK-001";
+Cfg.case_id = "VAL-SUBGRID-NEAL-STAGED-OVERBANK-001";
 Cfg.length_m = 1000;
 Cfg.domain_width_m = 300;
 Cfg.fine_dx_m = 5;
