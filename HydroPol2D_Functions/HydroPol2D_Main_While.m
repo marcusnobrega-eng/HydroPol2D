@@ -80,10 +80,21 @@ end
 if nnz(active_routing_flags) == 0
     flags.flag_inertial = 1;
 end
-if isfield(flags, 'flag_subgrid') && flags.flag_subgrid == 1 && flags.flag_full_momentum == 1
-    error(['Lookup-table subgrid routing is currently validated only with ', ...
-        'the local-inertial solver. Set flag_full_momentum=0 and ', ...
-        'flag_inertial=1, or disable flag_subgrid.']);
+if ~isfield(flags, 'flag_overbanks') || isempty(flags.flag_overbanks)
+    flags.flag_overbanks = 0;
+end
+if isfield(flags, 'flag_subgrid') && flags.flag_subgrid == 1
+    if flags.flag_overbanks == 1
+        if flags.flag_inertial ~= 1 || flags.flag_full_momentum == 1 || ...
+                flags.flag_diffusive == 1 || flags.flag_kinematic == 1 || flags.flag_CA == 1
+            error(['Neal 2012 channel-subgrid mode (flag_subgrid=1, flag_overbanks=1) ', ...
+                'is supported only with the local-inertial solver.']);
+        end
+    else
+        error(['Lookup-table subgrid is currently paused. Use ', ...
+            'flag_subgrid=1 with flag_overbanks=1 for the Neal 2012 simple ', ...
+            'channel-subgrid mode, or disable flag_subgrid.']);
+    end
 end
 
 GW_Depth_check = BC_States.h_t - (elevation - Soil_Properties.Soil_Depth);
@@ -214,6 +225,14 @@ end
 % For local inertial / diffusive / kinematic:
 %   outflow_bates(:,:,1:3) = [x-face flux, y-face flux, outlet sink]
 %
+% For SFINCS lookup-subgrid local inertial:
+%   outflow_bates(:,:,1:3) = [x-face flux, y-face flux, outlet sink]
+%   outflow_bates(:,:,4:5) = kfuv wet-state memory for x/y faces
+%   outflow_bates(:,:,6)   = previous cell water level zs0 [m]
+%   outflow_bates(:,:,7)   = zsderv wiggle-suppression memory [m]
+%   outflow_bates(:,:,8)   = boundary uvmean memory [m2/s]
+%   outflow_bates(:,:,9)   = cell storage volume z_volume [m3]
+%
 % For full momentum:
 %   outflow_bates(:,:,1) = x-face flux [mm/h]
 %   outflow_bates(:,:,2) = y-face flux [mm/h]
@@ -224,7 +243,9 @@ end
 
 if ~exist('outflow_bates','var') || isempty(outflow_bates)
 
-    if flags.flag_full_momentum == 1
+    if flags.flag_subgrid == 1 && flags.flag_inertial == 1
+        outflow_bates = zeros(ny,nx,9,'like',depths.d_t);
+    elseif flags.flag_full_momentum == 1
         outflow_bates = zeros(ny,nx,5,'like',depths.d_t);
     else
         outflow_bates = zeros(ny,nx,3,'like',depths.d_t);
@@ -232,9 +253,15 @@ if ~exist('outflow_bates','var') || isempty(outflow_bates)
 
 else
 
-    % If switching from local inertial memory to full momentum memory,
-    % expand from 3 pages to 5 pages.
-    if flags.flag_full_momentum == 1 && size(outflow_bates,3) < 5
+    % Expand routing memory when a solver needs additional state pages.
+    if flags.flag_subgrid == 1 && flags.flag_inertial == 1 && size(outflow_bates,3) < 9
+
+        outflow_old = outflow_bates;
+
+        outflow_bates = zeros(ny,nx,9,'like',depths.d_t);
+        outflow_bates(:,:,1:size(outflow_old,3)) = outflow_old;
+
+    elseif flags.flag_full_momentum == 1 && size(outflow_bates,3) < 5
 
         outflow_old = outflow_bates;
 
@@ -248,7 +275,11 @@ end
 % Initial System Storage
 S_c = nansum(nansum(Wshed_Properties.Resolution^2.*Hydro_States.S/1000)); % Canopy
 
-if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
+if flags.flag_subgrid == 1 && flags.flag_overbanks ~= 1 && ...
+        ~isempty(SubgridTables) && isfield(SubgridTables, 'sfincs_exact') && SubgridTables.sfincs_exact
+    eta_storage = SubgridTables.z_zmin + max(depths.d_t ./ 1000, 0);
+    S_p = nansum(nansum(hp2d_sfincs_cell_volume_from_zs(SubgridTables, eta_storage)));
+elseif flags.flag_subgrid == 1 && flags.flag_overbanks == 1
     S_p = nansum(nansum((Wshed_Properties.Resolution - Wshed_Properties.River_Width).*Wshed_Properties.Resolution.*max((depths.d_t/1000 - Wshed_Properties.River_Depth),0))) + ...
         nansum(nansum(Wshed_Properties.Resolution.*Wshed_Properties.River_Width.*depths.d_t/1000));
 else
@@ -257,7 +288,29 @@ end
 
 S_UZ = nansum(nansum(Wshed_Properties.Resolution^2.*Soil_Properties.I_t/1000)); % UZ storage
 S_GW = nansum(nansum(Wshed_Properties.Resolution^2.*Soil_Properties.Sy.*(BC_States.h_t - (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth)))); % GW Storage
-S_prev = S_c + S_p + S_UZ + S_GW;
+S_SWE = nansum(nansum(Wshed_Properties.Resolution^2.*Snow_Properties.SWE_t/1000)); % Snow water equivalent
+S_prev = S_c + S_p + S_UZ + S_GW + S_SWE;
+
+% Optional non-intrusive, event-scale water-balance ledger. It is disabled
+% for ordinary runs and does not modify the routing or hydrologic state.
+track_system_mass = isfield(running_control, 'flag_system_mass_ledger') && ...
+    logical(running_control.flag_system_mass_ledger);
+if track_system_mass
+    system_mass_ledger = struct( ...
+        'initial_storage_m3', S_prev, ...
+        'previous_storage_m3', S_prev, ...
+        'final_storage_m3', S_prev, ...
+        'cumulative_precipitation_m3', 0, ...
+        'cumulative_boundary_inflow_m3', 0, ...
+        'cumulative_prescribed_recharge_m3', 0, ...
+        'cumulative_canopy_evaporation_m3', 0, ...
+        'cumulative_etr_m3', 0, ...
+        'cumulative_open_water_evaporation_m3', 0, ...
+        'cumulative_snow_sublimation_m3', 0, ...
+        'cumulative_outlet_m3', 0, ...
+        'cumulative_residual_m3', 0, ...
+        'step_count', 0);
+end
 
 % Initial Activation
 if flags.flag_CA ~= 1
@@ -347,6 +400,11 @@ mass_balance_history.errors_mm_h   = zeros(n_reports_est,5);
 mass_balance_history.cum_errors_m3 = zeros(n_reports_est,5);
 mass_balance_history.cum_errors_mm = zeros(n_reports_est,5);
 mass_balance_history.count         = 0;
+if track_system_mass
+    mass_balance_history.system_step_residual_m3 = zeros(n_reports_est,1);
+    mass_balance_history.cumulative_system_residual_m3 = zeros(n_reports_est,1);
+    mass_balance_history.cumulative_system_input_m3 = zeros(n_reports_est,1);
+end
 
 %% ------------------------------------------------------------------------
 % Full momentum conservative memory
@@ -423,7 +481,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         % -------------- Hydrological Model --------------- %
         Hydrological_Model; % Runs the interception + infiltration + GW routing model
 
- 
+
 
         % Preallocating cels for Cellular Automata
         if flags.flag_D8 == 1 && flags.flag_diffusive == 1
@@ -560,7 +618,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 else
                     % -------------------- Local Inertial Formulation ----------------%
 
-                    if flags.flag_subgrid == 1
+                    if flags.flag_subgrid == 1 && flags.flag_overbanks ~= 1
                         % New standalone paper-style shared-face subgrid solver
                         [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t, ...
                             outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf, ...
@@ -694,6 +752,20 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             end
         end
 
+        % Event-scale water balance is evaluated for every accepted step.
+        % This is intentionally separate from the legacy progress report.
+        if track_system_mass
+            if exist('GW_States', 'var') && isstruct(GW_States)
+                ledger_gw_states = GW_States;
+            else
+                ledger_gw_states = struct();
+            end
+            [system_mass_ledger, system_step_residual_m3] = hp2d_update_system_mass_ledger( ...
+                system_mass_ledger, flags, BC_States, Hydro_States, Snow_Properties, ...
+                Soil_Properties, ledger_gw_states, depths, outlet_states, ...
+                Wshed_Properties, Elevation_Properties, time_step, C_a, SubgridTables);
+        end
+
         %% Refreshing Time-step
         running_control.pos_save = ceil((t*60)/running_control.time_step_change);
         running_control.time_save = (running_control.pos_save - 1)*running_control.time_step_change/60;
@@ -725,8 +797,9 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         % --- Calculating EMC --- %
         if  flags.flag_automatic_calibration ~= 1
             if flags.flag_waterquality == 1
-                WQ_States.mass_outlet = max(WQ_States.mass_outlet + Out_Conc*((nansum(nansum(outlet_states.outlet_flow)/1000/3600*1000)))*(time_step*60),0); % mg
-                WQ_States.vol_outlet = max((nansum(nansum(outlet_states.outlet_flow))/1000/3600*1000)*(time_step*60) + WQ_States.vol_outlet,0);
+                outlet_step_volume_L = max(nansum(nansum(outlet_states.outlet_flow)) * Wshed_Properties.cell_area * time_step/60, 0);
+                WQ_States.mass_outlet = max(WQ_States.mass_outlet + Out_Conc*outlet_step_volume_L,0); % mg
+                WQ_States.vol_outlet = max(WQ_States.vol_outlet + outlet_step_volume_L,0); % L
             end
         end
 
@@ -839,6 +912,15 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             mass_balance_history.errors_mm_h(ih,:)    = errors_mm_h;
             mass_balance_history.cum_errors_m3(ih,:)  = cum_errors_m3;
             mass_balance_history.cum_errors_mm(ih,:)  = cum_errors_mm;
+            if track_system_mass
+                mass_balance_history.system_step_residual_m3(ih,1) = system_step_residual_m3;
+                mass_balance_history.cumulative_system_residual_m3(ih,1) = ...
+                    system_mass_ledger.cumulative_residual_m3;
+                mass_balance_history.cumulative_system_input_m3(ih,1) = ...
+                    system_mass_ledger.cumulative_precipitation_m3 + ...
+                    system_mass_ledger.cumulative_boundary_inflow_m3 + ...
+                    system_mass_ledger.cumulative_prescribed_recharge_m3;
+            end
 
             %             % Plotting Data
             %             if flags.flag_dashboard == 0
@@ -856,7 +938,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                     max(max(depths.d_t(~isinf(depths.d_t)))), ... % Max depth [mm in your internal storage]
                     max(max(Hydro_States.f)), ... % Max Infiltration Rate
                     max(max(WQ_States.P_conc)), ... % Max Water Quality Pollutant concentration
-                    volume_error];  % Current-step ledger residual [m3]
+                    volume_error];  % Volume error [m3]
 
                 % Print formatted output for water quality
                 fprintf('==== Water Quality Stats ====\n');
@@ -866,7 +948,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 fprintf('Max Depth: %.2f m\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(4));
                 fprintf('Max Inf. Rate: %.2f mm/h\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(5));
                 fprintf('Max Water Quality Concentration: %.2e Cmg/L\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(6));
-                fprintf('Step Ledger Residual: %.3f m³\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(7));
+                fprintf('Volume Error: %.3f m³\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(7));
             else
                 perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3 = [
                     (t) / running_control.routing_time * 100, ... % Percentage complete
@@ -876,7 +958,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                     1/1000 * max(max(depths.d_t(~isinf(depths.d_t)))), ... % Max depth [m]
                     max(max(Hydro_States.f)), ... % Max Inf Rate
                     velocities.max_velocity, ... % Max Velocity
-                    volume_error];  % Current-step ledger residual [m3]
+                    volume_error];  % Volume error [m3]
 
                 % Print formatted output for general model stats
                 fprintf('---- General Model Stats ----\n');
@@ -887,7 +969,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 fprintf('Max Depth: %.2f m\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(5));
                 fprintf('Max Inf Rate: %.2f mm/h\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(6));
                 fprintf('Max Velocity: %.2f m/s\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(7));
-                fprintf('Step Ledger Residual: %.3f m³\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(8));
+                fprintf('Volume Error: %.3f m³\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(8));
             end
 
             fprintf('\n==== Mass Balance Diagnostics Over Catchment ====\n');
@@ -1001,6 +1083,14 @@ if isfield(mass_balance_history,'count')
     mass_balance_history.errors_mm_h   = mass_balance_history.errors_mm_h(1:nkeep,:);
     mass_balance_history.cum_errors_m3 = mass_balance_history.cum_errors_m3(1:nkeep,:);
     mass_balance_history.cum_errors_mm = mass_balance_history.cum_errors_mm(1:nkeep,:);
+    if track_system_mass
+        mass_balance_history.system_step_residual_m3 = ...
+            mass_balance_history.system_step_residual_m3(1:nkeep,:);
+        mass_balance_history.cumulative_system_residual_m3 = ...
+            mass_balance_history.cumulative_system_residual_m3(1:nkeep,:);
+        mass_balance_history.cumulative_system_input_m3 = ...
+            mass_balance_history.cumulative_system_input_m3(1:nkeep,:);
+    end
 end
 
 % Saving the last modeled data
@@ -1027,6 +1117,9 @@ end
 
 if flags.flag_ETP == 1
     Maps.Hydro.ETP_save=Maps.Hydro.ETP_save(:,:,1:saver_count);
+end
+if flags.flag_groundwater_modeling == 1 && isfield(Maps.Hydro,'GWdepth_save')
+    Maps.Hydro.GWdepth_save = Maps.Hydro.GWdepth_save(:,:,1:saver_count);
 end
 if flags.flag_waterquality == 1
     Maps.WQ_States.Pol_Conc_Map=Maps.WQ_States.Pol_Conc_Map(:,:,1:saver_count);

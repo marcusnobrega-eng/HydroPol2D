@@ -20,11 +20,17 @@ B_t_extra = B_t;
 B_begin = B_t;
 Br_kg = Bmin/1000*cell_area; % kg
 Bm_kg = Bmax/1000*cell_area; % kg
+outlet_mask = logical(outlet_index) & (outlet_flow > 0);
+if any(outlet_mask(:))
+    outlet_water_volume_L = max(nansum(outlet_flow(outlet_mask)) * cell_area * time_step/60, 0);
+else
+    outlet_water_volume_L = 0;
+end
 
 % --------------- Choosing Which Wash-off Equation % ---------------
 if flag_wq_model == 1 % Rating Curve
     B_t_extra(B_t*1000/cell_area <= Bmin) = 0; % 100 g/m2
-    B_t_extra(B_t*1000/cell_area >= Bmax) = Bm_kg; % 100 g/m2      
+    B_t_extra(B_t*1000/cell_area >= Bmax) = Bm_kg; % 100 g/m2
     f_bt = (1 + (max(B_t_extra - Br_kg,0)));
     W_out_t = C_3.*(q_out_t/1000/3600*cell_area).^(C_4).*f_bt; % kg/hr (rating curve)
 else
@@ -57,23 +63,10 @@ W_in_t = cat(3,W_in_left_t,W_in_right_t,W_in_up_t,W_in_down_t); % Total Inflow
 % At the same time, pollutants are entering and leaving the cells. The
 % matrix dW measures the difference between outflows and inflows
 dW = (tot_W_out - sum(W_in_t,3)); % Outflow_pol - Inflow_pol (kg/hr)
-%% Mininum Time-Step (adaptative time-step)
-if min(min(dW)) >= 0 % More pollutants entering the cell
-    tmin_wq = large_timestep;
-elseif min(min(B_t)) <= 0
-    % Find values equal 0
-    m_calc = B_t; % Mass of calculus
-    m_calc(m_calc*1000/cell_area < min_Bt) = inf; % cells with pol below this limit are not considered
-    dW_calc = dW; % Flux of pollutants for calculus purposes
-    dW_calc(dW_calc>0) = 0; % Cell is receiving more than releasing
-    tmin_wq = 3600*min(min(m_calc./(abs(dW_calc) + small_number))); % seconds
-else
-    m_calc = B_t;
-    m_calc(m_calc*1000/cell_area < min_Bt) = inf; % cells with pol below this limit are not considered
-    dW_calc = dW;
-    dW_calc(dW_calc>0) = 0; % Cell is receiving more than releasing
-    tmin_wq = 3600*min(min(m_calc./(abs(dW_calc)+small_number))); % seconds
-end
+%% Minimum stable time step for the explicit pollutant update
+% dW is outflow minus inflow. Only a positive dW can deplete a cell; a
+% receiving cell with zero mass must not force a zero internal time step.
+tmin_wq = pollutant_stable_timestep(B_t, dW, min_Bt, cell_area, large_timestep);
 %% Overall Mass Balance at Cells
 % B_t = B_t + dW*time_step/60; % Refreshing Pollutant Mass
 B_t_mid = B_t - dW*time_step/60; % Refreshing Pollutant Mass (1/2 of the time-step)
@@ -82,7 +75,7 @@ if min(min(B_t_mid)) < 0 || tmin_wq < time_step*60 % Break time-step internally
     n_steps_floor = floor(n_steps_decimal); % integer lowest value
     steps  = (n_steps_floor+1);
     outflow_mass = 0; % Starting to measure outflow pollutant mass (kg)
-    outlet_mass = 0; % Starting to measure outlet outflow pollutant mass (kg)
+    outlet_mass = 0; % kg captured by the outlet sink during the time-step
     for i = 1:(steps)
         % Break time step internally. Flow rates won't change but B_t will
         if i == (steps)
@@ -92,9 +85,9 @@ if min(min(B_t_mid)) < 0 || tmin_wq < time_step*60 % Break time-step internally
         end
         % New Pollutant Flux Rates
         if flag_wq_model == 1 % Rating Curve
-            B_t_extra(B_t*1000/cell_area <= Bmin) = 0; % 
-            B_t_extra(B_t*1000/cell_area >= Bmax) = Bm_kg; %     
-            f_bt = (1 + (max(B_t_extra - Br_kg,0)));            
+            B_t_extra(B_t*1000/cell_area <= Bmin) = 0; %
+            B_t_extra(B_t*1000/cell_area >= Bmax) = Bm_kg; %
+            f_bt = (1 + (max(B_t_extra - Br_kg,0)));
             W_out_t = C_3.*(q_out_t/1000/3600*cell_area).^(C_4).*f_bt; % kg/hr (rating curve)
         else
             W_out_t = C_3.*(q_out_t/1000/3600*cell_area).^(C_4).*B_t; % kg/hr (mass based curve in terms of velocity)
@@ -122,9 +115,16 @@ if min(min(B_t_mid)) < 0 || tmin_wq < time_step*60 % Break time-step internally
         % matrix dW measures the difference between inflows and outflows
         dW = (tot_W_out - sum(W_in_t,3)); % Inflow pol - Outflow pol (kg/hr)
         outflow_mass = outflow_mass + tot_W_out*dt/3600; % kg of pollutant that left the cell
-        outlet_mass = outlet_mass + W_out_outlet_t*dt/3600; % kg of pollutant that left the outlet cells
         % dW = max((sum(W_in_t,3) - tot_W_out),-B_t/(time_step/60) + small_number); % Inflow pol - Outflow pol (kg/hr)
         B_t = B_t - dW*dt/3600; % Mass Balance for the incremental time-step
+        if any(outlet_mask(:))
+            % Outlet washoff is already included in dW. Record that face
+            % flux only; clearing B_t here would remove the remaining cell
+            % store a second time.
+            outlet_capture = W_out_outlet_t(outlet_mask) * dt / 3600;
+            outlet_capture = outlet_capture(isfinite(outlet_capture) & outlet_capture > 0);
+            outlet_mass = outlet_mass + sum(outlet_capture);
+        end
     end
     % Average Pollutant Flux in the Time-Step
     tot_W_out = outflow_mass/(time_step/60); % kg/hr
@@ -135,28 +135,22 @@ if min(min(B_t_mid)) < 0 || tmin_wq < time_step*60 % Break time-step internally
     B_t(B_t<0) = 0;
 else
     B_t = B_t_mid; % We can use the same time-step from the hydrodynamic model
+    if any(outlet_mask(:))
+        % The outlet-face flux is already included in dW. Do not clear the
+        % residual cell store after the conservative update.
+        outlet_capture = W_out_outlet_t(outlet_mask) * time_step / 60;
+        outlet_capture = outlet_capture(isfinite(outlet_capture) & outlet_capture > 0);
+        outlet_mass = sum(outlet_capture);
+    else
+        outlet_mass = 0;
+    end
     % Rounding Negative Values
     mass_lost = sum(sum(B_t(B_t<0))) + mass_lost;
     B_t(B_t<0) = 0;
     % No need to calculate any average since we used the whole time-step
 end
-%% Mininum Time-Step (adaptative time-step) End of the Time-step
-if min(min(dW)) >= 0 % More pollutants 
-    tmin_wq = large_timestep;
-elseif min(min(B_t)) <= 0
-    % Find values equal 0
-    m_calc = B_t;
-    m_calc(m_calc*1000/cell_area < min_Bt) = inf; % cells with pol below this limit are not considered
-    dW_calc = dW;
-    dW_calc(dW_calc>0) = 0; % Cell is receiving more than releasing
-    tmin_wq = 3600*min(min(m_calc./(abs(dW_calc)+small_number))); % seconds
-else
-    m_calc = B_t;
-    m_calc(m_calc*1000/cell_area < min_Bt) = inf; % cells with pol below this limit are not considered
-    dW_calc = dW;
-    dW_calc(dW_calc>0) = 0; % Cell is receiving more than releasing
-    tmin_wq = 3600*min(min(m_calc./(abs(dW_calc)+small_number))); % seconds
-end
+%% Minimum stable time step after the update
+tmin_wq = pollutant_stable_timestep(B_t, dW, min_Bt, cell_area, large_timestep);
 % ---------------% Imposing Constraint at B_t  % ---------------% %
 %%% This constratint rounds any inf or nan at B_t to 0
 % Since we are changing time-steps each 60 seconds (usually), we could
@@ -176,9 +170,29 @@ tot_q_out = max(tot_q_out,10); % 10 mm/hr
 % ---------------% Pollutant Concentration % ---------------% %
 P_conc = max(10^6*(tot_W_out)./(tot_q_out*cell_area),0); % mg/L
 % ---------------% Outlet Concentration % ---------------% %
-Out_Conc = max(1000*sum(sum(W_out_outlet_t))/(sum(sum(outlet_flow))/1000*cell_area),0); % mg/L
+if outlet_water_volume_L > 0
+    Out_Conc = max(1e6*outlet_mass/outlet_water_volume_L,0); % mg/L
+else
+    Out_Conc = 0;
+end
 % Tot_Washed = (max(B_begin - B_t,0)) + Tot_Washed; % Actually, total received
 Tot_Washed = tot_W_out*time_step/60 + Tot_Washed; % (kg) Actually, total received
 
+end
+
+function tmin_wq = pollutant_stable_timestep(B_t, dW, min_Bt, cell_area, fallback_s)
+% Return the depletion-limited explicit step in seconds. Cells with no
+% available pollutant or net inflow cannot become negative in this update.
+mass_floor_kg = max(min_Bt / 1000 .* cell_area, 1e-15);
+eligible = isfinite(B_t) & isfinite(dW) & B_t > mass_floor_kg & dW > 0;
+if ~any(eligible, 'all')
+    tmin_wq = fallback_s;
+    return
+end
+
+tmin_wq = 3600 * min(B_t(eligible) ./ dW(eligible));
+if ~isfinite(tmin_wq) || tmin_wq <= 0
+    tmin_wq = fallback_s;
+end
 end
 

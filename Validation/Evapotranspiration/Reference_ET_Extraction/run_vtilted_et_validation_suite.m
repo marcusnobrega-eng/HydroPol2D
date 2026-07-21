@@ -1,19 +1,10 @@
 clear; clc;
 
 case_dir = fileparts(mfilename('fullpath'));
-model_root = case_dir;
-while ~isfolder(fullfile(model_root, 'HydroPol2D_Functions'))
-    parent_dir = fileparts(model_root);
-    if strcmp(parent_dir, model_root)
-        error('HydroPol2D:Validation:ModelRootNotFound', ...
-            'Could not locate the HydroPol2D repository from %s.', case_dir);
-    end
-    model_root = parent_dir;
-end
-repo_root = model_root;
-functions_dir = fullfile(model_root, 'HydroPol2D_Functions');
-addpath(functions_dir);
-hydropol2d_add_runtime_paths(model_root);
+repo_root = fullfile(case_dir, '..', '..', '..');
+functions_dir = fullfile(repo_root, 'HydroPol2D_Functions');
+addpath(functions_dir, '-begin');
+hydropol2d_add_runtime_paths(hydropol2d_find_root(case_dir));
 
 registry_path = fullfile(case_dir, 'ET_Case_Registry.csv');
 out_dir = fullfile(case_dir, 'Outputs', 'Validation');
@@ -111,6 +102,8 @@ flags.flag_input_ETP_map = double(Cfg.mode == "map"); %#ok<STRNU>
 
 LULC_Properties = struct();
 LULC_Properties.idx_imp = false(size(elevation));
+LULC_Properties.Kc = Cfg.kc * ones(size(elevation));
+LULC_Properties.Kc(idx_nan) = nan;
 
 depths = struct();
 depths.d_t = Cfg.ponded_depth_mm * ones(size(elevation));
@@ -288,7 +281,7 @@ surface_final(idx_open) = d_t(idx_open) - surface_evap_mm(idx_open);
 if Cfg.mode == "map"
     demand_mm = (input_evaporation + input_transpiration) .* dt_days;
 else
-    demand_mm = Hydro_States.ETP .* dt_days;
+    demand_mm = Hydro_States.ETP .* Cfg.kc .* dt_days;
 end
 
 soil_storage = Initial.near_mm + Initial.root_mm + Initial.trans_mm;

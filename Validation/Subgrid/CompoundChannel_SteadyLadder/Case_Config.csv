@@ -1,2 +1,0 @@
-case_id,module,status,driver,expected_behavior,primary_metrics,acceptance_threshold
-P1-SUBGRID-003,Retired lookup-subgrid development,retired_not_public,run_compound_channel_steady_ladder_benchmark.m,"Retained internal steady-flow experiment for the lookup-subgrid pathway.","gauge_depth_rmse_m; profile_rmse_m; storage_error_pct; internal_discharge_error_pct; mass_residual_pct","Not an active HydroPol2D validation claim."

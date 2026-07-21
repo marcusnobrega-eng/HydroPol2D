@@ -2036,6 +2036,13 @@ def _read_single_band_with_grid(path):
     return arr, grid
 
 
+def _apply_panel_display_scale(arr, panel):
+    scale = float(panel.get("display_scale", 1.0))
+    if scale == 1.0:
+        return arr
+    return np.asarray(arr, dtype=np.float32) * np.float32(scale)
+
+
 def _safe_percentile(arrays, percentile, fallback):
     values = []
     for arr in arrays:
@@ -2063,7 +2070,7 @@ def _discover_raster_series(modeling_results):
             "units": "m",
             "folder": "Rasters_Water_Depths",
             "glob": "Flood_Depths_t_*_h.tif",
-            "cmap": "Blues",
+            "cmap": "cool",
             "fallback_vmax": 0.25,
         },
         {
@@ -2086,12 +2093,13 @@ def _discover_raster_series(modeling_results):
         },
         {
             "key": "infiltration",
-            "title": "Infiltration",
-            "units": "mm/h",
+            "title": "Cumulative Infiltration",
+            "units": "mm",
             "folder": "Rasters_Infiltration",
             "glob": "Infiltration_t_*_h.tif",
             "cmap": "YlGnBu",
-            "fallback_vmax": 25.0,
+            "fallback_vmax": 100.0,
+            "display_scale": 1000.0,
         },
     ]
 
@@ -2123,6 +2131,7 @@ def _discover_raster_series(modeling_results):
             "paths": paths,
             "cmap": spec["cmap"],
             "fallback_vmax": spec["fallback_vmax"],
+            "display_scale": spec.get("display_scale", 1.0),
         })
 
     return panels
@@ -2141,10 +2150,10 @@ def _extract_temp_panel_arrays(run_root, dem_path, map_step_hours):
     ref_shape = dem.shape
 
     specs = [
-        ("depth", "Flood Depth", "m", "d", "Blues", 0.25, 1.0 / 1000.0),
+        ("depth", "Flood Depth", "m", "d", "cool", 0.25, 1.0 / 1000.0),
         ("velocity", "Velocity", "m/s", "velocity", "viridis", 0.5, 1.0),
         ("hazard", "Hazard Metric", "m2/s", "hazard_dv", "inferno", 0.25, 1.0),
-        ("infiltration", "Infiltration", "mm/h", "f", "YlGnBu", 25.0, 1.0),
+        ("infiltration", "Cumulative Infiltration", "mm", "I_t", "YlGnBu", 100.0, 1.0),
     ]
 
     loaded_chunks = []
@@ -2221,16 +2230,19 @@ def _panel_array(panel, idx):
     if idx is None:
         return None
     if panel["source"] == "raster":
-        return _read_single_band(panel["paths"][idx])
-    return panel["cube"][:, :, idx].astype(np.float32)
+        arr = _read_single_band(panel["paths"][idx])
+    else:
+        arr = panel["cube"][:, :, idx].astype(np.float32)
+    return _apply_panel_display_scale(arr, panel)
 
 
 def _panel_frame_native(panel, idx):
     if idx is None:
         return None, None
     if panel["source"] == "raster":
-        return _read_single_band_with_grid(panel["paths"][idx])
-    arr = panel["cube"][:, :, idx].astype(np.float32)
+        arr, grid = _read_single_band_with_grid(panel["paths"][idx])
+        return _apply_panel_display_scale(arr, panel), grid
+    arr = _apply_panel_display_scale(panel["cube"][:, :, idx].astype(np.float32), panel)
     grid = {
         "crs": panel["crs"],
         "transform": panel["transform"],
@@ -2246,15 +2258,32 @@ def _compute_panel_scales(panels, scale_percentile):
         n = len(panel["times_h"])
         if n <= 0:
             panel["vmax"] = panel["fallback_vmax"]
+            panel["global_max"] = panel["fallback_vmax"]
+            panel["colorbar_extend"] = "neither"
             continue
-        sample_indices = sorted(set([0, n // 4, n // 2, (3 * n) // 4, n - 1]))
-        for idx in sample_indices:
+
+        global_max = 0.0
+        per_frame_sample_cap = 20000
+        for idx in range(n):
             arr = _panel_array(panel, idx)
-            if arr is not None:
-                samples.append(arr)
+            if arr is None:
+                continue
+            data = np.asarray(arr, dtype=np.float32)
+            data = data[np.isfinite(data) & (data > 0)]
+            if not data.size:
+                continue
+            global_max = max(global_max, float(np.nanmax(data)))
+            if data.size > per_frame_sample_cap:
+                step = int(math.ceil(data.size / float(per_frame_sample_cap)))
+                data = data[::step]
+            samples.append(data)
+
+        panel["global_max"] = global_max
         panel["vmax"] = _safe_percentile(samples, scale_percentile, panel["fallback_vmax"])
-        print("{} scale vmax ({:.1f}th percentile sample): {:.4g} {}".format(
-            panel["title"], scale_percentile, panel["vmax"], panel["units"]
+        panel["colorbar_extend"] = "max" if global_max > panel["vmax"] else "neither"
+        print("{} scale vmax ({:.1f}th percentile all-frame sample): {:.4g} {} | global max: {:.4g} {}".format(
+            panel["title"], scale_percentile, panel["vmax"], panel["units"],
+            panel["global_max"], panel["units"]
         ))
 
 
@@ -2386,7 +2415,7 @@ def _prepare_website_base_layers(dem_path):
 
 
 def generate_dynamic_panel_animation(results_dir, output_path=None, dem_path=None,
-                                     map_step_hours=0.25, fps=3, dpi=140,
+                                     map_step_hours=0.25, fps=3, dpi=180,
                                      scale_percentile=99.0, max_frames=None,
                                      title=None):
     results_dir = Path(results_dir)
@@ -2448,6 +2477,8 @@ def generate_dynamic_panel_animation(results_dir, output_path=None, dem_path=Non
     fig, axes = plt.subplots(1, ncols, figsize=(fig_width, 5.8), dpi=dpi, squeeze=False)
     axes = axes.ravel()
     artists = []
+    colorbar_fraction = 0.023
+    colorbar_linewidth = 1.6
 
     first_time_h = frame_times[0]
     depth_panel = next((p for p in panels if p["key"] == "depth"), None)
@@ -2501,7 +2532,7 @@ def generate_dynamic_panel_animation(results_dir, output_path=None, dem_path=Non
             vmin=0,
             vmax=panel["vmax"],
             alpha=0.78,
-            interpolation="bilinear",
+            interpolation="nearest",
             zorder=3,
         )
 
@@ -2509,9 +2540,17 @@ def generate_dynamic_panel_animation(results_dir, output_path=None, dem_path=Non
             ax.plot(xs, ys, color=OUTLINE_COLOR, linewidth=1.1, zorder=4)
 
         ax.set_title("{} ({})".format(panel["title"], panel["units"]), fontsize=11, color="#222222")
-        cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.018)
-        cbar.set_label(panel["units"], fontsize=9)
-        cbar.ax.tick_params(labelsize=8)
+        cbar = fig.colorbar(
+            im,
+            ax=ax,
+            fraction=colorbar_fraction,
+            pad=0.018,
+            extend=panel.get("colorbar_extend", "neither"),
+        )
+        cbar.ax.tick_params(labelsize=8, width=colorbar_linewidth)
+        cbar.outline.set_linewidth(colorbar_linewidth)
+        for spine in cbar.ax.spines.values():
+            spine.set_linewidth(colorbar_linewidth)
         artists.append(im)
 
     def draw_frame(frame_number, save_png=False):
@@ -2526,8 +2565,7 @@ def generate_dynamic_panel_animation(results_dir, output_path=None, dem_path=Non
             arr = _apply_wet_display_mask(arr, panel, depth_arr)
             im.set_data(arr)
 
-        heading = title or "HydroPol2D Dynamic Flood Maps"
-        fig.suptitle("{} | t = {:.2f} h".format(heading, time_h), fontsize=15, y=0.98)
+        fig.suptitle("t = {:.2f}h".format(time_h), fontsize=15, y=0.98)
         fig.tight_layout(rect=[0, 0, 1, 0.93])
 
         if save_png:
@@ -2579,7 +2617,7 @@ def dynamic_cli(argv=None):
     parser.add_argument("--map-step-hours", type=float, default=0.25,
                         help="Fallback MAT map timestep in hours.")
     parser.add_argument("--fps", type=float, default=3.0)
-    parser.add_argument("--dpi", type=int, default=140)
+    parser.add_argument("--dpi", type=int, default=180)
     parser.add_argument("--scale-percentile", type=float, default=99.0)
     parser.add_argument("--max-frames", type=int, default=None)
     parser.add_argument("--title", default=None)

@@ -1,19 +1,10 @@
 clear; clc;
 
 case_dir = fileparts(mfilename('fullpath'));
-model_root = case_dir;
-while ~isfolder(fullfile(model_root, 'HydroPol2D_Functions'))
-    parent_dir = fileparts(model_root);
-    if strcmp(parent_dir, model_root)
-        error('HydroPol2D:Validation:ModelRootNotFound', ...
-            'Could not locate the HydroPol2D repository from %s.', case_dir);
-    end
-    model_root = parent_dir;
-end
-repo_root = model_root;
-functions_dir = fullfile(model_root, 'HydroPol2D_Functions');
-addpath(functions_dir);
-hydropol2d_add_runtime_paths(model_root);
+repo_root = fullfile(case_dir, '..', '..', '..');
+functions_dir = fullfile(repo_root, 'HydroPol2D_Functions');
+addpath(functions_dir, '-begin');
+hydropol2d_add_runtime_paths(hydropol2d_find_root(case_dir));
 
 out_dir = fullfile(case_dir, 'Outputs', 'Validation');
 ts_dir = fullfile(out_dir, 'TimeSeries');
@@ -541,10 +532,10 @@ end
 function Pass = pass_row(Diag, passed)
 is_ritter = contains(string(Diag.case_id), "RITTER");
 if is_ritter
-    status = "diagnostic_fail";
-    if passed
-        status = "diagnostic_pass";
-    end
+    % Ritter's dry-bed dam-break solution is a full-momentum benchmark.
+    % Diffusive and kinematic routing are assessed with their gradual-flow
+    % plane, V-tilted, and prescribed-stage cases instead.
+    status = "not_applicable_to_ritter";
     report_ready = false;
 else
     status = "fail";

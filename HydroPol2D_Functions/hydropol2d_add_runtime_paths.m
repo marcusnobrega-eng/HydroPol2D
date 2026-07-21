@@ -8,7 +8,9 @@ function runtime = hydropol2d_add_runtime_paths(model_root)
 if nargin < 1 || isempty(model_root)
     model_root = fileparts(fileparts(mfilename('fullpath')));
 end
-model_root = char(model_root);
+% MATLAB normalizes paths returned by `which`; normalize caller paths too so
+% a valid descendant path containing `..` cannot fail the runtime check.
+model_root = hydropol2d_find_root(model_root);
 
 functions_root = fullfile(model_root, 'HydroPol2D_Functions');
 topotoolbox_root = fullfile(model_root, 'third_party', 'topotoolbox_lite');

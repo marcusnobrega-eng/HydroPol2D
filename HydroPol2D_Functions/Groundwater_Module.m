@@ -66,6 +66,14 @@ error   = 0;
 has_layered_soil = isfield(Soil_Properties, 'Layers') && ...
     isstruct(Soil_Properties.Layers) && ...
     isfield(Soil_Properties.Layers, 'near_surface_storage_mm');
+has_prescribed_recharge = isfield(flags, 'flag_prescribed_recharge') && ...
+    flags.flag_prescribed_recharge == 1 && ...
+    isfield(BC_States, 'gw_prescribed_recharge') && ...
+    isstruct(BC_States.gw_prescribed_recharge) && ...
+    isfield(BC_States.gw_prescribed_recharge, 'time_min') && ...
+    ~isempty(BC_States.gw_prescribed_recharge.time_min);
+surface_coupling_enabled = ~(isfield(flags, 'flag_groundwater_surface_coupling') && ...
+    flags.flag_groundwater_surface_coupling == 0);
 
 %% ------------------------------------------------------------------------
 % EXIT EARLY IF GROUNDWATER / RECHARGE MODELING IS DISABLED
@@ -83,6 +91,10 @@ end
 GW_States.cell_area_m2 = ones(size(zero_matrix), 'like', zero_matrix) .* Wshed_Properties.cell_area;
 GW_States.cell_area_m2(idx_nan) = nan;
 
+if has_prescribed_recharge
+    Soil_Properties.I_t(~idx_nan) = 0;
+end
+
 %% ------------------------------------------------------------------------
 % 2) COMPUTE WATER TABLE POSITION AND UNSATURATED ZONE STORAGE CAPACITY
 % -------------------------------------------------------------------------
@@ -95,6 +107,14 @@ zwt = Soil_Properties.Soil_Depth - GW_Depth;  % [m]
 zwt = max(zwt, 0);
 zwt = min(zwt, Soil_Properties.Soil_Depth);
 
+perv_frac = ones(size(zwt), 'like', zwt);
+if isfield(LULC_Properties, 'frac_perv') && ~isempty(LULC_Properties.frac_perv)
+    perv_frac = min(max(LULC_Properties.frac_perv, 0), 1);
+elseif isfield(LULC_Properties, 'idx_imp') && ~isempty(LULC_Properties.idx_imp)
+    perv_frac = double(~LULC_Properties.idx_imp);
+end
+perv_frac(idx_nan) = nan;
+
 if has_layered_soil
     Soil_Properties = sync_layered_soil_storage(Soil_Properties, idx_nan);
     UZ_max_storage = Soil_Properties.Layers.total_vadose_capacity_mm ./ 1000;
@@ -102,7 +122,7 @@ else
     % Maximum UZ storage [m water]
     % Soil_Properties.I_t is above-residual storage, so capacity must be
     % theta_sat - theta_r, not theta_sat - theta_i.
-    UZ_max_storage = zwt .* ...
+    UZ_max_storage = perv_frac .* zwt .* ...
         (Soil_Properties.theta_sat - Soil_Properties.theta_r);
 end
 
@@ -122,11 +142,26 @@ end
 % The recharge function should drain the current vadose storage only.
 % -------------------------------------------------------------------------
 
-if has_layered_soil
+% Bedrock elevation [m]
+z_bed = z_terrain - Soil_Properties.Soil_Depth;
+
+if has_prescribed_recharge
+    recharge_down_rate = zero_matrix;
+    capillary_rate = zero_matrix;
+    recharge_rate = zero_matrix;
+    downward_depth_m = zero_matrix;
+    capillary_depth_m = zero_matrix;
+    net_exchange_depth_m = zero_matrix;
+    GW_States.elapsed_s = GW_States.elapsed_s + dt_s;
+    GW_States.last_surface_recharge_rate_m_s = zero_matrix;
+    GW_States.last_capillary_rate_m_s = zero_matrix;
+    GW_States.last_net_exchange_rate_m_s = zero_matrix;
+else
+    if has_layered_soil
     [recharge_down_rate, Soil_Properties, cumulative_recharge] = ...
         simulate_layered_groundwater_recharge( ...
         Soil_Properties, dt_s, idx_nan, cumulative_recharge);
-else
+    else
     inf_ms = zero_matrix;                     % [m/s] prevents double-counting f
 
     S0_m   = Soil_Properties.I_t / 1000;      % [m water], current UZ storage
@@ -148,16 +183,13 @@ else
 
     % Update vadose storage state for next modules [mm]
     Soil_Properties.I_t = Soil_Moisture * 1000;
-end
+    end
 
 recharge_down_rate(isnan(recharge_down_rate)) = nan;
 
 %% ------------------------------------------------------------------------
 % 3b) COMPUTE SIMPLE LAYERED CAPILLARY RISE AND ACCUMULATE NET EXCHANGE
 % -------------------------------------------------------------------------
-
-% Bedrock elevation [m]
-z_bed = z_terrain - Soil_Properties.Soil_Depth;
 
 capillary_rate = zero_matrix;              % [m/s], positive upward to vadose
 if has_layered_soil && flags.flag_capillary_rise == 1
@@ -189,6 +221,7 @@ GW_States.total_capillary_m3 = GW_States.total_capillary_m3 + ...
 GW_States.last_surface_recharge_rate_m_s = recharge_down_rate;
 GW_States.last_capillary_rate_m_s = capillary_rate;
 GW_States.last_net_exchange_rate_m_s = recharge_rate;
+end
 
 %% ------------------------------------------------------------------------
 % 4) GROUNDWATER UPDATE
@@ -218,8 +251,12 @@ target_dt_s = min(GW_States.target_dt_s, dt_stable_s);
 target_dt_s = max(target_dt_s, GW_States.min_dt_s);
 
 Sy_head = local_groundwater_specific_yield(Soil_Properties);
-head_change_m = abs(GW_States.pending_net_exchange_m) ./ max(Sy_head, 1e-9);
-head_change_due = max(head_change_m(:), [], 'omitnan') >= GW_States.max_head_change_m;
+if has_prescribed_recharge
+    head_change_due = false;
+else
+    head_change_m = abs(GW_States.pending_net_exchange_m) ./ max(Sy_head, 1e-9);
+    head_change_due = max(head_change_m(:), [], 'omitnan') >= GW_States.max_head_change_m;
+end
 
 is_final_step = false;
 if exist('t', 'var') && exist('running_control', 'var') && ...
@@ -237,9 +274,44 @@ end
 groundwater_update_ran = false;
 dt_gw_s = max(GW_States.elapsed_s, eps);
 recharge_for_gw = zero_matrix;
+prescribed_input_mm_h = 0;
+h_prev_gw = BC_States.h_t;
 if groundwater_update_due
-    recharge_for_gw = GW_States.pending_net_exchange_m ./ dt_gw_s;
+    if has_prescribed_recharge
+        [recharge_for_gw, GW_States, prescribed_input_mm_h] = ...
+            compute_prescribed_recharge_rate( ...
+            BC_States.gw_prescribed_recharge, flags, GW_States, dt_gw_s, ...
+            zero_matrix, idx_nan, t);
+    else
+        recharge_for_gw = GW_States.pending_net_exchange_m ./ dt_gw_s;
+    end
     recharge_for_gw(idx_nan) = nan;
+end
+
+dirichlet_mask = [];
+h_dirichlet = [];
+if isfield(BC_States, 'gw_dirichlet_mask') && isfield(BC_States, 'gw_dirichlet_head') && ...
+        ~isempty(BC_States.gw_dirichlet_mask) && ~isempty(BC_States.gw_dirichlet_head)
+    dirichlet_mask = logical(BC_States.gw_dirichlet_mask);
+    h_dirichlet = BC_States.gw_dirichlet_head;
+end
+
+seepage_mask = [];
+h_seepage = [];
+if isfield(flags, 'flag_groundwater_seepage_face') && flags.flag_groundwater_seepage_face == 1 && ...
+        ~isempty(dirichlet_mask) && ~isempty(h_dirichlet)
+    seepage_mask = dirichlet_mask;
+    h_seepage = h_dirichlet;
+    dirichlet_mask = [];
+    h_dirichlet = [];
+end
+
+gw_ksat_m_s = Soil_Properties.ksat_gw / 1000 / 3600;
+if ~isempty(dirichlet_mask) && any(dirichlet_mask(:))
+    dirichlet_ksat_mult = max(double(flags.gw_dirichlet_ksat_multiplier), 1);
+    if dirichlet_ksat_mult ~= 1
+        gw_ksat_m_s(dirichlet_mask) = gw_ksat_m_s(dirichlet_mask) .* dirichlet_ksat_mult;
+    end
 end
 
 if groundwater_update_due && flags.flag_baseflow == 1
@@ -248,7 +320,7 @@ if groundwater_update_due && flags.flag_baseflow == 1
     % 4a) FULL GROUNDWATER PROPAGATION: BOUSSINESQ SOLVER
     %% --------------------------------------------------------------------
 
-    [BC_States.h_t, ~, ~, q_exf, q_river, error] = Boussinesq_2D_explicit( ...
+    [BC_States.h_t, ~, ~, q_exf, q_river, error, seepage_discharge_m3_s] = Boussinesq_2D_explicit( ...
         dt_gw_s, ...
         Wshed_Properties.Resolution, ...
         Wshed_Properties.Resolution, ...
@@ -256,7 +328,7 @@ if groundwater_update_due && flags.flag_baseflow == 1
         z_bed, ...
         Soil_Properties.Sy, ...
         recharge_for_gw, ...
-        Soil_Properties.ksat_gw / 1000 / 3600, ...
+        gw_ksat_m_s, ...
         idx_rivers, ...
         LULC_Properties.River_K_coeff * Soil_Properties.ksat / 1000 / 3600, ...
         z_terrain + depths.d_t / 1000, ...
@@ -264,15 +336,17 @@ if groundwater_update_due && flags.flag_baseflow == 1
         flags.groundwater_courant, ...
         Soil_Properties.Soil_Depth, ...
         Wshed_Properties.domain, ...
-        [], [], Wshed_Properties.perimeter ...
+        dirichlet_mask, h_dirichlet, seepage_mask, h_seepage, Wshed_Properties.perimeter ...
         );
 
     % Update previous groundwater head
     BC_States.h_0 = BC_States.h_t;
 
     % Add groundwater exfiltration to surface water [mm]
-    depths.d_t = depths.d_t + dt_gw_s * (q_exf * 1000);
-    depths.d_t(depths.d_t < 0) = 0;
+    if surface_coupling_enabled
+        depths.d_t = depths.d_t + dt_gw_s * (q_exf * 1000);
+        depths.d_t(depths.d_t < 0) = 0;
+    end
     groundwater_update_ran = true;
 
 elseif groundwater_update_due
@@ -317,19 +391,56 @@ elseif groundwater_update_due
     BC_States.h_0 = BC_States.h_t;
 
     % Add only true above-surface groundwater excess to surface water [mm]
-    depths.d_t = depths.d_t + excess_water_m * 1000;
-    depths.d_t(depths.d_t < 0) = 0;
+    if surface_coupling_enabled
+        depths.d_t = depths.d_t + excess_water_m * 1000;
+        depths.d_t(depths.d_t < 0) = 0;
+    end
+    seepage_discharge_m3_s = 0;
     groundwater_update_ran = true;
 
 end
 
 if groundwater_update_ran
+    recharge_volume_m3 = nansum(nansum(max(recharge_for_gw, 0) .* dt_gw_s .* GW_States.cell_area_m2));
+    if has_prescribed_recharge
+        GW_States.total_recharge_m3 = GW_States.total_recharge_m3 + recharge_volume_m3;
+    end
     GW_States.last_groundwater_dt_s = dt_gw_s;
     GW_States.last_groundwater_recharge_rate_m_s = recharge_for_gw;
     GW_States.last_q_exf_m_s = q_exf;
     GW_States.last_q_river_m_s = q_river;
+    GW_States.last_groundwater_recharge_volume_m3 = recharge_volume_m3;
     GW_States.total_exfiltration_m3 = GW_States.total_exfiltration_m3 + ...
         nansum(nansum(max(q_exf, 0) .* dt_gw_s .* GW_States.cell_area_m2));
+    storage_change_rate = (BC_States.h_t - h_prev_gw) .* local_groundwater_specific_yield(Soil_Properties) ./ max(dt_gw_s, eps);
+    GW_States.last_storage_change_rate_m_s = mean(storage_change_rate(~idx_nan), 'omitnan');
+    GW_States.last_boundary_seepage_discharge_m3_s = max(seepage_discharge_m3_s, 0);
+    if isfield(Wshed_Properties, 'drainage_area') && ...
+            isfinite(Wshed_Properties.drainage_area) && Wshed_Properties.drainage_area > 0
+        drainage_area_m2 = Wshed_Properties.drainage_area;
+    else
+        drainage_area_m2 = nansum(GW_States.cell_area_m2(~idx_nan), 'all');
+    end
+    GW_States.last_boundary_seepage_discharge_mm_h = ...
+        GW_States.last_boundary_seepage_discharge_m3_s / max(drainage_area_m2, eps) * 1000 * 3600;
+    [mass_balance_q_m3_s, mass_balance_q_mm_h, active_area_m2] = ...
+        compute_mass_balance_seepage_discharge( ...
+        recharge_for_gw, BC_States.h_t, h_prev_gw, z_bed, z_terrain, ...
+        Soil_Properties, GW_States.cell_area_m2, idx_nan, dt_gw_s, flags);
+    GW_States.last_mass_balance_seepage_discharge_m3_s = max(mass_balance_q_m3_s, 0);
+    GW_States.last_mass_balance_seepage_discharge_mm_h = max(mass_balance_q_mm_h, 0);
+    GW_States.last_mass_balance_active_area_m2 = active_area_m2;
+    if isfield(flags, 'flag_groundwater_mass_balance_discharge') && ...
+            flags.flag_groundwater_mass_balance_discharge == 1
+        GW_States.last_seepage_discharge_m3_s = GW_States.last_mass_balance_seepage_discharge_m3_s;
+        GW_States.last_seepage_discharge_m_s = GW_States.last_mass_balance_seepage_discharge_m3_s;
+        GW_States.last_seepage_discharge_mm_h = GW_States.last_mass_balance_seepage_discharge_mm_h;
+    else
+        GW_States.last_seepage_discharge_m3_s = GW_States.last_boundary_seepage_discharge_m3_s;
+        GW_States.last_seepage_discharge_m_s = GW_States.last_boundary_seepage_discharge_m3_s;
+        GW_States.last_seepage_discharge_mm_h = GW_States.last_boundary_seepage_discharge_mm_h;
+    end
+    GW_States.last_prescribed_input_mm_h = prescribed_input_mm_h;
     GW_States.n_updates = GW_States.n_updates + 1;
     GW_States.pending_net_exchange_m(:) = 0;
     GW_States.pending_recharge_m(:) = 0;
@@ -340,6 +451,17 @@ else
     GW_States.last_groundwater_recharge_rate_m_s = zero_matrix;
     GW_States.last_q_exf_m_s = zero_matrix;
     GW_States.last_q_river_m_s = zero_matrix;
+    GW_States.last_groundwater_recharge_volume_m3 = 0;
+    GW_States.last_storage_change_rate_m_s = 0;
+    GW_States.last_boundary_seepage_discharge_m3_s = 0;
+    GW_States.last_boundary_seepage_discharge_mm_h = 0;
+    GW_States.last_mass_balance_seepage_discharge_m3_s = 0;
+    GW_States.last_mass_balance_seepage_discharge_mm_h = 0;
+    GW_States.last_mass_balance_active_area_m2 = 0;
+    GW_States.last_seepage_discharge_m3_s = 0;
+    GW_States.last_seepage_discharge_m_s = 0;
+    GW_States.last_seepage_discharge_mm_h = 0;
+    GW_States.last_prescribed_input_mm_h = 0;
 end
 
 %% ------------------------------------------------------------------------
@@ -356,7 +478,7 @@ end
 % Therefore the capacity must use theta_sat - theta_r, not theta_sat - theta_i.
 % -------------------------------------------------------------------------
 
-if groundwater_update_ran && has_layered_soil
+if groundwater_update_ran && has_layered_soil && ~has_prescribed_recharge
     layer_options = struct('near_surface_depth_m', 0.10, 'min_layer_thickness_m', 0.005);
     [Soil_Properties, LULC_Properties] = derive_layered_soil_profile( ...
         Soil_Properties, LULC_Properties, BC_States, z_terrain, idx_nan, layer_options);
@@ -366,7 +488,7 @@ if groundwater_update_ran && has_layered_soil
         depths.d_t = depths.d_t + excess_mm;
         depths.d_t(depths.d_t < 0) = 0;
     end
-elseif groundwater_update_ran
+elseif groundwater_update_ran && ~has_prescribed_recharge
     zwt_new = z_terrain - BC_States.h_t;                  % [m]
     zwt_new = max(zwt_new, 0);
     zwt_new = min(zwt_new, Soil_Properties.Soil_Depth);
@@ -410,4 +532,92 @@ else
     Sy_local = Soil_Properties.theta_sat - Soil_Properties.theta_r;
 end
 Sy_local = max(Sy_local, 1e-6);
+end
+
+function [q_m3_s, q_mm_h, active_area_m2] = compute_mass_balance_seepage_discharge( ...
+        recharge_rate_m_s, h_now, h_prev, z_bed, z_surface, Soil_Properties, ...
+        cell_area_m2, idx_nan, dt_s, flags)
+active_depth_threshold_m = max(double(flags.groundwater_active_depth_threshold_m), 0);
+active_mask = ~idx_nan & isfinite(h_now) & isfinite(z_bed) & ...
+    (max(h_now - z_bed, 0) > active_depth_threshold_m);
+active_area_m2 = nansum(nansum(double(active_mask) .* cell_area_m2));
+if ~any(active_mask(:)) || ~isfinite(active_area_m2) || active_area_m2 <= 0
+    q_m3_s = 0;
+    q_mm_h = 0;
+    return
+end
+
+h_half = 0.5 * (h_now + h_prev);
+Sy_mb = storage_dependent_specific_yield(Soil_Properties, z_surface, h_half);
+dh_dt = (h_now - h_prev) ./ max(dt_s, eps);
+cell_flux_m_s = recharge_rate_m_s - Sy_mb .* dh_dt;
+q_flux_m_s = mean(cell_flux_m_s(active_mask), 'omitnan');
+if ~isfinite(q_flux_m_s)
+    q_flux_m_s = 0;
+end
+q_flux_m_s = max(q_flux_m_s, 0);
+q_m3_s = q_flux_m_s * active_area_m2;
+q_mm_h = q_flux_m_s * 1000 * 3600;
+end
+
+function Sy_mb = storage_dependent_specific_yield(Soil_Properties, z_surface, h_total)
+has_vg = isfield(Soil_Properties, 'theta_sat') && isfield(Soil_Properties, 'theta_r') && ...
+    isfield(Soil_Properties, 'alpha_vg') && isfield(Soil_Properties, 'n_vg') && ...
+    ~isempty(Soil_Properties.theta_sat) && ~isempty(Soil_Properties.theta_r) && ...
+    ~isempty(Soil_Properties.alpha_vg) && ~isempty(Soil_Properties.n_vg);
+if ~has_vg
+    Sy_mb = local_groundwater_specific_yield(Soil_Properties);
+    return
+end
+
+effective_porosity = max(Soil_Properties.theta_sat - Soil_Properties.theta_r, 0);
+alpha_vg = max(abs(Soil_Properties.alpha_vg), eps);
+n_vg = max(Soil_Properties.n_vg, 1 + 1e-6);
+suction_head = max(z_surface - h_total, 0);
+Sy_mb = effective_porosity .* ...
+    (1 - (1 + (alpha_vg .* suction_head) .^ n_vg) .^ (-(n_vg + 1) ./ n_vg));
+Sy_mb = max(Sy_mb, 1e-6);
+end
+
+function [recharge_rate_m_s, GW_States, input_mm_h] = compute_prescribed_recharge_rate( ...
+        forcing, flags, GW_States, dt_s, template, idx_nan, t_min)
+% Compute delayed groundwater recharge from a prescribed net-input series.
+% The BSM workbook provides net rainfall-like input to a linear UZ reservoir;
+% HydroPol uses positive downward recharge, so the equivalent equations are:
+%   dS/dt = P - k S
+%   R     = k S
+
+recharge_rate_m_s = zeros(size(template), 'like', template);
+recharge_rate_m_s(idx_nan) = nan;
+input_mm_h = 0;
+
+if nargin < 7 || isempty(t_min)
+    t_min = 0;
+end
+
+if isempty(forcing.time_min) || isempty(forcing.input_m_s)
+    return
+end
+
+input_rate_m_s = interp1( ...
+    double(forcing.time_min(:)), ...
+    double(forcing.input_m_s(:)), ...
+    double(t_min), ...
+    'previous', 0);
+input_mm_h = input_rate_m_s * 1000 * 3600;
+
+storage_mm = GW_States.prescribed_uz_storage_mm;
+storage_mm(~isfinite(storage_mm)) = 0;
+
+damping_factor = double(flags.prescribed_recharge_damping_factor);
+k_per_s = max(double(flags.prescribed_recharge_k_per_s), 0);
+input_map_m_s = damping_factor .* input_rate_m_s .* ones(size(template), 'like', template);
+input_map_m_s(idx_nan) = nan;
+
+recharge_rate_m_s = k_per_s .* max(storage_mm ./ 1000, 0);
+recharge_rate_m_s(idx_nan) = nan;
+
+storage_next_m = max(storage_mm ./ 1000 + dt_s .* (input_map_m_s - recharge_rate_m_s), 0);
+GW_States.prescribed_uz_storage_mm = storage_next_m .* 1000;
+GW_States.prescribed_uz_storage_mm(idx_nan) = nan;
 end

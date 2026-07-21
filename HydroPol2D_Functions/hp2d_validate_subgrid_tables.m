@@ -77,9 +77,9 @@ end
 end
 
 function summary = validate_sfincs_exact_tables(SubgridTables)
-required = {'z_zmin','z_zmax','z_volmax','z_level', ...
-    'u_zmin','u_zmax','u_havg','u_nrep','u_pwet','u_navg','u_ffit', ...
-    'v_zmin','v_zmax','v_havg','v_nrep','v_pwet','v_navg','v_ffit'};
+required = {'z_zmin','z_zmax','z_volmax','z_dep','z_level', ...
+    'u_zmin','u_zmax','u_havg','u_nrep','u_pwet','u_navg_w','u_ffit', ...
+    'v_zmin','v_zmax','v_havg','v_nrep','v_pwet','v_navg_w','v_ffit'};
 
 missing = {};
 for k = 1:numel(required)
@@ -94,7 +94,7 @@ if ~isempty(missing)
 end
 
 summary = struct();
-summary.z_level_monotonic_violations = count_monotonic_violations(SubgridTables.z_level);
+summary.z_level_monotonic_violations = count_monotonic_violations(SubgridTables.z_dep);
 summary.bad_cell_bounds = nnz(isfinite(SubgridTables.z_zmin(:)) & ...
     isfinite(SubgridTables.z_zmax(:)) & SubgridTables.z_zmax(:) < SubgridTables.z_zmin(:));
 summary.bad_u_phi = nnz(isfinite(SubgridTables.u_pwet(:)) & ...

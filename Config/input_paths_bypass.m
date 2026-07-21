@@ -171,6 +171,12 @@ InputPaths.Initial_Buildup_path = get_override( ...
 InputPaths.Initial_Soil_Moisture_path = get_override( ...
     Overrides, 'Initial_Soil_Moisture_path', fullfile(static_root, 'Initial_Soil_Moisture.tif'));
 
+InputPaths.Initial_SWE_path = get_override( ...
+    Overrides, 'Initial_SWE_path', fullfile(static_root, 'Initial_SWE.tif'));
+
+InputPaths.Initial_Snow_Depth_path = get_override( ...
+    Overrides, 'Initial_Snow_Depth_path', fullfile(static_root, 'Initial_Snow_Depth.tif'));
+
 % Optional water-quality rasters
 InputPaths.B1_path = get_override(Overrides, 'B1_path', fullfile(static_root, 'B1.tif'));
 InputPaths.B2_path = get_override(Overrides, 'B2_path', fullfile(static_root, 'B2.tif'));
@@ -290,6 +296,8 @@ fprintf('\n--- WARMUP / INITIAL CONDITIONS ---\n');
 print_path_status('Warmup Depth',          InputPaths.Warmup_Depth_path,          'file');
 print_path_status('Initial Buildup',       InputPaths.Initial_Buildup_path,       'file');
 print_path_status('Initial Soil Moisture', InputPaths.Initial_Soil_Moisture_path, 'file');
+print_path_status('Initial SWE',           InputPaths.Initial_SWE_path,           'file');
+print_path_status('Initial Snow Depth',    InputPaths.Initial_Snow_Depth_path,    'file');
 
 fprintf('\n--- WATER QUALITY RASTERS ---\n');
 print_path_status('B1', InputPaths.B1_path, 'file');

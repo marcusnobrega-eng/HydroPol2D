@@ -1,26 +1,19 @@
 % P1-CANOPY-001: run HydroPol2D interceptionModel against the Phase 1 reference.
 %
 % Run from the repository root or from this case folder in MATLAB:
-%   run('Validation/Canopy_Interception/SingleCell_Storage_Balance/run_canopy_interception_model.m')
+%   run('HydroPol2D_Model/Validation/Canopy_Interception/SingleCell_Storage_Balance/run_canopy_interception_model.m')
 
 case_dir = fileparts(mfilename('fullpath'));
-model_root = case_dir;
-while ~isfolder(fullfile(model_root, 'HydroPol2D_Functions'))
-    parent_dir = fileparts(model_root);
-    if strcmp(parent_dir, model_root)
-        error('HydroPol2D:Validation:ModelRootNotFound', ...
-            'Could not locate the HydroPol2D repository from %s.', case_dir);
-    end
-    model_root = parent_dir;
-end
-functions_dir = fullfile(model_root, 'HydroPol2D_Functions');
-addpath(functions_dir);
-hydropol2d_add_runtime_paths(model_root);
-reference_file = fullfile(model_root, 'Validation', ...
+repo_root = fullfile(case_dir, '..', '..', '..');
+functions_dir = fullfile(repo_root, 'HydroPol2D_Functions');
+reference_file = fullfile(repo_root, 'Validation', ...
     'Reference_Outputs', 'Phase1', 'canopy_bucket', ...
     'P1-CANOPY-001_reference.csv');
 output_dir = fullfile(case_dir, 'Outputs', 'Validation');
 
+if ~exist(functions_dir, 'dir')
+    error('HydroPol2D functions directory not found: %s', functions_dir);
+end
 if ~exist(reference_file, 'file')
     error('Reference file not found. Generate it with phase1_reference_solutions.py: %s', reference_file);
 end
@@ -28,7 +21,8 @@ if ~exist(output_dir, 'dir')
     mkdir(output_dir);
 end
 
-addpath(functions_dir);
+addpath(functions_dir, '-begin');
+hydropol2d_add_runtime_paths(hydropol2d_find_root(case_dir));
 
 ref = readtable(reference_file, 'TextType', 'string');
 model_rows = table();

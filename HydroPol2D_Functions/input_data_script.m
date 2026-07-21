@@ -157,6 +157,7 @@ if use_inputdata_bypass == 1
     GIS_data.alfa_2 = require_field(G,'alfa_2');
     GIS_data.beta_1 = require_field(G,'beta_1');
     GIS_data.beta_2 = require_field(G,'beta_2');
+    % One scalar, authoritative channel/in-bank Manning coefficient.
     LULC_Parameters.River_Manning = require_field(G,'Manning');
     River_K_coeff = get_optional_field(G,'River_K_coeff',nan);
 
@@ -173,6 +174,12 @@ if use_inputdata_bypass == 1
     GIS_data.sl        = require_field(G,'sl');
     GIS_data.slope_DTM = require_field(G,'slope_DTM');
 
+    % ---------------- Bundled terrain runtime ----------------
+    if ~exist('runtime_model_root','var') || ~isfolder(runtime_model_root)
+        runtime_model_root = fileparts(fileparts(which('hydropol2d_add_runtime_paths')));
+    end
+    runtime = hydropol2d_add_runtime_paths(runtime_model_root); %#ok<NASGU>
+
     % ---------------- Human Instability ----------------
     if flags.flag_human_instability == 1 || flags.flag_human_instability == 3
         if ~isfield(InputData_Bypass,'Human_Instability')
@@ -181,14 +188,6 @@ if use_inputdata_bypass == 1
         Human_Instability = InputData_Bypass.Human_Instability;
     else
         Human_Instability = [];
-    end
-
-    % ---------------- Snow Properties ----------------
-    if flags.flag_snow_modeling == 1
-        if ~isfield(InputData_Bypass,'Snow_Properties')
-            error('Bypass mode requires InputData_Bypass.Snow_Properties when flag_snow_modeling = 1.');
-        end
-        Snow_Properties = InputData_Bypass.Snow_Properties;
     end
 
     % ---------------- Design Storms ----------------
@@ -296,10 +295,36 @@ if use_inputdata_bypass == 1
     end
 
     % ---------------- LULC DATA ----------------
-    [LULC_name, lulc_parameters, n_lulc, imp_index, LULC_index] = unpack_class_table(InputData_Bypass.LULC,'LULC');
+    [LULC_name, lulc_parameters, n_lulc, imp_index, LULC_index, LULC_parameter_names] = ...
+        unpack_class_table(InputData_Bypass.LULC,'LULC');
 
     % ---------------- SOIL DATA ----------------
     [SOIL_name, soil_parameters, n_soil, ~, SOIL_index] = unpack_class_table(InputData_Bypass.SOIL,'SOIL');
+
+    % ---------------- Snow data ----------------
+    % Snow parameters are part of the LULC class table.  A legacy separate
+    % Snow struct remains readable only to avoid breaking historical cases.
+    if flags.flag_snow_modeling == 1
+        try
+            Snow_Properties = struct('config', hp2d_normalize_snow_table(InputData_Bypass.LULC));
+        catch ME
+            if ~contains(ME.message, 'missing required column')
+                rethrow(ME);
+            elseif isfield(InputData_Bypass, 'Snow')
+                warning(['InputData_Bypass.Snow is deprecated. Move its snow columns into ', ...
+                    'InputData_Bypass.LULC.table.']);
+                Snow_Properties = struct('config', hp2d_normalize_snow_table(InputData_Bypass.Snow));
+            elseif isfield(InputData_Bypass, 'Snow_Properties')
+            warning(['InputData_Bypass.Snow_Properties is deprecated. Convert this case to ', ...
+                    'snow columns in InputData_Bypass.LULC.table.']);
+                legacy_snow = legacy_snow_table(InputData_Bypass.Snow_Properties, LULC_index);
+                Snow_Properties = struct('config', hp2d_normalize_snow_table(legacy_snow));
+            else
+                error(['flag_snow_modeling = 1 requires the snow columns in ', ...
+                    'InputData_Bypass.LULC.table. %s'], ME.message);
+            end
+        end
+    end
 
     % ---------------- Rainfall ----------------
     if flags.flag_rainfall == 1 && flags.flag_alternated_blocks ~= 1 && flags.flag_huff ~= 1 && ...
@@ -421,7 +446,9 @@ else
     % ====================================================================
 
 %%%%%%%%%%%%%% INPUT DATA %%%%%%%%%%%%%%%%%%%
-% GD = readcell(model_folder,'Sheet','General_Data');  % raw grid (names anywhere)
+if ~exist('GD','var') || isempty(GD)
+    GD = read_config_cells(model_folder);  % raw grid assembled from organized sheets
+end
 
 % ---------------- Running Control (name-based) ----------------
 time_step_model = xlnum(GD,'time_step_model')/60;   % sheet is seconds -> minutes
@@ -468,6 +495,19 @@ missing = requiredFlags(~isfield(flags, requiredFlags));
 if ~isempty(missing)
     error("Missing flags in Flags sheet: %s", strjoin(missing, ", "));
 end
+if ~isfield(flags,'flag_export_groundwater_maps')
+    flags.flag_export_groundwater_maps = 0;
+end
+if ~isfield(flags,'flag_prescribed_recharge')
+    flags.flag_prescribed_recharge = 0;
+end
+
+% Groundwater scheduler controls are non-flag numeric settings. Keep them in
+% General_Data so Excel-mode runs expose the same controls as bypass mode.
+flags.groundwater_target_dt_min      = xlnum_optional(GD,'groundwater_target_dt_min',1440);
+flags.groundwater_min_dt_min         = xlnum_optional(GD,'groundwater_min_dt_min',1);
+flags.groundwater_max_head_change_m  = xlnum_optional(GD,'groundwater_max_head_change_m',0.25);
+flags.groundwater_courant            = xlnum_optional(GD,'groundwater_courant',0.25);
 
 % Little Constraints
 if flags.flag_infiltration == 0
@@ -520,6 +560,7 @@ GIS_data.alfa_1 = xlnum(GD,'alfa_1');
 GIS_data.alfa_2 = xlnum(GD,'alfa_2');
 GIS_data.beta_1 = xlnum(GD,'beta_1');
 GIS_data.beta_2 = xlnum(GD,'beta_2');
+% One scalar, authoritative channel/in-bank Manning coefficient.
 LULC_Parameters.River_Manning = xlnum(GD,'Manning');
 River_K_coeff = nan; % Deactivated
 
@@ -535,6 +576,12 @@ GIS_data.tau       = xlnum(GD,'tau');
 GIS_data.K_value   = xlnum(GD,'K_value');
 GIS_data.sl        = xlnum(GD,'sl');
 GIS_data.slope_DTM = xlnum(GD,'slope_DTM');
+
+% ---------------- Bundled terrain runtime ----------------
+if ~exist('runtime_model_root','var') || ~isfolder(runtime_model_root)
+    runtime_model_root = fileparts(fileparts(which('hydropol2d_add_runtime_paths')));
+end
+runtime = hydropol2d_add_runtime_paths(runtime_model_root); %#ok<NASGU>
 
 % Human Instability
 if flags.flag_human_instability == 1
@@ -636,7 +683,7 @@ if flags.flag_input_rainfall_map == 1 || flags.flag_satellite_rainfall == 1 || f
     % Clean rainfall rows read from spreadsheet.
     % Keep only rows with a valid numeric time and a non-empty raster path.
     rain_time = double(T_rain.time(:));
-    
+
     rain_dir = T_rain.directory;
     if iscell(rain_dir)
         rain_dir = string(rain_dir(:));
@@ -645,15 +692,15 @@ if flags.flag_input_rainfall_map == 1 || flags.flag_satellite_rainfall == 1 || f
     else
         rain_dir = string(rain_dir(:));
     end
-    
+
     valid_rain_rows = isfinite(rain_time) & ...
                       ~ismissing(rain_dir) & ...
                       strlength(strtrim(rain_dir)) > 0 & ...
                       lower(strtrim(rain_dir)) ~= "nan";
-    
+
     rain_time = rain_time(valid_rain_rows);
     rain_dir  = rain_dir(valid_rain_rows);
-    
+
     Input_Rainfall.time = rain_time;
     Input_Rainfall.num_obs_maps = numel(Input_Rainfall.time);
     Input_Rainfall.labels_Directory = cellstr(rain_dir);
@@ -790,12 +837,26 @@ end
 % -------------------------------------------------------------------------
 
 %%%%%%%%%%%%%% LULC DATA %%%%%%%%%%%%%%%%%%%
-input_table = readtable('LULC_parameters.xlsx');
-[LULC_name, lulc_parameters, n_lulc, imp_index, LULC_index] = unpack_class_table(input_table,'LULC');
+% The formatted LULC workbook reserves row 1 for its title and starts the
+% machine-readable class table at row 2.
+input_table = readtable('LULC_parameters.xlsx', 'Range', 'A2', ...
+    'VariableNamingRule', 'preserve');
+LULC_input_table = input_table;
+[LULC_name, lulc_parameters, n_lulc, imp_index, LULC_index, LULC_parameter_names] = ...
+    unpack_class_table(LULC_input_table,'LULC');
 
 %%%%%%%%%%%%%% SOIL DATA %%%%%%%%%%%%%%%%%%%
 input_table = readtable('SOIL_parameters.xlsx');
 [SOIL_name, soil_parameters, n_soil, ~, SOIL_index] = unpack_class_table(input_table,'SOIL');
+
+if flags.flag_snow_modeling == 1
+    try
+        Snow_Properties = struct('config', hp2d_normalize_snow_table(LULC_input_table));
+    catch ME
+        error(['flag_snow_modeling = 1 requires the snow columns in ', ...
+            'Input_Data_Sheets/LULC_parameters.xlsx. %s'], ME.message);
+    end
+end
 
 % Rainfall
 if flags.flag_rainfall == 1 && flags.flag_alternated_blocks ~= 1 && flags.flag_huff ~= 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_spatial_rainfall ~= 1 && flags.flag_real_time_satellite_rainfall ~= 1 && flags.flag_satellite_rainfall ~= 1
@@ -1116,6 +1177,9 @@ function flags = normalize_flags_struct(flagsIn)
     if ~isfield(flags,'flag_warmup')
         flags.flag_warmup = 0;
     end
+    if ~isfield(flags,'flag_export_groundwater_maps')
+        flags.flag_export_groundwater_maps = 0;
+    end
 end
 
 function M = normalize_map_input(M, label)
@@ -1333,8 +1397,9 @@ function validate_paired_etp_maps(Input_Transpiration, Input_Evaporation)
     end
 end
 
-function [class_names, parameters, n_classes, imp_index, class_index] = unpack_class_table(S, label)
+function [class_names, parameters, n_classes, imp_index, class_index, parameter_names] = unpack_class_table(S, label)
     imp_index = [];
+    parameter_names = strings(1,0);
     if istable(S)
         T = S;
         class_names = T(:,1);
@@ -1350,6 +1415,7 @@ function [class_names, parameters, n_classes, imp_index, class_index] = unpack_c
         class_index = require_field(S,'index');
         parameters = require_field(S,'parameters');
         n_classes = size(parameters,1);
+        parameter_names = "parameter_" + string(1:size(parameters,2));
         if isfield(S,'impervious_index')
             imp_index = S.impervious_index;
         end
@@ -1358,8 +1424,16 @@ function [class_names, parameters, n_classes, imp_index, class_index] = unpack_c
 
     class_index = input_data(:,1);
     parameters  = input_data(:,2:end);
-    n_classes   = sum(parameters(:,1) >= 0);
-    parameters  = parameters(1:n_classes,:);
+    parameter_names = string(variable_names(3:end));
+    valid_rows = isfinite(class_index) & size(parameters,2) >= 1 & isfinite(parameters(:,1));
+    class_names = class_names(valid_rows,:);
+    class_index = class_index(valid_rows);
+    parameters = parameters(valid_rows,:);
+    n_classes = numel(class_index);
+    if n_classes == 0 || any(abs(class_index - round(class_index)) > 1e-9) || ...
+            numel(unique(class_index)) ~= n_classes
+        error('%s parameter table must contain unique finite integer class indices.', label);
+    end
 
     if strcmpi(label,'LULC')
         imp_col = find_class_column(variable_names, {'index_impervious','impervious_index'});
@@ -1379,6 +1453,35 @@ function [class_names, parameters, n_classes, imp_index, class_index] = unpack_c
             imp_index = parameters(1,end);
         end
     end
+end
+
+function T = legacy_snow_table(S, lulc_index)
+% Convert the former global snow structure to a per-LULC table without
+% changing the old values. This preserves existing user cases during migration.
+defaults = struct('alpha',0.8,'epsilon',0.98,'C_e',0.001,'DDF',2, ...
+    'T_snow_all',4,'T_rain_all',7,'rho_snow_init',100,'rho_max',400, ...
+    'k_t',0.1,'k_swe',0.001,'k_D',0.02);
+names = fieldnames(defaults);
+for i = 1:numel(names)
+    if isfield(S, names{i}) && isfinite(S.(names{i}))
+        defaults.(names{i}) = S.(names{i});
+    end
+end
+if isfield(S,'T_thresh') && isfinite(S.T_thresh)
+    defaults.T_snow_all = S.T_thresh;
+    defaults.T_rain_all = S.T_thresh;
+end
+n = numel(lulc_index);
+T = table(lulc_index(:), repmat(defaults.alpha,n,1), repmat(defaults.epsilon,n,1), ...
+    repmat(defaults.C_e,n,1), repmat(defaults.DDF,n,1), ...
+    repmat(defaults.T_snow_all,n,1), repmat(defaults.T_rain_all,n,1), ...
+    repmat(defaults.rho_snow_init,n,1), repmat(defaults.rho_max,n,1), ...
+    repmat(defaults.k_t,n,1), repmat(defaults.k_swe,n,1), repmat(defaults.k_D,n,1), ...
+    'VariableNames', {'LULC_Index','Snow_Albedo','Snow_Emissivity', ...
+    'Sublimation_Coefficient_d_1','Degree_Day_Factor_mm_C_day', ...
+    'T_Snow_All_C','T_Rain_All_C','Rho_Snow_Init_kg_m3','Rho_Snow_Max_kg_m3', ...
+    'Compaction_Temperature_kg_m3_C_day','Compaction_SWE_kg_m3_mm_day', ...
+    'Compaction_Depth_kg_m3_mm_day'});
 end
 
 function col = find_class_column(variable_names, candidates)
@@ -1653,6 +1756,68 @@ function x = xlnum(GD, key)
         return
     end
     x = double(v);
+end
+
+function x = xlnum_optional(GD, key, defaultValue)
+    try
+        x = xlnum(GD, key);
+        if ~isfinite(x)
+            x = defaultValue;
+        end
+    catch
+        x = defaultValue;
+    end
+end
+
+function GD = read_config_cells(workbookPath)
+    publicSheets = { ...
+        'Run_Control', ...
+        'Static_Maps', ...
+        'Hydrology_Groundwater', ...
+        'Hydrodynamics_Boundaries', ...
+        'Water_Quality', ...
+        'Human_Risk', ...
+        'Observation_Points', ...
+        'Spatial_Forcing', ...
+        'Design_Storm', ...
+        'General_Data' ...
+    };
+
+    try
+        available = sheetnames(workbookPath);
+    catch
+        available = {'General_Data'};
+    end
+    available = cellstr(string(available));
+
+    parts = {};
+    maxCols = 0;
+    for i = 1:numel(publicSheets)
+        sheetName = publicSheets{i};
+        if ~any(strcmpi(available, sheetName))
+            continue
+        end
+        C = readcell(workbookPath, 'Sheet', sheetName);
+        if isempty(C)
+            continue
+        end
+        parts{end+1} = C; %#ok<AGROW>
+        maxCols = max(maxCols, size(C,2));
+    end
+
+    if isempty(parts)
+        GD = readcell(workbookPath,'Sheet','General_Data');
+        return
+    end
+
+    GD = {};
+    for i = 1:numel(parts)
+        C = parts{i};
+        if size(C,2) < maxCols
+            C(:,end+1:maxCols) = {[]};
+        end
+        GD = [GD; C; cell(2,maxCols)]; %#ok<AGROW>
+    end
 end
 
 function t = xldatetime(GD, key)

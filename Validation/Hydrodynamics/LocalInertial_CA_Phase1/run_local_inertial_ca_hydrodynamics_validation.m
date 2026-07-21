@@ -1,19 +1,10 @@
 clear; clc;
 
 case_dir = fileparts(mfilename('fullpath'));
-model_root = case_dir;
-while ~isfolder(fullfile(model_root, 'HydroPol2D_Functions'))
-    parent_dir = fileparts(model_root);
-    if strcmp(parent_dir, model_root)
-        error('HydroPol2D:Validation:ModelRootNotFound', ...
-            'Could not locate the HydroPol2D repository from %s.', case_dir);
-    end
-    model_root = parent_dir;
-end
-repo_root = model_root;
-functions_dir = fullfile(model_root, 'HydroPol2D_Functions');
-addpath(functions_dir);
-hydropol2d_add_runtime_paths(model_root);
+repo_root = fullfile(case_dir, '..', '..', '..');
+functions_dir = fullfile(repo_root, 'HydroPol2D_Functions');
+addpath(functions_dir, '-begin');
+hydropol2d_add_runtime_paths(hydropol2d_find_root(case_dir));
 
 out_dir = fullfile(case_dir, 'Outputs', 'Validation');
 ts_dir = fullfile(out_dir, 'TimeSeries');
@@ -567,11 +558,24 @@ Diag = table(case_id, case_name, method, evidence_type, rmse, mae, max_error, ..
 end
 
 function Pass = pass_row(Diag, passed)
-status = "fail";
-if passed
-    status = "pass";
+is_ritter = contains(string(Diag.case_id), "RITTER");
+if is_ritter
+    % Ritter is the exact dry-bed solution of the full shallow-water system.
+    % The reduced local-inertial and CA schemes remain visible here, but their
+    % validation status is determined by their gradual-routing benchmarks.
+    if Diag.method == "local_inertial"
+        status = "method_limited_diagnostic";
+    else
+        status = "not_applicable_to_ritter";
+    end
+    report_ready = false;
+else
+    status = "fail";
+    if passed
+        status = "pass";
+    end
+    report_ready = passed;
 end
-report_ready = passed;
 Pass = table(Diag.case_id, Diag.case_name, Diag.method, status, report_ready, ...
     'VariableNames', {'case_id','case_name','method','status','report_ready'});
 end

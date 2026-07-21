@@ -34,6 +34,7 @@
 %   │    ├── Rasters_Static               % static rasters (max, totals, DEM, LULC, etc.)
 %   │    ├── Rasters_WQ                   % time-varying water quality rasters (if flag_waterquality==1)
 %   │    ├── Rasters_Human_Risk           % time-varying human risk rasters (if flag_human_instability>0)
+%   │    ├── Rasters_Groundwater          % time-varying groundwater depth rasters (optional)
 %   │    ├── GIFs_MP4                     % created; used only if Inundation_Maps writes here
 %   │    └── Shapefiles
 %   └── Temporary_Files                   % NOT created here; must exist from main / model loop
@@ -105,6 +106,9 @@
 %
 %   Modeling_Results/Rasters_Human_Risk (only if flag_human_instability==1)
 %     • Human_instability_<timestamp>.tif
+%
+%   Modeling_Results/Rasters_Groundwater (only if flag_export_groundwater_maps==1)
+%     • Groundwater_Depth_<timestamp>.tif
 %
 % B) Static rasters (only if flags.flag_export_maps==1)
 %   Modeling_Results/Rasters_Static
@@ -220,6 +224,11 @@ if isfield(Paths, 'RastersInfiltration')
     Dirs.RastersInfiltration = Paths.RastersInfiltration;
 else
     Dirs.RastersInfiltration = fullfile(Paths.Results, 'Rasters_Infiltration');
+end
+if isfield(Paths, 'RastersGroundwater')
+    Dirs.RastersGroundwater = Paths.RastersGroundwater;
+else
+    Dirs.RastersGroundwater = fullfile(Paths.Results, 'Rasters_Groundwater');
 end
 
 Dirs.WQMaps   = Paths.WQMaps;
@@ -351,13 +360,35 @@ if flags.flag_rainfall == 1
         ylabel('Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex'); ylim([0,max(gather(Rainfall_Parameters.intensity_rainfall)) + 200]);
     else
         if flags.flag_rainfall == 1 && flags.flag_spatial_rainfall == 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_real_time_satellite_rainfall ~= 1 && flags.flag_satellite_rainfall ~= 1
-            dim = length(BC_States.average_spatial_rainfall);
-            bar((gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg(1,1:(dim))))',gather(BC_States.average_spatial_rainfall),'FaceColor',pallete.blue_colors(2,:),'EdgeColor',[0 .5 .5],'LineWidth',1.5);
-            ylabel('Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex'); ylim([0,max(BC_States.average_spatial_rainfall)*5]);
+            if isfield(BC_States,'average_spatial_rainfall_hydrograph') && ~isempty(BC_States.average_spatial_rainfall_hydrograph)
+                rain_y = gather(BC_States.average_spatial_rainfall_hydrograph(:));
+            else
+                rain_y = gather(BC_States.average_spatial_rainfall(:));
+            end
+            if exist('running_control','var') && isfield(running_control,'time_hydrograph') && numel(running_control.time_hydrograph) >= numel(rain_y)
+                rain_x = gather(running_control.time_hydrograph(1:numel(rain_y)));
+            else
+                dim = min(numel(rain_y), numel(Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg));
+                rain_x = gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration_agg(1:dim));
+                rain_y = rain_y(1:dim);
+            end
+            bar(rain_x(:),rain_y(:),'FaceColor',pallete.blue_colors(2,:),'EdgeColor',[0 .5 .5],'LineWidth',1.5);
+            ylabel('Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex'); ylim([0,max(rain_y)*5]);
         else
-            dim = length(BC_States.average_spatial_rainfall);
-            bar((gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:(dim))))',gather(BC_States.average_spatial_rainfall),'FaceColor',pallete.blue_colors(2,:),'EdgeColor',[0 .5 .5],'LineWidth',1.5);
-            ylabel('Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex'); ylim([0,max(BC_States.average_spatial_rainfall)*5]);
+            if isfield(BC_States,'average_spatial_rainfall_hydrograph') && ~isempty(BC_States.average_spatial_rainfall_hydrograph)
+                rain_y = gather(BC_States.average_spatial_rainfall_hydrograph(:));
+            else
+                rain_y = gather(BC_States.average_spatial_rainfall(:));
+            end
+            if exist('running_control','var') && isfield(running_control,'time_hydrograph') && numel(running_control.time_hydrograph) >= numel(rain_y)
+                rain_x = gather(running_control.time_hydrograph(1:numel(rain_y)));
+            else
+                dim = min(numel(rain_y), numel(Spatial_Rainfall_Parameters.rainfall_spatial_duration));
+                rain_x = gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1:dim));
+                rain_y = rain_y(1:dim);
+            end
+            bar(rain_x(:),rain_y(:),'FaceColor',pallete.blue_colors(2,:),'EdgeColor',[0 .5 .5],'LineWidth',1.5);
+            ylabel('Intensity [$\mathrm{mm \cdot h^{-1}}$]','interpreter','latex'); ylim([0,max(rain_y)*5]);
         end
     end
 
@@ -504,9 +535,20 @@ if flags.flag_obs_gauges == 1
                 'FaceColor', [0 0.55 0.55], 'EdgeColor', [0 0.5 0.5], 'LineWidth', 1.5);
             ylabel(ax, 'Rainfall Intensity $[\mathrm{mm \cdot h^{-1}}]$', 'Interpreter', 'latex');
         else
-            dim = length(BC_States.average_spatial_rainfall);
-            plot(ax, gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1, 1:dim)), ...
-                gather(BC_States.average_spatial_rainfall), ...
+            if isfield(BC_States,'average_spatial_rainfall_hydrograph') && ~isempty(BC_States.average_spatial_rainfall_hydrograph)
+                rain_y = gather(BC_States.average_spatial_rainfall_hydrograph(:));
+            else
+                rain_y = gather(BC_States.average_spatial_rainfall(:));
+            end
+            if exist('running_control','var') && isfield(running_control,'time_hydrograph') && numel(running_control.time_hydrograph) >= numel(rain_y)
+                rain_x = gather(running_control.time_hydrograph(1:numel(rain_y)));
+            else
+                dim = min(numel(rain_y), numel(Spatial_Rainfall_Parameters.rainfall_spatial_duration));
+                rain_x = gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1:dim));
+                rain_y = rain_y(1:dim);
+            end
+            plot(ax, rain_x(:), ...
+                rain_y(:), ...
                 'LineWidth', 1.5, 'Color', 'blue');
             ylabel(ax, 'Mean Rainfall Intensity $[\mathrm{mm \cdot h^{-1}}]$', 'Interpreter', 'latex');
         end
@@ -660,25 +702,37 @@ if flags.flag_obs_gauges == 1 && flags.flag_rainfall == 1
             ylabel(ax, 'Rainfall Intensity $[\mathrm{mm \cdot h^{-1}}]$', 'Interpreter', 'latex');
             ylim(ax, [0, max(gather(Rainfall_Parameters.intensity_rainfall)) * 6]);
         else
-            dim = length(BC_States.average_spatial_rainfall);
-            bar(ax, Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:dim), ...
-                gather(BC_States.average_spatial_rainfall), ...
+            if isfield(BC_States,'average_spatial_rainfall_hydrograph') && ~isempty(BC_States.average_spatial_rainfall_hydrograph)
+                rain_y = gather(BC_States.average_spatial_rainfall_hydrograph(:));
+            else
+                rain_y = gather(BC_States.average_spatial_rainfall(:));
+            end
+            if exist('running_control','var') && isfield(running_control,'time_hydrograph') && numel(running_control.time_hydrograph) >= numel(rain_y)
+                rain_x = gather(running_control.time_hydrograph(1:numel(rain_y)));
+            else
+                dim = min(numel(rain_y), numel(Spatial_Rainfall_Parameters.rainfall_spatial_duration));
+                rain_x = gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1:dim));
+                rain_y = rain_y(1:dim);
+            end
+            bar(ax, rain_x(:), ...
+                rain_y(:), ...
                 'FaceColor', [0 .5 .5], 'EdgeColor', [0 .55 .55], 'LineWidth', 1.5);
             ylabel(ax, 'Areal Mean Rainfall Intensity $[\mathrm{mm \cdot h^{-1}}]$', 'Interpreter', 'latex');
             hold(ax, 'on');
             try
-                er = errorbar(ax, Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:dim), ...
-                    BC_States.average_spatial_rainfall, ...
-                    Rainfall_Parameters.std_dev(1:dim,1), ...
-                    Rainfall_Parameters.std_dev(1:dim,1));
+                dim_std = min(numel(rain_y), numel(Rainfall_Parameters.std_dev));
+                er = errorbar(ax, rain_x(1:dim_std), ...
+                    rain_y(1:dim_std), ...
+                    Rainfall_Parameters.std_dev(1:dim_std,1), ...
+                    Rainfall_Parameters.std_dev(1:dim_std,1));
                 er.Color = [0 0 0];
                 er.LineStyle = 'none';
             catch
             end
-            plot(ax, gather(Spatial_Rainfall_Parameters.rainfall_spatial_duration(1,1:dim)), ...
-                gather(BC_States.average_spatial_rainfall), ...
+            plot(ax, rain_x(:), ...
+                rain_y(:), ...
                 'LineWidth', 1.5, 'Color', 'blue');
-            ylim(ax, [0, max(max(gather(BC_States.average_spatial_rainfall))) * 6]);
+            ylim(ax, [0, max(max(rain_y)) * 6]);
         end
     end
 
@@ -1018,7 +1072,14 @@ end
 
 % Create stream network
 S = STREAMobj(FD, 'minarea', area_cells);
-ax1 = plot(S); hold on;
+stream_plot_ok = false;
+ax1 = gca;
+try
+    ax1 = plot(S); hold on;
+    stream_plot_ok = true;
+catch
+    warning('Stream network is empty for this domain. Skipping stream overlay.');
+end
 
 % Labels and formatting
 title('Streams and Observed Points', 'Interpreter', 'latex', 'FontSize', 14);
@@ -1041,8 +1102,10 @@ if flags.flag_obs_gauges == 1
         40, 'filled', 'MarkerFaceColor', [0.85 0.1 0.1], 'MarkerEdgeColor', 'k');
 
     % Export streams
-    MS = STREAMobj2mapstruct(S);
-    shapewrite(MS, fullfile(Dirs.Shapes, 'streamnetwork.shp')); % ok to keep at root
+    if stream_plot_ok
+        MS = STREAMobj2mapstruct(S);
+        shapewrite(MS, fullfile(Dirs.Shapes, 'streamnetwork.shp')); % ok to keep at root
+    end
     % OR keep them in a subfolder:
     % Dirs.Shapes = fullfile(folderName,"Shapefiles"); if ~isfolder(Dirs.Shapes), mkdir(Dirs.Shapes); end
     % shapewrite(MS, fullfile(Dirs.Shapes,'streamnetwork.shp'));
@@ -1073,6 +1136,7 @@ close all;
 
 %% Water Quality Analysis
 if flags.flag_waterquality == 1
+    outlet_pollutograph = resolve_outlet_pollutograph_local(WQ_States);
     %% Pollutograph – Concentration and Load at Outlet
     close all force
     fig = createStyledFigure(show_figures, paper_bg, figsize.pollutograph);
@@ -1082,7 +1146,7 @@ if flags.flag_waterquality == 1
 
     % Left Y-axis: Pollutant concentration
     yyaxis(ax, 'left');
-    plot(ax, gather(running_control.time_hydrograph), gather(WQ_States.outet_pollutograph), ...
+    plot(ax, gather(running_control.time_hydrograph), gather(outlet_pollutograph), ...
         'LineWidth', 1.5, 'Color', 'r', 'Marker', 'o');
     xlabel(ax, 'Time [min]', 'Interpreter', 'latex');
     ylabel(ax, 'Concentration $[\mathrm{mg/L}]$', 'Interpreter', 'latex');
@@ -1090,7 +1154,7 @@ if flags.flag_waterquality == 1
 
     % Right Y-axis: Pollutant load
     yyaxis(ax, 'right');
-    load_wq = 1e-3 * gather(WQ_States.outet_pollutograph) .* gather(outlet_states.outlet_hydrograph); % kg/s
+    load_wq = 1e-3 * gather(outlet_pollutograph) .* gather(outlet_states.outlet_hydrograph); % kg/s
     plot(ax, gather(running_control.time_hydrograph), load_wq, ...
         'LineWidth', 1.5, 'Color', 'b', 'Marker', '*');
     ylabel(ax, 'Load $[\mathrm{kg/s}]$', 'Interpreter', 'latex');
@@ -1117,7 +1181,7 @@ if flags.flag_waterquality == 1
     % Export data
     Outlet_Pollutograph_Data = table( ...
         gather(running_control.time_hydrograph), ...
-        gather(WQ_States.outet_pollutograph), ...
+        gather(outlet_pollutograph), ...
         gather(load_wq), ...
         'VariableNames', {'Time [min]', 'Concentration (mg/L)', 'Load (kg/s)'});
 
@@ -1139,7 +1203,7 @@ if flags.flag_waterquality == 1
     % Right Y-axis: Pollutant concentration
     yyaxis(ax, 'right');
     set(ax, 'YColor', 'r');
-    plot(ax, gather(running_control.time_hydrograph), gather(WQ_States.outet_pollutograph), ...
+    plot(ax, gather(running_control.time_hydrograph), gather(outlet_pollutograph), ...
         'LineWidth', 1.5, 'Color', 'red', 'Marker', 'o');
     ylabel(ax, 'Concentration $[\mathrm{mg/L}]$', 'Interpreter', 'latex');
 
@@ -1310,10 +1374,18 @@ if flags.flag_export_maps == 1
     deleteMatchingFiles(myFolder_vel, {'*.tif', '*.tif.aux'});
     deleteMatchingFiles(myFolder_haz, {'*.tif', '*.tif.aux'});
     myFolder_inf = '';
+    myFolder_gw = '';
     if flags.flag_infiltration == 1
         myFolder_inf = Dirs.RastersInfiltration;
         ensureFolder(myFolder_inf);
         deleteMatchingFiles(myFolder_inf, {'*.tif', '*.tif.aux'});
+    end
+    flag_export_groundwater_maps = isfield(flags, 'flag_export_groundwater_maps') && ...
+        flags.flag_export_groundwater_maps == 1;
+    if flags.flag_groundwater_modeling == 1 && flag_export_groundwater_maps
+        myFolder_gw = Dirs.RastersGroundwater;
+        ensureFolder(myFolder_gw);
+        deleteMatchingFiles(myFolder_gw, {'*.tif', '*.tif.aux'});
     end
 
     %========================
@@ -1610,6 +1682,30 @@ if flags.flag_export_maps == 1
             raster_to_export_inf.Z = inf_exp;
             geotiffwrite(outTifInf, raster_to_export_inf.Z, raster_to_export_inf.georef.SpatialRef, ...
                 'GeoKeyDirectoryTag', raster_to_export_inf.georef.GeoKeyDirectoryTag);
+        end
+
+        %========================
+        % Groundwater depth temporal export
+        %========================
+        if flags.flag_groundwater_modeling == 1 && flag_export_groundwater_maps && ...
+                isfield(Maps.Hydro, 'GWdepth_save') && ~isempty(Maps.Hydro.GWdepth_save) && ...
+                ~isempty(myFolder_gw) && ndims(Maps.Hydro.GWdepth_save) >= 3 && ...
+                local_i <= size(Maps.Hydro.GWdepth_save, 3)
+            if flags.flag_elapsed_time == 1
+                baseNameGW = sprintf('Groundwater_Depth_t_%s_h', num2str(time_map));
+            else
+                baseNameGW = sprintf('Groundwater_Depth_%s', string(time_map));
+            end
+            outTifGW = fullfile(myFolder_gw, baseNameGW + ".tif");
+
+            gw_exp = local_get_groundwater_depth_export(Maps.Hydro, local_i, Soil_Properties);
+            gw_exp(~isfinite(gw_exp)) = no_data_value;
+            gw_exp(idx_nan) = no_data_value;
+
+            raster_to_export_gw = DEM_raster;
+            raster_to_export_gw.Z = gw_exp;
+            geotiffwrite(outTifGW, raster_to_export_gw.Z, raster_to_export_gw.georef.SpatialRef, ...
+                'GeoKeyDirectoryTag', raster_to_export_gw.georef.GeoKeyDirectoryTag);
         end
 
         %========================
@@ -2001,7 +2097,8 @@ if flags.flag_export_maps == 1
     if flags.flag_infiltration == 1
         outTif = fullfile(Dirs.RastersStatic, "Cumulative_Infiltration.tif");
 
-        zzz = cumulative_infiltration / 1000;
+        % cumulative_infiltration is already stored in metres.
+        zzz = cumulative_infiltration;
         zzz(isinf(zzz)) = no_data_value;
         zzz(isnan(zzz)) = no_data_value;
 
@@ -2583,7 +2680,7 @@ end
 % close all
 %
 %
-% clearvars a_grid area_cells area_km2 b_grid baseFileName C cm color_plot color_plots depth_accumulation Depth_RAS elevation f FileName FileName_String filePattern FolderName font_size frame fsize fullFileName h h_max h_min i idx2 idx3 idx_depth idx_i_a idx_wse im imind labels_depth labels_gauges ls max_depth max_h max_inf max_v MS myFolder no_data_value nx_max ny_max Out_Conc points raster_exportion raster_exportion_percentage s size_font t t_max t_previous t_save t_store t_title theFiles topotoolbox_lite_root x_grid xbrgin xend xmax y_grid ybegin yend ymax z z1 z2 zmax zmin
+% clearvars a_grid area_cells area_km2 b_grid baseFileName C cm color_plot color_plots depth_accumulation Depth_RAS elevation f FileName FileName_String filePattern FolderName font_size frame fsize fullFileName h h_max h_min i idx2 idx3 idx_depth idx_i_a idx_wse im imind labels_depth labels_gauges ls max_depth max_h max_inf max_v MS myFolder no_data_value nx_max ny_max Out_Conc points raster_exportion raster_exportion_percentage s size_font t t_max t_previous t_save t_store t_title theFiles terrain_runtime x_grid xbrgin xend xmax y_grid ybegin yend ymax z z1 z2 zmax zmin
 %
 % disp('Thank you for using HydroPol2D. Results are exported in Modeling Results folder.')
 
@@ -3245,6 +3342,29 @@ function appendTimeSliceToNetCDF(ncFile, varName, Z, timeIndex)
 Z = single(Z);
 Z = flipud(Z);
 ncwrite(ncFile, varName, Z.', [1 1 timeIndex]);
+end
+
+function gw_exp = local_get_groundwater_depth_export(HydroMaps, local_i, Soil_Properties)
+% Returns depth to water table below surface [m].
+    gw_exp = double(HydroMaps.GWdepth_save(:,:,local_i));
+    is_new_zwt = isfield(HydroMaps, 'GWdepth_is_zwt') && isequal(HydroMaps.GWdepth_is_zwt, 1);
+    if ~is_new_zwt
+        gw_exp = Soil_Properties.Soil_Depth - gw_exp;
+    end
+    gw_exp = max(gw_exp, 0);
+    if isfield(Soil_Properties, 'Soil_Depth')
+        gw_exp = min(gw_exp, Soil_Properties.Soil_Depth);
+    end
+end
+
+function c = resolve_outlet_pollutograph_local(WQ_States)
+if isfield(WQ_States, 'outet_pollutograph') && ~isempty(WQ_States.outet_pollutograph)
+    c = WQ_States.outet_pollutograph;
+elseif isfield(WQ_States, 'EMC_outlet') && ~isempty(WQ_States.EMC_outlet)
+    c = WQ_States.EMC_outlet;
+else
+    error('Could not find outlet pollutograph in WQ_States.');
+end
 end
 
 function fig = createStyledFigure(show_figures, paper_bg, figsize_inches)

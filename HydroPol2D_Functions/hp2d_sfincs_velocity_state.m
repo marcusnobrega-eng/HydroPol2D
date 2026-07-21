@@ -19,9 +19,13 @@ function face = query_table_set(S, prefix, zu)
 zmin = S.([prefix '_zmin']);
 zmax = S.([prefix '_zmax']);
 havg_tab = S.([prefix '_havg']);
-nrep_tab = S.([prefix '_nrep']);
+nrep_tab = S.([prefix '_nrep']);   % SFINCS stores g*n^2 here.
 pwet_tab = S.([prefix '_pwet']);
-navg = S.([prefix '_navg']);
+if isfield(S, [prefix '_navg_w'])
+    navg_w = S.([prefix '_navg_w']);
+else
+    navg_w = S.([prefix '_navg']);
+end
 ffit = S.([prefix '_ffit']);
 
 havg = zeros(size(zu), 'like', zu);
@@ -47,7 +51,7 @@ if any(above(:))
     dz_above = zu(above) - zmax(above);
     havg(above) = hM(above) + dz_above;
     nM_above = nM(above);
-    navg_above = navg(above);
+    navg_above = navg_w(above);
     bad_top_n = ~isfinite(nM_above) | nM_above <= 0;
     nM_above(bad_top_n) = navg_above(bad_top_n);
     denom = ffit(above) .* dz_above + 1;
@@ -68,6 +72,7 @@ pwet(~isfinite(pwet)) = 0;
 nrep(~isfinite(nrep) | nrep <= 0) = Inf;
 
 face.HG = max(havg, 0);
+face.gnavg2 = nrep;
 face.n = nrep;
 face.phi = max(min(pwet, 1), 0);
 face.zmin = zmin;

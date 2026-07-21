@@ -1,13 +1,24 @@
 # Validation Scripts
 
-`audit_validation_registry.py` checks that each registered validation case has a folder, acceptance threshold, metrics, and report references. Use it before compiling the validation report and before marking a case report-ready.
-
-Example:
+Run the Phase 1 suite from the repository root:
 
 ```bash
-python3 Validation/scripts/audit_validation_registry.py Validation/Validation_Cases.csv
+python3 Validation/scripts/run_phase1_release.py \
+  --matlab /Applications/MATLAB_R2025b.app/bin/matlab
 ```
 
-Use `--strict` when the campaign is close to submission and warnings should fail the audit.
+`run_phase1_release.py` starts each driver from a clean MATLAB path and
+writes `Validation/Release/Outputs/Phase1_Release_Summary.csv`. It fails
+when a report-ready result fails; documented diagnostic rows remain in the
+summary without blocking the run.
 
-`phase1_reference_solutions.py` generates analytical/reference CSVs for the Phase 1 formula and dynamics verification cases. These outputs live under `Validation/Reference_Outputs/Phase1` and should be compared against HydroPol2D/module outputs.
+After a completed run, check that every registry row has its source folder,
+driver, metadata, and pass/fail output:
+
+```bash
+python3 Validation/scripts/audit_validation_registry.py
+```
+
+`phase1_reference_solutions.py` produces independent reference series for
+the analytical Phase 1 cases. Its outputs are written under
+`Validation/Reference_Outputs/Phase1`.

@@ -1,42 +1,46 @@
-# P1-SNOW-001: Cold/Warm Partition and Melt
+# P1-SNOW-001: Configurable Snow Accumulation and Melt
 
-Purpose: validate snow accumulation, rain/snow partitioning, melt, sublimation, and snowpack mass closure under prescribed forcing.
+This Phase 1 suite verifies the active snow pathway in HydroPol2D. Snow
+parameters are defined per LULC class in `Input_Data_Sheets/LULC_parameters.xlsx`.
+The test suite evaluates equation-level behavior and controlled snow-and-runoff
+dynamics; it is not a field-calibration study.
 
-Phase 1 case-study domain: `Validation/Phase1_VTilted_Catchment`. The snow routine is evaluated by v-tilted zone using representative left hillslope, channel-strip, and right-hillslope forcing sequences.
+## Test sequence
 
-Expected behavior:
-- Cold precipitation accumulates in snow storage.
-- Transitional precipitation is partitioned using the implemented 4 to 7 C linear snow-fraction rule.
-- Warm precipitation remains liquid.
-- Melt is bounded by available snow water equivalent.
-- Sublimation removes snow storage without generating runoff.
+| Case | Test | Evidence |
+|---|---|---|
+| `P1-SNOW-001A` | Configurable cold, mixed, and warm partition | Exact prescribed partition and snow-storage balance |
+| `P1-SNOW-001B` | Per-LULC parameter maps and initial snow states | No-raster, SWE-only, depth-only, both-raster, and inconsistent-raster paths |
+| `P1-SNOW-001C` | Timestep refinement | 5, 15, and 60 min integrations of the same degree-day solution |
+| `P1-SNOW-001D` | Controlled V-tilted snow/runoff coupling | Closed liquid-water and snow-storage ledger on a two-LULC grid |
+| `P1-SNOW-001E` | Input-surface equivalence | Identical parameter arrays from Excel and bypass configuration |
+| `P1-SNOW-001F` | Normal HydroPol2D V-tilted event | Regular preprocessing, meteorological forcing, snow routing, and event mass ledger |
 
-Required diagnostics:
-- `Outputs/Validation/Mass_Balance.csv`
-- `Outputs/Validation/Metric_Summary.csv`
-- `Outputs/Validation/Pass_Fail.csv`
-- snow storage, snow depth, melt, sublimation, rain/snow partition, and density time series
+## Run
 
-Acceptance threshold: storage residual `< 1e-6 m3` for unit-scale tests or `< 0.01%` of input volume.
-
-## Phase 1 implementation
-
-Generate the independent reference:
-
-```bash
-python3 Validation/scripts/phase1_reference_solutions.py --case snow_degree_day --output Validation/Reference_Outputs/Phase1
-```
-
-Run the actual HydroPol2D snow function in MATLAB:
+Run the complete suite in MATLAB:
 
 ```matlab
-run('Validation/Snow/ColdWarmPartition_Melt/run_snow_model.m')
+run('Validation/Snow/ColdWarmPartition_Melt/run_snow_phase1_validation.m')
 ```
 
-Then compare:
+The driver writes `Metric_Summary.csv`, `Mass_Balance.csv`, and `Pass_Fail.csv`
+under `Outputs/Validation/`. The full-model event writes its configuration,
+timeseries, figures, and ledger below `FullModelRuns/P1-SNOW-001F/`.
 
-```bash
-python3 Validation/Snow/ColdWarmPartition_Melt/compare_snow_model.py
-```
+## Inputs and interpretation
 
-Implementation note: `Snow_Model_Function.m` currently accepts a `T_thresh` argument, but the active precipitation partition uses hard-coded lower and upper transition temperatures of 4 C and 7 C. The Phase 1 reference mirrors the active implementation so the test is an exact formula/storage verification.
+- Initial SWE and snow-depth rasters are optional. Where neither has a value,
+  the cell starts snow-free with the LULC-specific initial density.
+- Where only one initial-state raster is supplied, HydroPol2D derives the other
+  variable from the LULC-specific density.
+- Positive SWE and depth pairs must imply a physically valid density. Negative
+  values and incompatible pairs stop preprocessing.
+- Unmapped LULC or snow codes receive the area-weighted mean of mapped-class
+  properties. `Input_Class_Code_Audit.csv` records this fallback.
+- Snow routing needs air temperature, minimum temperature, and wind. The active
+  implementation obtains those variables through the internal meteorological
+  forcing pathway.
+
+Acceptance requires finite states, nonnegative SWE/depth, bounded density, and
+mass residuals below the stated test thresholds.

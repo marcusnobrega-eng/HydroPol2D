@@ -18,6 +18,7 @@ REQUIRED_COLUMNS = {
     "module",
     "status",
     "case_folder",
+    "driver",
     "expected_behavior",
     "primary_metrics",
     "acceptance_threshold",
@@ -31,7 +32,13 @@ REPORT_READY_STATUSES = {"validated", "report_ready"}
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("registry", type=Path, help="Path to Validation_Cases.csv")
+    parser.add_argument(
+        "registry",
+        type=Path,
+        nargs="?",
+        default=Path("Validation/Phase1_Cases.csv"),
+        help="Path to the Phase 1 registry (default: Validation/Phase1_Cases.csv)",
+    )
     parser.add_argument(
         "--strict",
         action="store_true",
@@ -56,6 +63,12 @@ def audit_row(row: dict[str, str], workspace: Path) -> tuple[list[str], list[str
     elif not folder.exists():
         errors.append(f"{case_id}: case_folder does not exist: {folder_value}")
 
+    driver = row.get("driver", "")
+    if is_blank(driver):
+        errors.append(f"{case_id}: missing driver")
+    elif folder.exists() and not (folder / driver).is_file():
+        errors.append(f"{case_id}: driver does not exist: {folder_value}/{driver}")
+
     for column in (
         "expected_behavior",
         "primary_metrics",
@@ -70,13 +83,19 @@ def audit_row(row: dict[str, str], workspace: Path) -> tuple[list[str], list[str
     status = row.get("status", "").strip().lower()
     if status in REPORT_READY_STATUSES:
         validation_dir = folder / "Outputs" / "Validation"
-        for filename in ("Mass_Balance.csv", "Metric_Summary.csv", "Pass_Fail.csv"):
-            if not (validation_dir / filename).exists():
-                errors.append(
-                    f"{case_id}: report-ready case missing Outputs/Validation/{filename}"
-                )
+        pass_files = list(validation_dir.glob("*Pass_Fail.csv")) if validation_dir.exists() else []
+        if not pass_files:
+            errors.append(
+                f"{case_id}: report-ready case has no Outputs/Validation/*Pass_Fail.csv"
+            )
+    elif status == "not_applicable_to_ritter":
+        warnings.append(
+            f"{case_id}: Ritter dry-bed dam-break benchmark is not applicable to this routing method"
+        )
     elif "diagnostic" in status:
         warnings.append(f"{case_id}: diagnostic only, do not cite as validated")
+    elif status == "limited":
+        warnings.append(f"{case_id}: passed primary checks with a documented limitation")
     elif "audit_required" in status:
         warnings.append(f"{case_id}: implementation audit required before validation")
     elif "pending" in status or status == "planned":

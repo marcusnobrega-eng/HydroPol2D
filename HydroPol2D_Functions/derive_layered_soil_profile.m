@@ -44,6 +44,14 @@ else
 end
 root_depth(idx_nan) = nan;
 
+pervious_fraction = ones(size(soil_depth), 'like', soil_depth);
+if isfield(LULC_Properties, 'frac_perv') && ~isempty(LULC_Properties.frac_perv)
+    pervious_fraction = min(max(LULC_Properties.frac_perv, 0), 1);
+elseif isfield(LULC_Properties, 'idx_imp') && ~isempty(LULC_Properties.idx_imp)
+    pervious_fraction = double(~LULC_Properties.idx_imp);
+end
+pervious_fraction(idx_nan) = nan;
+
 zwt = elevation - BC_States.h_t;
 zwt = max(zwt, 0);
 zwt = min(zwt, soil_depth);
@@ -83,6 +91,7 @@ layers.min_layer_thickness_m = min_layer;
 layers.root_depth_m = root_depth;
 layers.vadose_depth_m = vadose_depth;
 layers.water_table_depth_m = zwt;
+layers.pervious_fraction = pervious_fraction;
 layers.near_surface_thickness_m = near_thick;
 layers.root_zone_thickness_m = root_thick;
 layers.transmission_thickness_m = trans_thick;
@@ -109,9 +118,9 @@ layers.ksat_near_surface = Soil_Properties.ksat .* local_multiplier(Soil_Propert
 layers.ksat_root_zone = Soil_Properties.ksat .* local_multiplier(Soil_Properties, 'Ks_multiplier_root_zone', soil_depth);
 layers.ksat_transmission = Soil_Properties.ksat .* local_multiplier(Soil_Properties, 'Ks_multiplier_transmission', soil_depth);
 
-layers.near_surface_capacity_mm = near_thick .* max(Soil_Properties.theta_sat - Soil_Properties.theta_r, 0) .* 1000;
-layers.root_zone_capacity_mm = root_thick .* max(Soil_Properties.theta_sat - Soil_Properties.theta_r, 0) .* 1000;
-layers.transmission_capacity_mm = trans_thick .* max(Soil_Properties.theta_sat - Soil_Properties.theta_r, 0) .* 1000;
+layers.near_surface_capacity_mm = pervious_fraction .* near_thick .* max(Soil_Properties.theta_sat - Soil_Properties.theta_r, 0) .* 1000;
+layers.root_zone_capacity_mm = pervious_fraction .* root_thick .* max(Soil_Properties.theta_sat - Soil_Properties.theta_r, 0) .* 1000;
+layers.transmission_capacity_mm = pervious_fraction .* trans_thick .* max(Soil_Properties.theta_sat - Soil_Properties.theta_r, 0) .* 1000;
 layers.total_vadose_capacity_mm = layers.near_surface_capacity_mm + layers.root_zone_capacity_mm + layers.transmission_capacity_mm;
 
 storage_fields = { ...

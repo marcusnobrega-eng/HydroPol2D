@@ -32,7 +32,7 @@
 %   Inflow_Parameters
 %   Stage_Parameters
 %   Reservoir_Data
-%   Snow_Properties
+%   Snow
 %
 % IMPORTANT PHILOSOPHY
 % ------------------------------------------------------------------------
@@ -85,7 +85,6 @@
 % and conditionally:
 %
 %   InputData_Bypass.Human_Instability
-%   InputData_Bypass.Snow_Properties
 %   InputData_Bypass.Rainfall_Parameters
 %   InputData_Bypass.Input_Rainfall
 %   InputData_Bypass.Input_Transpiration
@@ -131,7 +130,7 @@ end
 %   date_begin, date_end
 %   slope_outlet
 %   GIS_data.alfa_1, alfa_2, beta_1, beta_2
-%   LULC_Parameters.River_Manning
+%   LULC_Parameters.River_Manning (authoritative channel/in-bank Manning n)
 %   River_K_coeff
 %   ADD, min_Bt, Bmin, Bmax
 %   GIS_data.min_area, tau, K_value, sl, slope_DTM
@@ -230,7 +229,9 @@ InputData_Bypass.general.alfa_1  = 1.0;
 InputData_Bypass.general.alfa_2  = 1.0;
 InputData_Bypass.general.beta_1  = 1.0;
 InputData_Bypass.general.beta_2  = 1.0;
-InputData_Bypass.general.Manning = 0.035; % channel Manning n
+% One authoritative channel/in-bank n [s m^-1/3]. In Neal (2012) mode,
+% LULC_table.roughness provides the spatial floodplain/overbank roughness.
+InputData_Bypass.general.Manning = 0.035;
 
 % Optional river parameter
 % InputData_Bypass.general.River_K_coeff = NaN;
@@ -251,7 +252,7 @@ InputData_Bypass.general.tau       = 0.2;     % between 0 and 1
 InputData_Bypass.general.K_value   = 10;      % between 0 and 20
 InputData_Bypass.general.sl        = 0.001;   % m/m
 InputData_Bypass.general.resolution_resample   = 30; % m
-InputData_Bypass.general.slope_DTM = 0.05;    % 
+InputData_Bypass.general.slope_DTM = 0.05;    %
 
 % -------------------------------------------------------------------------
 % Bundled runtime is registered by the launcher
@@ -331,7 +332,7 @@ InputData_Bypass.flags.flag_critical                     = 0;
 InputData_Bypass.flags.flag_D8                           = 0;
 InputData_Bypass.flags.flag_CA                           = 0;
 InputData_Bypass.flags.flag_inertial                     = 1;
-InputData_Bypass.flags.flag_full_momentum                = 0; 
+InputData_Bypass.flags.flag_full_momentum                = 0;
 InputData_Bypass.flags.flag_waterbalance                 = 0;
 InputData_Bypass.flags.flag_waterquality                 = 0;
 InputData_Bypass.flags.flag_reservoir                    = 0;
@@ -373,6 +374,7 @@ InputData_Bypass.flags.flag_fill_DEM                     = 0;
 InputData_Bypass.flags.flag_smooth_cells                 = 0;
 InputData_Bypass.flags.flag_reduce_DEM                   = 0;
 InputData_Bypass.flags.flag_export_maps                  = 1;
+InputData_Bypass.flags.flag_export_groundwater_maps      = 0;
 InputData_Bypass.flags.flag_river_heigth_compensation    = 0;
 InputData_Bypass.flags.flag_dashboard                    = 0;
 InputData_Bypass.flags.flag_elapsed_time                 = 1;
@@ -435,24 +437,48 @@ LULC_table.roughness = [ ...
     0.060; ...
     0.050; ...
     0.030; ...
-    0.035; ...
+    0.030; ...
     0.020; ...
     0.035; ...
-    0.120; ...
+    0.070; ...
     0.150; ...
     0.080];
 
 LULC_table.h_0_mm = zeros(11,1);
 LULC_table.d_0_mm = zeros(11,1);
 
-LULC_table.C1 = [10;12;15;30;80;45;5;0;8;8;6];
-LULC_table.C2 = [0.20;0.20;0.22;0.25;0.30;0.25;0.10;0.00;0.18;0.18;0.15];
-LULC_table.C3 = [800;900;1000;1400;2000;1600;200;0;700;700;500];
-LULC_table.C4 = [1.20;1.20;1.20;1.30;1.30;1.25;1.10;0.00;1.20;1.20;1.15];
+% Water-quality coefficients have no transferable LULC-only default: they
+% depend on pollutant, antecedent management, and local observations. The
+% generic template therefore starts with no pollutant buildup or washoff.
+% Configure C1-C4 in a case-specific water-quality setup when that module is
+% enabled. C4 = 1 is retained as a harmless dimensionless exponent.
+LULC_table.C1 = zeros(11,1);  % maximum buildup [kg ha^-1]
+LULC_table.C2 = zeros(11,1);  % buildup coefficient [d^-1]
+LULC_table.C3 = zeros(11,1);  % mass-based washoff coefficient [case-specific]
+LULC_table.C4 = ones(11,1);   % washoff exponent [-]
 
 % The impervious index is read explicitly by column name when available.
-LULC_table.index_impervious = [50; NaN; NaN; NaN; NaN; NaN; NaN; NaN; NaN; NaN; NaN];
-LULC_table.root_depth_m = [1.50;1.00;0.60;1.00;0.00;0.10;0.00;0.00;0.40;1.00;0.15];
+LULC_table.index_impervious = [NaN; NaN; NaN; NaN; 50; NaN; NaN; NaN; NaN; NaN; NaN];
+LULC_table.root_depth_m = [1.50;1.00;0.60;1.00;0.00;0.10;0.00;0.00;0.40;1.00;0.05];
+
+% Kc scales internally computed reference ET to potential soil ET. It does
+% not scale prescribed ET maps or ponded open-water evaporation, which uses Ep.
+LULC_table.Kc = [1.05;0.70;0.85;1.00;0.00;0.30;0.00;0.00;1.00;1.05;0.40];
+
+% Snow parameters are configured per LULC class in this same table. The
+% phase thresholds and density bounds are suitable generic initial values;
+% melt, sublimation, and compaction rates remain climate- and site-specific.
+LULC_table.Snow_Albedo = [0.65;0.70;0.75;0.70;0.55;0.65;0.80;0.55;0.65;0.60;0.70];
+LULC_table.Snow_Emissivity = [0.98;0.98;0.98;0.98;0.98;0.98;0.99;0.99;0.98;0.98;0.98];
+LULC_table.Sublimation_Coefficient_d_1 = [0.001;0.001;0.001;0.001;0.001;0.001;0.0005;0.001;0.001;0.001;0.001];
+LULC_table.Degree_Day_Factor_mm_C_day = [2.0;2.5;3.0;3.0;3.5;3.5;1.5;2.0;2.5;2.5;2.5];
+LULC_table.T_Snow_All_C = [0;0;0;0;0;0;-1;0;0;0;0];
+LULC_table.T_Rain_All_C = [2;2;2;2;2;2;1;2;2;2;2];
+LULC_table.Rho_Snow_Init_kg_m3 = [100;100;100;100;100;100;200;100;100;100;100];
+LULC_table.Rho_Snow_Max_kg_m3 = [450;450;450;450;450;450;550;450;450;450;450];
+LULC_table.Compaction_Temperature_kg_m3_C_day = [0.1;0.1;0.1;0.1;0.1;0.1;0.08;0.1;0.1;0.1;0.1];
+LULC_table.Compaction_SWE_kg_m3_mm_day = [0.001;0.001;0.001;0.001;0.001;0.001;0.0008;0.001;0.001;0.001;0.001];
+LULC_table.Compaction_Depth_kg_m3_mm_day = [0.02;0.02;0.02;0.02;0.02;0.02;0.015;0.02;0.02;0.02;0.02];
 
 InputData_Bypass.LULC.table = LULC_table;
 
@@ -497,38 +523,7 @@ SOIL_table.Ks_multiplier_transmission = ones(13,1);
 InputData_Bypass.SOIL.table = SOIL_table;
 
 %% ========================================================================
-% SECTION 6 — SNOW PARAMETERS
-% ========================================================================
-% PURPOSE
-%   Defines snow-model parameters directly in MATLAB.
-%
-% HOW THIS MAPS TO THE ORIGINAL MODEL
-%   Later, input_data_script / preprocessing can read this section and
-%   populate the legacy Snow_Properties structure expected by the model.
-%
-% IMPORTANT
-%   The raster-like state variables below depend on DEM_raster already
-%   existing in the workspace when this script is executed.
-% ========================================================================
-
-Snow_Properties = struct();
-
-Snow_Properties.alpha           = 0.8;
-Snow_Properties.epsilon         = 0.98;
-Snow_Properties.C_e             = 0.001;
-Snow_Properties.DDF             = 2;      % [mm/°C/day]
-Snow_Properties.T_thresh        = 0;      % [°C]
-Snow_Properties.rho_snow_init   = 100;    % [kg/m^3]
-Snow_Properties.rho_max         = 400;    % [kg/m^3]
-Snow_Properties.k_t             = 0.1;
-Snow_Properties.k_swe           = 0.001;
-Snow_Properties.k_D             = 0.02;
-Snow_Properties.snow_fraction_a = 0.2;
-
-InputData_Bypass.Snow_Properties = Snow_Properties;
-
-%% ========================================================================
-% SECTION 7 — LUMPED RAINFALL TIME SERIES
+% SECTION 6 — LUMPED RAINFALL TIME SERIES
 % ========================================================================
 % This section will later populate the legacy struct:
 %   Rainfall_Parameters
@@ -991,14 +986,14 @@ Reservoir_Data.y_ds2 = []; % [m]
 % % Upstream control point
 % Reservoir_Data.x_us = [500100.0];   % [m]
 % Reservoir_Data.y_us = [4099900.0];  % [m]
-% 
+%
 % % Primary outlet
 % Reservoir_Data.k1 = [1.0];
 % Reservoir_Data.h1 = [0.5];          % [m]
 % Reservoir_Data.k2 = [1.0];
 % Reservoir_Data.x_ds1 = [500150.0];  % [m]
 % Reservoir_Data.y_ds1 = [4099850.0]; % [m]
-% 
+%
 % % Secondary outlet / spillway
 % Reservoir_Data.k3 = [1.0];
 % Reservoir_Data.h2 = [1.0];          % [m]

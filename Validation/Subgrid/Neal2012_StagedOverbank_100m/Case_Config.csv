@@ -1,0 +1,20 @@
+Parameter,Value,Units,Description
+case_id,P1-SUBGRID-NEAL-STAGED-OVERBANK-001,-,Staged compound-channel benchmark
+reach_length,1000,m,Longitudinal reach length
+domain_width,300,m,Total modeled cross-section width
+fine_resolution,5,m,Explicit numerical reference
+coarse_resolution,100,m,Ordinary and Neal grids
+channel_width,50,m,Embedded main-channel width
+internal_bench_width_each,25,m,Internal bench on each channel side
+internal_bench_elevation,0.5,m,Elevation above channel bed
+external_floodplain_elevation,1.0,m,Elevation above channel bed
+longitudinal_slope,0.005,m/m,Uniform bed slope
+channel_manning_n,0.035,s/m^(1/3),Main-channel roughness
+floodplain_manning_n,0.10,s/m^(1/3),Bench and external-floodplain roughness
+inflow_peak,200,m3/s,Nash-shaped transient peak
+inflow_time_to_peak,45,min,Nash hydrograph time to peak
+nash_shape,4,-,Nash hydrograph shape parameter
+simulation_duration,240,min,Rising limb and recession
+model_timestep,0.01,min,Shared time step for all models
+record_timestep,1,min,Output interval
+internal_gauge_x,750,m,Primary internal comparison section

@@ -33,19 +33,23 @@
 %
 %   GIFs/
 %     - Elevation_Model.gif
-%     - Pollutant_Concentration.gif        (if flags.flag_waterquality == 1)
-%     - Mass_of_pollutant.gif              (if flags.flag_waterquality == 1)
 %
 %   Videos/
 %     - WSE_Depths.avi   (+ optional WSE_Depths.mp4)
 %     - Depths.avi       (+ optional Depths.mp4)
+%     - GW_Depths.avi    (+ optional GW_Depths.mp4)
+%           (if groundwater is active and flags.flag_export_groundwater_maps == 1)
 %     - Depths_subgrid.avi (+ optional Depths_subgrid.mp4)
 %           (if flags.flag_subgrid == 1 && flags.flag_overbanks ~= 1)
 %     - Snowpack.avi     (+ optional Snowpack.mp4)   (if flags.flag_snow_modeling == 1)
+%     - Pollutant_Concentration.avi (+ optional Pollutant_Concentration.mp4)
+%           (if flags.flag_waterquality == 1)
+%     - Mass_of_pollutant.avi (+ optional Mass_of_pollutant.mp4)
+%           (if flags.flag_waterquality == 1)
 %
 %   Static/
 %     - Max_Snowpack.png                 (if flags.flag_snow_modeling == 1)
-%     - Max_GW_Depth.png                 (if flags.flag_groundwater_modeling == 1 && flags.flag_baseflow == 1)
+%     - Max_GW_Depth.png                 (if flags.flag_groundwater_modeling == 1)
 %     - Isoietal_Map_Rainfall.png        (if flags.flag_spatial_rainfall == 1)
 %     - Isoietal_Map_ETR.png             (if flags.flag_ETP == 1)
 %     - Isoietal_Map_ETP.png             (if flags.flag_ETP == 1)
@@ -275,11 +279,11 @@ for t = 1:tmax
     surf(x_grid, y_grid, F, 'LineStyle', 'none');
 
     view((t - 1) * 360 / tmax, (t - 1) * 90 / tmax);
-    
+
     try
         axis([min(x_grid) max(x_grid) min(y_grid) max(y_grid) h_min zmax]);
     catch
-        axis([min(x_grid) max(x_grid) min(y_grid) max(y_grid) h_min zmax + 1]);  
+        axis([min(x_grid) max(x_grid) min(y_grid) max(y_grid) h_min zmax + 1]);
     end
     zlabel('Elevation [m]', 'Interpreter', 'latex', 'FontSize', 14);
     xlabel('Easting [m]', 'Interpreter', 'latex', 'FontSize', 14);
@@ -319,6 +323,9 @@ for t = 1:tmax
 end
 clf;
 close all
+
+flag_export_groundwater_maps = isfield(flags, 'flag_export_groundwater_maps') && ...
+    flags.flag_export_groundwater_maps == 1;
 
 %% ===========================================
 % Plot Water Surface Elevation and Depths (VIDEO)
@@ -835,7 +842,7 @@ if flags.flag_snow_modeling == 1
 end
 
 %% Maximum GW Depth (STATIC)
-if flags.flag_groundwater_modeling == 1 && flags.flag_baseflow == 1
+if flags.flag_groundwater_modeling == 1
     close all
     figure('units','inches','position',[2,2,6.5,4])
     time_total = days(date_end - date_begin);
@@ -874,6 +881,122 @@ if flags.flag_groundwater_modeling == 1 && flags.flag_baseflow == 1
     exportgraphics(gcf,fullfile(OUT.STATIC,'Max_GW_Depth.png'),'ContentType','image','Colorspace','rgb','Resolution',300)
     saveas(gcf,fullfile(OUT.FIG,'Max_GW_Depth.fig'))
     close all
+end
+
+%% ===========================================
+% Groundwater Depths (VIDEO)
+% ===========================================
+if flags.flag_groundwater_modeling == 1 && flag_export_groundwater_maps
+    close all;
+
+    baseName = 'GW_Depths';
+    [video, aviPath, mp4Path, fig] = startGlobalVideo(OUT.VIDEOS, baseName, GLOBAL_VIDEO);
+
+    clf(fig);
+    set(fig, 'DefaultTextInterpreter', 'latex');
+    set(fig, 'Color', 'w');
+
+    ax = axes('Parent', fig);
+    hold(ax, 'on');
+
+    zmax = max(max_GW_depth(:));
+    zmin = min(max_GW_depth(:));
+    if ~isfinite(zmin)
+        zmin = 0;
+    end
+    if ~isfinite(zmax) || zmax <= zmin
+        zmax = zmin + 1;
+    end
+
+    store = 1;
+    flag_loader = 1;
+    targetH = [];
+    targetW = [];
+
+    cb = colorbar(ax);
+    cb.Label.String = 'GW Depth [m]';
+    cb.Label.Interpreter = 'latex';
+    cb.FontName = 'Garamond';
+    cb.FontSize = 12;
+    cb.TickDirection = 'out';
+
+    for t = 1:f:length(running_control.time_records)
+        cla(ax);
+
+        t_title = running_control.time_records(t);
+
+        if t > saver_memory_maps * store
+            store = store + 1;
+            load(fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store)), 'Maps');
+            flag_loader = 0;
+        elseif flag_loader == 1
+            load(fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store)), 'Maps');
+            flag_loader = 0;
+        end
+
+        local_t = t - (store - 1) * saver_memory_maps;
+        if ~isfield(Maps, 'Hydro') || ~isfield(Maps.Hydro, 'GWdepth_save') || ...
+                isempty(Maps.Hydro.GWdepth_save) || local_t > size(Maps.Hydro.GWdepth_save, 3)
+            continue
+        end
+
+        GW = local_get_groundwater_depth(Maps.Hydro, local_t, Soil_Properties);
+        GW(GW < 0) = NaN;
+        GW(idx_nan) = NaN;
+
+        if no_plot == 0 && ~isempty(A)
+            try mapshow(ax, A, RA, 'AlphaData', 0.25); hold(ax,'on'); catch, end
+        end
+
+        surf(ax, x_grid, y_grid, GW, 'EdgeColor', 'none');
+        shading(ax, 'interp');
+        view(ax, 0, 90);
+        axis(ax, [min(x_grid) max(x_grid) min(y_grid) max(y_grid) zmin zmax]);
+        colormap(ax, Spectrum);
+        caxis(ax, [zmin zmax]);
+
+        if isa(t_title, 'datetime')
+            time_str = sprintf('Time = %s', datestr(t_title, 'dd-mmm-yyyy HH:MM'));
+        else
+            if flags.flag_elapsed_time
+                time_str = sprintf('Time [h] = %.2f', t_title / 60);
+            else
+                time_str = sprintf('Time [min] = %.2f', t_title);
+            end
+        end
+        title(ax, time_str, 'Interpreter', 'latex', 'FontSize', 14);
+
+        xlabel(ax, 'Easting [m]', 'Interpreter', 'latex');
+        ylabel(ax, 'Northing [m]', 'Interpreter', 'latex');
+        zlabel(ax, 'GW Depth [m]', 'Interpreter', 'latex');
+
+        set(ax, 'FontName', 'Garamond', 'FontSize', 12, 'LineWidth', 2, 'TickDir', 'out');
+        xtickformat(ax, '%.0f');
+        ytickformat(ax, '%.0f');
+
+        if no_plot == 0 && ~isempty(S_p)
+            try mapshow(ax, S_p, 'FaceColor', 'none'); catch, end
+        end
+        box(ax, 'on');
+
+        drawnow;
+
+        fr = getframe(fig);
+        img = fr.cdata;
+
+        if GLOBAL_VIDEO.FORCE_CONST_FRAME_SIZE
+            if isempty(targetH)
+                [targetH, targetW, ~] = size(img);
+            elseif size(img,1) ~= targetH || size(img,2) ~= targetW
+                img = safeImresize(img, [targetH targetW]);
+            end
+        end
+
+        writeVideo(video, img);
+    end
+
+    finishGlobalVideo(video, aviPath, mp4Path, GLOBAL_VIDEO);
+    close(fig);
 end
 
 %% =========================
@@ -1212,145 +1335,181 @@ safeDelete(fullfile(OUT.VIDEOS,'Rainfall_Maps.avi'));
 % return the fully expanded final file with all those substitutions applied
 % everywhere (no shortcuts). The helper functions below already support it.
 
-%% Pollutant Concentration (GIFs) - unchanged (but made basemap optional)
+%% Pollutant Concentration / Mass (VIDEO)
 if flags.flag_waterquality == 1
-    h = figure('Visible', onOff(GLOBAL_VIDEO.VISIBLE));
-    axis tight manual
-    FileName_String = 'Pollutant_Concentration.gif';
-    FileName = fullfile(OUT.GIFS, FileName_String);
-    set(gcf,'units','inches','position',[3,3,6.5,5])
+    close all;
+    baseName = 'Pollutant_Concentration';
+    [video, aviPath, mp4Path, fig] = startGlobalVideo(OUT.VIDEOS, baseName, GLOBAL_VIDEO);
 
-    z = Maps.WQ_States.Pol_Conc_Map;
+    clf(fig);
+    set(fig, 'DefaultTextInterpreter', 'latex');
+    set(fig, 'Color', 'w');
+
+    ax = axes('Parent', fig);
+    hold(ax, 'on');
+
+    z = real(Maps.WQ_States.Pol_Conc_Map);
     z(idx_nan) = nan;
-    z(z<LULC_Properties.Pol_min) = nan;
+    z(z < LULC_Properties.Pol_min) = nan;
+    zmax_all = max(z(:), [], 'omitnan');
+    zmin_all = min(z(:), [], 'omitnan');
 
-    if ~isnan(max(max(max(z))))
+    targetH = [];
+    targetW = [];
+
+    cb = colorbar(ax);
+    cb.FontName = 'Garamond';
+    cb.FontSize = 12;
+    cb.TickDirection = 'out';
+    ylabel(cb, 'Concentration (mg/L)', 'Interpreter', 'Latex', 'FontSize', 12)
+
+    if isfinite(zmax_all)
         for t = 1:f:length(running_control.time_records)
-            t_title = running_control.time_records(t);
+            cla(ax);
 
-            zmax = max(max(z(:,:,t)));
-            zmin = min(min(z(:,:,t)));
-            zmax = max(zmax,0);
-            zmin = max(zmin,0);
-            if zmax == 0 || zmin == zmax
-                zmin = min(min(min(z)));
-                zmax = max(max(max(z)));
+            t_title = running_control.time_records(t);
+            zmax = max(z(:,:,t), [], 'all', 'omitnan');
+            zmin = min(z(:,:,t), [], 'all', 'omitnan');
+            zmax = max(zmax, 0);
+            zmin = max(zmin, 0);
+            if ~isfinite(zmax) || ~isfinite(zmin) || zmax == 0 || zmin == zmax
+                zmin = zmin_all;
+                zmax = zmax_all;
             end
 
             F = z([ybegin:1:yend],[xbegin:1:xend],t);
 
-            if no_plot==0 && ~isempty(A)
+            if no_plot == 0 && ~isempty(A)
                 try
-                    mapshow(A,RA,"AlphaData",0.45);hold on;
+                    mapshow(A,RA,"AlphaData",0.45); hold(ax,'on');
                     if ~isempty(S_p), mapshow(S_p,'FaceColor','none'); end
                 catch
                 end
             end
 
-            surf(x_grid,y_grid,F);
-            axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
-            shading interp;
+            surf(ax, x_grid, y_grid, F, 'EdgeColor', 'none');
+            axis(ax, [min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
+            shading(ax, 'interp');
 
             if flags.flag_elapsed_time == 1
-                title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+                title(ax, sprintf('Time [h] = %4.2f', t_title/60), 'Interpreter', 'Latex', 'FontSize', 12)
             else
-                title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
+                title(ax, sprintf(string(t_title)), 'Interpreter', 'Latex', 'FontSize', 12);
             end
-            view(0,90);
-            caxis([zmin zmax]);
-            colormap(Spectrum)
+            view(ax, 0, 90);
+            caxis(ax, [zmin zmax]);
+            colormap(ax, Spectrum)
 
-            k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
-            ylabel(k,'Concentration (mg/L)','Interpreter','Latex','FontSize',12)
-            xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
-            ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
-            zlabel ('Concentration (mg/L)','Interpreter','Latex','FontSize',12)
-            set(gca,'FontName','Garamond','FontSize',12)
-            ax = gca; ax.LineWidth = 2;
-            box on
-            ax = ancestor(gca, 'axes');
-            ax.XAxis.Exponent = 0;xtickformat('%.0f');
-            ax.YAxis.Exponent = 0;ytickformat('%.0f');
+            xlabel(ax, ' Easting [m] ', 'Interpreter', 'Latex', 'FontSize', 12)
+            ylabel(ax, 'Northing [m] ', 'Interpreter', 'Latex', 'FontSize', 12)
+            zlabel(ax, 'Concentration (mg/L)', 'Interpreter', 'Latex', 'FontSize', 12)
+            set(ax, 'FontName', 'Garamond', 'FontSize', 12)
+            ax.LineWidth = 2;
+            box(ax, 'on')
+            ax.XAxis.Exponent = 0; xtickformat(ax, '%.0f');
+            ax.YAxis.Exponent = 0; ytickformat(ax, '%.0f');
             drawnow
 
-            frame = getframe(h);
-            im = frame2im(frame);
-            [imind,cm] = rgb2ind(im,256);
-            if t == 1
-                imwrite(imind,cm,FileName,'gif', 'Loopcount',inf);
-            else
-                imwrite(imind,cm,FileName,'gif','WriteMode','append');
+            fr = getframe(fig);
+            img = fr.cdata;
+
+            if GLOBAL_VIDEO.FORCE_CONST_FRAME_SIZE
+                if isempty(targetH)
+                    [targetH, targetW, ~] = size(img);
+                elseif size(img,1) ~= targetH || size(img,2) ~= targetW
+                    img = safeImresize(img, [targetH targetW]);
+                end
             end
+
+            writeVideo(video, img);
         end
     end
 
-    clf; close all
+    finishGlobalVideo(video, aviPath, mp4Path, GLOBAL_VIDEO);
+    close(fig);
 
-    h = figure('Visible', onOff(GLOBAL_VIDEO.VISIBLE));
-    axis tight manual
-    FileName_String = 'Mass_of_pollutant.gif';
-    FileName = fullfile(OUT.GIFS, FileName_String);
-    set(gcf,'units','inches','position',[3,3,6.5,5])
+    close all;
+    baseName = 'Mass_of_pollutant';
+    [video, aviPath, mp4Path, fig] = startGlobalVideo(OUT.VIDEOS, baseName, GLOBAL_VIDEO);
 
-    z = Maps.WQ_States.Pol_mass_map/Wshed_Properties.cell_area*1000;
+    clf(fig);
+    set(fig, 'DefaultTextInterpreter', 'latex');
+    set(fig, 'Color', 'w');
+
+    ax = axes('Parent', fig);
+    hold(ax, 'on');
+
+    z = real(Maps.WQ_States.Pol_mass_map) / Wshed_Properties.cell_area * 1000;
     z = log(z);
     z(isinf(z)) = nan;
-    zmax = max(max(max(z)));
-    zmin = min(min(min(z)));
+    zmax = max(z(:), [], 'omitnan');
+    zmin = min(z(:), [], 'omitnan');
+
+    targetH = [];
+    targetW = [];
+
+    cb = colorbar(ax);
+    cb.FontName = 'Garamond';
+    cb.FontSize = 12;
+    cb.TickDirection = 'out';
+    ylabel(cb, 'Log-scale Mass of pollutant ($\mathrm{g/m^2}$)', 'Interpreter', 'Latex', 'FontSize', 12)
 
     for t = 1:f:length(running_control.time_records)
+        cla(ax);
+
         t_title = running_control.time_records(t);
-
         LULC_Properties.Pol_min = 0.01;
-        z(z<=LULC_Properties.Pol_min)=nan;
-
+        z(z <= LULC_Properties.Pol_min) = nan;
         F = z([ybegin:1:yend],[xbegin:1:xend],t);
 
-        if no_plot==0 && ~isempty(A)
+        if no_plot == 0 && ~isempty(A)
             try
-                mapshow(A,RA,"AlphaData",0.45);hold on;
+                mapshow(A,RA,"AlphaData",0.45); hold(ax,'on');
                 if ~isempty(S_p), mapshow(S_p,'FaceColor','none'); end
             catch
             end
         end
 
-        surf(x_grid,y_grid,F);
-        axis tight
-        shading interp;
+        surf(ax, x_grid, y_grid, F, 'EdgeColor', 'none');
+        axis(ax, 'tight')
+        shading(ax, 'interp');
 
         if flags.flag_elapsed_time == 1
-            title(sprintf('Time [h] = %4.2f',t_title/60),'Interpreter','Latex','FontSize',12)
+            title(ax, sprintf('Time [h] = %4.2f', t_title/60), 'Interpreter', 'Latex', 'FontSize', 12)
         else
-            title(sprintf(string(t_title)),'Interpreter','Latex','FontSize',12);
+            title(ax, sprintf(string(t_title)), 'Interpreter', 'Latex', 'FontSize', 12);
         end
 
-        view(0,90);
-        caxis([zmin zmax]);
-        colormap(Velocity_RAS)
+        view(ax, 0, 90);
+        caxis(ax, [zmin zmax]);
+        colormap(ax, Velocity_RAS)
 
-        k = colorbar; k.FontName = 'Garamond'; k.FontSize = 12; k.TickDirection  = 'out';
-        ylabel(k,'Log-scale Mass of pollutant ($\mathrm{g/m^2}$)','Interpreter','Latex','FontSize',12)
-        xlabel(' Easting [m] ','Interpreter','Latex','FontSize',12)
-        ylabel ('Northing [m] ','Interpreter','Latex','FontSize',12)
-        zlabel ('Mass of pollutant (kg/m^2)','Interpreter','Latex','FontSize',12)
-        set(gca,'FontName','Garamond','FontSize',12)
-        ax = gca; ax.LineWidth = 2;
-        box on
-        ax = ancestor(gca, 'axes');
-        ax.XAxis.Exponent = 0;xtickformat('%.0f');
-        ax.YAxis.Exponent = 0;ytickformat('%.0f');
+        xlabel(ax, ' Easting [m] ', 'Interpreter', 'Latex', 'FontSize', 12)
+        ylabel(ax, 'Northing [m] ', 'Interpreter', 'Latex', 'FontSize', 12)
+        zlabel(ax, 'Mass of pollutant (kg/m^2)', 'Interpreter', 'Latex', 'FontSize', 12)
+        set(ax, 'FontName', 'Garamond', 'FontSize', 12)
+        ax.LineWidth = 2;
+        box(ax, 'on')
+        ax.XAxis.Exponent = 0; xtickformat(ax, '%.0f');
+        ax.YAxis.Exponent = 0; ytickformat(ax, '%.0f');
         drawnow
 
-        frame = getframe(h);
-        im = frame2im(frame);
-        [imind,cm] = rgb2ind(im,256);
+        fr = getframe(fig);
+        img = fr.cdata;
 
-        if t == 1
-            imwrite(imind,cm,FileName,'gif', 'Loopcount',inf);
-        else
-            imwrite(imind,cm,FileName,'gif','WriteMode','append');
+        if GLOBAL_VIDEO.FORCE_CONST_FRAME_SIZE
+            if isempty(targetH)
+                [targetH, targetW, ~] = size(img);
+            elseif size(img,1) ~= targetH || size(img,2) ~= targetW
+                img = safeImresize(img, [targetH targetW]);
+            end
         end
+
+        writeVideo(video, img);
     end
+
+    finishGlobalVideo(video, aviPath, mp4Path, GLOBAL_VIDEO);
+    close(fig);
 end
 
 close all
@@ -1495,5 +1654,18 @@ function ok = convertAviToMp4FFmpeg(aviPath, mp4Path, fps, crf, preset)
         ok = true;
     else
         warning('ffmpeg conversion failed for %s', aviPath);
+    end
+end
+
+function GW = local_get_groundwater_depth(HydroMaps, local_t, Soil_Properties)
+% Returns depth to water table below surface [m].
+    GW = gatherIfNeeded(HydroMaps.GWdepth_save(:, :, local_t));
+    is_new_zwt = isfield(HydroMaps, 'GWdepth_is_zwt') && isequal(HydroMaps.GWdepth_is_zwt, 1);
+    if ~is_new_zwt
+        GW = Soil_Properties.Soil_Depth - GW;
+    end
+    GW = max(GW, 0);
+    if isfield(Soil_Properties, 'Soil_Depth')
+        GW = min(GW, Soil_Properties.Soil_Depth);
     end
 end

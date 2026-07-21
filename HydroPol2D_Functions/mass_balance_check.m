@@ -11,6 +11,9 @@ end
 
 coarse_cell_area = ones(ny,nx)*Wshed_Properties.cell_area; % m2
 coarse_cell_area(isnan(Elevation_Properties.elevation_cell)) = nan;
+use_exact_subgrid = flags.flag_subgrid == 1 && flags.flag_overbanks ~= 1 && ...
+    exist('SubgridTables', 'var') && ~isempty(SubgridTables) && ...
+    isfield(SubgridTables, 'sfincs_exact') && SubgridTables.sfincs_exact;
 
 % Runoff Coefficient Calculation
 BC_States.outflow_volume  = nansum(nansum(outlet_states.outlet_flow.*coarse_cell_area))/1000/3600*time_step*60 + BC_States.outflow_volume ;
@@ -21,29 +24,22 @@ if flags.flag_stage_hydrograph == 1
 else
     inflow_stage = 0;
 end
-if flags.flag_spatial_rainfall == 1
-    if flags.flag_inflow == 1
-        if flags.flag_subgrid == 1
-            inflow_vol = nansum(nansum(BC_States.inflow.*(C_a)./Wshed_Properties.cell_area/1000*Wshed_Properties.cell_area)) + ...
-            nansum(nansum(C_a.*BC_States.delta_p_agg))/1000+ inflow_stage;
-        else
-        inflow_vol = nansum(nansum(BC_States.inflow/1000*Wshed_Properties.cell_area)) + ...
-            nansum(nansum(C_a.*BC_States.delta_p_agg))/1000 + inflow_stage;
-        end
-    else
-        inflow_vol = nansum(nansum(C_a.*BC_States.delta_p_agg))/1000 + inflow_stage;
-    end
-    BC_States.inflow_volume = inflow_vol + BC_States.inflow_volume; % m3
-elseif flags.flag_spatial_rainfall ~= 1 && flags.flag_inflow == 1
-    inflow_vol = nansum(nansum(BC_States.inflow.*(C_a)./Wshed_Properties.cell_area/1000*Wshed_Properties.cell_area)) + nansum(nansum(BC_States.delta_p_agg/1000.*coarse_cell_area)) + inflow_stage;
-    BC_States.inflow_volume = inflow_vol +  BC_States.inflow_volume; % check future
-else
-    inflow_vol = nansum(nansum(BC_States.inflow/1000.*coarse_cell_area)) + nansum(nansum(BC_States.delta_p_agg/1000.*coarse_cell_area)) + inflow_stage ;
-    BC_States.inflow_volume = inflow_vol  + BC_States.inflow_volume; % check future
+rain_vol = nansum(nansum(BC_States.delta_p_agg ./ 1000 .* coarse_cell_area));
+inflow_bc_vol = nansum(nansum(BC_States.inflow ./ 1000 .* coarse_cell_area));
+gw_prescribed_vol = 0;
+if isfield(flags, 'flag_prescribed_recharge') && flags.flag_prescribed_recharge == 1 && ...
+        exist('GW_States', 'var') && isstruct(GW_States) && ...
+        isfield(GW_States, 'last_groundwater_recharge_volume_m3')
+    gw_prescribed_vol = max(double(GW_States.last_groundwater_recharge_volume_m3), 0);
 end
+if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
+    inflow_bc_vol = nansum(nansum(BC_States.inflow .* coarse_cell_area ./ 1000));
+end
+inflow_vol = rain_vol + inflow_bc_vol + inflow_stage + gw_prescribed_vol;
+BC_States.inflow_volume = inflow_vol + BC_States.inflow_volume; % m3
 
-P = nansum(nansum(BC_States.delta_p_agg/1000.*coarse_cell_area)); % m3
-Qin = inflow_vol - nansum(nansum(BC_States.delta_p_agg/1000.*coarse_cell_area)); % m3
+P = rain_vol + gw_prescribed_vol; % m3
+Qin = inflow_vol - P; % m3
 E_int = nansum(nansum(coarse_cell_area.*Hydro_States.E_int/1000)); % m3
 ETR = nansum(nansum(coarse_cell_area.*Hydro_States.ETR/1000*(time_step/60/24))); % m3
 E_ow = nansum(nansum(coarse_cell_area.*BC_States.delta_E/1000)); % m3
@@ -55,9 +51,15 @@ if flags.flag_groundwater_modeling == 0
 end
 
 S_c = nansum(nansum(coarse_cell_area.*Hydro_States.S/1000)); % Canopy storage
-if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
-    S_p = nansum(nansum((Wshed_Properties.Resolution - Wshed_Properties.River_Width).*Wshed_Properties.Resolution.*max((depths.d_t/1000 - Wshed_Properties.River_Depth),0))) + ...
-                      nansum(nansum(Wshed_Properties.Resolution.*Wshed_Properties.River_Width.*depths.d_t/1000)); % Overland storage
+if use_exact_subgrid
+    eta_storage = SubgridTables.z_zmin + max(depths.d_t ./ 1000, 0);
+    S_p = nansum(nansum(hp2d_sfincs_cell_volume_from_zs(SubgridTables, eta_storage)));
+elseif flags.flag_subgrid == 1 && flags.flag_overbanks == 1
+    S_p = nansum(nansum(hp2d_neal_cell_volume( ...
+        max(depths.d_t ./ 1000, 0), ...
+        Wshed_Properties.River_Width, ...
+        Wshed_Properties.River_Depth, ...
+        Wshed_Properties.Resolution))); % Overland storage
 else
     S_p = nansum(nansum(coarse_cell_area.*depths.d_t/1000)); % Overland storage
 end
@@ -67,11 +69,9 @@ if flags.flag_groundwater_modeling == 1 && exist('GW_States', 'var') && ...
         isstruct(GW_States) && isfield(GW_States, 'pending_net_exchange_m')
     S_GW = S_GW + nansum(nansum(coarse_cell_area .* GW_States.pending_net_exchange_m));
 end
-S_SWE = nansum(nansum(coarse_cell_area.*Snow_Properties.SWE_t/1000)); % Snow water equivalent storge 
+S_SWE = nansum(nansum(coarse_cell_area.*Snow_Properties.SWE_t/1000)); % Snow water equivalent storge
 
 [dS, fluxes, S_prev, error] = system_mass_balance(P, Qin, E_int, ETR, E_ow, Qout, E_s, S_c, S_p, S_UZ, S_GW, S_SWE, S_prev);
-% Signed residual for the current model step. The event-scale ledger is
-% accumulated and exported separately after the simulation.
 volume_error = error;
 
 % if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
@@ -87,9 +87,18 @@ volume_error = error;
 %                       nansum(nansum(C_a.*Soil_Properties.Sy.*(BC_States.h_t - (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth)))); % m3
 % end
 
-if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
-    current_storage = nansum(nansum((Wshed_Properties.Resolution - Wshed_Properties.River_Width).*Wshed_Properties.Resolution.*max((depths.d_t/1000 - Wshed_Properties.River_Depth),0))) + ...
-                      nansum(nansum(Wshed_Properties.Resolution.*Wshed_Properties.River_Width.*depths.d_t/1000)) + ...
+if use_exact_subgrid
+    eta_storage = SubgridTables.z_zmin + max(depths.d_t ./ 1000, 0);
+    current_storage = nansum(nansum(hp2d_sfincs_cell_volume_from_zs(SubgridTables, eta_storage))) + ...
+                      nansum(nansum(coarse_cell_area.*Soil_Properties.I_t/1000)) + ...
+                      nansum(nansum(coarse_cell_area.*Hydro_States.S/1000)) + ...
+                      nansum(nansum(coarse_cell_area.*Soil_Properties.Sy.*(BC_States.h_t - (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth)))); % m3
+elseif flags.flag_subgrid == 1 && flags.flag_overbanks == 1
+    current_storage = nansum(nansum(hp2d_neal_cell_volume( ...
+                      max(depths.d_t ./ 1000, 0), ...
+                      Wshed_Properties.River_Width, ...
+                      Wshed_Properties.River_Depth, ...
+                      Wshed_Properties.Resolution))) + ...
                       nansum(nansum(C_a.*Soil_Properties.I_t/1000)) + ...
                       nansum(nansum(C_a.*Hydro_States.S/1000)) + ...
                       nansum(nansum(C_a.*Soil_Properties.Sy.*(BC_States.h_t - (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth)))); % m3
@@ -102,7 +111,7 @@ end
 
 if flags.flag_groundwater_modeling == 1 && exist('GW_States', 'var') && ...
         isstruct(GW_States) && isfield(GW_States, 'pending_net_exchange_m')
-    current_storage = current_storage + nansum(nansum(C_a .* GW_States.pending_net_exchange_m));
+    current_storage = current_storage + nansum(nansum(coarse_cell_area .* GW_States.pending_net_exchange_m));
 end
 
 loss_volume = inf_volume;
@@ -112,7 +121,7 @@ if flags.flag_infiltration == 0
 end
 
 % Storage = Canopy Storage, UZ Storage, GW Storage
-% Fluxes: 
+% Fluxes:
 %%% Canopy
 % - Precipitation at the canopy
 % - Evaporation
@@ -125,9 +134,9 @@ end
 % outflow_vol = nansum(nansum(outlet_states.outlet_flow.*C_a))/1000/3600*time_step*60 + ...
 %                nansum(nansum(C_a.*Hydro_States.ETR/1000*(time_step/60/24))) + ...
 %                nansum(nansum(C_a.*BC_States.delta_E/1000)) + ...
-%                nansum(nansum(C_a.*Hydro_States.E_int)); % m3 
+%                nansum(nansum(C_a.*Hydro_States.E_int)); % m3
 %                % inf_volume + ...
-% 
+%
 % flux_volumes = inflow_vol - outflow_vol; % dt(Qin - Qout) m3
 % volume_error = flux_volumes - delta_storage;
 

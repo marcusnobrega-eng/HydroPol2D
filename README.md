@@ -38,7 +38,7 @@ The model is particularly suited for urban, peri-urban, and rural catchments in 
 ### External Tools:
 - **Microsoft Excel** (for parameter configuration). Alternatively, users can only edit files in /config for rapid parametrization without requiring filling parameters/inputs in the Excel spreadsheets
 - **QGIS, Google Earth Engine, or R** for raster preprocessing (DEM, LULC, soils, etc.)
-- **Documentation** fully available with examples in the [HydroPol2D - Docs](https://marcusnobrega-eng.github.io/HydroPol2D-docs/). 
+- **Documentation** fully available with examples in the [HydroPol2D - Docs](https://marcusnobrega-eng.github.io/HydroPol2D-docs/).
 
 ##  Getting Started
 
@@ -79,7 +79,7 @@ Edit inputs in:
 ### 6. Run the Model
 `HydroPol2D_V115.m`
 
-If you have access to HPC systems, you can alternatively submit a job using the file `HP2D_HPC_Config.sbatch` and specify GPU/CPU configurations and memory.
+Optional application workflows, including the SLURM template and SNISB dam-case runners, are grouped in [`Applications`](Applications/README.md).
 
 ## Example
 Example of a rain-on-the-grid simulation of a 1 in 50-year rainfall in an urban area with the influence of urban drainage - Sao Paulo, Brazil.
@@ -90,11 +90,11 @@ Example of a rain-on-the-grid simulation of a 1 in 50-year rainfall in an urban 
 
 <img src="https://marcusnobrega-eng.github.io/profile//files/Rain_on_the_grid.gif">
 
-## Example of a total dam-break collapse scenario in a city in Pernambuco, Northeast - Brazil. 
+## Example of a total dam-break collapse scenario in a city in Pernambuco, Northeast - Brazil.
 
 <img width="672" height="1008" alt="dam_break" src="https://github.com/user-attachments/assets/adfcdfe4-66e7-42aa-9335-de0e6d56a729" />
 
-## Example of Rainfall-Runoff event in a catchment near Palo Alto -CA. 
+## Example of Rainfall-Runoff event in a catchment near Palo Alto -CA.
 
 https://github.com/user-attachments/assets/739e39eb-18e8-4ec3-bee6-a7a647793774
 
@@ -126,8 +126,16 @@ All rasters must be aligned spatially (same extent, resolution, and coordinate r
 ###  Parameter Tables (Excel Sheets)
 - **LULC Parameter Table:** Each land use class must include:
   - Manning's `n` roughness coefficient
+  - Initial-abstraction `h0` and initial surface-water depth `d0` in mm
+  - Representative rooting depth in m
+  - Land-cover coefficient `Kc`, which scales internally calculated reference ET to potential soil ET. Ponded open water evaporates separately at `Ep`.
   - Impervious index (0 or 1)
-  - Pollutant loading coefficients: `C1` (build-up rate), `C2` (capacity), `C3` (wash-off rate), `C4` (wash-off exponent)
+  - Water-quality coefficients: `C1` (maximum buildup, kg ha^-1), `C2` (buildup coefficient, d^-1), `C3` (mass-based washoff coefficient), and `C4` (washoff exponent). These coefficients are pollutant- and site-specific; the generic template leaves buildup and washoff disabled.
+  - Per-LULC snow albedo, emissivity, phase thresholds, density bounds, and process-rate parameters when snow modeling is enabled.
+
+The generic LULC table is a documented starting parameterization, not a substitute for local calibration. See [LULC default parameter basis](Input_Data_Sheets/LULC_Defaults.md) for the source basis and the scope of each field.
+
+For the Neal (2012) channel-subgrid formulation, the LULC `n` column is the spatial floodplain roughness. Set the single in-bank/channel coefficient separately in `General_Data.xlsx` as `Manning`, or in script mode as `InputData_Bypass.general.Manning`. Observation-gauge data only define output locations and never alter either roughness field.
 
 - **Soil Parameter Table:** Each soil class must include:
   - Vertical Saturated hydraulic conductivity $K_{\mathrm{sat}}$
@@ -136,7 +144,7 @@ All rasters must be aligned spatially (same extent, resolution, and coordinate r
   - Saturated water content $\theta_{\mathrm{sat}}$
   - Residual water content $\theta_{\mathrm{r}}$
   - Horizontal Saturated hydraulic conductivity $K_{\mathrm{sat,gw}}$
-  
+
 Preprocessing must ensure that all rasters are aligned and projected.
 
 ---
@@ -189,25 +197,25 @@ Cite HydroPol2D using:
 
 - Rápalo, L.M., Gomes Jr, M.N. and Mendiondo, E.M., 2024. *[Developing an open-source flood forecasting system adapted to data-scarce regions: A digital twin coupled with hydrologic-hydrodynamic simulations](https://doi.org/10.1016/j.jhydrol.2024.131929).* Journal of Hydrology, 644, 131929.
 
-- Castro, M.D.A.R.A., Jr, M.N.G. and Mendiondo, E.M., 2025. *Probabilistic DAM break flood mapping via monte-carlo simulations using a 2D local-inertial model.*  
+- Castro, M.D.A.R.A., Jr, M.N.G. and Mendiondo, E.M., 2025. *Probabilistic DAM break flood mapping via monte-carlo simulations using a 2D local-inertial model.*
   *(DOI not available)*
 
 - Castro, M., Gomes Jr, M., Rápalo, L. and Mendiondo, E., 2025. *[Performance of Low-Complexity Hydrodynamic Models for Dam-Break Flood Mapping: Trade-offs between Full Momentum, Diffusive-Wave, and Local-Inertial Models](https://doi.org/10.22541/essoar.175242171.16927854/v1) (under review).
 
-- Sánchez, M.H., 2025. [A novel framework for flood vulnerability assessment and fuzzy-controlled reservoir optimization in data-scarce urban watersheds](https://teses.usp.br/teses/disponiveis/18/18138/tde-30072025-105642/publico/CORRIGIDO_Mateo_Hernandez_Sanchez.pdf) (Master's thesis, University of São Paulo).  
+- Sánchez, M.H., 2025. [A novel framework for flood vulnerability assessment and fuzzy-controlled reservoir optimization in data-scarce urban watersheds](https://teses.usp.br/teses/disponiveis/18/18138/tde-30072025-105642/publico/CORRIGIDO_Mateo_Hernandez_Sanchez.pdf) (Master's thesis, University of São Paulo).
 
 - Sanchez, M.H., Gomes Jr, M.N., Rápalo, L., Castro, M.D.A.R.A. and Mendiondo, E.M. 2026. *[Assessment of urban vulnerability to floods under current and future demographic and climate scenarios](https://doi.org/10.2139/ssrn.6381670).* SSRN (under review).
 
-- Castro, M.D.A.R.A., 2024. [Métodos determinísticos e probabilísticos para a avaliação do impacto de rompimentos de barragens via modelagem hidrodinâmica](https://teses.usp.br/teses/disponiveis/18/18138/tde-21032025-085649/publico/Dissertacao_versao_corrigida.pdf). 
+- Castro, M.D.A.R.A., 2024. [Métodos determinísticos e probabilísticos para a avaliação do impacto de rompimentos de barragens via modelagem hidrodinâmica](https://teses.usp.br/teses/disponiveis/18/18138/tde-21032025-085649/publico/Dissertacao_versao_corrigida.pdf).
 
 
-- Gomes Jr., M. N. 2023. [Advances in open source hydroinformatics for flood modeling and disaster education](https://teses.usp.br/teses/disponiveis/18/18138/tde-18042024-142515/publico/TeseMarcusNobregaGomesJuniorVersaoCorrigidaCompressed.pdf) (Doctoral dissertation, Universidade de São Paulo).  
+- Gomes Jr., M. N. 2023. [Advances in open source hydroinformatics for flood modeling and disaster education](https://teses.usp.br/teses/disponiveis/18/18138/tde-18042024-142515/publico/TeseMarcusNobregaGomesJuniorVersaoCorrigidaCompressed.pdf) (Doctoral dissertation, Universidade de São Paulo).
 
-- Rápalo, L.M.C., 2024. [Open-source tools for flood risk assessment for multiple spatio-temporal scales under scenarios of change](https://teses.usp.br/teses/disponiveis/18/18138/tde-07102024-094249/publico/ThesisCastilloRapaloLuisMiguelCorrected.pdf) (Doctoral dissertation, Universidade de São Paulo).  
+- Rápalo, L.M.C., 2024. [Open-source tools for flood risk assessment for multiple spatio-temporal scales under scenarios of change](https://teses.usp.br/teses/disponiveis/18/18138/tde-07102024-094249/publico/ThesisCastilloRapaloLuisMiguelCorrected.pdf) (Doctoral dissertation, Universidade de São Paulo).
 
 - Rápalo, L.M., Gomes Jr, M.N. and Mendiondo, E.M., 2025. *[Multiple levels of human instability due to urban overland flow within the 21st century: An urban Catchment study case in Brazil](https://doi.org/10.1016/j.ijdrr.2025.105931).* International Journal of Disaster Risk Reduction.
 
-- Sousa, M.R.D., Mendiondo, E.M. and Gomes, M.N., 2026. [Hydrological-hydrodynamic modeling of climate-induced urban flooding of design storms using HydroPol2D: a case study in São Carlos, Brazil](https://www.scielo.br/j/rbrh/a/KFQjyK4vxHPscnyCCRrBGjH/?format=pdf&lang=en).* RBRH.  
+- Sousa, M.R.D., Mendiondo, E.M. and Gomes, M.N., 2026. [Hydrological-hydrodynamic modeling of climate-induced urban flooding of design storms using HydroPol2D: a case study in São Carlos, Brazil](https://www.scielo.br/j/rbrh/a/KFQjyK4vxHPscnyCCRrBGjH/?format=pdf&lang=en).* RBRH.
 
 ---
 
@@ -232,10 +240,9 @@ The bundled TopoToolbox runtime is documented in
 
 ## Acknowledgments
 
-- University of São Paulo — São Carlos School of Engineering  
-- University of Texas at San Antonio — Civil and Environmental Engineering 
-- Stanford University — Stanford Doerr School of Sustainability; Department of Earth System Science  
-
+- University of São Paulo — São Carlos School of Engineering
+- University of Texas at San Antonio — Civil and Environmental Engineering
+- Stanford University — Stanford Doerr School of Sustainability; Department of Earth System Science
 
 
 

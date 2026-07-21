@@ -47,7 +47,8 @@ psi_range = soil_based_parameters(:,5:6);
 
 
 %% Load Initial Maps and Input Data
-hydropol2d_add_runtime_paths(fileparts(fileparts(mfilename('fullpath'))));
+runtime_model_root = fileparts(fileparts(mfilename('fullpath')));
+hydropol2d_add_runtime_paths(runtime_model_root);
 
 % Reading Initial Maps and Input Data
 initial_maps_data = readtable('HydroPol2D_Automatic_Calibrator_Data.xlsx','Sheet','Initial_Maps');
@@ -70,7 +71,7 @@ for i = 1:n_events
         observed_flow(:,j,i) = table2array(observed_data(4:end,(i-1)*2 + 3 +(i-1)*20)); % page is the event
         pollutant_concentration(:,j,i) = table2array(observed_data(4:end,(i-1)*2+ 4 + +(i-1)*20)); % page is the event
         x_observed(:,j,i) = table2array(observed_data(1,(i-1)*2+ 4 + +(i-1)*20));
-        y_observed(:,j,i) = table2array(observed_data(2,(i-1)*2+ 4 + +(i-1)*20));        
+        y_observed(:,j,i) = table2array(observed_data(2,(i-1)*2+ 4 + +(i-1)*20));
     end
     ADD_events(1,i) = table2array(observed_data(2,(i-1)*22 + 2));
 end
@@ -86,15 +87,15 @@ northing_observed_cells = round((yulcorner - y_observed)/Resolution);
 
 
 for i = 1:n_events
-% Extent Problem   
+% Extent Problem
     if flag_resample ~= 1
         % Extent Issues
         zzz = GRIDobj(string(warmup_depths_file{i,:}));
         zzz = (resample(zzz,DEM_raster));
-        warmup_depths(:,:,i) = double(zzz.Z)*1000; % mm 
+        warmup_depths(:,:,i) = double(zzz.Z)*1000; % mm
         yyy = GRIDobj(string(warmup_I_0_file{i,:}));
         yyy = resample(yyy,DEM_raster);
-        warmup_I_0(:,:,i) = double(yyy.Z); % mm       
+        warmup_I_0(:,:,i) = double(yyy.Z); % mm
     else
         resolution = resolution_resample; % m
         % Resample
@@ -104,7 +105,7 @@ for i = 1:n_events
 
         zzz = (GRIDobj(string(warmup_I_0_file{i,:})));
         zzz = resample(zzz,resolution);
-        warmup_I_0(:,:,i) = double(zzz.Z);        
+        warmup_I_0(:,:,i) = double(zzz.Z);
     end
 end
 
@@ -114,7 +115,7 @@ for ii = 1:n_events
     steps_max_events(ii) = ceil(time_observed(n_observations_max)/time_step_model);
 end
 
-steps_max = max(steps_max_events); 
+steps_max = max(steps_max_events);
 delta_p_obs = NaN(n_events,steps_max);
 
 for ii = 1:n_events
@@ -123,8 +124,8 @@ for ii = 1:n_events
     n_observations = sum(~isnan(time_observed(:,ii)));
 
 
-    % Simulation Time    
-%     routing_time = time_observed(n_observations,ii);   
+    % Simulation Time
+%     routing_time = time_observed(n_observations,ii);
     routing_time = steps_max_events(ii)*time_step_model;
     steps = routing_time/time_step_model; % number of calculation steps
 
@@ -134,7 +135,7 @@ for ii = 1:n_events
     % Conversion of rainfall into the time-step of calculations for concentrated rainfall
     if flag_rainfall == 1 && flag_spatial_rainfall ~=1  % Only for concentrated rainfall
         z2 = 0;
-        intensity_rainfall_length = length(intensity_rainfall) - 1; % Number of intervals        
+        intensity_rainfall_length = length(intensity_rainfall) - 1; % Number of intervals
         intensity_discretized = zeros(1,steps_max); % Preallocating
         for i =1:steps
             time = i*time_step_model; % min
@@ -184,9 +185,9 @@ lb = [min_parameters_LULC(:); min_parameters_SOIL(:)]; % Lower bound
 ub = [max_parameters_LULC(:) ; max_parameters_SOIL(:)]; % Upper bound
 
 A = []; % Inequality constraint given by A*x <= b
-b = []; 
+b = [];
 Aeq = []; % Equality constraint given by Aeq*x = beq
-beq = []; % 
+beq = []; %
 nonlcon = []; % Non-linear constraints of x (function of x)
 intcon = []; % Integer only constraints of x
 options = optimoptions('ga','PlotFcns', {@gaplotbestf,@gaplotstopping,@gaplotscores,@gaplotscorediversity}, ...
@@ -203,7 +204,7 @@ save('Workspace_Optimization.mat');
 
 % % Observed
 % scatter(time_observed,pollutant_concentration)
-% 
+%
 % for i = 1:size(population_gen,2)
 %     plot(time_observed,Cmod_best(i,:));
 %     hold on

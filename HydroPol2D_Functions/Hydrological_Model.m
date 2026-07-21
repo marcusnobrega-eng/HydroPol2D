@@ -5,10 +5,28 @@
 % Added recharge calculation. Added 2D boussinesq solution to the
 % groundwater model
 
+use_neal_subgrid_volume = flags.flag_subgrid == 1 && flags.flag_overbanks == 1;
 use_lookup_subgrid_volume = flags.flag_subgrid == 1 && flags.flag_overbanks ~= 1 ...
     && exist('SubgridTables', 'var') && ~isempty(SubgridTables);
-if use_lookup_subgrid_volume
+
+if use_neal_subgrid_volume
+    neal_d_p_representative = depths.d_p;
+    neal_volume_t = hp2d_neal_cell_volume( ...
+        max(depths.d_t ./ 1000, 0), Wshed_Properties.River_Width, ...
+        Wshed_Properties.River_Depth, Wshed_Properties.Resolution);
+    neal_volume_p = hp2d_neal_cell_volume( ...
+        max(depths.d_p ./ 1000, 0), Wshed_Properties.River_Width, ...
+        Wshed_Properties.River_Depth, Wshed_Properties.Resolution);
+
+    % Hydrologic fluxes are areal depths over the full coarse cell.
+    depths.d_t = 1000 .* neal_volume_t ./ Wshed_Properties.cell_area;
+    depths.d_p = 1000 .* neal_volume_p ./ Wshed_Properties.cell_area;
+    C_a = Wshed_Properties.cell_area .* ones(size(depths.d_t), 'like', depths.d_t);
+    C_a(idx_nan) = NaN;
+elseif use_lookup_subgrid_volume
     d_t_before_hydrology = depths.d_t;
+    C_a = Wshed_Properties.cell_area .* ones(size(depths.d_t), 'like', depths.d_t);
+    C_a(idx_nan) = NaN;
 end
 
 % Interception Module
@@ -20,7 +38,7 @@ Snow_Module
 % Evaporation / Evapotranspiration Module
 Evaporation_Evapotranspiration_Module
 
-% Infiltration Module 
+% Infiltration Module
 Infiltration_Module
 
 % Recharge and Groundwater Module
@@ -51,25 +69,17 @@ end
 
 depths.d_t(depths.d_t < 0) = 0;
 
-% Effective Precipitation (Available depth at the beginning of the time-step
-depths.d_tot = depths.d_t;
-
-% Correcting depths in case it reach overbanks
-if flags.flag_subgrid == 1 && flags.flag_overbanks == 1% Maybe we have a change from inbank <-> overbank
-    % Eq. 15 and 16 of A subgrid channel model for simulating river hydraulics andfloodplain inundation over large and data sparse areas
-    % Inbank - Overbank
-    idx = depths.d_tot/1000 > Wshed_Properties.River_Depth & depths.d_p/1000 <= Wshed_Properties.River_Depth & idx_rivers; % Cells in which there is a change from inbank to overbank
-    if sum(sum(idx)) > 0
-        depths.d_tot(idx) = 1000*(depths.d_tot(idx)/1000 - (depths.d_tot(idx)/1000 - Elevation_Properties.elevation_cell(idx) + (Elevation_Properties.elevation_cell(idx) - Wshed_Properties.River_Depth(idx))).*(1 - Wshed_Properties.River_Width(idx)/Wshed_Properties.Resolution)); % mm
-        C_a(idx) = Wshed_Properties.Resolution^2;
-    end
-    % Overbank - Inbank
-    idx = depths.d_tot/1000 <= Wshed_Properties.River_Depth & depths.d_p/1000 >= Wshed_Properties.River_Depth & idx_rivers; % Cells in which there is a change from overbank to inbank
-    if sum(sum(idx)) > 0
-        factor = depths.d_tot(idx)/1000 - Elevation_Properties.elevation_cell(idx) + (Elevation_Properties.elevation_cell(idx) - Wshed_Properties.River_Depth(idx));
-        depths.d_tot(idx) = 1000*(depths.d_tot(idx)/1000 + (Wshed_Properties.Resolution*(factor))./Wshed_Properties.River_Width(idx) ...
-            - (depths.d_tot(idx)/1000 - Elevation_Properties.elevation_cell(idx) + (Elevation_Properties.elevation_cell(idx) - Wshed_Properties.River_Depth(idx)))); % mm
-        C_a(idx) = Wshed_Properties.River_Width(idx)*Wshed_Properties.Resolution;
-    end
+if use_neal_subgrid_volume
+    neal_volume_t = max(depths.d_t, 0) ./ 1000 .* Wshed_Properties.cell_area;
+    depths.d_t = 1000 .* hp2d_neal_depth_from_volume( ...
+        neal_volume_t, Wshed_Properties.River_Width, ...
+        Wshed_Properties.River_Depth, Wshed_Properties.Resolution);
+    depths.d_p = neal_d_p_representative;
+    C_a = hp2d_neal_cell_area( ...
+        depths.d_t ./ 1000, Wshed_Properties.River_Width, ...
+        Wshed_Properties.River_Depth, Wshed_Properties.Resolution);
+    C_a(idx_nan) = NaN;
 end
 
+% Effective precipitation available to the routing model.
+depths.d_tot = depths.d_t;

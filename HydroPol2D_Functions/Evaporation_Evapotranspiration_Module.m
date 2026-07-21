@@ -108,19 +108,32 @@ if flags.flag_ETP == 1
     % Build actual ET demand field for soil cells
     % ------------------------------------------------------------------
     if flags.flag_input_ETP_map == 1
-        % CASE A: Actual ET prescribed by input maps
+        % CASE A: Actual ET prescribed by input maps. Do not apply Kc here:
+        % the forcing already represents evaporation plus transpiration.
         ETR_demand = input_evaporation + input_transpiration;   % mm/day
     else
-        % CASE B: Actual ET derived from internally computed ETP
-        ETR_demand = Hydro_States.ETP;                          % mm/day
+        % CASE B: Internally computed reference ET is converted to a
+        % land-cover-specific soil ET demand using Kc.
+        if isfield(LULC_Properties, 'Kc') && ~isempty(LULC_Properties.Kc)
+            Kc = LULC_Properties.Kc;
+        else
+            % Compatibility for historical programmatic module calls.
+            Kc = ones(size(Hydro_States.ETP));
+        end
+        ETR_demand = Hydro_States.ETP .* Kc;                    % mm/day
     end
 
     % Clean demand field
     ETR_demand(isnan(ETR_demand)) = 0;
     ETR_demand(idx_nan) = nan;
 
-    % Impervious cells do not extract ET from soil
-    ETR_demand(LULC_Properties.idx_imp) = 0;
+    % Soil ET is represented only over the pervious part of mixed cells.
+    if isfield(LULC_Properties, 'frac_perv') && ~isempty(LULC_Properties.frac_perv)
+        perv_frac = min(max(LULC_Properties.frac_perv, 0), 1);
+        ETR_demand = ETR_demand .* perv_frac;
+    else
+        ETR_demand(LULC_Properties.idx_imp) = 0;
+    end
 
     % Initialize valid cells explicitly
     Hydro_States.ETR(~idx_nan)  = 0;

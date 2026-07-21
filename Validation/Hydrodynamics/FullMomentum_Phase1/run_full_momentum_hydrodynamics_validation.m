@@ -1,19 +1,10 @@
 clear; clc;
 
 case_dir = fileparts(mfilename('fullpath'));
-model_root = case_dir;
-while ~isfolder(fullfile(model_root, 'HydroPol2D_Functions'))
-    parent_dir = fileparts(model_root);
-    if strcmp(parent_dir, model_root)
-        error('HydroPol2D:Validation:ModelRootNotFound', ...
-            'Could not locate the HydroPol2D repository from %s.', case_dir);
-    end
-    model_root = parent_dir;
-end
-repo_root = model_root;
-functions_dir = fullfile(model_root, 'HydroPol2D_Functions');
-addpath(functions_dir);
-hydropol2d_add_runtime_paths(model_root);
+repo_root = fullfile(case_dir, '..', '..', '..');
+functions_dir = fullfile(repo_root, 'HydroPol2D_Functions');
+addpath(functions_dir, '-begin');
+hydropol2d_add_runtime_paths(hydropol2d_find_root(case_dir));
 
 out_dir = fullfile(case_dir, 'Outputs', 'Validation');
 ts_dir = fullfile(out_dir, 'TimeSeries');
@@ -27,17 +18,20 @@ ensure_dir(fig_dir);
 [PlaneDiag, PlaneSeries, PlanePass] = run_plane_case(ts_dir);
 [VTiltedDiag, VTiltedSeries, VTiltedPass] = run_vtilted_case(ts_dir);
 [RitterDiag, RitterProfiles, RitterPass] = run_ritter_case(profile_dir);
+[LakeDiag, LakeSeries, LakePass] = run_hydrostatic_lake_case(ts_dir);
 [StageDiag, StageSeries, StagePass] = run_stage_hydrograph_case(ts_dir);
 
-Diagnostics = [PlaneDiag; VTiltedDiag; RitterDiag; StageDiag];
+Diagnostics = [PlaneDiag; VTiltedDiag; RitterDiag; LakeDiag; StageDiag];
 Diagnostics.metric_note = [ ...
     "All hydrograph metrics are applicable."; ...
     "Relative L2, NSE, and peak-error metrics are not applicable to the conservation/symmetry-only V-tilted case."; ...
     "Peak-time and peak-magnitude hydrograph metrics are not applicable to the profile-only Ritter comparison."; ...
+    "Lake-at-rest checks the well-balanced hydrostatic reconstruction over stepped terrain."; ...
     "Relative L2, NSE, and peak-error metrics are not applicable to the exact prescribed-stage bookkeeping case."];
 Diagnostics = replace_nan_metrics(Diagnostics);
 PassFail = [pass_row(PlaneDiag, PlanePass); pass_row(VTiltedDiag, VTiltedPass); ...
-    pass_row(RitterDiag, RitterPass); pass_row(StageDiag, StagePass)];
+    pass_row(RitterDiag, RitterPass); pass_row(LakeDiag, LakePass); ...
+    pass_row(StageDiag, StagePass)];
 
 writetable(Diagnostics, fullfile(out_dir, 'FullMomentum_Hydrodynamics_Diagnostics.csv'));
 writetable(PassFail, fullfile(out_dir, 'FullMomentum_Hydrodynamics_Pass_Fail.csv'));
@@ -296,6 +290,59 @@ passed = mass_abs_pct < 0.1 && rmse < 0.10 && rel_l2 < 0.25;
 
 Diag = diagnostic_row(Cfg.case_id, Cfg.case_name, "analytical_ritter", ...
     rmse, mae, max_error, rel_l2, nse, NaN, NaN, mass_abs_pct, passed);
+end
+
+function [Diag, Series, passed] = run_hydrostatic_lake_case(ts_dir)
+% A horizontal free surface over a stepped bed must remain at rest. This is
+% the regression test for the hydrostatic-reconstruction source treatment.
+Cfg = struct();
+Cfg.case_id = "P1-HYDRO-FM-HR-001";
+Cfg.case_name = "Full momentum lake at rest over stepped terrain";
+Cfg.dx = 10;
+Cfg.nx = 60;
+Cfg.ny = 20;
+Cfg.eta0_m = 5.00;
+Cfg.n_manning = 0.03;
+Cfg.dt_s = 0.25;
+Cfg.duration_s = 30;
+
+[cc, rr] = meshgrid(1:Cfg.nx, 1:Cfg.ny);
+z = 0.006 * (cc - 1) * Cfg.dx + 0.12 * (cc > 20) - ...
+    0.08 * (cc > 40) + 0.003 * (rr - 1) * Cfg.dx;
+h0 = max(Cfg.eta0_m - z, 0);
+h = h0;
+n = Cfg.n_manning * ones(Cfg.ny, Cfg.nx);
+outflow = zeros(Cfg.ny, Cfg.nx, 5);
+Outlet = outlet_faces(Cfg.ny, Cfg.nx, 'none', false(Cfg.ny, Cfg.nx));
+Outlet.flag_HR_full_momentum = 1;
+
+n_steps = round(Cfg.duration_s / Cfg.dt_s);
+for it = 1:n_steps
+    [h, outflow] = full_momentum_step(h, z, n, Cfg.dt_s, Cfg.dx, ...
+        outflow, Outlet, 0);
+end
+
+depth_error = h - h0;
+max_depth_error_m = max(abs(depth_error), [], 'all', 'omitnan');
+depth_rmse_m = rmse_omitnan(depth_error(:));
+u_m_s = outflow(:,:,4) ./ max(h, 1e-12);
+v_m_s = outflow(:,:,5) ./ max(h, 1e-12);
+max_velocity_m_s = max(hypot(u_m_s, v_m_s), [], 'all', 'omitnan');
+volume_error_m3 = sum(depth_error, 'all') * Cfg.dx^2;
+
+t_min = [0; Cfg.duration_s / 60];
+max_depth_error_series_m = [0; max_depth_error_m];
+max_velocity_series_m_s = [0; max_velocity_m_s];
+volume_error_series_m3 = [0; volume_error_m3];
+Series = table(t_min, max_depth_error_series_m, max_velocity_series_m_s, ...
+    volume_error_series_m3);
+writetable(Series, fullfile(ts_dir, Cfg.case_id + ".csv"));
+
+passed = max_depth_error_m < 1e-10 && max_velocity_m_s < 1e-10 && ...
+    abs(volume_error_m3) < 1e-10;
+Diag = diagnostic_row(Cfg.case_id, Cfg.case_name, "exact_lake_at_rest", ...
+    depth_rmse_m, mean(abs(depth_error), 'all', 'omitnan'), max_depth_error_m, ...
+    NaN, NaN, NaN, max_velocity_m_s, 0, passed);
 end
 
 function [Diag, Series, passed] = run_stage_hydrograph_case(ts_dir)

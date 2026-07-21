@@ -1,4 +1,4 @@
-function [h_t, u_x, u_y, q_exf, q_river, error] = Boussinesq_2D_explicit(dt,dx,dy,h,z0,Sy,R,K,river_mask,K_river,h_river,z_river,Courant,h_soil,catchment_mask,dirichlet_mask,h_dirichlet,perimeter)
+function [h_t, u_x, u_y, q_exf, q_river, error, seepage_discharge_m3_s] = Boussinesq_2D_explicit(dt,dx,dy,h,z0,Sy,R,K,river_mask,K_river,h_river,z_river,Courant,h_soil,catchment_mask,dirichlet_mask,h_dirichlet,seepage_mask,h_seepage,perimeter)
 %% ═══════════════════════════════════════════════════════════════════════
 %  Function: Boussinesq_2D_explicit
 %  🛠️ Developer: Marcus Nobrega, Ph.D.
@@ -59,12 +59,16 @@ function [h_t, u_x, u_y, q_exf, q_river, error] = Boussinesq_2D_explicit(dt,dx,d
 perimeter = logical(perimeter);
 % h_dirichlet = z0; % DELETEEE
 % K(:,end) = 1000*K(:,end);
-% 
+%
 % dirichlet_mask = perimeter; % DELETE
 % dirichlet_mask(:,end-1) = 0;
-if isempty(dirichlet_mask) || isempty(h_dirichlet) 
+if isempty(dirichlet_mask) || isempty(h_dirichlet)
     dirichlet_mask = false(size(z0,1),size(z0,2));
     h_dirichlet = false(size(z0,1),size(z0,2));
+end
+if isempty(seepage_mask) || isempty(h_seepage)
+    seepage_mask = false(size(z0,1),size(z0,2));
+    h_seepage = nan(size(z0,1),size(z0,2));
 end
 
 %% Surface Water Level
@@ -72,8 +76,9 @@ h_surf = z0 + h_soil;  % Compute the surface elevation from topography
 
 %% INITIAL CONDITION
 q_exf = zeros(size(h)); % Initialize exfiltration rate matrix
+seepage_discharge_m3_s = 0;
 
-%% River Flux Length 
+%% River Flux Length
 L_river = 1/2*(dx+dy);
 
 %% TIME STEPPING LOOP
@@ -88,7 +93,7 @@ Nx = size(h,2); Ny = size(h,1);
 % Velocity Field
 % Compute groundwater velocities
 [u_x, u_y] = compute_boussinesq_velocities(h_t, K, dx, dy); % m/s
- 
+
 
 while t < T
     n_steps = ceil(T/dt);
@@ -96,7 +101,7 @@ while t < T
 
     % Compute new stable dt at each step
     dt_GW = nanmin(nanmin(compute_stable_dt(u_x, u_y, dx, dy, Courant))); % Adaptive time step
-    
+
     % Ensure dt does not exceed remaining simulation time
     dt = min(dt_GW,dt);
 
@@ -110,27 +115,31 @@ while t < T
     % [d2h_dx2, d2h_dy2] = compute_gradients(h_t, z0, K, dx, dy, depth_threshold, perimeter);
     % === Predictor step ===
     [Fx1, Fy1] = compute_fluxes_conservative(h_t, z0, K, dx, dy, dt, Sy);
-    div1 = compute_flux_divergence(Fx1, Fy1, dx, dy);
-    h_predict = h_t + dt ./ Sy .* (-div1);
+    bc1 = compute_boundary_fluxes(h_t, z0, K, dx, dy, dirichlet_mask, h_dirichlet);
+    div1 = compute_flux_divergence(Fx1, Fy1, dx, dy, bc1);
+    q_seep1 = compute_seepage_face_sink(h_t, z0, K, dx, dy, seepage_mask, h_seepage);
+    h_predict = h_t + dt ./ Sy .* (-div1 + R - q_seep1);
 
-    % Apply Dirichlet and physical constraints to predictor
-    h_predict(dirichlet_mask) = h_dirichlet(dirichlet_mask);
+    % Apply physical constraints to predictor
     h_predict = max(h_predict, z0);  % no negative storage
 
     % === Corrector step ===
     [Fx2, Fy2] = compute_fluxes_conservative(h_predict, z0, K, dx, dy, dt, Sy);
+    bc2 = compute_boundary_fluxes(h_predict, z0, K, dx, dy, dirichlet_mask, h_dirichlet);
 
     % === Average interface fluxes ===
     Fx_avg = 0.5 * (Fx1 + Fx2);
     Fy_avg = 0.5 * (Fy1 + Fy2);
+    bc_avg.left = 0.5 * (bc1.left + bc2.left);
+    bc_avg.right = 0.5 * (bc1.right + bc2.right);
+    bc_avg.top = 0.5 * (bc1.top + bc2.top);
+    bc_avg.bottom = 0.5 * (bc1.bottom + bc2.bottom);
+    q_seep2 = compute_seepage_face_sink(h_predict, z0, K, dx, dy, seepage_mask, h_seepage);
+    q_seep_avg = 0.5 * (q_seep1 + q_seep2);
 
     % === Final update using averaged flux divergence ===
-    div_avg = compute_flux_divergence(Fx_avg, Fy_avg, dx, dy);
-    h_t = h_t + dt ./ Sy .* (-div_avg + R);
-
-
-    % Apply Dirichlet boundary conditions
-    h_t(dirichlet_mask) = h_dirichlet(dirichlet_mask); 
+    div_avg = compute_flux_divergence(Fx_avg, Fy_avg, dx, dy, bc_avg);
+    h_t = h_t + dt ./ Sy .* (-div_avg + R - q_seep_avg);
 
     % Lost Mass
     lost_mass = nansum(nansum(Sy .* dx * dy * (-1) .* min(h_t-z0,0)));
@@ -138,7 +147,7 @@ while t < T
     % Ensure groundwater head does not fall below ground level
     h_t = max(h_t, z0); % m
 
-    % Compute exfiltration where groundwater head exceeds surface elevation 
+    % Compute exfiltration where groundwater head exceeds surface elevation
     q_exf = max(0, (h_t - h_surf)) .* Sy / dt;  % [m/s]
 
     exf_vol = dt*nansum(nansum(q_exf*dx*dy)); % exiltration volume [m3]
@@ -148,6 +157,7 @@ while t < T
 
     % Compute groundwater velocities
     [u_x, u_y] = compute_boussinesq_velocities(h_t, K, dx, dy); % m/s
+    seepage_discharge_m3_s = nansum(nansum(q_seep_avg .* dx .* dy));
 
     % Apply catchment mask (ensuring calculations remain within domain)
     h_t(~catchment_mask) = nan;
@@ -166,21 +176,21 @@ while t < T
     % Mass balance check
     cell_area = dx*dy;
     % === Correct per-timestep mass balance tracking ===
-    
+
     % Step 1: Recharge input this step [m³]
     recharge_mass = nansum(nansum(R .* dt)) * cell_area;
-    
+
     % Step 2: Exfiltration loss this step [m³]
     exfil_mass = nansum(nansum(q_exf .* dt)) * cell_area;
-    
+
     % Step 3: Storage change this step [m³]
     storage_prev = nansum(nansum(Sy .* max(h_0 - z0, 0))) * cell_area;   % before update
     storage_curr = nansum(nansum(Sy .* max(h_t - z0, 0))) * cell_area; % after update
     storage_change = storage_curr - storage_prev;
-       
+
     % Step 4: Mass balance error [m³]
     error = recharge_mass - exfil_mass - storage_change;
-   
+
 
     % Update variables for next time step
     h = h_t;
@@ -234,10 +244,10 @@ function [d2h_dx2, d2h_dy2] = compute_gradients(h, z0, K, dx, dy, depth_threshol
     G_max = max(alpha * (H / L), 1);
 
     % === X-DIRECTION (horizontal / across columns) ===
-    Hx = 0.5 * (H(:,1:end-1) + H(:,2:end));         
-    Kx = 0.5 * (K(:,1:end-1) + K(:,2:end));         
-    dHdx = (h(:,2:end) - h(:,1:end-1)) / dx;        
-    Fx = -Kx .* Hx .* dHdx;                        
+    Hx = 0.5 * (H(:,1:end-1) + H(:,2:end));
+    Kx = 0.5 * (K(:,1:end-1) + K(:,2:end));
+    dHdx = (h(:,2:end) - h(:,1:end-1)) / dx;
+    Fx = -Kx .* Hx .* dHdx;
 
     % Enforce zero outflow: check if h(:,j+1) is NaN
     right_is_nan = isnan(h(:,2:end));  % size = (nRows, nCols-1)
@@ -250,9 +260,9 @@ function [d2h_dx2, d2h_dy2] = compute_gradients(h, z0, K, dx, dy, depth_threshol
     divFx(:,nCols) = -Fx(:,end) / dx;
 
     % === Y-DIRECTION (vertical / across rows) ===
-    Hy = 0.5 * (H(1:end-1,:) + H(2:end,:));         
+    Hy = 0.5 * (H(1:end-1,:) + H(2:end,:));
     Ky = 0.5 * (K(1:end-1,:) + K(2:end,:));
-    dHdy = (h(2:end,:) - h(1:end-1,:)) / dy;        
+    dHdy = (h(2:end,:) - h(1:end-1,:)) / dy;
     Fy = -Ky .* Hy .* dHdy;
 
     % Enforce zero outflow: check if h(i+1,:) is NaN
@@ -302,91 +312,193 @@ function [Fx, Fy] = compute_fluxes_conservative(h, z0, K, dx, dy, dt, Sy)
     Fy(isnan(H(2:end,:))) = 0;
 end
 
-function div = compute_flux_divergence(Fx, Fy, dx, dy)
+function div = compute_flux_divergence(Fx, Fy, dx, dy, bc)
     % Converts interface fluxes into divergence (per cell)
     [nRows, nCols_minus1] = size(Fx);
     nCols = nCols_minus1 + 1;
     div_x = zeros(nRows, nCols);
     div_x(:,2:end-1) = (Fx(:,2:end) - Fx(:,1:end-1)) / dx;
-    div_x(:,1) = Fx(:,1) / dx;
-    div_x(:,end) = -Fx(:,end) / dx;
+    div_x(:,1) = (Fx(:,1) - bc.left) / dx;
+    div_x(:,end) = (bc.right - Fx(:,end)) / dx;
 
     [nRows_minus1, nCols] = size(Fy);
     nRows = nRows_minus1 + 1;
     div_y = zeros(nRows, nCols);
     div_y(2:end-1,:) = (Fy(2:end,:) - Fy(1:end-1,:)) / dy;
-    div_y(1,:) = Fy(1,:) / dy;
-    div_y(end,:) = -Fy(end,:) / dy;
+    div_y(1,:) = (Fy(1,:) - bc.top) / dy;
+    div_y(end,:) = (bc.bottom - Fy(end,:)) / dy;
 
     div = div_x + div_y;
+end
+
+function bc = compute_boundary_fluxes(h, z0, K, dx, dy, dirichlet_mask, h_dirichlet)
+    [nRows, nCols] = size(h);
+    H = max(h - z0, 0);
+    bc.left = zeros(nRows, 1, 'like', h);
+    bc.right = zeros(nRows, 1, 'like', h);
+    bc.top = zeros(1, nCols, 'like', h);
+    bc.bottom = zeros(1, nCols, 'like', h);
+
+    if isempty(dirichlet_mask) || isempty(h_dirichlet)
+        return
+    end
+
+    % Left boundary: flux positive to the right.
+    idx = logical(dirichlet_mask(:,1));
+    if any(idx)
+        hbc = h_dirichlet(idx,1);
+        zbc = z0(idx,1);
+        Hface = 0.5 * (H(idx,1) + max(hbc - zbc, 0));
+        bc.left(idx) = -K(idx,1) .* Hface .* ((h(idx,1) - hbc) ./ (0.5 * dx));
+    end
+
+    % Right boundary: flux positive to the right.
+    idx = logical(dirichlet_mask(:,end));
+    if any(idx)
+        hbc = h_dirichlet(idx,end);
+        zbc = z0(idx,end);
+        Hface = 0.5 * (H(idx,end) + max(hbc - zbc, 0));
+        bc.right(idx) = -K(idx,end) .* Hface .* ((hbc - h(idx,end)) ./ (0.5 * dx));
+    end
+
+    % Top boundary: flux positive downward.
+    idx = logical(dirichlet_mask(1,:));
+    if any(idx)
+        hbc = h_dirichlet(1,idx);
+        zbc = z0(1,idx);
+        Hface = 0.5 * (H(1,idx) + max(hbc - zbc, 0));
+        bc.top(1,idx) = -K(1,idx) .* Hface .* ((h(1,idx) - hbc) ./ (0.5 * dy));
+    end
+
+    % Bottom boundary: flux positive downward.
+    idx = logical(dirichlet_mask(end,:));
+    if any(idx)
+        hbc = h_dirichlet(end,idx);
+        zbc = z0(end,idx);
+        Hface = 0.5 * (H(end,idx) + max(hbc - zbc, 0));
+        bc.bottom(1,idx) = -K(end,idx) .* Hface .* ((hbc - h(end,idx)) ./ (0.5 * dy));
+    end
+end
+
+function q_sink = compute_seepage_face_sink(h, z0, K, dx, dy, seepage_mask, h_seepage)
+    q_sink = zeros(size(h), 'like', h);
+    if isempty(seepage_mask) || ~any(seepage_mask(:))
+        return
+    end
+
+    H = max(h - z0, 0);
+    min_depth = 1e-4;
+    seepage_mask = logical(seepage_mask) & isfinite(h) & isfinite(z0) & isfinite(h_seepage);
+
+    % Left boundary cells
+    idx = seepage_mask(:,1);
+    if any(idx)
+        heff = max(0.5 .* H(idx,1), min_depth);
+        dh = max(h(idx,1) - h_seepage(idx,1), 0);
+        q_sink(idx,1) = q_sink(idx,1) + K(idx,1) .* heff .* dh ./ ((0.5 * dx) * dx);
+    end
+
+    % Right boundary cells
+    idx = seepage_mask(:,end);
+    if any(idx)
+        heff = max(0.5 .* H(idx,end), min_depth);
+        dh = max(h(idx,end) - h_seepage(idx,end), 0);
+        q_sink(idx,end) = q_sink(idx,end) + K(idx,end) .* heff .* dh ./ ((0.5 * dx) * dx);
+    end
+
+    % Top boundary cells
+    idx = seepage_mask(1,:);
+    if any(idx)
+        heff = max(0.5 .* H(1,idx), min_depth);
+        dh = max(h(1,idx) - h_seepage(1,idx), 0);
+        q_sink(1,idx) = q_sink(1,idx) + K(1,idx) .* heff .* dh ./ ((0.5 * dy) * dy);
+    end
+
+    % Bottom boundary cells
+    idx = seepage_mask(end,:);
+    if any(idx)
+        heff = max(0.5 .* H(end,idx), min_depth);
+        dh = max(h(end,idx) - h_seepage(end,idx), 0);
+        q_sink(end,idx) = q_sink(end,idx) + K(end,idx) .* heff .* dh ./ ((0.5 * dy) * dy);
+    end
+
+    q_sink(~isfinite(q_sink)) = 0;
+end
+
+function q_m3_s = boundary_flux_to_discharge(bc, dx, dy)
+    q_left = nansum(max(-bc.left, 0) .* dy, 'all');
+    q_right = nansum(max(bc.right, 0) .* dy, 'all');
+    q_top = nansum(max(-bc.top, 0) .* dx, 'all');
+    q_bottom = nansum(max(bc.bottom, 0) .* dx, 'all');
+    q_m3_s = q_left + q_right + q_top + q_bottom;
 end
 
 
 % function [d2h_dx2, d2h_dy2, mass_error] = compute_gradients_conservative(h, z0, K, dx, dy, dt, Sy)
 %     % Mass-conservative groundwater gradient computation
 %     % Ensures symmetric fluxes and performs internal mass balance check
-% 
+%
 %     [nRows, nCols] = size(h);
-%     H = max(h - z0, 0);  
+%     H = max(h - z0, 0);
 %     H(isnan(z0)) = nan;
-% 
+%
 %     % Initialize interface fluxes
 %     Fx = zeros(nRows, nCols-1);  % x-direction (cols)
 %     Fy = zeros(nRows-1, nCols);  % y-direction (rows)
-% 
+%
 %     %% === X-direction fluxes (left to right) ===
 %     for j = 1:nCols-1
 %         hL = h(:, j); hR = h(:, j+1);
 %         HL = H(:, j); HR = H(:, j+1);
 %         Kx = 0.5 * (K(:, j) + K(:, j+1));
 %         dHdx = (hR - hL) / dx;
-% 
+%
 %         raw_flux = -Kx .* 0.5 .* (HL + HR) .* dHdx;
 %         max_flux = Sy(:, j) .* HL / dt;
-% 
+%
 %         capped_flux = sign(raw_flux) .* min(abs(raw_flux), max_flux);
 %         capped_flux(isnan(HR)) = 0;  % No flux into NaN
-% 
+%
 %         Fx(:, j) = capped_flux;
 %     end
-% 
+%
 %     %% === Y-direction fluxes (top to bottom) ===
 %     for i = 1:nRows-1
 %         hT = h(i, :); hB = h(i+1, :);
 %         HT = H(i, :); HB = H(i+1, :);
 %         Ky = 0.5 * (K(i, :) + K(i+1, :));
 %         dHdy = (hB - hT) / dy;
-% 
+%
 %         raw_flux = -Ky .* 0.5 .* (HT + HB) .* dHdy;
 %         max_flux = Sy(i, :) .* HT / dt;
-% 
+%
 %         capped_flux = sign(raw_flux) .* min(abs(raw_flux), max_flux);
 %         capped_flux(isnan(HB)) = 0;
-% 
+%
 %         Fy(i, :) = capped_flux;
 %     end
-% 
+%
 %     %% === Compute divergence from fluxes ===
 %     d2h_dx2 = zeros(nRows, nCols);
 %     d2h_dy2 = zeros(nRows, nCols);
-% 
+%
 %     d2h_dx2(:, 2:end-1) = (Fx(:, 2:end) - Fx(:, 1:end-1)) / dx;
 %     d2h_dx2(:, 1) = Fx(:, 1) / dx;
 %     d2h_dx2(:, end) = -Fx(:, end) / dx;
-% 
+%
 %     d2h_dy2(2:end-1, :) = (Fy(2:end, :) - Fy(1:end-1, :)) / dy;
 %     d2h_dy2(1, :) = Fy(1, :) / dy;
 %     d2h_dy2(end, :) = -Fy(end, :) / dy;
-% 
+%
 %     %% === Mass Balance Check ===
 %     total_flux_out = nansum(Fx(:)) * dy + nansum(Fy(:)) * dx;
 %     total_divergence = nansum(nansum((d2h_dx2 + d2h_dy2) * dx * dy));
 %     mass_error = total_flux_out - total_divergence;
-% 
+%
 %     if abs(mass_error) > 1e-10
 %         warning("⚠️ Mass imbalance in compute_gradients_conservative: %.3e m³", mass_error);
 %     end
-% 
+%
 %     % Optional cleanup
 %     d2h_dx2(isnan(z0)) = nan;
 %     d2h_dy2(isnan(z0)) = nan;
@@ -458,7 +570,7 @@ function dt_max = compute_stable_dt(u_x, u_y, dx, dy, Courant)
         dt_max = min(candidates);
     end
 end
-% 
+%
 function h = apply_free_flow_bc(h, mask)
 [Ny, Nx] = size(h);
 
@@ -491,15 +603,15 @@ function h = applyNoFlowBC(h, perimeterMask)
     %
     % Example usage:
     %   h = applyNoFlowBC(h, perimeterMask);
-    
+
     % Find indices of perimeter points
     [rows, cols] = find(perimeterMask);
-    
+
     % Loop through perimeter cells and apply no-flow condition
     for k = 1:length(rows)
         i = rows(k);
         j = cols(k);
-        
+
         % Identify the nearest inner neighbor
         if i > 1 && ~perimeterMask(i-1, j) % Check above
             h(i, j) = h(i-1, j);

@@ -4,6 +4,25 @@ function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,
     row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical,flag_subgrid,nc,nf,River_Width,River_Depth, ...
     Qc_prev,Qf_prev,Qci_prev,Qfi_prev,C_a_prev,Subgrid_Properties,flag_overbanks,flag_inflow,SubgridTables)
 
+use_neal_subgrid = (flag_subgrid == 1 && flag_overbanks == 1);
+use_sharedface_subgrid = (flag_subgrid == 1 && flag_overbanks ~= 1);
+
+if use_neal_subgrid
+    [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf,Qc,Qf,Qci,Qfi,C_a] = ...
+        Local_Inertial_Model_D4_Neal( ...
+        flag_numerical_scheme,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2, ...
+        flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet, ...
+        row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical,nc,nf,River_Width,River_Depth, ...
+        Qc_prev,Qf_prev,Qci_prev,Qfi_prev,C_a_prev);
+    return;
+end
+
+if use_sharedface_subgrid
+    error('HydroPol2D:LookupSubgridDisabled', ...
+        ['Lookup-table subgrid is paused while the Neal 2012 channel-subgrid ', ...
+         'mode is being repaired. Use flag_overbanks=1 or disable flag_subgrid.']);
+end
+
 %% Domain Dimensions
 if isgpuarray(cell_area)
     d_t_min = gpuArray(d_tolerance/1000); %#ok<NASGU>
@@ -30,8 +49,6 @@ end
 %% Cell depth and WSE
 depth_cell = max(d_tot/1000,0); % [m]
 
-% Shared-face subgrid only in this specific case
-use_sharedface_subgrid = (flag_subgrid == 1 && flag_overbanks ~= 1);
 if use_sharedface_subgrid && ~isempty(SubgridTables)
     z_dem = SubgridTables.invert_el;
 else

@@ -20,6 +20,12 @@ B_t_extra = B_t;
 B_begin = B_t;
 Br_kg = Bmin/1000*cell_area; % kg
 Bm_kg = Bmax/1000*cell_area; % kg
+outlet_mask = logical(outlet_index) & (outlet_flow > 0);
+if any(outlet_mask(:))
+    outlet_water_volume_L = max(nansum(outlet_flow(outlet_mask)) * cell_area * time_step/60, 0);
+else
+    outlet_water_volume_L = 0;
+end
 % --------------- Choosing Which Wash-off Equation % ---------------
 if flag_wq_model == 1 % Rating Curve
     B_t_extra(B_t*1000/cell_area <= Bmin) = 0; % 100 g/m2
@@ -93,7 +99,7 @@ if min(min(B_t_mid)) < 0 || tmin_wq < time_step*60 % Break time-step internally
     n_steps_floor = floor(n_steps_decimal); % integer lowest value
     steps  = (n_steps_floor+1);
     outflow_mass = 0; % Starting to measure outflow pollutant mass (kg)
-    outlet_mass = 0; % Starting to measure outlet outflow pollutant mass (kg)
+    outlet_mass = 0; % kg captured by the outlet sink during the time-step
     for i = 1:(steps)
         % Break time step internally. Flow rates won't change but B_t will
         if i == (steps)
@@ -144,9 +150,16 @@ if min(min(B_t_mid)) < 0 || tmin_wq < time_step*60 % Break time-step internally
         % matrix dW measures the difference between inflows and outflows
         dW = (sum(W_in_t,3) - tot_W_out); % Inflow pol - Outflow pol (kg/hr)
         outflow_mass = outflow_mass + tot_W_out*dt/3600; % kg of pollutant that left the cell
-        outlet_mass = outlet_mass + W_out_outlet_t*dt/3600; % kg of pollutant that left the outlet cells
         % dW = max((sum(W_in_t,3) - tot_W_out),-B_t/(time_step/60) + small_number); % Inflow pol - Outflow pol (kg/hr)
         B_t = B_t + dW*dt/3600; % Mass Balance for the incremental time-step
+        if any(outlet_mask(:))
+            outlet_capture = B_t(outlet_mask);
+            outlet_capture = outlet_capture(isfinite(outlet_capture) & outlet_capture > 0);
+            if ~isempty(outlet_capture)
+                outlet_mass = outlet_mass + sum(outlet_capture);
+            end
+            B_t(outlet_mask) = 0;
+        end
     end
     % Average Pollutant Flux in the Time-Step
     tot_W_out = outflow_mass/(time_step/60); % kg/hr
@@ -157,6 +170,18 @@ if min(min(B_t_mid)) < 0 || tmin_wq < time_step*60 % Break time-step internally
     B_t(B_t<0) = 0;
 else
     B_t = B_t_mid; % We can use the same time-step from the hydrodynamic model
+    if any(outlet_mask(:))
+        outlet_capture = B_t(outlet_mask);
+        outlet_capture = outlet_capture(isfinite(outlet_capture) & outlet_capture > 0);
+        if ~isempty(outlet_capture)
+            outlet_mass = sum(outlet_capture);
+        else
+            outlet_mass = 0;
+        end
+        B_t(outlet_mask) = 0;
+    else
+        outlet_mass = 0;
+    end
     % Rounding Negative Values
     mass_lost = sum(sum(B_t(B_t<0))) + mass_lost;
     B_t(B_t<0) = 0;
@@ -198,7 +223,11 @@ tot_q_out = max(tot_q_out,10); % 10 mm/hr
 % ---------------% Pollutant Concentration % ---------------% %
 P_conc = max(10^6*(tot_W_out)./(tot_q_out*cell_area),0); % mg/L
 % ---------------% Outlet Concentration % ---------------% %
-Out_Conc = max(1000*sum(sum(W_out_outlet_t))/(sum(sum(outlet_flow))/1000*cell_area),0); % mg/L
+if outlet_water_volume_L > 0
+    Out_Conc = max(1e6*outlet_mass/outlet_water_volume_L,0); % mg/L
+else
+    Out_Conc = 0;
+end
 Tot_Washed = (max(B_begin - B_t,0)) + Tot_Washed;
 if mass_lost <  -1*10^3
     ttt = 1;

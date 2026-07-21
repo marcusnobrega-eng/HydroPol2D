@@ -15,13 +15,13 @@ claim.
 - `P1-ET-VT-002`: soil ET demand is fully met when root-zone storage is abundant.
 - `P1-ET-VT-003`: soil ET is storage-limited when accessible root-zone water is exhausted.
 - `P1-ET-VT-004`: shallow-rooted vegetation can extract only the rooted fraction of the near-surface layer.
-- `P1-ET-VT-005`: internal ETP mode uses `Hydro_States.ETP` for soil cells and `Hydro_States.Ep` for ponded cells.
+- `P1-ET-VT-005`: internal reference ET is scaled by LULC `Kc` for soil cells, while ponded cells continue to use `Hydro_States.Ep`.
 - `P1-ET-VT-006`: dry, impervious, and invalid cells do not extract soil ET.
 
 ## Run
 
 ```matlab
-run('Validation/Evapotranspiration/Reference_ET_Extraction/run_vtilted_et_validation_suite.m')
+run('HydroPol2D_Model/Validation/Evapotranspiration/Reference_ET_Extraction/run_vtilted_et_validation_suite.m')
 ```
 
 ## Outputs

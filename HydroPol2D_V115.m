@@ -129,6 +129,8 @@ input_data_bypass_script_path = fullfile(launcher_root, 'Config', ...
 %           Warmup_Depth.tif
 %           Initial_Buildup.tif
 %           Initial_Soil_Moisture.tif
+%           Initial_SWE.tif
+%           Initial_Snow_Depth.tif
 %           B1.tif, B2.tif, W1.tif, W2.tif
 %
 %       Forcing/

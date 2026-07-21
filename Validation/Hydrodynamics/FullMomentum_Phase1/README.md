@@ -11,7 +11,7 @@ Cases:
 Run:
 
 ```matlab
-cd Validation/Hydrodynamics/FullMomentum_Phase1
+cd HydroPol2D_Model/Validation/Hydrodynamics/FullMomentum_Phase1
 run_full_momentum_hydrodynamics_validation
 ```
 

@@ -2,6 +2,11 @@
 
 function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,outflow,Hf,Qc,Qf,Qci,Qfi,C_a] = Diffusive_Wave_Model(flag_numerical_scheme,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2,flag_reservoir,z,d_tot,d_p,roughness_cell,cell_area,time_step,Resolution,outlet_index,outlet_type,slope_outlet,row_outlet,col_outlet,d_tolerance,outflow,idx_nan,flag_critical,flag_subgrid,nc,nf,River_Width, River_Depth,Qc_prev,Qf_prev,Qci_prev,Qfi_prev,C_a_prev)
 
+if flag_subgrid == 1
+    error('HydroPol2D:NealSubgridUnsupportedInDiffusive', ...
+        'Subgrid routing is currently supported only with the local-inertial solver.');
+end
+
 % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 %                                                                 %
 %                 Produced by Marcus Nobrega Gomes Junior         %
@@ -23,7 +28,7 @@ if isgpuarray(cell_area)
 else
     d_t_min = d_tolerance/1000; % m
     ny = size(z,1);
-    nx = size(z,2);  
+    nx = size(z,2);
 end
 % Rivers
 % River_Width = River_Width*0;
@@ -39,7 +44,7 @@ end
 % Adding a tributary
 % River_Width(5,:) = 50;
 % River_Depth(5,:) = 1;
-idx_rivers = River_Width > 0; % Rivers are now cells with no zero width 
+idx_rivers = River_Width > 0; % Rivers are now cells with no zero width
 % ---------------% Adding minimum slope to do calculations % ---------------%
 h_min = 5/1000;  % In cases where inflow is being modeling, this value has to be 0
 dt = time_step*60;
@@ -78,13 +83,13 @@ matrix_store(:,:,2) = [nan_row; y(1:(end-1),:) - y(2:end,:)]/Resolution; % Up
 
 % Limiter in water surface slope to avoid numerical instabilities
 % dwse_dx_limiter = 0.10; % Limiter
-% 
+%
 % matrix_store(matrix_store > dwse_dx_limiter) = dwse_dx_limiter;
 % matrix_store(matrix_store < -dwse_dx_limiter) = -dwse_dx_limiter;
 
 %% ---------------- Hf (Effective Water Depth for Flow) ----------- %
 Hf = 0*outflow;
-% x-x 
+% x-x
 Hf(:,:,1) = [max(y(:,2:nx), y(:,1:(nx-1))) - max(z(:,2:nx), z(:,1:(nx-1))), nan_col]; % right
 % y-y
 Hf(:,:,2) = [nan_row; max(y(1:(end-1),:),y(2:end,:)) - max(z(1:(end-1),:),z(2:end,:))]; % up
@@ -100,7 +105,7 @@ mask = logical(mask + repmat(mask_depth,1,1,3)); % Fail in depth and fail in Hf
 % Artificial Depth
 % artificial_depth = 0;
 % Hf(mask) = artificial_depth; % No outflow from cells with very low depth
-% 
+%
 % if max(max(max(Hf))) > 0
 %     ttt = 1;
 % end
@@ -119,19 +124,19 @@ mask = logical(mask + repmat(mask_depth,1,1,3)); % Fail in depth and fail in Hf
     % y-y
     outflow(:,:,2) = Manning_Equation(roughness_cell, Hf(:,:,2), matrix_store(:,:,2),1); % m2/s or m3/s per unit width
     % Treating Domain Issues
-    outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;  
+    outflow(isnan(outflow)) = 0; outflow(isinf(outflow)) = 0;
     C_a = ones(size(roughness_cell))*Resolution^2; % cell area in m2;
     cell_width = C_a/Resolution; % cell width in m
 
 
 %% Eliminating Surplus Velocities at Wet-Dry Interfaces
-% Left 
+% Left
 % idx = Hf(:,:,1) > artificial_depth & [Hf(:,2:(end-1),1),zeros(size(depth_cell,1),1)] == artificial_depth;
 % interface_flow = outflow(:,:,1);
 % depth = Hf(:,:,1);
-% if any(any(idx)) 
+% if any(any(idx))
 %     interface_flow(idx) = depth(idx).*sqrt(g*depth(idx)); % m2 per sec
-%     outflow(:,:,1) = interface_flow;   
+%     outflow(:,:,1) = interface_flow;
 % end
 % % Right
 % idx = Hf(:,:,2) > artificial_depth & [zeros(size(depth_cell,1),1), Hf(:,2:(end),2)] == artificial_depth;
@@ -166,12 +171,12 @@ end
 %% Flow limiter
 alpha = 0.05;
 % x-x
-Hf_ = Hf(:,:,1); 
+Hf_ = Hf(:,:,1);
 flow = outflow(:,:,1); % m2/s or m3/s per unit width
 flow(mask(:,:,1)) = min((alpha*Resolution/dt).*Hf_(mask(:,:,1)), outflow(mask(:,:,1))); % Flow Limiter
 outflow(:,:,1) = flow;
 % y-y
-Hf_ = Hf(:,:,2); 
+Hf_ = Hf(:,:,2);
 flow = outflow(:,:,2); % m2/s or m3/s per unit width
 flow(mask(:,:,2)) = min((alpha*Resolution/dt).*Hf_(mask(:,:,2)), outflow(mask(:,:,2))); % Flow Limiter
 outflow(:,:,2) = flow;
@@ -202,12 +207,12 @@ if flag_subgrid == 1
     % Vol_Flux = Vol_flux + dt*(C_a/Resolution).* ...
     %                            ([zeros(ny,1) , outfluxes(:,1:(nx-1),1)] - outfluxes(:,:,1) ...
     %                             - outfluxes(:,:,2) + [outfluxes(2:end,:,2); zeros(1,nx)]); % m3
-    % 
+    %
     % hf(2:end,1:(end-1),3) = max(y(1:(end-1),2:end), y(2:end,1:(end-1))) - max(z(1:(end-1),2:end), z(2:end,1:(end-1)));
     % hf(1:(end-1),1:(end-1),4) = max(y(2:end,2:(end)), y(1:(end-1),1:(end-1))) - max(z(2:end,2:(end)), z(1:(end-1),1:(end-1)));
 end
 %% Reservoir Boundary Condition - We are assuming that all flow drains
-if flag_reservoir == 1   
+if flag_reservoir == 1
 	for ii = 1:length(reservoir_y)
         if ~isnan(yds1(ii))
             dtsup = d_tot(reservoir_y(ii),reservoir_x(ii))./1000; % % Water depth in the cell that has the boundary condition (m)
@@ -218,7 +223,7 @@ if flag_reservoir == 1
             Vol_Flux(reservoir_y(ii),reservoir_x(ii)) = Vol_Flux(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
             dtsup = dtsup - dh/1000;
             % Refreshing downstream cell
-            d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;            
+            d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;
         else
             dh = 0;
         end
@@ -252,7 +257,7 @@ if flag_subgrid == 1 % Maybe we have a change from inbank <-> overbank
     % Inbank - Overbank
     idx = d_t/1000 > River_Depth & d_p/1000 <= River_Depth & idx_rivers; % Cells in which there is a change from inbank to overbank
     if sum(sum(idx)) > 0
-        d_t(idx) = 1000*(d_t(idx)/1000 - (d_t(idx)/1000 - z(idx) + (z(idx) - River_Depth(idx))).*(1 - River_Width(idx)/Resolution)); % mm 
+        d_t(idx) = 1000*(d_t(idx)/1000 - (d_t(idx)/1000 - z(idx) + (z(idx) - River_Depth(idx))).*(1 - River_Width(idx)/Resolution)); % mm
         C_a(idx) = Resolution^2;
     end
     % Overbank - Inbank
@@ -262,7 +267,7 @@ if flag_subgrid == 1 % Maybe we have a change from inbank <-> overbank
         d_t(idx) = 1000*(d_t(idx)/1000 + (Resolution*(factor))./River_Width(idx) ...
             - (d_t(idx)/1000 - z(idx) + (z(idx) - River_Depth(idx)))); % mm
         C_a(idx) = River_Width(idx)*Resolution;
-    end 
+    end
 end
 lost_mass = 1/1000*abs(sum(sum(d_t(d_t<0).*C_a(d_t<0))));
 
@@ -321,7 +326,7 @@ end
 
 
 %% ---------------% Total Flow that Leaves the Cell ----------- %
-mask = outflow; 
+mask = outflow;
 % mask(mask<0) = 0; % We want to get only outflow flux per cell (maybe we dont need it)
 % I_tot_end_cell = sum(mask,3)*dt/1000*1/3600*Resolution^2; % m3
 I_tot_end_cell = abs(sum(mask,3))*dt/1000*1/3600*Resolution^2; % m3
@@ -340,4 +345,3 @@ I_tot_end_cell = abs(sum(mask,3))*dt/1000*1/3600*Resolution^2; % m3
         Q = sign(Sf).*1./n.*dx.*h.^(5/3).*sqrt(abs(Sf));
     end
 end
-

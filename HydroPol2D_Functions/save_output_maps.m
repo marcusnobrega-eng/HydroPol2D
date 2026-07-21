@@ -42,7 +42,11 @@ if flags.flag_automatic_calibration ~= 1
         % -----------------------------------------------------------------
         % Core hydro maps
         % -----------------------------------------------------------------
-        Maps.Hydro.d(:,:,1) = depths.d_t;
+        if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
+            Maps.Hydro.d(:,:,1) = hp2d_neal_surface_depth(depths.d_t, Wshed_Properties.River_Depth);
+        else
+            Maps.Hydro.d(:,:,1) = depths.d_t;
+        end
         [velocity_snapshot, hazard_snapshot] = snisb_velocity_hazard_snapshot( ...
             velocities.velocity_raster, depths.d_t, idx_nan);
         Maps.Hydro.velocity(:,:,1) = velocity_snapshot;
@@ -129,8 +133,9 @@ if flags.flag_automatic_calibration ~= 1
         % -----------------------------------------------------------------
         % Groundwater depth
         % -----------------------------------------------------------------
-        if flags.flag_baseflow == 1
-            Maps.Hydro.GWdepth_save(:,:,1) = BC_States.h_t - elevation + Soil_Properties.Soil_Depth; % GW depth
+        if flags.flag_groundwater_modeling == 1
+            Maps.Hydro.GWdepth_save(:,:,1) = max(min(elevation - BC_States.h_t, Soil_Properties.Soil_Depth), 0); % depth to water table below surface [m]
+            Maps.Hydro.GWdepth_is_zwt = 1;
         end
 
         % -----------------------------------------------------------------
@@ -145,7 +150,7 @@ if flags.flag_automatic_calibration ~= 1
         % -----------------------------------------------------------------
         if flags.flag_waterquality == 1
             Maps.WQ_States.Pol_Conc_Map(:,:,1) = zeros(ny,nx);
-            Maps.WQ_States.Pol_Mass_Map(:,:,1) = zeros(ny,nx);
+            Maps.WQ_States.Pol_mass_map(:,:,1) = zeros(ny,nx);
             Maps.WQ_States.Pol_Load_Map(:,:,1) = zeros(ny,nx);
         end
 
@@ -159,7 +164,11 @@ if flags.flag_automatic_calibration ~= 1
         % -----------------------------------------------------------------
         % Core hydro maps
         % -----------------------------------------------------------------
-        Maps.Hydro.d(:,:,saver_count) = depths.d_t;
+        if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
+            Maps.Hydro.d(:,:,saver_count) = hp2d_neal_surface_depth(depths.d_t, Wshed_Properties.River_Depth);
+        else
+            Maps.Hydro.d(:,:,saver_count) = depths.d_t;
+        end
         [velocity_snapshot, hazard_snapshot] = snisb_velocity_hazard_snapshot( ...
             velocities.velocity_raster, depths.d_t, idx_nan);
         Maps.Hydro.velocity(:,:,saver_count) = velocity_snapshot;
@@ -230,8 +239,9 @@ if flags.flag_automatic_calibration ~= 1
         % -----------------------------------------------------------------
         % Groundwater
         % -----------------------------------------------------------------
-        if flags.flag_baseflow == 1
-            Maps.Hydro.GWdepth_save(:,:,saver_count) = BC_States.h_t - elevation + Soil_Properties.Soil_Depth; % GW depth
+        if flags.flag_groundwater_modeling == 1
+            Maps.Hydro.GWdepth_save(:,:,saver_count) = max(min(elevation - BC_States.h_t, Soil_Properties.Soil_Depth), 0); % depth to water table below surface [m]
+            Maps.Hydro.GWdepth_is_zwt = 1;
         end
 
         % -----------------------------------------------------------------
@@ -253,7 +263,7 @@ if flags.flag_automatic_calibration ~= 1
         % -----------------------------------------------------------------
         if flags.flag_waterquality == 1
             Maps.WQ_States.Pol_Conc_Map(:,:,saver_count) = WQ_States.P_conc;
-            Maps.WQ_States.Pol_Mass_Map(:,:,saver_count) = WQ_States.B_t; % kg
+            Maps.WQ_States.Pol_mass_map(:,:,saver_count) = WQ_States.B_t; % kg
             Maps.WQ_States.Pol_Load_Map(:,:,saver_count) = ...
                 1/1000 * WQ_States.P_conc .* CA_States.I_tot_end_cell / (time_step*60) / Wshed_Properties.Resolution^2; % kg/s/m2
         end
@@ -335,7 +345,33 @@ if flags.flag_automatic_calibration ~= 1
             BC_States.average_spatial_transpiration_hydrograph(n_hydro_records,1) = 0;
         end
 
+        if exist('GW_States','var') && isstruct(GW_States)
+            gw_ts_fields = { ...
+                'seepage_discharge_hydrograph_m_s', ...
+                'seepage_discharge_hydrograph_mm_h', ...
+                'groundwater_recharge_hydrograph_mm_h', ...
+                'prescribed_recharge_input_hydrograph_mm_h'};
+            for igw = 1:numel(gw_ts_fields)
+                gw_name = gw_ts_fields{igw};
+                if ~isfield(GW_States, gw_name) || isempty(GW_States.(gw_name))
+                    GW_States.(gw_name) = zeros(n_hydro_records,1);
+                elseif size(GW_States.(gw_name),1) < n_hydro_records
+                    GW_States.(gw_name)(n_hydro_records,1) = 0;
+                end
+            end
+        end
+
         if flags.flag_waterquality == 1
+            if ~isfield(WQ_States,'outet_pollutograph') || isempty(WQ_States.outet_pollutograph)
+                if isfield(WQ_States,'mass_outlet') && isnumeric(WQ_States.mass_outlet)
+                    WQ_States.outet_pollutograph = zeros(n_hydro_records,1,'like',WQ_States.mass_outlet);
+                else
+                    WQ_States.outet_pollutograph = zeros(n_hydro_records,1);
+                end
+            elseif size(WQ_States.outet_pollutograph,1) < n_hydro_records
+                WQ_States.outet_pollutograph(n_hydro_records,1) = 0;
+            end
+
             if ~isfield(WQ_States,'EMC_outlet') || isempty(WQ_States.EMC_outlet)
                 if isfield(WQ_States,'mass_outlet') && isnumeric(WQ_States.mass_outlet)
                     WQ_States.EMC_outlet = zeros(n_hydro_records,1,'like',WQ_States.mass_outlet);
@@ -447,6 +483,18 @@ if flags.flag_automatic_calibration ~= 1
         end
         BC_States.average_spatial_transpiration_hydrograph(1,1) = current_avg_transpiration_ts;
 
+        if exist('GW_States','var') && isstruct(GW_States)
+            GW_States.seepage_discharge_hydrograph_m_s(1,1) = GW_States.last_seepage_discharge_m_s;
+            GW_States.seepage_discharge_hydrograph_mm_h(1,1) = GW_States.last_seepage_discharge_mm_h;
+            GW_States.boundary_seepage_discharge_hydrograph_m_s(1,1) = GW_States.last_boundary_seepage_discharge_m3_s;
+            GW_States.boundary_seepage_discharge_hydrograph_mm_h(1,1) = GW_States.last_boundary_seepage_discharge_mm_h;
+            GW_States.mass_balance_seepage_discharge_hydrograph_m_s(1,1) = GW_States.last_mass_balance_seepage_discharge_m3_s;
+            GW_States.mass_balance_seepage_discharge_hydrograph_mm_h(1,1) = GW_States.last_mass_balance_seepage_discharge_mm_h;
+            GW_States.groundwater_recharge_hydrograph_mm_h(1,1) = ...
+                mean(GW_States.last_groundwater_recharge_rate_m_s, 'all', 'omitnan') * 1000 * 3600;
+            GW_States.prescribed_recharge_input_hydrograph_mm_h(1,1) = GW_States.last_prescribed_input_mm_h;
+        end
+
         % Maximum flooded area
         Flooded_Area = max(sum(sum((depths.d_t > 150))) * Wshed_Properties.Resolution^2, Flooded_Area);
 
@@ -456,8 +504,12 @@ if flags.flag_automatic_calibration ~= 1
         end
 
         if flags.flag_waterquality(1,1) == 1
-            WQ_States.WQ_States.outet_pollutograph(1,1) = Out_Conc; %#ok<STRNU>
-            WQ_States.EMC_outlet(1,1) = WQ_States.mass_outlet / WQ_States.vol_outlet; % mg/L
+            WQ_States.outet_pollutograph(1,1) = Out_Conc;
+            if WQ_States.vol_outlet > 0
+                WQ_States.EMC_outlet(1,1) = WQ_States.mass_outlet / WQ_States.vol_outlet; % mg/L
+            else
+                WQ_States.EMC_outlet(1,1) = 0;
+            end
             WQ_States.mass_outlet_save(1,1) = WQ_States.mass_outlet;
             WQ_States.vol_outlet_save(1,1)  = WQ_States.vol_outlet;
         end
@@ -526,6 +578,18 @@ if flags.flag_automatic_calibration ~= 1
         end
         BC_States.average_spatial_transpiration_hydrograph(t_store,1) = current_avg_transpiration_ts;
 
+        if exist('GW_States','var') && isstruct(GW_States)
+            GW_States.seepage_discharge_hydrograph_m_s(t_store,1) = GW_States.last_seepage_discharge_m_s;
+            GW_States.seepage_discharge_hydrograph_mm_h(t_store,1) = GW_States.last_seepage_discharge_mm_h;
+            GW_States.boundary_seepage_discharge_hydrograph_m_s(t_store,1) = GW_States.last_boundary_seepage_discharge_m3_s;
+            GW_States.boundary_seepage_discharge_hydrograph_mm_h(t_store,1) = GW_States.last_boundary_seepage_discharge_mm_h;
+            GW_States.mass_balance_seepage_discharge_hydrograph_m_s(t_store,1) = GW_States.last_mass_balance_seepage_discharge_m3_s;
+            GW_States.mass_balance_seepage_discharge_hydrograph_mm_h(t_store,1) = GW_States.last_mass_balance_seepage_discharge_mm_h;
+            GW_States.groundwater_recharge_hydrograph_mm_h(t_store,1) = ...
+                mean(GW_States.last_groundwater_recharge_rate_m_s, 'all', 'omitnan') * 1000 * 3600;
+            GW_States.prescribed_recharge_input_hydrograph_mm_h(t_store,1) = GW_States.last_prescribed_input_mm_h;
+        end
+
         % Maximum flooded area
         Flooded_Area = max(sum(sum((depths.d_t > 150))) * Wshed_Properties.Resolution^2, Flooded_Area);
 
@@ -535,7 +599,12 @@ if flags.flag_automatic_calibration ~= 1
         end
 
         if flags.flag_waterquality == 1
-            WQ_States.EMC_outlet(t_store,1)       = WQ_States.mass_outlet / WQ_States.vol_outlet; % mg/L
+            WQ_States.outet_pollutograph(t_store,1) = Out_Conc;
+            if WQ_States.vol_outlet > 0
+                WQ_States.EMC_outlet(t_store,1) = WQ_States.mass_outlet / WQ_States.vol_outlet; % mg/L
+            else
+                WQ_States.EMC_outlet(t_store,1) = 0;
+            end
             WQ_States.mass_outlet_save(t_store,1) = WQ_States.mass_outlet;
             WQ_States.vol_outlet_save(t_store,1)  = WQ_States.vol_outlet;
         end
@@ -553,7 +622,7 @@ if flags.flag_automatic_calibration ~= 1
         if flags.flag_waterquality == 1
             if flags.flag_obs_gauges == 1
                 for i = 1:gauges.num_obs_gauges
-                    gauges.x_cell = gauges.northing_obs_gauges(i);
+                    gauges.x_cell = gauges.easting_obs_gauges(i);
                     gauges.y_cell = gauges.northing_obs_gauges(i);
                     WQ_States.pollutograph_cell(t_store,i) = WQ_States.P_conc(gauges.y_cell,gauges.x_cell); % mg/L
                 end
@@ -693,8 +762,50 @@ if flags.flag_automatic_calibration ~= 1 && ...
             end
         end
 
+        if exist('GW_States','var') && isstruct(GW_States)
+            if isfield(GW_States,'seepage_discharge_hydrograph_m_s') && ~isempty(GW_States.seepage_discharge_hydrograph_m_s)
+                n_tmp = min(ts_end, size(GW_States.seepage_discharge_hydrograph_m_s,1));
+                TempTS.groundwater.seepage_discharge_m_s = GW_States.seepage_discharge_hydrograph_m_s(1:n_tmp,:);
+            end
+            if isfield(GW_States,'seepage_discharge_hydrograph_mm_h') && ~isempty(GW_States.seepage_discharge_hydrograph_mm_h)
+                n_tmp = min(ts_end, size(GW_States.seepage_discharge_hydrograph_mm_h,1));
+                TempTS.groundwater.seepage_discharge_mm_h = GW_States.seepage_discharge_hydrograph_mm_h(1:n_tmp,:);
+            end
+            if isfield(GW_States,'boundary_seepage_discharge_hydrograph_m_s') && ~isempty(GW_States.boundary_seepage_discharge_hydrograph_m_s)
+                n_tmp = min(ts_end, size(GW_States.boundary_seepage_discharge_hydrograph_m_s,1));
+                TempTS.groundwater.boundary_seepage_discharge_m_s = GW_States.boundary_seepage_discharge_hydrograph_m_s(1:n_tmp,:);
+            end
+            if isfield(GW_States,'boundary_seepage_discharge_hydrograph_mm_h') && ~isempty(GW_States.boundary_seepage_discharge_hydrograph_mm_h)
+                n_tmp = min(ts_end, size(GW_States.boundary_seepage_discharge_hydrograph_mm_h,1));
+                TempTS.groundwater.boundary_seepage_discharge_mm_h = GW_States.boundary_seepage_discharge_hydrograph_mm_h(1:n_tmp,:);
+            end
+            if isfield(GW_States,'mass_balance_seepage_discharge_hydrograph_m_s') && ~isempty(GW_States.mass_balance_seepage_discharge_hydrograph_m_s)
+                n_tmp = min(ts_end, size(GW_States.mass_balance_seepage_discharge_hydrograph_m_s,1));
+                TempTS.groundwater.mass_balance_seepage_discharge_m_s = GW_States.mass_balance_seepage_discharge_hydrograph_m_s(1:n_tmp,:);
+            end
+            if isfield(GW_States,'mass_balance_seepage_discharge_hydrograph_mm_h') && ~isempty(GW_States.mass_balance_seepage_discharge_hydrograph_mm_h)
+                n_tmp = min(ts_end, size(GW_States.mass_balance_seepage_discharge_hydrograph_mm_h,1));
+                TempTS.groundwater.mass_balance_seepage_discharge_mm_h = GW_States.mass_balance_seepage_discharge_hydrograph_mm_h(1:n_tmp,:);
+            end
+            if isfield(GW_States,'groundwater_recharge_hydrograph_mm_h') && ~isempty(GW_States.groundwater_recharge_hydrograph_mm_h)
+                n_tmp = min(ts_end, size(GW_States.groundwater_recharge_hydrograph_mm_h,1));
+                TempTS.groundwater.recharge_mm_h = GW_States.groundwater_recharge_hydrograph_mm_h(1:n_tmp,:);
+            end
+            if isfield(GW_States,'prescribed_recharge_input_hydrograph_mm_h') && ~isempty(GW_States.prescribed_recharge_input_hydrograph_mm_h)
+                n_tmp = min(ts_end, size(GW_States.prescribed_recharge_input_hydrograph_mm_h,1));
+                TempTS.groundwater.prescribed_input_mm_h = GW_States.prescribed_recharge_input_hydrograph_mm_h(1:n_tmp,:);
+            end
+        end
+
         % Water-quality time series
         if flags.flag_waterquality == 1 && exist('WQ_States','var') && isstruct(WQ_States)
+            if isfield(WQ_States,'outet_pollutograph') && ~isempty(WQ_States.outet_pollutograph)
+                n_tmp = min(ts_end, size(WQ_States.outet_pollutograph,1));
+                tmp_data = WQ_States.outet_pollutograph(1:n_tmp,:);
+                if isa(tmp_data,'gpuArray'); tmp_data = gather(tmp_data); end
+                TempTS.waterquality.outet_pollutograph_mg_L = tmp_data;
+            end
+
             if isfield(WQ_States,'EMC_outlet') && ~isempty(WQ_States.EMC_outlet)
                 n_tmp = min(ts_end, size(WQ_States.EMC_outlet,1));
                 tmp_data = WQ_States.EMC_outlet(1:n_tmp,:);

@@ -1,0 +1,3 @@
+CaseID,Status,ForcingType,NominalLength_m,SimulatedLength_m,FineResolution_m,CoarseResolution_m,ChannelWidth_m,ChannelDepth_m,OverbankWidthEach_m,OuterBermWidthEach_m,OuterBermHeight_m,LongitudinalSlope_mpm,Manning_n,PeakInflow_m3s,TimeToPeak_min,NashShape,Duration_min,TimeStep_min
+P1-SUBGRID-NEAL-COMPOSITE-100CMS-001,Diagnostic,Constant,1000,990,10,30,10,1,90,10,2,0.005,0.035,100,0,0,120,0.01
+P1-SUBGRID-NEAL-COMPOSITE-NASH100-001,Diagnostic,Nash,1000,990,10,30,10,1,90,10,2,0.005,0.035,100,30,4,180,0.01

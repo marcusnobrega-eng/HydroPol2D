@@ -46,7 +46,8 @@ function [qout_left,qout_right,qout_up,qout_down,outlet_flow,d_t,I_tot_end_cell,
 %     invert for momentum, but applies continuity in volume space through
 %     SubgridTables.volume_cell.
 %   - flag_numerical_scheme is accepted for interface compatibility. The
-%     robust HLL + hydrostatic-reconstruction scheme is used by default.
+%     default is HLL with a continuous-bed source treatment; hydrostatic
+%     reconstruction is available as an explicit stepped-bathymetry option.
 % -------------------------------------------------------------------------
 
 %% ------------------------------------------------------------------------
@@ -113,15 +114,19 @@ h_min = 0.0;
 %   0 = raw HLL fluxes + explicit/forecast bed-slope source
 %
 % flag_source_friction_predictor:
-%   1 = apply bed-slope acceleration + exact implicit Manning friction
-%       BEFORE computing HLL fluxes.
-%       This is the recommended test for normal roughness.
+%   1 = apply exact implicit Manning friction before computing HLL fluxes;
+%       add centred bed-slope acceleration only in the raw-HLL branch.
 %
 % flag_post_flux_friction_corrector:
 %   0 = no second friction damping after the flux update
 %   1 = optional light post-flux correction
 % -------------------------------------------------------------------------
 
+% The raw-HLL/continuous-bed source treatment remains the default for the
+% established plane and rainfall-runoff benchmarks. Hydrostatic
+% reconstruction is an explicit option for stepped bathymetry; its
+% bed-force correction must not be combined with the centered-slope
+% predictor below.
 flag_HR_full_momentum = 0;
 
 flag_source_friction_predictor = 1;
@@ -129,7 +134,7 @@ flag_post_flux_friction_corrector = 0;
 post_flux_friction_fraction = 0.50;
 
 % Optional override: set Outlet_Properties.flag_HR_full_momentum = 1
-% to activate hydrostatic reconstruction for complex terrain runs.
+% to activate hydrostatic reconstruction for stepped bathymetry runs.
 if exist('Outlet_Properties','var') && isstruct(Outlet_Properties) && ...
         isfield(Outlet_Properties,'flag_HR_full_momentum') && ...
         ~isempty(Outlet_Properties.flag_HR_full_momentum)
@@ -252,9 +257,12 @@ n2(~isfinite(n2) | n2 < 0) = 0;
 %   rising limb for normal Manning n.
 %
 % New predictor:
-%   1) accelerate momentum with bed slope:
+%   1) in the raw-HLL branch only, accelerate momentum with bed slope:
 %        hu_star = hu - dt*g*h*dz/dx
 %        hv_star = hv - dt*g*h*dz/dy
+%      Hydrostatic reconstruction already includes the discrete bed-force
+%      correction in its left/right face momentum fluxes. Applying this
+%      predictor there would count gravity twice.
 %
 %   2) relax hu_star/hv_star with exact pointwise implicit Manning friction.
 %
@@ -268,10 +276,15 @@ use_source_friction_predictor = false;
 
 if flag_source_friction_predictor == 1
 
-    [dzdx,dzdy] = compute_centered_bed_gradients(z_dem, active, dx);
+    hu_star = hu;
+    hv_star = hv;
 
-    hu_star = hu - dt .* g .* h .* dzdx;
-    hv_star = hv - dt .* g .* h .* dzdy;
+    if flag_HR_full_momentum == 0
+        [dzdx,dzdy] = compute_centered_bed_gradients(z_dem, active, dx);
+
+        hu_star = hu - dt .* g .* h .* dzdx;
+        hv_star = hv - dt .* g .* h .* dzdy;
+    end
 
     hu_star(~active) = 0;
     hv_star(~active) = 0;

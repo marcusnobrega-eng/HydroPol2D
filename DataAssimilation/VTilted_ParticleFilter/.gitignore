@@ -1,0 +1,5 @@
+Runs/
+Outputs/
+Figures/
+*.mat
+*.log

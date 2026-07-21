@@ -5,7 +5,11 @@ zmin = SubgridTables.z_zmin;
 zmax = SubgridTables.z_zmax;
 Vmax = SubgridTables.z_volmax;
 cell_area = SubgridTables.cell_area;
-z_levels = SubgridTables.z_level;
+if isfield(SubgridTables, 'z_dep')
+    z_levels = SubgridTables.z_dep;
+else
+    z_levels = SubgridTables.z_level;
+end
 V_levels = SubgridTables.z_volume;
 
 V = zeros(size(zs), 'like', zs);

@@ -102,6 +102,18 @@ if k == 1
         Hydro_States.last_valid_ETR = Hydro_States.ETR;
     end
 
+    % The internal ETP forcing also supplies the atmospheric fields used by
+    % the snow module. They are retained in BC_States rather than recomputed
+    % from a separate climate pathway.
+    if flags.flag_ETP == 1 && flags.flag_input_ETP_map ~= 1
+        BC_States.Average_Daily_Temperature = nan(gridSize);
+        BC_States.min_temp = nan(gridSize);
+        BC_States.wind = nan(gridSize);
+        BC_States.Average_Daily_Temperature(idx_nan) = nan;
+        BC_States.min_temp(idx_nan) = nan;
+        BC_States.wind(idx_nan) = nan;
+    end
+
     % ---------------------------------------------------------------------
     % Initialize piecewise-constant cursors
     % ---------------------------------------------------------------------
@@ -284,7 +296,7 @@ gridSize = BC_States.gridSize;
 %         stage_depth_previous = stage_depth;
 %     end
 %     dt_step = max(t - t_previous, 0);
-% 
+%
 %     if dt_step > 0
 %         for z = 1:Stage_Parameters.n_stage_gauges
 %             [stage_depth(z,1), BC_States.cursor_stage] = localAverageStateOverStep( ...
@@ -300,15 +312,15 @@ gridSize = BC_States.gridSize;
 %             Stage_Parameters.time_stage, ...
 %             t, ...
 %             BC_States.cursor_stage);
-% 
+%
 %         iz_stage = localClampIndex(BC_States.cursor_stage, 1, size(Stage_Parameters.stage,1));
-% 
+%
 %         for z = 1:Stage_Parameters.n_stage_gauges
 %             stage_depth(z,1) = Stage_Parameters.stage(iz_stage,z);
 %         end
 %     end
 % end
-% 
+%
 % if k == 1
 %    stage_depth_previous = stage_depth;
 % end
@@ -387,10 +399,6 @@ if flags.flag_inflow == 1
             BC_States.delta_inflow_agg(i) * Wshed_Properties.inflow_cells(:,:,i); % mm
     end
 
-    if flags.flag_subgrid == 1
-        BC_States.inflow = BC_States.inflow .* Wshed_Properties.cell_area ./ C_a;
-    end
-
     BC_States.inflow(idx_nan) = nan;
 end
 
@@ -406,7 +414,7 @@ if flags.flag_rainfall > 0
             flags.flag_input_rainfall_map ~= 1 && ...
             flags.flag_satellite_rainfall ~= 1 && ...
             flags.flag_real_time_satellite_rainfall ~= 1
-    
+
         BC_States.delta_p_agg = 0;
     end
 
@@ -612,7 +620,7 @@ if flags.flag_ETP == 1 && flags.flag_input_ETP_map ~= 1
                 day_of_year = day(extra_parameters_ETP.time_ETP(z2,1),'dayofyear');
             end
 
-            [Hydro_States.ETP, Hydro_States.Ep, ~, ~, ~] = ...
+            [Hydro_States.ETP, Hydro_States.Ep, avg_temp, wind_speed, min_temp] = ...
                 ETP_model(z2,day_of_year,ETP_Parameters.coordinates_stations(:,1),ETP_Parameters.coordinates_stations(:,2), ...
                 Spatial_Rainfall_Parameters.x_grid',Spatial_Rainfall_Parameters.y_grid',ETP_Parameters.maxtemp_stations, ...
                 ETP_Parameters.mintemp_stations,ETP_Parameters.avgtemp_stations,ETP_Parameters.u2_stations,ETP_Parameters.ur_stations, ...
@@ -620,6 +628,9 @@ if flags.flag_ETP == 1 && flags.flag_input_ETP_map ~= 1
 
             Hydro_States.ETP(isnan(Hydro_States.ETP)) = 0; Hydro_States.ETP(idx_nan) = nan;
             Hydro_States.Ep(isnan(Hydro_States.Ep))   = 0; Hydro_States.Ep(idx_nan)  = nan;
+            BC_States.Average_Daily_Temperature = avg_temp;
+            BC_States.min_temp = min_temp;
+            BC_States.wind = wind_speed;
 
             if nansum(Hydro_States.ETP,'all') == 0
                 warning('No ETP data from current forcing. Using last valid internal ETP/ETR in memory.')
@@ -644,7 +655,7 @@ if flags.flag_ETP == 1 && flags.flag_input_ETP_map ~= 1
                 day_of_year = day(extra_parameters_ETP.time_ETP(z2,1),'dayofyear');
             end
 
-            [Hydro_States.ETP, Hydro_States.Ep, ~, ~, ~] = ...
+            [Hydro_States.ETP, Hydro_States.Ep, avg_temp, wind_speed, min_temp] = ...
                 ETP_model(z2,day_of_year,ETP_Parameters.coordinates_stations(:,1),ETP_Parameters.coordinates_stations(:,2), ...
                 Spatial_Rainfall_Parameters.x_grid',Spatial_Rainfall_Parameters.y_grid',ETP_Parameters.maxtemp_stations, ...
                 ETP_Parameters.mintemp_stations,ETP_Parameters.avgtemp_stations,ETP_Parameters.u2_stations,ETP_Parameters.ur_stations, ...
@@ -652,6 +663,9 @@ if flags.flag_ETP == 1 && flags.flag_input_ETP_map ~= 1
 
             Hydro_States.ETP(isnan(Hydro_States.ETP)) = 0; Hydro_States.ETP(idx_nan) = nan;
             Hydro_States.Ep(isnan(Hydro_States.Ep))   = 0; Hydro_States.Ep(idx_nan)  = nan;
+            BC_States.Average_Daily_Temperature = avg_temp;
+            BC_States.min_temp = min_temp;
+            BC_States.wind = wind_speed;
 
             if nansum(Hydro_States.ETP,'all') == 0
                 Hydro_States.ETP = Hydro_States.last_valid_ETP;

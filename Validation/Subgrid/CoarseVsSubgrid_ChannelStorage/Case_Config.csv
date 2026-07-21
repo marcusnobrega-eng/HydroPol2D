@@ -1,2 +1,0 @@
-case_id,module,status,driver,expected_behavior,primary_metrics,acceptance_threshold
-P1-SUBGRID-001,Retired lookup-subgrid development,retired_not_public,run_subgrid_hydraulics_validation.m,"Retained internal lookup-table storage and face-geometry experiments.","volume_rmse_m3; inverse_depth_rmse_m; face_geometry_error_pct; conveyance_error_pct; source_sink_volume_residual_m3; local_inertial_q_error_m2_s; full_momentum_flat_depth_rmse_m; low_friction_volume_residual_m3","Not an active HydroPol2D validation claim."

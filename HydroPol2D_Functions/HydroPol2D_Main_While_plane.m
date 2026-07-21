@@ -131,14 +131,19 @@ catch
     Subgrid_Properties = [];
 end
 % Subgrid_Properties = [];
-% 
+%
 roughness_squared = LULC_Properties.roughness.^2;
-% 
+%
 
 % Initial System Storage
 S_c = nansum(nansum(Wshed_Properties.Resolution^2.*Hydro_States.S/1000)); % Canopy
 
-if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
+if flags.flag_subgrid == 1 && flags.flag_overbanks ~= 1 && ...
+        exist('SubgridTables','var') && ~isempty(SubgridTables) && ...
+        isfield(SubgridTables, 'sfincs_exact') && SubgridTables.sfincs_exact
+    eta_storage = SubgridTables.z_zmin + max(depths.d_t ./ 1000, 0);
+    S_p = nansum(nansum(hp2d_sfincs_cell_volume_from_zs(SubgridTables, eta_storage)));
+elseif flags.flag_subgrid == 1 && flags.flag_overbanks == 1
     S_p = nansum(nansum((Wshed_Properties.Resolution - Wshed_Properties.River_Width).*Wshed_Properties.Resolution.*max((depths.d_t/1000 - Wshed_Properties.River_Depth),0))) + ...
         nansum(nansum(Wshed_Properties.Resolution.*Wshed_Properties.River_Width.*depths.d_t/1000));
 else
@@ -250,7 +255,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         % -------------- Hydrological Model --------------- %
         % BC_States.delta_p_agg(BC_States.delta_p_agg >= 0) = 100* (time_step/60); % 1 mm/h
         % time_step = 1; % min
-        
+
         Hydrological_Model; % Runs the interception + infiltration + GW routing model
 
         % Preallocating cels for Cellular Automata
@@ -306,7 +311,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                         depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical,flags.flag_subgrid,Wshed_Properties.Inbank_Manning,Wshed_Properties.Overbank_Manning,Wshed_Properties.River_Width, Wshed_Properties.River_Depth,Qc,Qf,Qci,Qfi,C_a);
                 else
                     % -------------------- Local Inertial Formulation ----------------%
-                
+
                     if flags.flag_subgrid == 1
                         % New standalone paper-style shared-face subgrid solver
                         [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t, ...
@@ -331,7 +336,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                             Wshed_Properties.River_Width, Wshed_Properties.River_Depth, ...
                             Qc, Qf, Qci, Qfi, C_a, ...
                             Subgrid_Properties, flags.flag_inflow, SubgridTables);
-                
+
                     else
                         % Original baseline local inertial solver
                         [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf,Qc,Qf,Qci,Qfi,C_a] = ...
@@ -355,13 +360,13 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                             Qc, Qf, Qci, Qfi, C_a, ...
                             Subgrid_Properties, flags.flag_overbanks, flags.flag_inflow, SubgridTables);
                     end
-                
+
                 end
             end
         end
-        
+
 %         zzz_time_tesk(k,1) = toc;
-% 
+%
 %         if k == 1000
 %             ttt = 1;
 %             profile off;
@@ -658,7 +663,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             error('Instability. in the Water Quality Model.')
         end
 
-        
+
 
     catch ME % In case an error occurs in the model
         disp(ME.message)

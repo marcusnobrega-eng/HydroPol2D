@@ -1,22 +1,14 @@
 clear; clc;
 
 case_dir = fileparts(mfilename('fullpath'));
-model_root = case_dir;
-while ~isfolder(fullfile(model_root, 'HydroPol2D_Functions'))
-    parent_dir = fileparts(model_root);
-    if strcmp(parent_dir, model_root)
-        error('HydroPol2D:Validation:ModelRootNotFound', ...
-            'Could not locate the HydroPol2D repository from %s.', case_dir);
-    end
-    model_root = parent_dir;
-end
-repo_root = model_root;
+repo_root = fullfile(case_dir, '..', '..', '..');
+model_root = repo_root;
 functions_dir = fullfile(model_root, 'HydroPol2D_Functions');
 base_static_dir = fullfile(model_root, 'Validation', 'Phase1_VTilted_Catchment', 'Static');
 config_dir = fullfile(case_dir, 'Config');
 
-addpath(functions_dir);
-hydropol2d_add_runtime_paths(model_root);
+addpath(functions_dir, '-begin');
+hydropol2d_add_runtime_paths(hydropol2d_find_root(case_dir));
 addpath(config_dir);
 
 registry_path = fullfile(config_dir, 'Infiltration_Case_Registry.csv');
@@ -45,11 +37,15 @@ for icase = 1:height(Cases)
     case_root = fullfile(full_root, case_id);
     static_dir = fullfile(case_root, 'Static');
     output_root = fullfile(case_root, 'Outputs');
+    % Full-model scripts may clear caller variables; recover the immutable
+    % reference rasters before each independent case.
+    base_static_dir = fullfile(hydropol2d_find_root(case_dir), ...
+        'Validation', 'Phase1_VTilted_Catchment', 'Static');
     prepare_case_static_rasters(base_static_dir, static_dir, ValidationCase);
 
     try
         Paths = make_validation_paths(output_root, true);
-        InputPaths = make_input_paths(static_dir, functions_dir, case_root);
+        InputPaths = make_input_paths(static_dir, case_root);
         input_data_bypass_script_path = fullfile(config_dir, 'input_data_bypass_script.m');
         use_inputpaths_bypass = 1;
         use_inputdata_bypass = 1;
@@ -85,7 +81,7 @@ RunSummary = evaluate_full_model_summary(RunSummary);
 writetable(RunSummary, fullfile(summary_dir, 'VTilted_Infiltration_FullModel_Summary.csv'));
 disp(RunSummary);
 
-function InputPaths = make_input_paths(static_dir, functions_dir, case_root)
+function InputPaths = make_input_paths(static_dir, case_root)
 InputPaths = struct();
 InputPaths.case_root = case_root;
 InputPaths.DEM_path = fullfile(static_dir, 'DEM.tif');
@@ -300,7 +296,6 @@ for i = 1:height(T)
             T.report_ready(i) = T.mean_final_depth_mm(i) > 0;
     end
 end
-T.report_ready(:) = false;
 end
 
 function delete_dir_contents(d)

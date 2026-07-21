@@ -80,6 +80,8 @@
 %
 %  LULC_Properties:
 %     idx_imp        - Impervious mask logical
+%     frac_imp       - Optional fractional impervious area [-]
+%     frac_perv      - Optional fractional pervious area [-]
 %
 %  flags:
 %     flag_infiltration
@@ -98,6 +100,8 @@
 %  =========================================================================
 
 
+neal_equivalent_depth = exist('use_neal_subgrid_volume', 'var') && use_neal_subgrid_volume;
+
 % -----------------------------
 % Area / initial storage accounting
 % -----------------------------
@@ -109,7 +113,7 @@ if flags.flag_infiltration == 1 || k == 1
     % Current unsaturated-zone storage
     S_UZ_inf_0 = nansum(nansum(Coarse_Area .* Soil_Properties.I_t / 1000));
 
-    if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
+    if flags.flag_subgrid == 1 && flags.flag_overbanks == 1 && ~neal_equivalent_depth
 
         Vol = ((Wshed_Properties.Resolution - Wshed_Properties.River_Width) .* ...
                 Wshed_Properties.Resolution .* ...
@@ -166,6 +170,15 @@ if flags.flag_infiltration == 1
         isstruct(Soil_Properties.Layers) && ...
         isfield(Soil_Properties.Layers, 'near_surface_storage_mm');
 
+    perv_frac = ones(size(depths.d_t), 'like', depths.d_t);
+    if isfield(LULC_Properties, 'frac_perv') && ~isempty(LULC_Properties.frac_perv)
+        perv_frac = min(max(LULC_Properties.frac_perv, 0), 1);
+    elseif isfield(LULC_Properties, 'idx_imp') && ~isempty(LULC_Properties.idx_imp)
+        perv_frac = double(~LULC_Properties.idx_imp);
+    end
+    perv_frac(idx_nan) = nan;
+    idx_fully_impervious = perv_frac <= 1e-9;
+
 
     % ---------------------------------------------------------------------
     % Time
@@ -193,16 +206,17 @@ if flags.flag_infiltration == 1
     % Saturated thickness above soil bottom [m]
     GW_Depth = BC_States.h_t - (elevation - Soil_Properties.Soil_Depth);
 
-    % Depth to water table from land surface [m]
-    zwt = Soil_Properties.Soil_Depth - GW_Depth;
-    zwt = max(zwt, 0);
+% Depth to water table from land surface [m]
+zwt = Soil_Properties.Soil_Depth - GW_Depth;
+zwt = max(zwt, 0);
+zwt = min(zwt, Soil_Properties.Soil_Depth);
 
-    if has_layered_soil
+if has_layered_soil
         Soil_Properties = sync_layered_soil_storage(Soil_Properties, idx_nan);
         UZ_max_storage = Soil_Properties.Layers.total_vadose_capacity_mm ./ 1000;
     else
         % Maximum unsaturated-zone storage [m water]
-        UZ_max_storage = zwt .* ...
+        UZ_max_storage = perv_frac .* zwt .* ...
             (Soil_Properties.theta_sat - Soil_Properties.theta_r);
     end
 
@@ -262,10 +276,10 @@ if flags.flag_infiltration == 1
 
     if has_layered_soil
         S_near = max(Soil_Properties.Layers.near_surface_storage_mm, 0) ./ 1000;
-        theta_bucket = theta_r + (S_near ./ near_thick);
+        theta_bucket = theta_r + (S_near ./ max(perv_frac .* near_thick, 1e-9));
     else
         zwt_safe = max(zwt, 1e-6);
-        theta_bucket = theta_r + (S ./ zwt_safe);
+        theta_bucket = theta_r + (S ./ max(perv_frac .* zwt_safe, 1e-9));
     end
 
     theta_bucket = max(theta_bucket, theta_r);
@@ -308,7 +322,7 @@ if flags.flag_infiltration == 1
             Soil_Properties.Layers.near_surface_storage_mm, 0) ./ 1000;
     else
         % Water required to wet the top layer from theta_bucket to saturation [m water]
-        w_top_deficit = Lmix .* max(theta_s - theta_bucket, 0);
+        w_top_deficit = perv_frac .* Lmix .* max(theta_s - theta_bucket, 0);
     end
 
     % Wetting amount used only for near-surface conductivity prediction [m water]
@@ -317,7 +331,7 @@ if flags.flag_infiltration == 1
     w_wet = max(w_wet, 0);
 
     % Predicted near-surface water content [-]
-    theta_top = theta_bucket + w_wet ./ Lmix;
+    theta_top = theta_bucket + w_wet ./ max(perv_frac .* Lmix, 1e-12);
 
     theta_top = max(theta_top, theta_r);
     theta_top = min(theta_top, theta_s);
@@ -409,6 +423,7 @@ if flags.flag_infiltration == 1
 
     % Convert capacity to [mm/h]
     C = C * 1000 * 3600;
+    C = C .* perv_frac;
 
 
     % ---------------------------------------------------------------------
@@ -429,8 +444,8 @@ if flags.flag_infiltration == 1
     Hydro_States.f = min(Hydro_States.i_a, C);
     Hydro_States.f = min(Hydro_States.f, f_store_lim);
 
-    % Impervious areas: no infiltration
-    Hydro_States.f(LULC_Properties.idx_imp) = 0;
+    % Fully impervious cells: no infiltration
+    Hydro_States.f(idx_fully_impervious) = 0;
 
     % No unsaturated-zone capacity: no infiltration
     Hydro_States.f(idx_noUZ) = 0;
@@ -477,7 +492,7 @@ end
 % Subgrid inbank/overbank transitions
 % -----------------------------
 
-if flags.flag_subgrid == 1 && flags.flag_overbanks
+if flags.flag_subgrid == 1 && flags.flag_overbanks && ~neal_equivalent_depth
 
     % Inbank -> Overbank
     idx = depths.d_t / 1000 > Wshed_Properties.River_Depth & ...
@@ -526,7 +541,7 @@ if flags.flag_infiltration == 1 || k == 1
 
     S_UZ_inf_t = nansum(nansum(Coarse_Area .* Soil_Properties.I_t / 1000));
 
-    if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
+    if flags.flag_subgrid == 1 && flags.flag_overbanks == 1 && ~neal_equivalent_depth
 
         S_p_inf_t = ...
             nansum(nansum( ...
@@ -559,7 +574,9 @@ end
 
 if k == 1
 
-    cumulative_infiltration = ones(size(DEM_raster.Z));
+    % Cumulative infiltration is stored in metres. Start from a physical
+    % zero so maps and volume diagnostics do not contain an artificial bias.
+    cumulative_infiltration = zeros(size(DEM_raster.Z));
     cumulative_infiltration(isnan(cumulative_infiltration)) = nan;
 
 end

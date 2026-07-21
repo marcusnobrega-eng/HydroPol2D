@@ -19,7 +19,9 @@ n_tests = length(C3_test)*length(C4_test);
 %% Convert Rasters and Pre-Processing
 
 input_table = readtable('general_data.xlsx');
-hydropol2d_add_runtime_paths(fileparts(fileparts(mfilename('fullpath'))));
+% Register the bundled terrain runtime; no external path is required.
+runtime_model_root = fileparts(fileparts(mfilename('fullpath')));
+hydropol2d_add_runtime_paths(runtime_model_root);
 
 % Read Plane Watershed Data
 % [~,~,~] = plane_watershed(0.02,0.01,1.48,2.96,0);
@@ -882,7 +884,7 @@ for nc3 = 1:length(C3_test)
     for nc4 = 1:length(C4_test)
         % Values Changed for Calibration
         C_3 = double(idx_not_nan)*C3_test(nc3);
-        C_4 = double(idx_not_nan)*C4_test(nc4);        
+        C_4 = double(idx_not_nan)*C4_test(nc4);
         while t <= (routing_time + min_time_step/60)
             % Infiltration and Available Depth
             % Show stats
@@ -1534,19 +1536,19 @@ for nc3 = 1:length(C3_test)
             % Saving Modeled Values
             obs_index = find(t >= time_observed_concentration,1,'last');
             modeled_concentration(1,obs_index) = Out_Conc;
-            
+
             % Increase the counter
             t = time_calculation_routing(k,1)/60 + t;
             time_step_save(k,2) = time_calculation_routing(k,1);
             time_step_save(k,1) = t;
-            k = k + 1;        
+            k = k + 1;
         end
         % Comparing Pollutographs
         perc_tot = i_save/(n_tests)*100
         error = sum((observed_concentration' - modeled_concentration).^2);
         % Save Results
         data_water_quality(i_save,:) = [C3_test(nc3),C4_test(nc4),error,modeled_concentration];
-        i_save = i_save + 1;    
+        i_save = i_save + 1;
         t = time_step;
         B_t = initial_mass/(nx_max*ny_max);
     end

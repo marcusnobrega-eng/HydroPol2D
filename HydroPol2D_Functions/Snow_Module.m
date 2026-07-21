@@ -1,104 +1,62 @@
-%% ═══════════════════════════════════════════════════════════════════════
-%  Module: Snow_Module
-%  🛠️ Developer: Marcus Nobrega, Ph.D.
-%  📅 Date: 04/02/2025
-% ─────────────────────────────────────────────────────────────────────────────
-%  ➤ Purpose:
-%      Estimate snow water equivalent, snowpack, snowmelt, and snow density.
-%      This module partitions precipitation between snow and rain based on 
-%      temperature, computes snowmelt using a degree-day approach, updates 
-%      snowpack properties, and adjusts the water balance by updating the 
-%      effective water depth.
-%
-%  ➤ Inputs:
-%      • flags: Structure with flags controlling processes, including:
-%              - flag_snow_modeling (activates snow modeling)
-%      • BC_States: Structure containing:
-%              - Eff_Rainfall: Effective rainfall (mm)
-%              - Average_Daily_Temperature: Air temperature (°C)
-%              - wind: Wind speed (m/s)
-%              - min_temp: Minimum temperature (°C)
-%      • Wshed_Properties:
-%              - pixel_latitude: Latitude values for the watershed pixels
-%      • day_of_year: Current day of the year (DOY)
-%      • Snow_Properties.SWE_t, Snow_Properties.H_snow_t: Existing snow water 
-%              equivalent (SWE) and snowpack depth (mm)
-%      • DEM_raster: Digital Elevation Model structure (provides cellsize)
-%      • depths:
-%              - d_p: Ponded water depth (mm)
-%              - d_t: Total water depth (mm), updated based on snowmelt and rain
-%      • k: Time-step counter (for initialization of maximum snow depth)
-%
-%  ➤ Outputs:
-%      • Snow_Properties updated:
-%              - SWE_t: Snow Water Equivalent (mm)
-%              - H_snow_t: Snowpack depth (mm)
-%              - M_snow: Snowmelt (mm)
-%              - P_snow: Snow precipitation (mm)
-%              - P_rain: Rain precipitation (mm)
-%              - rho_snow: Snow density (kg/m³)
-%              - E_s: Canopy evaporation/sublimation from snow (mm)
-%      • errors(2): Mass balance error in snow (m³), adjusted by DEM cell area
-%      • depths.d_t: Updated total water depth on the grid (mm)
-%      • max_Hsnow: Maximum snow depth recorded (mm)
-%
-%  ➤ Notes:
-%      • Snow modeling is activated when flag_snow_modeling is set to 1.
-%      • The Snow_Model_Function is called to update snow properties based on
-%        current conditions (temperature, wind, precipitation, etc.).
-%      • A mass balance error is computed; a warning is issued if this error 
-%        exceeds 100.
-%      • The effective water depth (depths.d_t) is computed as the sum of ponded
-%        water depth, snowmelt, and rain, thereby updating the mass balance.
-%      • If snow modeling is inactive, the effective rainfall is simply added to 
-%        the ponded water depth.
-% ═══════════════════════════════════════════════════════════════════════
-
+% Snow accumulation, melt, and sublimation.
+% This script is called from Hydrological_Model and shares its workspace.
 
 if flags.flag_snow_modeling == 1
+    required_fields = {'SWE_t','H_snow_t','rho_snow','alpha','epsilon','C_e', ...
+        'DDF','T_snow_all','T_rain_all','rho_snow_init','rho_max','k_t','k_swe','k_D'};
+    missing_fields = required_fields(~isfield(Snow_Properties, required_fields));
+    if ~isempty(missing_fields)
+        error('Snow_Properties is incomplete. Missing: %s', strjoin(missing_fields, ', '));
+    end
 
-    % Snow Parameters
-    Snow_Properties.alpha = 0.8;
-    Snow_Properties.epsilon = 0.98; % Emissivity of snow
-    Snow_Properties.C_e = 0.001; % Sublimation coefficient
-    Snow_Properties.DDF = 2; % mm/°C/day, degree-day factor
-    Snow_Properties.T_thresh = 0; % Threshold temperature for snow/rain partitioning
-    Snow_Properties.rho_snow_init = 100; % Initial snow density (kg/m³)
-    Snow_Properties.rho_max = 400; % Max snow density (kg/m³)
-    Snow_Properties.k_t = 0.1; % Snow compaction rate due to temperature
-    Snow_Properties.k_swe = 0.001; % Snow compaction rate due to SWE
-    Snow_Properties.k_D = 0.02; % Compaction rate due to D
-    Snow_Properties.snow_fraction_a = 0.2; % Snow fraction parameter for logistic function
-
-    % Snow Model
-    P = BC_States.Eff_Rainfall; % mm
+    dt_s = time_step * 60;
+    forcing_fields = {'Eff_Rainfall','Average_Daily_Temperature','min_temp','wind'};
+    missing_forcing = forcing_fields(~isfield(BC_States, forcing_fields));
+    if ~isempty(missing_forcing)
+        error(['Snow modeling requires internal meteorological forcing. Missing BC_States fields: %s. ', ...
+            'Set flag_ETP = 1 and flag_input_ETP_map = 0, and provide ETP_input_data.xlsx.'], ...
+            strjoin(missing_forcing, ', '));
+    end
+    active_cells = isfinite(Snow_Properties.SWE_t);
+    has_invalid_climate = any(~isfinite(BC_States.Average_Daily_Temperature(active_cells))) || ...
+        any(~isfinite(BC_States.min_temp(active_cells))) || ...
+        any(~isfinite(BC_States.wind(active_cells)));
+    if has_invalid_climate
+        error(['Snow modeling received incomplete internal meteorological forcing. ', ...
+            'Check the ETP_input_data.xlsx time coverage and station values.']);
+    end
+    P = BC_States.Eff_Rainfall;
     lat = Wshed_Properties.pixel_latitude;
     T_air = BC_States.Average_Daily_Temperature;
     wind = BC_States.wind;
-    DOY = day_of_year;
     T_min = BC_States.min_temp;
-    [Snow_Properties.SWE_t, Snow_Properties.H_snow_t, Snow_Properties.M_snow, Snow_Properties.P_snow, Snow_Properties.P_rain, Snow_Properties.rho_snow, Snow_Properties.E_s, mass_balance_error_snow] = Snow_Model_Function(Snow_Properties.SWE_t, Snow_Properties.H_snow_t, T_air, T_min, P, wind, lat, DOY, Snow_Properties.H_snow_t, Snow_Properties.alpha, Snow_Properties.epsilon, Snow_Properties.C_e, Snow_Properties.DDF, Snow_Properties.T_thresh, Snow_Properties.rho_snow_init, Snow_Properties.rho_max, Snow_Properties.k_t, Snow_Properties.k_swe, Snow_Properties.k_D);
 
-    if mass_balance_error_snow > 100
-        warning('Mass balance error in snow too large.')
-    end
-    
-    errors(2) = mass_balance_error_snow*DEM_raster.cellsize^2; % m3 
+    [Snow_Properties.SWE_t, Snow_Properties.H_snow_t, ...
+        Snow_Properties.M_snow, Snow_Properties.P_snow, ...
+        Snow_Properties.P_rain, Snow_Properties.rho_snow, ...
+        Snow_Properties.E_s, mass_balance_error_snow] = ...
+        Snow_Model_Function(Snow_Properties.SWE_t, Snow_Properties.H_snow_t, ...
+        Snow_Properties.rho_snow, T_air, T_min, P, wind, lat, day_of_year, ...
+        Snow_Properties.alpha, Snow_Properties.epsilon, Snow_Properties.C_e, ...
+        Snow_Properties.DDF, Snow_Properties.T_snow_all, Snow_Properties.T_rain_all, ...
+        Snow_Properties.rho_snow_init, Snow_Properties.rho_max, ...
+        Snow_Properties.k_t, Snow_Properties.k_swe, Snow_Properties.k_D, dt_s);
 
-    % Total Snow Water Equivalent
+    errors(2) = mass_balance_error_snow * DEM_raster.cellsize^2 / 1000;
+
     if k == 1
-        max_Hsnow = zeros(size(DEM_raster.Z)); max_Hsnow(isnan(max_Hsnow)) = nan;
+        max_Hsnow = zeros(size(DEM_raster.Z), 'like', Snow_Properties.H_snow_t);
+        max_Hsnow(isnan(DEM_raster.Z)) = NaN;
     end
-    max_Hsnow = max(max_Hsnow,Snow_Properties.H_snow_t); % Max snow depth [mm]
+    max_Hsnow = max(max_Hsnow, Snow_Properties.H_snow_t);
 
-    % Depth mass balance
-    depths.d_t = depths.d_p + Snow_Properties.M_snow + Snow_Properties.P_rain; % mm (considering what actually snow melted)
-
+    % Only rainfall and melt reach the surface-water store in this step.
+    depths.d_t = depths.d_p + Snow_Properties.M_snow + Snow_Properties.P_rain;
 else
-    % Depth mass balance
-    depths.d_t = depths.d_t + BC_States.Eff_Rainfall; % mm
+    depths.d_t = depths.d_t + BC_States.Eff_Rainfall;
     if k == 1
-        Snow_Properties.E_s = 0*depths.d_p;
-        Snow_Properties.SWE_t = 0*depths.d_p;
+        Snow_Properties.E_s = 0 * depths.d_p;
+        Snow_Properties.SWE_t = 0 * depths.d_p;
+        Snow_Properties.H_snow_t = 0 * depths.d_p;
     end
 end

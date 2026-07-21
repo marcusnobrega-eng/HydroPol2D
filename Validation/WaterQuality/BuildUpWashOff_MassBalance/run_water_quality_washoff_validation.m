@@ -1,19 +1,10 @@
 clear; clc;
 
 case_dir = fileparts(mfilename('fullpath'));
-model_root = case_dir;
-while ~isfolder(fullfile(model_root, 'HydroPol2D_Functions'))
-    parent_dir = fileparts(model_root);
-    if strcmp(parent_dir, model_root)
-        error('HydroPol2D:Validation:ModelRootNotFound', ...
-            'Could not locate the HydroPol2D repository from %s.', case_dir);
-    end
-    model_root = parent_dir;
-end
-repo_root = model_root;
-functions_dir = fullfile(model_root, 'HydroPol2D_Functions');
-addpath(functions_dir);
-hydropol2d_add_runtime_paths(model_root);
+repo_root = fullfile(case_dir, '..', '..', '..');
+functions_dir = fullfile(repo_root, 'HydroPol2D_Functions');
+addpath(functions_dir, '-begin');
+hydropol2d_add_runtime_paths(hydropol2d_find_root(case_dir));
 
 out_dir = fullfile(case_dir, 'Outputs', 'Validation');
 ts_dir = fullfile(out_dir, 'TimeSeries');
@@ -69,8 +60,11 @@ Params.buildup_rate_per_day = 1.0;
 Params.antecedent_dry_days = 5.0;
 Params.target_initial_concentration_mg_L = 120;
 Params.dt_min = 5e-4;
-Params.duration_min = 15;
-Params.record_dt_min = 0.5;
+% A short interval permits an analytical comparison at the small time step
+% required by the explicit mass-based update without making the release
+% suite spend most of its time in a one-cell benchmark.
+Params.duration_min = 0.5;
+Params.record_dt_min = 0.05;
 Params.min_Bt_g_m2 = 0;
 Params.Bmin_g_m2 = 0;
 Params.Bmax_g_m2 = 0;

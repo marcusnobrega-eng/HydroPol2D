@@ -428,6 +428,8 @@ InputData_Bypass.Human_Instability.gravity       = 9.81;  % [m/s^2]
 %   8) C3                  : empirical parameter 3
 %   9) C4                  : empirical parameter 4
 %  10) index_impervious    : impervious class ID
+%  11) root_depth_m        : LULC root-zone depth [m]
+%  12) Kc                  : reference-ET coefficient for unponded soil [-]
 % ========================================================================
 
 LULC_table = table();
@@ -491,6 +493,8 @@ LULC_table.index_impervious = [ ...
     NaN; ...
     NaN; ...
     NaN];
+LULC_table.root_depth_m = [1.50;1.00;0.60;1.00;0.00;0.10;0.00;0.00;0.40;1.00;0.15];
+LULC_table.Kc = [1.05;0.70;0.85;1.00;0.00;0.30;0.00;0.00;1.00;1.05;0.40];
 
 InputData_Bypass.LULC.table = LULC_table;
 

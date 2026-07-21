@@ -2,7 +2,7 @@
 % Generates static rasters for the shared Phase 1 validation domain.
 %
 % Run from the repository root:
-%   run('Validation/Phase1_VTilted_Catchment/generate_phase1_vtilted_domain.m')
+%   run('HydroPol2D_Model/Validation/Phase1_VTilted_Catchment/generate_phase1_vtilted_domain.m')
 
 clear; clc;
 

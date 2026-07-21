@@ -17,7 +17,7 @@ The executable Phase 1 registry is `Phase1_Cases.csv`. Analytical/reference targ
 
 The shared Phase 1 case-study domain is the v-tilted synthetic catchment:
 
-`Validation/Phase1_VTilted_Catchment`
+`HydroPol2D_Model/Validation/Phase1_VTilted_Catchment`
 
 Use this domain for equation and dynamics tests whenever the analytical/reference solution can be embedded spatially. The analytical solution remains the truth source; the v-tilted catchment supplies a consistent HydroPol2D DEM, LAI, soil, land-cover, groundwater, and channel geometry context.
 
@@ -91,7 +91,7 @@ For a Phase 1 case to be accepted:
 Several Phase 1 cases have simple analytical or bookkeeping references that can be generated before running HydroPol2D:
 
 ```bash
-python3 Validation/scripts/phase1_reference_solutions.py --case all --output Validation/Reference_Outputs/Phase1
+python3 HydroPol2D_Model/Validation/scripts/phase1_reference_solutions.py --case all --output HydroPol2D_Model/Validation/Reference_Outputs/Phase1
 ```
 
 The generated CSVs are truth targets for comparison. They are not HydroPol2D outputs.
