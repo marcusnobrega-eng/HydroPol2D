@@ -34,7 +34,7 @@ disp(PassFail);
 
 function [Diag, Profiles, passed] = run_steady_dupuit_case(functions_dir)
 Cfg = steady_cfg();
-resolutions = [40; 80; 160];
+resolutions = [41; 81; 161];
 Profiles = table();
 rmse_by_resolution = zeros(numel(resolutions), 1);
 max_error_by_resolution = zeros(numel(resolutions), 1);
@@ -43,8 +43,8 @@ discharge_error_pct = zeros(numel(resolutions), 1);
 
 for ir = 1:numel(resolutions)
     n_col = resolutions(ir);
-    dx = Cfg.length_m / n_col;
-    x = ((1:n_col) - 0.5) * dx;
+    dx = Cfg.length_m / (n_col - 1);
+    x = (0:n_col-1) * dx;
     H_continuous = sqrt(Cfg.drain_head_m^2 + (Cfg.recharge_m_s / Cfg.K_m_s) .* ...
         (Cfg.length_m^2 - x.^2));
     H_discrete = steady_discrete_profile(Cfg, n_col, dx);
@@ -54,6 +54,7 @@ for ir = 1:numel(resolutions)
     Sy = Cfg.Sy * ones(Cfg.n_rows, n_col);
     K = Cfg.K_m_s * ones(Cfg.n_rows, n_col);
     R = Cfg.recharge_m_s * ones(Cfg.n_rows, n_col);
+    R(:, end) = 0;
     h_soil = Cfg.soil_depth_m * ones(Cfg.n_rows, n_col);
     catchment_mask = true(Cfg.n_rows, n_col);
     dirichlet_mask = false(Cfg.n_rows, n_col);
@@ -75,9 +76,8 @@ for ir = 1:numel(resolutions)
     H_model = mean(h_model, 1, 'omitnan');
     error_continuous = H_model - H_continuous;
     error_equilibrium = H_model - H_discrete;
-    model_toe_q_m2_s = toe_boundary_flux_per_width( ...
-        H_model, Cfg.K_m_s, dx, Cfg.drain_head_m);
-    expected_toe_q_m2_s = Cfg.recharge_m_s * Cfg.length_m;
+    model_toe_q_m2_s = toe_flux_per_width(H_model, Cfg.K_m_s, dx);
+    expected_toe_q_m2_s = Cfg.recharge_m_s * (n_col - 1) * dx;
 
     rmse_by_resolution(ir) = rmse_omitnan(error_continuous);
     max_error_by_resolution(ir) = max_abs_omitnan(error_continuous);
@@ -112,8 +112,8 @@ end
 function [Diag, Profiles, Series, passed] = run_transient_linearized_case(functions_dir)
 Cfg = transient_cfg();
 n_col = Cfg.n_col;
-dx = Cfg.length_m / n_col;
-x = ((1:n_col) - 0.5) * dx;
+dx = Cfg.length_m / (n_col - 1);
+x = (0:n_col-1) * dx;
 lambda = pi / (2 * Cfg.length_m);
 D = Cfg.K_m_s * Cfg.base_head_m / Cfg.Sy;
 
@@ -136,6 +136,7 @@ z_river = zeros(Cfg.n_rows, n_col);
 
 u0 = Cfg.amplitude_m * cos(lambda .* x);
 h_model = repmat(Cfg.base_head_m + u0, Cfg.n_rows, 1);
+h_model(:, end) = Cfg.base_head_m;
 
 n_steps = round(Cfg.duration_s / Cfg.dt_s);
 record_every = round(Cfg.record_dt_s / Cfg.dt_s);
@@ -195,17 +196,16 @@ function H = steady_discrete_profile(Cfg, n_col, dx)
 H2 = zeros(1, n_col);
 % Cells are centred at x = dx/2, ..., L-dx/2. The fixed head is imposed on
 % the toe boundary, so the final cell has a half-cell boundary flux.
-H2(end) = Cfg.drain_head_m^2 + ...
-    Cfg.recharge_m_s * n_col * dx^2 / Cfg.K_m_s;
+H2(end) = Cfg.drain_head_m^2;
 for j = n_col-1:-1:1
     H2(j) = H2(j+1) + 2 * Cfg.recharge_m_s * j * dx^2 / Cfg.K_m_s;
 end
 H = sqrt(H2);
 end
 
-function q = toe_boundary_flux_per_width(H, K, dx, h_boundary)
-% Matches the half-cell Dirichlet face flux in Boussinesq_2D_explicit.
-q = K / dx * (H(end)^2 - h_boundary^2);
+function q = toe_flux_per_width(H, K, dx)
+H_face = 0.5 * (H(end-1) + H(end));
+q = -K * H_face * (H(end) - H(end-1)) / dx;
 end
 
 function [Profiles, time_days, model_q, analytical_q, head_rmse, max_head_error] = ...
@@ -215,11 +215,11 @@ function [Profiles, time_days, model_q, analytical_q, head_rmse, max_head_error]
 H_model = mean(h_model, 1, 'omitnan');
 decay = exp(-D * lambda^2 * t_s);
 H_analytical = Cfg.base_head_m + Cfg.amplitude_m * cos(lambda .* x) .* decay;
+H_analytical(end) = Cfg.base_head_m;
 err = H_model - H_analytical;
 
 time_days(record_idx) = t_s / 86400;
-model_q(record_idx) = toe_boundary_flux_per_width( ...
-    H_model, Cfg.K_m_s, dx, Cfg.base_head_m);
+model_q(record_idx) = toe_flux_per_width(H_model, Cfg.K_m_s, dx);
 analytical_q(record_idx) = Cfg.K_m_s * Cfg.base_head_m * Cfg.amplitude_m * lambda * decay;
 head_rmse(record_idx) = rmse_omitnan(err);
 max_head_error(record_idx) = max_abs_omitnan(err);
@@ -289,7 +289,7 @@ end
 function Cfg = transient_cfg()
 Cfg = struct();
 Cfg.length_m = 100;
-Cfg.n_col = 80;
+Cfg.n_col = 81;
 Cfg.n_rows = 3;
 Cfg.dy_m = 20;
 Cfg.K_m_s = 1e-4;

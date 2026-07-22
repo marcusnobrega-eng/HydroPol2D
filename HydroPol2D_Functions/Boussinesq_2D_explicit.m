@@ -87,6 +87,7 @@ T = dt; % Set total simulation time to initial dt
 
 %% Loop
 h_0 = h;
+h_0(dirichlet_mask) = h_dirichlet(dirichlet_mask);
 h_t = h_0; % Copy current head for updating
 Nx = size(h,2); Ny = size(h,1);
 
@@ -96,6 +97,7 @@ Nx = size(h,2); Ny = size(h,1);
 
 
 while t < T
+    h_previous = h_t;
     n_steps = ceil(T/dt);
     kk = 1;
 
@@ -122,6 +124,9 @@ while t < T
 
     % Apply physical constraints to predictor
     h_predict = max(h_predict, z0);  % no negative storage
+    % Dirichlet cells retain their prescribed head through both stages of
+    % the predictor-corrector update.
+    h_predict(dirichlet_mask) = h_dirichlet(dirichlet_mask);
 
     % === Corrector step ===
     [Fx2, Fy2] = compute_fluxes_conservative(h_predict, z0, K, dx, dy, dt, Sy);
@@ -146,6 +151,12 @@ while t < T
 
     % Ensure groundwater head does not fall below ground level
     h_t = max(h_t, z0); % m
+
+    % Enforce fixed heads and account for their net water exchange.
+    h_unconstrained = h_t;
+    h_t(dirichlet_mask) = h_dirichlet(dirichlet_mask);
+    dirichlet_exchange_m3 = nansum(nansum(Sy .* ...
+        (max(h_unconstrained - z0, 0) - max(h_t - z0, 0)))) * dx * dy;
 
     % Compute exfiltration where groundwater head exceeds surface elevation
     q_exf = max(0, (h_t - h_surf)) .* Sy / dt;  % [m/s]
@@ -184,12 +195,12 @@ while t < T
     exfil_mass = nansum(nansum(q_exf .* dt)) * cell_area;
 
     % Step 3: Storage change this step [m³]
-    storage_prev = nansum(nansum(Sy .* max(h_0 - z0, 0))) * cell_area;   % before update
+    storage_prev = nansum(nansum(Sy .* max(h_previous - z0, 0))) * cell_area; % before update
     storage_curr = nansum(nansum(Sy .* max(h_t - z0, 0))) * cell_area; % after update
     storage_change = storage_curr - storage_prev;
 
     % Step 4: Mass balance error [m³]
-    error = recharge_mass - exfil_mass - storage_change;
+    error = recharge_mass - exfil_mass - dirichlet_exchange_m3 - storage_change;
 
 
     % Update variables for next time step
