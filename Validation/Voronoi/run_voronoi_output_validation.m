@@ -10,5 +10,7 @@ saved_volume = double(ncread(output_file,'final_surface_volume_m3'));
 assert(isequal(size(saved_depth),size(results.surface_depth_m)));
 assert(max(abs(saved_depth-results.surface_depth_m),[],'all') <= 1e-14);
 assert(max(abs(saved_volume-results.final_surface_volume_m3)) <= 1e-14);
+assert(max(abs(double(ncread(output_file,'diagnostic_time_s'))-[results.diagnostics.time_s]')) <= 1e-14);
+assert(max(abs(double(ncread(output_file,'boundary_net_inflow_volume_m3'))-[results.diagnostics.boundary_net_inflow_volume_m3]')) <= 1e-14);
 summary = struct('time_count',numel(results.time_s),'variable_count',numel(ncinfo(output_file).Variables));
 end

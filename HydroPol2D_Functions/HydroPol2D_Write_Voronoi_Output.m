@@ -41,9 +41,13 @@ if ~isempty(results.groundwater_head_m)
     ncwrite(output_file,'groundwater_head_m',results.groundwater_head_m);
 end
 if ~isempty(results.diagnostics)
+    values = [results.diagnostics.time_s]';
+    nccreate(output_file,'diagnostic_time_s','Dimensions',{'step',numel(values)},'Datatype','double');
+    ncwrite(output_file,'diagnostic_time_s',values);
     fields = {'dt_s','mass_m3','step_mass_residual_m3','max_surface_depth_m', ...
         'max_surface_velocity_m_s','max_channel_depth_m','max_channel_velocity_m_s', ...
-        'max_transition_velocity_m_s','max_groundwater_flux_m3_s','surface_channel_exchange_m3'};
+        'max_transition_velocity_m_s','max_groundwater_flux_m3_s','surface_channel_exchange_m3', ...
+        'boundary_net_inflow_volume_m3'};
     for k = 1:numel(fields)
         name = fields{k}; values = [results.diagnostics.(name)]';
         nccreate(output_file,name,'Dimensions',{'step',numel(values)},'Datatype','double');
