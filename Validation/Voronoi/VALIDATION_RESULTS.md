@@ -26,6 +26,24 @@ is on `feature/voronoi-hybrid-routing`, based on HydroPol2D commit `a50155e`.
 | Fine resolved vs hybrid volume error | 0.15% |
 | Fine resolved vs hybrid bankfull-normalized level error | 3.55e-15 |
 | Fine resolved vs hybrid inundated-area error | 0% |
+| Coupled V-tilted variable-mesh cell reduction | 72.27% |
+| Coupled surface-depth space-time relative L2 | 4.53% |
+| Coupled soil-water space-time relative L2 | 0.26% |
+| Coupled infiltration-volume error | 0.86% |
+| Coupled actual-ET-volume error | 0.05% |
+| Coupled recharge-volume error | 0.10% |
+| Coupled capillary-volume error | 0.37% |
+| Coupled river-exchange error | 0.16% |
+| Coupled outlet-volume error | 1.46% |
+| Coupled mass residual / rainfall | <1.5e-13 |
+
+The coupled V-tilted case uses two fractional HRUs per polygon, internal
+Penman-Monteith ET, canopy storage, layered vadose storage, infiltration,
+recharge, capillary rise, 10-minute benchmark groundwater scheduling,
+lateral Boussinesq flow, and riverbed exchange. Both the 1,464-cell fine mesh
+and 406-cell variable mesh executed exactly 36 groundwater updates in six
+hours. A separate gaining/losing channel test transferred +32.4 and -226.8
+m3, respectively, with residuals below 5e-10 m3.
 
 The fine reference represents a physical 30 m river with bank-aligned Voronoi
 faces; the hybrid mesh retains the same 30 m width in its channel graph.
