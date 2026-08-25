@@ -1,0 +1,29 @@
+function summary = run_voronoi_forcing_groundwater_validation(mesh_file, overlap_file)
+%RUN_VORONOI_FORCING_GROUNDWATER_VALIDATION Source mapping and GW balance.
+
+mesh = HydroPol2D_Read_UGRID(mesh_file);
+mapping = HydroPol2D_Read_Overlap(overlap_file);
+rain_rate = 10e-3 / 3600; % 10 mm h-1
+duration = 300;
+config = struct('duration_s', duration, 'initial_surface_depth_m', 0, ...
+    'initial_channel_depth_m', 0, 'min_dt_s', 1e-4, 'max_dt_s', 5, ...
+    'output_interval_s', 60, 'groundwater_enabled', true, ...
+    'initial_groundwater_head_m', -2, 'aquifer_bottom_m', -10, ...
+    'hydraulic_conductivity_m_s', 1e-5, 'specific_yield', 0.2);
+forcing = struct('overlap_file', overlap_file, ...
+    'raster_source_m_s', repmat(rain_rate, numel(mapping.raster_area), 1), ...
+    'groundwater_recharge_m_s', 1e-8);
+results = HydroPol2D_Voronoi_Run(mesh_file, config, forcing);
+surface_and_channel = sum(results.final_surface_volume_m3) + sum(results.final_channel_volume_m3);
+initial_groundwater = sum(0.2 .* 8 .* mesh.cell_area);
+final_groundwater = sum(0.2 .* (results.final_groundwater_head_m + 10) .* mesh.cell_area);
+expected_sources = duration .* sum(mesh.cell_area) .* (rain_rate + 1e-8);
+relative_error = abs(surface_and_channel + final_groundwater - initial_groundwater - expected_sources) / expected_sources;
+assert(relative_error <= 1e-10, 'Mapped forcing/GW balance error %.3g.', relative_error);
+surface_channel_exchange = sum([results.diagnostics.surface_channel_exchange_m3]);
+assert(surface_channel_exchange > 0, 'Runoff in channel-host polygons was not transferred to the channel graph.');
+summary = struct('relative_mass_error', relative_error, ...
+    'rain_volume_m3', duration * sum(mesh.cell_area) * rain_rate, ...
+    'recharge_volume_m3', duration * sum(mesh.cell_area) * 1e-8, ...
+    'surface_channel_exchange_m3', surface_channel_exchange);
+end

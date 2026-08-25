@@ -330,6 +330,7 @@ InputData_Bypass.flags.flag_timestep                     = 1;
 InputData_Bypass.flags.flag_infiltration                 = 0;
 InputData_Bypass.flags.flag_critical                     = 0;
 InputData_Bypass.flags.flag_D8                           = 0;
+InputData_Bypass.flags.flag_voronoi                      = 0; % 0=raster D4, 1=Voronoi FV
 InputData_Bypass.flags.flag_CA                           = 0;
 InputData_Bypass.flags.flag_inertial                     = 1;
 InputData_Bypass.flags.flag_full_momentum                = 0;
@@ -379,6 +380,18 @@ InputData_Bypass.flags.flag_river_heigth_compensation    = 0;
 InputData_Bypass.flags.flag_dashboard                    = 0;
 InputData_Bypass.flags.flag_elapsed_time                 = 1;
 InputData_Bypass.flags.flag_obs_gauges                   = 0;
+
+% Used only when flag_voronoi = 1. Unresolved rivers are either represented
+% by the physical-width Neal graph or deliberately omitted.
+InputData_Bypass.Voronoi = struct( ...
+    'case_file', '', ... % prepared MAT file containing VoronoiCase
+    'background_target_width_m', 2000, ...
+    'minimum_cell_width_m', 100, ...
+    'maximum_adjacent_size_ratio', 2, ...
+    'urban_target_width_m', 200, ...
+    'urban_transition_buffer_m', 1000, ...
+    'river_preferred_cells_across', 3, ...
+    'unresolved_river_policy', 'neal_subgrid');
 
 %% ========================================================================
 % SECTION 3 — HUMAN INSTABILITY PARAMETERS

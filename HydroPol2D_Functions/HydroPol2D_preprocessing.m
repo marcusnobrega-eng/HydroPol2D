@@ -198,6 +198,10 @@ else
 
 end
 
+% The historical D8 path is incomplete and bypasses several selected
+% routing solvers. Fail before allocating rasters or requesting a GPU.
+HydroPol2D_validate_numerical_configuration(flags);
+
 % =========================
 % REGISTER BUNDLED RUNTIME
 % =========================

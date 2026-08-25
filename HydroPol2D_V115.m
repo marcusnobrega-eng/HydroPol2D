@@ -452,6 +452,31 @@ end
 % Run HydroPol2D workflow
 % -------------------------------------------------------------------------
 
+% The single user switch dispatches before raster preprocessing. A prepared
+% case contains the UGRID mesh, conservative overlap, forcing, and state.
+selection_paths = struct();
+if exist('InputPaths','var'), selection_paths=InputPaths; end
+VoronoiSelection = HydroPol2D_Voronoi_Selection(run_mode,input_excel_file, ...
+    input_data_bypass_script_path,selection_paths);
+if VoronoiSelection.enabled
+    case_file=VoronoiSelection.case_file;
+    if ~isfile(case_file), case_file=fullfile(model_root,case_file); end
+    assert(isfile(case_file),'HydroPol2D:MissingVoronoiCase', ...
+        'Prepared Voronoi case not found: %s',case_file);
+    prepared=load(case_file);
+    assert(isfield(prepared,'VoronoiCase') && isstruct(prepared.VoronoiCase), ...
+        'HydroPol2D:InvalidVoronoiCase', ...
+        'Prepared MAT file must contain a structure named VoronoiCase.');
+    prepared.VoronoiCase.options=VoronoiSelection.options;
+    voronoi_output=fullfile(Paths.Results,'Voronoi');
+    VoronoiResults=HydroPol2D_Run_Voronoi_Case( ...
+        prepared.VoronoiCase,voronoi_output,run_postprocessing);
+    assignin('base','VoronoiResults',VoronoiResults);
+    if enable_logging, diary('off'); end
+    fprintf('\nHydroPol2D Voronoi run completed successfully.\nResults saved under:\n  %s\n',voronoi_output);
+    return
+end
+
 % 1) Pre-processing
 fprintf('------------------------------------------------------------\n');
 fprintf('STEP 1/3 | Running HydroPol2D_preprocessing\n');

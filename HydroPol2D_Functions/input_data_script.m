@@ -58,6 +58,8 @@ if use_inputdata_bypass == 1
 
     G     = InputData_Bypass.general;
     flags = normalize_flags_struct(InputData_Bypass.flags);
+    Voronoi_Parameters = HydroPol2D_Voronoi_Options(flags.flag_voronoi, ...
+        get_optional_field(InputData_Bypass,'Voronoi',struct()));
 
     % ---------------- Non-raster ETP forcing file ----------------
     % Used later in preprocessing when:
@@ -475,6 +477,19 @@ end
 FlagsGrid = readcell(model_folder,'Sheet','Flags');
 
 flags = read_flags_sheet(FlagsGrid);
+if ~isfield(flags,'flag_voronoi')
+    flags.flag_voronoi = 0;
+end
+
+Voronoi_Input = struct( ...
+    'background_target_width_m', xlnum_optional(GD,'Background width',2000), ...
+    'minimum_cell_width_m', xlnum_optional(GD,'Minimum cell width',100), ...
+    'maximum_adjacent_size_ratio', xlnum_optional(GD,'Adjacent size ratio',2), ...
+    'urban_target_width_m', xlnum_optional(GD,'Urban target width',200), ...
+    'urban_transition_buffer_m', xlnum_optional(GD,'Urban buffer',1000), ...
+    'river_preferred_cells_across', xlnum_optional(GD,'River cells across',3), ...
+    'unresolved_river_policy', xlstr_optional(GD,'Unresolved rivers','neal_subgrid'));
+Voronoi_Parameters = HydroPol2D_Voronoi_Options(flags.flag_voronoi, Voronoi_Input);
 
 requiredFlags = { ...
     'flag_rainfall','flag_spatial_rainfall','flag_ETP','flag_input_rainfall_map', ...
@@ -1177,6 +1192,9 @@ function flags = normalize_flags_struct(flagsIn)
     if ~isfield(flags,'flag_warmup')
         flags.flag_warmup = 0;
     end
+    if ~isfield(flags,'flag_voronoi')
+        flags.flag_voronoi = 0;
+    end
     if ~isfield(flags,'flag_export_groundwater_maps')
         flags.flag_export_groundwater_maps = 0;
     end
@@ -1766,6 +1784,19 @@ function x = xlnum_optional(GD, key, defaultValue)
         end
     catch
         x = defaultValue;
+    end
+end
+
+function out = xlstr_optional(GD, key, defaultValue)
+    try
+        value = xlget(GD, key);
+        if isempty(value) || strlength(strtrim(string(value))) == 0
+            out = defaultValue;
+        else
+            out = char(strtrim(string(value)));
+        end
+    catch
+        out = defaultValue;
     end
 end
 
