@@ -12,4 +12,6 @@ mapping.mesh_area = mesh_area;
 mapping.raster_area = raster_area;
 mapping.raster_rows = double(ncreadatt(path, '/', 'raster_rows'));
 mapping.raster_cols = double(ncreadatt(path, '/', 'raster_cols'));
+mapping.x_edges = double(ncread(path, 'x_edges'));
+mapping.y_edges = double(ncread(path, 'y_edges'));
 end

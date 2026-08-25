@@ -15,6 +15,7 @@ arguments
     options.gravity (1,1) double = 9.81
     options.dry_tolerance_m (1,1) double = 1e-6
     options.evaluation_volume (:,1) double = surface_volume
+    options.routing_solver (1,:) char = 'local_inertial'
 end
 if isempty(boundary) || ~isfield(boundary, 'edge_id') || isempty(boundary.edge_id)
     diagnostics = struct('net_inflow_volume_m3', 0, 'max_discharge_m3_s', 0); return
@@ -38,11 +39,19 @@ for k = 1:numel(edge_id)
         case "inflow"
             qout(k) = -values(k);
         case "stage"
+            if strcmpi(options.routing_solver, 'kinematic')
+                error('HydroPol2D:KinematicStageBoundaryUnavailable', ...
+                    'A kinematic-wave boundary cannot prescribe stage; use inflow, normal_flow, critical_flow, or wall.');
+            end
             hflow = max(max(wse(k), values(k)) - mesh.surface_bed(owner(k)), 0);
             slope = (values(k) - wse(k)) / mesh.edge_distance(edge_id(k));
-            qold = edge_q(edge_id(k));
-            denominator = 1 + options.gravity * dt * roughness(owner(k))^2 * abs(qold) / max(hflow^(7/3), eps);
-            qout(k) = width(k) * (qold - options.gravity * hflow * dt * slope) / denominator;
+            if strcmpi(options.routing_solver, 'diffusive')
+                qout(k) = width(k) / roughness(owner(k)) * hflow^(5/3) * sign(-slope) * sqrt(abs(slope));
+            else
+                qold = edge_q(edge_id(k));
+                denominator = 1 + options.gravity * dt * roughness(owner(k))^2 * abs(qold) / max(hflow^(7/3), eps);
+                qout(k) = width(k) * (qold - options.gravity * hflow * dt * slope) / denominator;
+            end
         case "normal_flow"
             qout(k) = width(k) / roughness(owner(k)) * depth(k)^(5/3) * sqrt(max(values(k), 0));
         case "critical_flow"

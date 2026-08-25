@@ -29,9 +29,7 @@ if isfield(config, 'maximum_adjacent_size_ratio')
         'HydroPol2D:InvalidMesh', 'Adjacent mesh targets exceed the configured size ratio.');
 end
 
-perimeter = accumarray(mesh.edge_owner(:), mesh.edge_length(:), [mesh.n_cells 1], @sum, 0);
-perimeter = perimeter + accumarray(mesh.edge_neighbor(internal), mesh.edge_length(internal), [mesh.n_cells 1], @sum, 0);
-cfl_width = 2 .* mesh.cell_area(:) ./ max(perimeter, eps);
+cfl_width = mesh.cell_cfl_width(:);
 if isfield(config, 'minimum_cell_width_m')
     assert(min(cfl_width) >= config.minimum_cell_width_m * (1 - 1e-8), ...
         'HydroPol2D:InvalidMesh', 'A CFL-relevant cell width is below the configured hard minimum.');

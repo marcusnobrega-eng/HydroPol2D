@@ -10,9 +10,10 @@ arguments
     forcing struct = struct()
 end
 config = defaults(config);
-if ~strcmpi(config.routing_solver, 'local_inertial')
+solver = lower(string(config.routing_solver));
+if ~any(solver == ["local_inertial" "kinematic" "diffusive" "full_momentum"])
     error('HydroPol2D:VoronoiSolverUnavailable', ...
-        'Voronoi hybrid rivers currently require routing_solver=local_inertial.');
+        'Voronoi routing_solver must be local_inertial, kinematic, diffusive, or full_momentum.');
 end
 [mesh, preflight] = HydroPol2D_Voronoi_Preflight(mesh_file, config);
 n = mesh.n_cells;
@@ -23,6 +24,8 @@ if isfield(forcing, 'overlap_file')
 end
 surface_volume = initial_vector(config.initial_surface_depth_m, n) .* mesh.surface_area(:);
 edge_q = signed_vector(config.initial_surface_discharge_per_width_m2_s, mesh.n_edges);
+hu = signed_vector(config.initial_surface_momentum_x_m2_s, n);
+hv = signed_vector(config.initial_surface_momentum_y_m2_s, n);
 channel_volume = zeros(mesh.channel.n_nodes, 1);
 link_q = signed_vector(config.initial_channel_discharge_m3_s, mesh.channel.n_links);
 transition_q = zeros(mesh.channel.n_transitions, 1);
@@ -51,17 +54,22 @@ end
 t = 0; next_output = 0; step = 0; initial_mass = sum(surface_volume) + sum(channel_volume);
 if groundwater.enabled, initial_mass = initial_mass + groundwater_mass(groundwater, mesh) + sum(groundwater.pending_exchange_m3); end
 if hydrology.enabled, initial_mass = initial_mass + hydrology_mass(hydrology); end
-times = []; depths = {}; channel_depths = {}; groundwater_heads = {}; groundwater_exchange = {}; groundwater_seepage = {}; hydrology_outputs = {}; diagnostics = struct([]);
+times = []; depths = {}; edge_discharges = {}; momentum_x = {}; momentum_y = {}; channel_depths = {}; groundwater_heads = {}; groundwater_exchange = {}; groundwater_seepage = {}; hydrology_outputs = {}; diagnostics = struct([]);
 cached_et=[]; cached_open_water_et=[]; next_meteorology_update=0;
 time_tolerance=max(1e-9,100*eps(max(config.duration_s,1)));
 while t < config.duration_s-time_tolerance
-    dt = stable_timestep(mesh, surface_volume, channel_volume, groundwater, config, t);
+    cfl_state=struct('surface_volume_m3',surface_volume,'channel_volume_m3',channel_volume, ...
+        'groundwater_head_m',groundwater.head,'surface_momentum_x_m2_s',hu,'surface_momentum_y_m2_s',hv);
+    cfl_boundary=boundary_at(forcing,'surface_boundary',t,cfl_state,mesh);
+    dt = stable_timestep(mesh, surface_volume, edge_q, channel_volume, link_q, transition_q, ...
+        groundwater, roughness, hu, hv, cfl_boundary, config, t);
     dt = min([dt, config.max_dt_s, config.duration_s - t]);
     if dt < config.min_dt_s && config.duration_s - t > config.min_dt_s
         error('HydroPol2D:VoronoiTimestepFloor', 'Required timestep %.6g s is below minimum %.6g s.', dt, config.min_dt_s);
     end
 
-    state = struct('surface_volume_m3', surface_volume, 'channel_volume_m3', channel_volume, 'groundwater_head_m', groundwater.head);
+    state = struct('surface_volume_m3', surface_volume, 'channel_volume_m3', channel_volume, 'groundwater_head_m', groundwater.head, 'surface_momentum_x_m2_s',hu,'surface_momentum_y_m2_s',hv);
+    surface_before_vertical = surface_volume;
     surface_channel_exchange=0;
     source = source_at(forcing, t, state, mesh, n);
     source_volume = source .* mesh.cell_area(:) .* dt;
@@ -132,14 +140,38 @@ while t < config.duration_s-time_tolerance
         [surface_volume, channel_volume, ~, exchange] = Voronoi_Equilibrate_Channel_Storage(mesh, surface_volume, channel_volume);
         surface_channel_exchange = surface_channel_exchange + exchange;
     end
+    % Rainfall adds zero horizontal momentum.  Vertical withdrawals remove
+    % water with its local horizontal velocity; this scaling is needed only
+    % by the resolved full-momentum state.
+    if solver == "full_momentum"
+        withdrawal_scale = min(1, surface_volume ./ max(surface_before_vertical, config.dry_tolerance_m .* mesh.surface_area(:)));
+        hu = hu .* withdrawal_scale; hv = hv .* withdrawal_scale;
+    end
     surface_flux_evaluation_volume = surface_volume;
-    [surface_volume, edge_q, surface_diag] = Voronoi_Local_Inertial_Step( ...
-        mesh, surface_volume, edge_q, roughness, dt, gravity=config.gravity, ...
-        dry_tolerance_m=config.dry_tolerance_m, critical_flow=config.critical_flow);
     surface_boundary = boundary_at(forcing, 'surface_boundary', t, state, mesh);
-    [surface_volume, edge_q, surface_boundary_diag] = Voronoi_Surface_Boundary_Step( ...
-        mesh, surface_volume, edge_q, roughness, surface_boundary, dt, gravity=config.gravity, ...
-        dry_tolerance_m=config.dry_tolerance_m, evaluation_volume=surface_flux_evaluation_volume);
+    if solver == "full_momentum"
+        [surface_volume,hu,hv,edge_q,surface_diag,surface_boundary_diag] = Voronoi_Full_Momentum_Step( ...
+            mesh,surface_volume,hu,hv,roughness,surface_boundary,dt,gravity=config.gravity, ...
+            dry_tolerance_m=config.dry_tolerance_m,maximum_velocity_m_s=config.full_momentum_maximum_velocity_m_s);
+    elseif solver == "local_inertial"
+        [surface_volume, edge_q, surface_diag] = Voronoi_Local_Inertial_Step( ...
+            mesh, surface_volume, edge_q, roughness, dt, gravity=config.gravity, ...
+            dry_tolerance_m=config.dry_tolerance_m, critical_flow=config.critical_flow);
+    elseif solver == "kinematic"
+        [surface_volume, edge_q, surface_diag] = Voronoi_Kinematic_Step( ...
+            mesh, surface_volume, roughness, dt, gravity=config.gravity, ...
+            dry_tolerance_m=config.dry_tolerance_m, critical_flow=config.critical_flow);
+    else
+        [surface_volume, edge_q, surface_diag] = Voronoi_Diffusive_Step( ...
+            mesh, surface_volume, roughness, dt, dry_tolerance_m=config.dry_tolerance_m, ...
+            slope_regularization=config.diffusive_slope_regularization);
+    end
+    if solver ~= "full_momentum"
+        [surface_volume, edge_q, surface_boundary_diag] = Voronoi_Surface_Boundary_Step( ...
+            mesh, surface_volume, edge_q, roughness, surface_boundary, dt, gravity=config.gravity, ...
+            dry_tolerance_m=config.dry_tolerance_m, evaluation_volume=surface_flux_evaluation_volume, ...
+            routing_solver=char(solver));
+    end
     if mesh.channel.n_nodes > 0
         [surface_volume, channel_volume, ~, exchange] = Voronoi_Equilibrate_Channel_Storage(mesh, surface_volume, channel_volume);
         surface_channel_exchange = surface_channel_exchange + exchange;
@@ -193,6 +225,10 @@ while t < config.duration_s-time_tolerance
     if t + eps(t) >= next_output
         times(end+1,1) = t; %#ok<AGROW>
         depths{end+1,1} = surface_volume ./ mesh.surface_area(:); %#ok<AGROW>
+        edge_discharges{end+1,1} = edge_q; %#ok<AGROW>
+        if solver == "full_momentum"
+            momentum_x{end+1,1}=hu; momentum_y{end+1,1}=hv; %#ok<AGROW>
+        end
         if mesh.channel.n_nodes > 0
             channel_depths{end+1,1} = channel_volume ./ mesh.channel.plan_area(:); %#ok<AGROW>
         end
@@ -209,6 +245,18 @@ results.mesh_file = mesh_file;
 results.preflight = preflight;
 results.time_s = times;
 results.surface_depth_m = cat(2, depths{:});
+results.edge_discharge_per_width_history_m2_s = cat_or_empty(edge_discharges, mesh.n_edges);
+results.surface_velocity_m_s = HydroPol2D_Voronoi_Cell_Velocity(mesh, ...
+    results.surface_depth_m, results.edge_discharge_per_width_history_m2_s, config.dry_tolerance_m);
+results.surface_momentum_x_m2_s = cat_or_empty(momentum_x,n);
+results.surface_momentum_y_m2_s = cat_or_empty(momentum_y,n);
+if solver == "full_momentum"
+    results.surface_velocity_x_m_s = results.surface_momentum_x_m2_s ./ max(results.surface_depth_m, config.dry_tolerance_m);
+    results.surface_velocity_y_m_s = results.surface_momentum_y_m2_s ./ max(results.surface_depth_m, config.dry_tolerance_m);
+    results.surface_velocity_m_s = sqrt(results.surface_velocity_x_m_s.^2 + results.surface_velocity_y_m_s.^2);
+else
+    results.surface_velocity_x_m_s = zeros(n,0); results.surface_velocity_y_m_s = zeros(n,0);
+end
 results.channel_depth_m = cat_or_empty(channel_depths, mesh.channel.n_nodes);
 results.groundwater_head_m = cat_or_empty(groundwater_heads, n);
 results.final_surface_volume_m3 = surface_volume;
@@ -232,12 +280,15 @@ values = struct('routing_solver','local_inertial','duration_s',3600,'initial_sur
     'initial_channel_depth_m',0,'surface_roughness',0.05,'min_dt_s',0.01,'max_dt_s',30, ...
     'output_interval_s',300,'courant',0.6,'gravity',9.81, ...
     'dry_tolerance_m',1e-6,'critical_flow',false,'groundwater_enabled',false, ...
-    'initial_surface_discharge_per_width_m2_s',0,'initial_channel_discharge_m3_s',0, ...
+    'initial_surface_discharge_per_width_m2_s',0,'initial_surface_momentum_x_m2_s',0, ...
+    'initial_surface_momentum_y_m2_s',0,'full_momentum_maximum_velocity_m_s',10, ...
+    'initial_channel_discharge_m3_s',0, ...
     'initial_groundwater_head_m',0,'aquifer_bottom_m',-10,'hydraulic_conductivity_m_s',1e-5, ...
     'specific_yield',0.2,'compute_backend','cpu','output_netcdf','', ...
     'overwrite_output',false,'forcing_interval_s',inf,'hydrology_enabled',false, ...
     'hydrology',struct(),'groundwater_update_interval_s',3600, ...
     'meteorology_interval_s',86400, ...
+    'diffusive_slope_regularization',1e-4, ...
     'riverbed_hydraulic_conductivity_m_s',0,'riverbed_thickness_m',0.5, ...
     'resolved_river_mask',[]);
 names = fieldnames(values);
@@ -246,6 +297,10 @@ for k = 1:numel(names)
 end
 assert(config.groundwater_update_interval_s>0 && config.meteorology_interval_s>0 && config.riverbed_thickness_m>0, ...
     'HydroPol2D:InvalidVoronoiConfiguration','Groundwater interval and riverbed thickness must be positive.');
+assert(config.diffusive_slope_regularization>0 && isfinite(config.diffusive_slope_regularization), ...
+    'HydroPol2D:InvalidVoronoiConfiguration','diffusive_slope_regularization must be positive and finite.');
+assert(config.full_momentum_maximum_velocity_m_s>0 && isfinite(config.full_momentum_maximum_velocity_m_s), ...
+    'HydroPol2D:InvalidVoronoiConfiguration','full_momentum_maximum_velocity_m_s must be positive and finite.');
 end
 
 function value = initial_vector(value, count)
@@ -373,23 +428,90 @@ function mass = groundwater_mass(groundwater, mesh)
 mass = sum(groundwater.specific_yield .* max(groundwater.head - groundwater.bottom, 0) .* mesh.cell_area(:));
 end
 
-function dt = stable_timestep(mesh, surface_volume, channel_volume, groundwater, config, time_s)
+function dt = stable_timestep(mesh, surface_volume, edge_q, channel_volume, link_q, transition_q, groundwater, roughness, hu, hv, boundary, config, time_s)
 depth = max(surface_volume ./ mesh.surface_area(:), 0);
-perimeter = accumarray(mesh.edge_owner(:), mesh.edge_length(:), [mesh.n_cells 1], @sum, 0);
 internal = mesh.edge_neighbor > 0;
-perimeter = perimeter + accumarray(mesh.edge_neighbor(internal), mesh.edge_length(internal), [mesh.n_cells 1], @sum, 0);
-length_scale = 2 .* mesh.cell_area(:) ./ max(perimeter, eps);
-celerity = sqrt(config.gravity .* max(depth, config.dry_tolerance_m));
-dt = config.courant * min(length_scale ./ celerity);
-if mesh.channel.n_links > 0
-    channel_depth = max(channel_volume ./ mesh.channel.plan_area(:), config.dry_tolerance_m);
-    link_depth = max(channel_depth(mesh.channel.link_up), channel_depth(mesh.channel.link_down));
-    dt = min(dt, config.courant * min(mesh.channel.link_length ./ sqrt(config.gravity .* link_depth)));
+if strcmpi(config.routing_solver, 'kinematic')
+    [kinematic_q, face_depth] = Voronoi_Kinematic_Face_Flux(mesh, surface_volume, roughness, ...
+        gravity=config.gravity, dry_tolerance_m=config.dry_tolerance_m, critical_flow=config.critical_flow);
+    out_cell = mesh.edge_owner(internal);
+    neighbor = mesh.edge_neighbor(internal);
+    negative = kinematic_q(internal) < 0;
+    out_cell(negative) = neighbor(negative);
+    face_signal = mesh.edge_length(internal) .* (5/3) .* abs(kinematic_q(internal)) ./ ...
+        max(face_depth(internal), config.dry_tolerance_m);
+    cell_signal = accumarray(out_cell, face_signal, [mesh.n_cells 1], @sum, 0);
+    cell_signal = cell_signal + kinematic_boundary_signal(mesh,depth,roughness,boundary,config.gravity,config.dry_tolerance_m);
+elseif strcmpi(config.routing_solver, 'diffusive')
+    [~, ~, conductance] = Voronoi_Diffusive_Face_Flux(mesh, surface_volume, roughness, ...
+        dry_tolerance_m=config.dry_tolerance_m, slope_regularization=config.diffusive_slope_regularization);
+    cell_signal = accumarray(mesh.edge_owner(internal), conductance(internal), [mesh.n_cells 1], @sum, 0);
+    cell_signal = cell_signal + accumarray(mesh.edge_neighbor(internal), conductance(internal), [mesh.n_cells 1], @sum, 0);
+    cell_signal = cell_signal + diffusive_boundary_signal(mesh,depth,roughness,boundary,config.gravity,config.dry_tolerance_m,config.diffusive_slope_regularization);
+elseif strcmpi(config.routing_solver, 'full_momentum')
+    speed=sqrt(hu(:).^2+hv(:).^2)./max(depth,config.dry_tolerance_m) + sqrt(config.gravity.*max(depth,config.dry_tolerance_m));
+    face_signal=mesh.edge_length(:).*speed(mesh.edge_owner);
+    face_signal(internal)=mesh.edge_length(internal).*max(speed(mesh.edge_owner(internal)),speed(mesh.edge_neighbor(internal)));
+    cell_signal=accumarray(mesh.edge_owner(:),face_signal,[mesh.n_cells 1],@sum,0);
+    cell_signal=cell_signal+accumarray(mesh.edge_neighbor(internal),face_signal(internal),[mesh.n_cells 1],@sum,0);
+else
+    % Finite-volume CFL: each control volume is constrained by the summed
+    % signal capacity of every incident face.
+    stage = mesh.surface_bed(:) + depth;
+    face_depth = depth(mesh.edge_owner);
+    face_depth(internal) = max( ...
+        max(stage(mesh.edge_owner(internal)), stage(mesh.edge_neighbor(internal))) - ...
+        max(mesh.surface_bed(mesh.edge_owner(internal)), mesh.surface_bed(mesh.edge_neighbor(internal))), 0);
+    face_speed = abs(edge_q(:)) ./ max(face_depth, config.dry_tolerance_m);
+    face_signal = mesh.edge_length(:) .* (face_speed + sqrt(config.gravity .* max(face_depth, config.dry_tolerance_m)));
+    cell_signal = accumarray(mesh.edge_owner(:), face_signal, [mesh.n_cells 1], @sum, 0);
+    cell_signal = cell_signal + accumarray(mesh.edge_neighbor(internal), face_signal(internal), [mesh.n_cells 1], @sum, 0);
 end
-if mesh.channel.n_transitions > 0
-    transition_depth = max(channel_volume(mesh.channel.transition_node) ./ mesh.channel.plan_area(mesh.channel.transition_node), config.dry_tolerance_m);
-    dt = min(dt, config.courant * min(mesh.channel.transition_length ./ sqrt(config.gravity .* transition_depth)));
+
+% Neal links are a one-dimensional finite-volume graph. Their timestep is
+% constrained by every incident link and transition, not only the shortest
+% link's gravity-wave speed. This branch is local-inertial only by preflight.
+channel_dt=inf;
+if mesh.channel.n_nodes > 0
+    node_signal=zeros(mesh.channel.n_nodes,1);
+    if mesh.channel.n_links > 0
+        channel_depth=max(channel_volume./mesh.channel.plan_area(:),config.dry_tolerance_m);
+        up=mesh.channel.link_up(:); down=mesh.channel.link_down(:);
+        link_depth=max(channel_depth(up),channel_depth(down));
+        area=mesh.channel.link_width(:).*link_depth;
+        signal_speed=abs(link_q(:))./max(area,eps)+sqrt(config.gravity.*link_depth);
+        signal=mesh.channel.link_width(:).*signal_speed;
+        node_signal=node_signal+accumarray(up,signal,[mesh.channel.n_nodes 1],@sum,0);
+        node_signal=node_signal+accumarray(down,signal,[mesh.channel.n_nodes 1],@sum,0);
+        channel_dt=min(channel_dt,config.courant*min(mesh.channel.link_length(:)./signal_speed));
+    end
+    if mesh.channel.n_transitions > 0
+        node=mesh.channel.transition_node(:); cell_id=mesh.channel.transition_cell(:);
+        channel_depth=max(channel_volume./mesh.channel.plan_area(:),0);
+        node_wse=mesh.channel.bed(node)+channel_depth(node);
+        cell_wse=mesh.surface_bed(cell_id)+depth(cell_id);
+        transition_depth=max(max(node_wse,cell_wse)-max(mesh.channel.bed(node),mesh.surface_bed(cell_id)),config.dry_tolerance_m);
+        area=mesh.channel.transition_width(:).*transition_depth;
+        signal_speed=abs(transition_q(:))./max(area,eps)+sqrt(config.gravity.*transition_depth);
+        signal=mesh.channel.transition_width(:).*signal_speed;
+        node_signal=node_signal+accumarray(node,signal,[mesh.channel.n_nodes 1],@sum,0);
+        cell_signal=cell_signal+accumarray(cell_id,signal,[mesh.n_cells 1],@sum,0);
+        channel_dt=min(channel_dt,config.courant*min(mesh.channel.transition_length(:)./signal_speed));
+    end
+    active_node=node_signal>0;
+    if any(active_node)
+        channel_dt=min(channel_dt,config.courant*min(mesh.channel.plan_area(active_node)./node_signal(active_node)));
+    end
 end
+active = cell_signal > 0;
+if any(active)
+    courant=config.courant;
+    if strcmpi(config.routing_solver,'full_momentum'), courant=min(courant,0.45); end
+    dt = courant * min(mesh.surface_area(active) ./ cell_signal(active));
+else
+    dt = inf;
+end
+dt=min(dt,channel_dt);
 if groundwater.enabled
     remaining_groundwater=config.groundwater_update_interval_s-groundwater.elapsed_s;
     if remaining_groundwater>10*eps(max(time_s,1)), dt=min(dt,remaining_groundwater); end
@@ -403,6 +525,66 @@ if isfinite(config.forcing_interval_s)
     if remaining <= 10 * eps(max(time_s,1)), remaining = config.forcing_interval_s; end
     dt = min(dt, remaining);
 end
+end
+
+function signal = kinematic_boundary_signal(mesh,depth,roughness,boundary,gravity,dry)
+signal=zeros(mesh.n_cells,1);
+[edge_id,types,values]=surface_boundary_parameters(mesh,boundary);
+if isempty(edge_id), return; end
+owner=mesh.edge_owner(edge_id); h=depth(owner); n=roughness(owner);
+n(~isfinite(n) | n<=0)=1e-6;
+normal=types=="normal_flow";
+critical=types=="critical_flow";
+if any(types=="stage")
+    error('HydroPol2D:KinematicStageBoundaryUnavailable', ...
+        'A kinematic-wave boundary cannot prescribe stage.');
+end
+speed=zeros(numel(edge_id),1);
+q=h(normal).^(5/3)./n(normal).*sqrt(max(values(normal),0));
+speed(normal)=(5/3).*abs(q)./max(h(normal),dry);
+speed(critical)=(3/2).*sqrt(gravity.*h(critical));
+signal=accumarray(owner,mesh.edge_length(edge_id).*speed,[mesh.n_cells 1],@sum,0);
+end
+
+function signal = diffusive_boundary_signal(mesh,depth,roughness,boundary,gravity,dry,slope_floor)
+signal=zeros(mesh.n_cells,1);
+[edge_id,types,values]=surface_boundary_parameters(mesh,boundary);
+if isempty(edge_id), return; end
+owner=mesh.edge_owner(edge_id); h=depth(owner); n=roughness(owner);
+n(~isfinite(n) | n<=0)=1e-6;
+stage=types=="stage"; normal=types=="normal_flow"; critical=types=="critical_flow";
+conductance=zeros(numel(edge_id),1);
+if any(stage)
+    eta=mesh.surface_bed(owner(stage))+h(stage);
+    hface=max(max(eta,values(stage))-mesh.surface_bed(owner(stage)),0);
+    slope=(eta-values(stage))./mesh.edge_distance(edge_id(stage));
+    coefficient=hface.^(5/3)./n(stage);
+    conductance(stage)=mesh.edge_length(edge_id(stage)).*( ...
+        0.5.*coefficient./sqrt(max(abs(slope),slope_floor))./mesh.edge_distance(edge_id(stage)) + ...
+        (5/3).*hface.^(2/3)./n(stage).*sqrt(abs(slope)));
+end
+if any(normal)
+    conductance(normal)=mesh.edge_length(edge_id(normal)).*(5/3).*h(normal).^(2/3)./n(normal).*sqrt(max(values(normal),0));
+end
+if any(critical)
+    conductance(critical)=mesh.edge_length(edge_id(critical)).*(3/2).*sqrt(gravity.*h(critical));
+end
+conductance(~isfinite(conductance) | h<=dry)=0;
+signal=accumarray(owner,conductance,[mesh.n_cells 1],@sum,0);
+end
+
+function [edge_id,types,values] = surface_boundary_parameters(mesh,boundary)
+edge_id=zeros(0,1); types=strings(0,1); values=zeros(0,1);
+if isempty(boundary) || ~isfield(boundary,'edge_id') || isempty(boundary.edge_id), return; end
+edge_id=double(boundary.edge_id(:));
+assert(all(edge_id>=1 & edge_id<=mesh.n_edges & mesh.edge_neighbor(edge_id)==0));
+types=string(boundary.type(:)); if isscalar(types), types=repmat(types,numel(edge_id),1); end
+if isfield(boundary,'value')
+    values=double(boundary.value(:)); if isscalar(values), values=repmat(values,numel(edge_id),1); end
+else
+    values=zeros(numel(edge_id),1);
+end
+assert(numel(types)==numel(edge_id) && numel(values)==numel(edge_id) && all(isfinite(values)));
 end
 
 function out = cat_or_empty(values, rows)

@@ -19,5 +19,10 @@ catch ME
 end
 assert(mixed_failed, 'Conflicting routing flags were not rejected.');
 HydroPol2D_validate_numerical_configuration(struct('flag_D8', 0, 'flag_inertial', 1));
-summary = struct('d8_rejected', d8_failed, 'mixed_flags_rejected', mixed_failed);
+defaults = HydroPol2D_Voronoi_Options(1, struct());
+assert(strcmp(defaults.unresolved_river_policy, 'neal_subgrid'));
+none_policy = HydroPol2D_Voronoi_Options(1, struct('unresolved_river_policy','none'));
+assert(strcmp(none_policy.unresolved_river_policy, 'none'));
+summary = struct('d8_rejected', d8_failed, 'mixed_flags_rejected', mixed_failed, ...
+    'voronoi_options_validated', true);
 end

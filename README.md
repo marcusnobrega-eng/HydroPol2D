@@ -79,6 +79,18 @@ Edit inputs in:
 ### 6. Run the Model
 `HydroPol2D_V115.m`
 
+The mesh selector is intentionally compact: `flag_voronoi=0` uses the
+production raster D4 workflow; `flag_voronoi=1` loads the prepared UGRID case
+specified by `Voronoi case file` in Excel or
+`InputData_Bypass.Voronoi.case_file` in script mode. Voronoi controls define
+background, urban, and minimum widths, the adjacent-size ratio, cells across
+resolved rivers, and whether unresolved rivers use `neal_subgrid` or `none`.
+Voronoi execution is CPU-only. `local_inertial` supports resolved 2D flow and
+the Neal channel graph; `kinematic`, explicit `diffusive`, and
+`full_momentum` currently support resolved 2D flow only. GPU execution and
+production-scale performance remain gated until their separate validation
+criteria are met.
+
 Optional application workflows, including the SLURM template and SNISB dam-case runners, are grouped in [`Applications`](Applications/README.md).
 
 ## Example
@@ -243,8 +255,6 @@ The bundled TopoToolbox runtime is documented in
 - University of São Paulo — São Carlos School of Engineering
 - University of Texas at San Antonio — Civil and Environmental Engineering
 - Stanford University — Stanford Doerr School of Sustainability; Department of Earth System Science
-
-
 
 
 

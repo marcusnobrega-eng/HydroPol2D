@@ -18,6 +18,16 @@ The V-tilted synthetic catchment provides a common spatial setting for hydrologi
 
 Ritter dam-break, non-breaking wave, and channel-subgrid benchmarks use their own geometries where required by the reference problem.
 
+## Voronoi finite-volume mode
+
+The Voronoi runner is a separate CPU-only mesh mode. Its local-inertial
+solver supports the generalized Neal channel graph; kinematic, explicit
+diffusive, and full-momentum modes currently require fully resolved 2D flow.
+The specific tests, equations, acceptance checks, and measured results are
+documented in [Voronoi/README.md](Voronoi/README.md) and
+[Voronoi/VALIDATION_RESULTS.md](Voronoi/VALIDATION_RESULTS.md). GPU and
+India-scale applications remain explicitly outside the validated scope.
+
 ## Acceptance requirements
 
 A validation case must document its reference, units, diagnostics, metrics, acceptance threshold, and pass/fail result. It must close the relevant mass balance, contain no unexplained `NaN` values, and compare HydroPol2D outputs directly with the reference.

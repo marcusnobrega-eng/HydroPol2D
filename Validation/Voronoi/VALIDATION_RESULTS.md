@@ -48,6 +48,26 @@ m3, respectively, with residuals below 5e-10 m3.
 The fine reference represents a physical 30 m river with bank-aligned Voronoi
 faces; the hybrid mesh retains the same 30 m width in its channel graph.
 
+## Current solver and timestep checks
+
+The following CPU checks were repeated on 2026-08-24 after the all-face and
+channel-graph timestep updates. They verify the numerical implementation;
+they do not constitute a production-scale performance qualification.
+
+| Check | Result | Status |
+|---|---:|---|
+| Local-inertial 20 m V-tilted, 10.8 mm/h for 90 min | NSE 1.0000; peak error 0.0212%; outlet-volume error 0.00415%; mass error 0.00254% | pass |
+| Kinematic explicit smoke, normal-flow boundary | 62 steps; adaptive timestep 15.56–300 s; closed mass ledger | pass |
+| Diffusive explicit smoke, normal-flow boundary | 290 steps; adaptive timestep 1.08–300 s; closed mass ledger | pass |
+| Full-momentum V-tilted CPU check | lake-at-rest error \(1.39\times10^{-17}\); rainfall mass error \(1.82\times10^{-14}\) | pass |
+| Full-momentum adaptive versus fixed 1 s | final-depth difference 0.0248%; outlet-volume difference 0.1119% | pass |
+| Neal graph-CFL self-contained fixture | first step 7.821 s versus 15.641 s single-link limit; minimum step 2.576 s; exact mass closure | pass |
+
+The graph-CFL fixture has two 100 m links meeting at a node and a transition
+to a resolved polygon. It therefore confirms that the active criterion sums
+the incident channel and transition signal capacities rather than selecting
+only the shortest individual link.
+
 ## Deliberately blocked
 
 - GPU execution raises `HydroPol2D:VoronoiGPUNotValidated`.

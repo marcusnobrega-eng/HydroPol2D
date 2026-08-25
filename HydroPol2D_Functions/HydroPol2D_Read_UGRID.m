@@ -9,6 +9,13 @@ if exist(mesh_file, 'file') ~= 2
 end
 info = ncinfo(mesh_file);
 variables = string({info.Variables.Name});
+if isempty(info.Attributes)
+    attributes = strings(0,1);
+else
+    attributes = string({info.Attributes.Name});
+end
+mesh.crs_wkt = '';
+if any(attributes == "crs_wkt"), mesh.crs_wkt=char(ncreadatt(mesh_file,'/','crs_wkt')); end
 
 mesh.cell_area = double(ncread(mesh_file, 'cell_area_m2'));
 mesh.cell_bed = double(ncread(mesh_file, 'cell_bed_elevation_m'));
@@ -34,10 +41,30 @@ mesh.edge_boundary_type = double(ncread(mesh_file, 'edge_boundary_type'));
 mesh.n_cells = numel(mesh.cell_area);
 mesh.n_edges = numel(mesh.edge_owner);
 
+% The hydrographically relevant length scale is the minimum face-normal
+% centre separation.  It is exported by HydroPolMesh as cell_cfl_width_m.
+% Do not use 2*A/P here: that compactness measure is deliberately smaller
+% for a valid elongated, flow-aligned floodplain/river polygon.
+if any(variables == "cell_cfl_width_m")
+    mesh.cell_cfl_width = double(ncread(mesh_file, 'cell_cfl_width_m'));
+else
+    edge_cfl_width = mesh.edge_distance(:);
+    boundary = mesh.edge_neighbor == 0;
+    edge_cfl_width(boundary) = 2 .* edge_cfl_width(boundary);
+    owner_width = accumarray(mesh.edge_owner(:), edge_cfl_width, [mesh.n_cells 1], @min, inf);
+    internal = ~boundary;
+    neighbor_width = accumarray(mesh.edge_neighbor(internal), edge_cfl_width(internal), ...
+        [mesh.n_cells 1], @min, inf);
+    mesh.cell_cfl_width = min(owner_width, neighbor_width);
+end
+
 assert(all(mesh.cell_area > 0 & isfinite(mesh.cell_area)), 'HydroPol2D:InvalidMesh', 'Cell areas must be positive and finite.');
 assert(all(mesh.edge_owner >= 1 & mesh.edge_owner <= mesh.n_cells), 'HydroPol2D:InvalidMesh', 'Invalid edge owner.');
 assert(all(mesh.edge_neighbor >= 0 & mesh.edge_neighbor <= mesh.n_cells), 'HydroPol2D:InvalidMesh', 'Invalid edge neighbor.');
 assert(all(mesh.edge_length > 0 & mesh.edge_distance > 0), 'HydroPol2D:InvalidMesh', 'Edge geometry must be positive.');
+assert(numel(mesh.cell_cfl_width) == mesh.n_cells && ...
+    all(mesh.cell_cfl_width > 0 & isfinite(mesh.cell_cfl_width)), ...
+    'HydroPol2D:InvalidMesh', 'Cell CFL widths must be positive and finite.');
 
 mesh.channel = struct('n_nodes', 0, 'n_links', 0, 'n_transitions', 0);
 if any(variables == "channel_node_host_cell")

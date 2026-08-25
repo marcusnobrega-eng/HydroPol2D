@@ -18,6 +18,23 @@ nccreate(output_file,'time_s','Dimensions',{'time',numel(results.time_s)},'Datat
 ncwrite(output_file,'time_s',results.time_s);
 nccreate(output_file,'surface_depth_m','Dimensions',{'cell',mesh.n_cells,'time',numel(results.time_s)},'Datatype','double');
 ncwrite(output_file,'surface_depth_m',results.surface_depth_m);
+nccreate(output_file,'surface_velocity_m_s', ...
+    'Dimensions',{'cell',mesh.n_cells,'time',numel(results.time_s)},'Datatype','double');
+ncwrite(output_file,'surface_velocity_m_s',results.surface_velocity_m_s);
+if ~isempty(results.surface_momentum_x_m2_s)
+    for name = {'surface_momentum_x_m2_s','surface_momentum_y_m2_s', ...
+            'surface_velocity_x_m_s','surface_velocity_y_m_s'}
+        variable = name{1};
+        nccreate(output_file,variable,'Dimensions',{'cell',mesh.n_cells,'time',numel(results.time_s)},'Datatype','double');
+        ncwrite(output_file,variable,results.(variable));
+    end
+end
+if ~isempty(results.edge_discharge_per_width_history_m2_s)
+    nccreate(output_file,'edge_discharge_per_width_m2_s', ...
+        'Dimensions',{'edge',mesh.n_edges,'time',numel(results.time_s)},'Datatype','double');
+    ncwrite(output_file,'edge_discharge_per_width_m2_s', ...
+        results.edge_discharge_per_width_history_m2_s);
+end
 nccreate(output_file,'final_surface_volume_m3','Dimensions',{'cell',mesh.n_cells},'Datatype','double');
 ncwrite(output_file,'final_surface_volume_m3',results.final_surface_volume_m3);
 nccreate(output_file,'final_edge_discharge_per_width_m2_s','Dimensions',{'edge',mesh.n_edges},'Datatype','double');
