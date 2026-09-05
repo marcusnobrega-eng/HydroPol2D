@@ -1,5 +1,32 @@
 # Voronoi finite-volume validation
 
+## Conventional post-processing
+
+Voronoi runs write one internal archive using schema
+`hydropol2d-unstructured-output-1.0`, then `HydroPol2D_Postprocess_Voronoi` produces the
+ordinary `Modeling_Results` raster, CSV, figure, and video tree entirely in MATLAB. Native
+face/edge/channel histories use `time_s`; the requested raster schedule uses `map_time_s`.
+Final and temporal-maximum rasters are computed after conservative remapping, and Neal
+channel depth/discharge are exported separately from floodplain surface depth.
+
+The output controls are available under `InputData_Bypass.VoronoiOutput` and in the
+`Voronoi Output` block of `General_Data.xlsx`. The native cadence must evenly divide the
+raster-stack cadence. `run_voronoi_output_validation` checks the archive contract, while
+`run_voronoi_vtilted_end_to_end_validation` exercises rainfall, infiltration, ET,
+groundwater, tables, figures, and GeoTIFF histories.
+
+The native archive is intentionally not the user-facing map format. It is a
+restartable post-processing source with polygon, edge, channel, gauge,
+hydrology, groundwater, diagnostic, and raster-schedule coordinates. To
+rebuild the visible package later, call:
+
+```matlab
+HydroPol2D_Postprocess_Voronoi(native_file,mesh_file,overlap_file, ...
+    output_directory,output_controls)
+```
+
+No Python runtime is used by the MATLAB writer or post-processor.
+
 This directory validates the separate Voronoi finite-volume runner. It does
 not alter or replace the raster D4 validation cases.
 
@@ -23,7 +50,7 @@ The suite currently covers:
   velocity/hydrology/groundwater NetCDF, conservative GeoTIFF remapping,
   and a compact six-panel state figure.
 
-Generate the fixtures with the scripts in `HydroPolMesh/tests`, add
+Generate new fixtures with the HydroBathyDEM mesh-product workflow, add
 `HydroPol2D_Functions` and this directory to the MATLAB path, then run the
 corresponding `run_voronoi_*_validation` functions. GPU execution deliberately
 fails preflight until the CPU suite, performance benchmark, and device-only
@@ -49,6 +76,11 @@ For the complete vertical slice, generate the V-tilted fixtures and run:
 ```matlab
 run_voronoi_vtilted_end_to_end_validation(mesh_directory,output_directory)
 ```
+
+The `uniform20` UGRID is the fine reference because it exactly matches the
+20 m D4 benchmark grid and its physical 60 m outlet. The older `fine`
+prototype is retained only for historical inspection: its clipped boundary
+represents a 70 m outlet and is not a like-for-like comparison.
 
 This writes a reusable `vtilted-variable-case.mat`. In the ordinary launcher,
 set `flag_voronoi=1` and set `Voronoi case file` (Excel) or

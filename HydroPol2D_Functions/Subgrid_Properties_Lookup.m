@@ -94,6 +94,9 @@ end
 
 SubgridTables = struct();
 SubgridTables.sfincs_exact = true;
+% SFINCS u_nrep/v_nrep store the gravity-weighted friction coefficient
+% g*n^2, not the physical Manning coefficient consumed by HydroPol2D.
+SubgridTables.roughness_storage = 'g_n_squared';
 SubgridTables.nr_levels = nr_levels;
 SubgridTables.table_huthresh = huthresh;
 % SFINCS resets runtime huthresh to zero after reading the newer NetCDF

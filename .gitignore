@@ -55,6 +55,7 @@ current_time_series_outputs.mat
 hydropol2d_preprocessing_manifest*.mat
 Case_Rasters_And_Config.mat
 Validation/Voronoi/results_*/
+Validation/Voronoi/outputs_*/
 *_Analysis_Results.mat
 
 # Large raster forcing downloads; keep small CSV forcing files tracked

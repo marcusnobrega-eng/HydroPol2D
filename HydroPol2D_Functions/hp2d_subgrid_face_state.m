@@ -37,6 +37,10 @@ area = hp2d_subgrid_lookup_eta(area_tab, eta_face, invert, ...
     SubgridTables.dz, SubgridTables.maxDepth);
 n_eff = hp2d_subgrid_lookup_eta(n_tab, eta_face, invert, ...
     SubgridTables.dz, SubgridTables.maxDepth);
+if stores_gravity_weighted_roughness(SubgridTables)
+    gravity = get_table_or_default(SubgridTables, 'g', 9.81);
+    n_eff = sqrt(max(n_eff, 0) ./ gravity);
+end
 
 if isempty(width_tab)
     width = Resolution .* double(area > 0);
@@ -126,5 +130,14 @@ if isa(x, 'gpuArray')
     e = eps(classUnderlying(x));
 else
     e = eps(class(x));
+end
+end
+
+function tf = stores_gravity_weighted_roughness(S)
+% Older exact-SFINCS tables predate the explicit storage-convention field.
+if isfield(S, 'roughness_storage') && ~isempty(S.roughness_storage)
+    tf = strcmpi(char(S.roughness_storage), 'g_n_squared');
+else
+    tf = isfield(S, 'sfincs_exact') && logical(S.sfincs_exact);
 end
 end
