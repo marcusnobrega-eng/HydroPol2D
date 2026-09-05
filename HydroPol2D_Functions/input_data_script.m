@@ -58,8 +58,11 @@ if use_inputdata_bypass == 1
 
     G     = InputData_Bypass.general;
     flags = normalize_flags_struct(InputData_Bypass.flags);
-    Voronoi_Parameters = HydroPol2D_Voronoi_Options(flags.flag_voronoi, ...
-        get_optional_field(InputData_Bypass,'Voronoi',struct()));
+    Voronoi_Input=get_optional_field(InputData_Bypass,'Voronoi',struct());
+    if flags.flag_voronoi_subgrid == 1
+        Voronoi_Input.voronoi_subgrid_enabled=true;
+    end
+    Voronoi_Parameters = HydroPol2D_Voronoi_Options(flags.flag_voronoi,Voronoi_Input);
 
     % ---------------- Non-raster ETP forcing file ----------------
     % Used later in preprocessing when:
@@ -487,8 +490,11 @@ Voronoi_Input = struct( ...
     'maximum_adjacent_size_ratio', xlnum_optional(GD,'Adjacent size ratio',2), ...
     'urban_target_width_m', xlnum_optional(GD,'Urban target width',200), ...
     'urban_transition_buffer_m', xlnum_optional(GD,'Urban buffer',1000), ...
-    'river_preferred_cells_across', xlnum_optional(GD,'River cells across',3), ...
-    'unresolved_river_policy', xlstr_optional(GD,'Unresolved rivers','neal_subgrid'));
+    'unresolved_river_policy', xlstr_optional(GD,'Unresolved rivers','neal_subgrid'), ...
+    'subgrid_table_path',xlstr_optional(GD,'Voronoi subgrid table',''));
+if flags.flag_voronoi_subgrid == 1
+    Voronoi_Input.voronoi_subgrid_enabled=true;
+end
 Voronoi_Parameters = HydroPol2D_Voronoi_Options(flags.flag_voronoi, Voronoi_Input);
 
 requiredFlags = { ...
@@ -1198,6 +1204,7 @@ function flags = normalize_flags_struct(flagsIn)
     if ~isfield(flags,'flag_export_groundwater_maps')
         flags.flag_export_groundwater_maps = 0;
     end
+    flags = HydroPol2D_Normalize_Subgrid_Flags(flags);
 end
 
 function M = normalize_map_input(M, label)
@@ -1965,6 +1972,7 @@ function flags = read_flags_sheet(FlagsGrid)
     if ~isfield(flags,'flag_warmup')
         flags.flag_warmup = 0;
     end
+    flags = HydroPol2D_Normalize_Subgrid_Flags(flags);
 end
 
 function T = xlblock_2col(GD, headerText, col1Header, col2Header)

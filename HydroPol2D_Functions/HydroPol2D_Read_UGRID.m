@@ -1,12 +1,15 @@
-function mesh = HydroPol2D_Read_UGRID(mesh_file)
-%HYDROPOL2D_READ_UGRID Read the HydroPolMesh UGRID exchange contract.
+function mesh = HydroPol2D_Read_UGRID(mesh_file, options)
+%HYDROPOL2D_READ_UGRID Read a HydroBathyDEM UGRID exchange package.
 
 arguments
     mesh_file (1,:) char
+    options.allow_legacy (1,1) logical = false
 end
 if exist(mesh_file, 'file') ~= 2
     error('HydroPol2D:MissingMesh', 'Mesh file not found: %s', mesh_file);
 end
+contract_report = HydroPol2D_Validate_Mesh_Bundle(mesh_file, '', '', ...
+    allow_legacy=options.allow_legacy);
 info = ncinfo(mesh_file);
 variables = string({info.Variables.Name});
 if isempty(info.Attributes)
@@ -16,6 +19,7 @@ else
 end
 mesh.crs_wkt = '';
 if any(attributes == "crs_wkt"), mesh.crs_wkt=char(ncreadatt(mesh_file,'/','crs_wkt')); end
+mesh.contract_version = contract_report.contract_version;
 
 mesh.cell_area = double(ncread(mesh_file, 'cell_area_m2'));
 mesh.cell_bed = double(ncread(mesh_file, 'cell_bed_elevation_m'));
@@ -42,12 +46,18 @@ mesh.n_cells = numel(mesh.cell_area);
 mesh.n_edges = numel(mesh.edge_owner);
 
 % The hydrographically relevant length scale is the minimum face-normal
-% centre separation.  It is exported by HydroPolMesh as cell_cfl_width_m.
+% centre separation. It is exported by HydroBathyDEM as cell_cfl_width_m.
 % Do not use 2*A/P here: that compactness measure is deliberately smaller
 % for a valid elongated, flow-aligned floodplain/river polygon.
 if any(variables == "cell_cfl_width_m")
     mesh.cell_cfl_width = double(ncread(mesh_file, 'cell_cfl_width_m'));
 else
+    assert(options.allow_legacy, 'HydroPol2D:LegacyMeshContractRejected', ...
+        'Legacy CFL reconstruction requires allow_legacy=true.');
+    warning('HydroPol2D:LegacyMeshContract', ...
+        ['Mesh %s predates the versioned HydroBathyDEM contract. Reconstructing ' ...
+         'cell_cfl_width_m for compatibility; rebuild the mesh before release use.'], ...
+        mesh_file);
     edge_cfl_width = mesh.edge_distance(:);
     boundary = mesh.edge_neighbor == 0;
     edge_cfl_width(boundary) = 2 .* edge_cfl_width(boundary);

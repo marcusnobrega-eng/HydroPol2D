@@ -2,7 +2,7 @@ function summary = run_voronoi_forcing_groundwater_validation(mesh_file, overlap
 %RUN_VORONOI_FORCING_GROUNDWATER_VALIDATION Source mapping and GW balance.
 
 mesh = HydroPol2D_Read_UGRID(mesh_file);
-mapping = HydroPol2D_Read_Overlap(overlap_file);
+mapping = HydroPol2D_Read_Overlap(overlap_file, mesh_file);
 rain_rate = 10e-3 / 3600; % 10 mm h-1
 duration = 300;
 config = struct('duration_s', duration, 'initial_surface_depth_m', 0, ...

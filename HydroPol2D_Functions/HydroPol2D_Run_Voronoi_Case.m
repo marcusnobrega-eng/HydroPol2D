@@ -13,10 +13,33 @@ for k = 1:numel(required)
 end
 if exist(output_directory,'dir') ~= 7, mkdir(output_directory); end
 prefix = optional(case_definition,'output_prefix','voronoi');
-options = HydroPol2D_Voronoi_Options(1,optional(case_definition,'options',struct()));
+raw_options=optional(case_definition,'options',struct());
+options = HydroPol2D_Voronoi_Options(1,raw_options);
 validate_mesh_metadata(case_definition.mesh_file,options);
+output_controls = output_defaults(optional(case_definition,'output_controls',struct()));
+if ~write_rasters
+    output_controls.write_final_geotiffs=false;
+    output_controls.write_temporal_geotiffs=false;
+    output_controls.write_figures=false;
+    output_controls.write_videos=false;
+    output_controls.write_gauge_hydrographs=false;
+end
+overlap_file = optional(case_definition,'overlap_file','');
+postprocess_requested=output_controls.write_final_geotiffs || ...
+    output_controls.write_temporal_geotiffs || output_controls.write_figures || ...
+    output_controls.write_videos || output_controls.write_gauge_hydrographs;
+if postprocess_requested
+    preflight_postprocessing(case_definition.mesh_file,overlap_file,output_controls);
+end
 
 config = case_definition.config;
+if isfield(raw_options,'voronoi_subgrid_enabled') || ...
+        strlength(strtrim(string(options.subgrid_table_path))) > 0
+    config.voronoi_subgrid_enabled=options.voronoi_subgrid_enabled;
+end
+if strlength(strtrim(string(options.subgrid_table_path))) > 0
+    config.subgrid_table_path=options.subgrid_table_path;
+end
 if ~isfield(config,'routing_solver') || isempty(config.routing_solver)
     config.routing_solver = 'local_inertial';
 end
@@ -26,13 +49,14 @@ assert(any(strcmpi(config.routing_solver, {'local_inertial','kinematic','diffusi
 config.compute_backend = 'cpu';
 config.minimum_cell_width_m = options.minimum_cell_width_m;
 config.maximum_adjacent_size_ratio = options.maximum_adjacent_size_ratio;
-if ~isfield(config,'output_netcdf') || isempty(config.output_netcdf)
-    config.output_netcdf = fullfile(output_directory,[prefix '-results.nc']);
-end
+native_directory=fullfile(output_directory,'Modeling_Results','Native');
+if exist(native_directory,'dir')~=7, mkdir(native_directory); end
+config.output_netcdf = fullfile(native_directory,'unstructured_results.nc');
+config.output_interval_s=output_controls.native_output_interval_s;
+config.raster_output_interval_s=output_controls.raster_stack_interval_s;
 config.overwrite_output = true;
 
 forcing = case_definition.forcing;
-overlap_file = optional(case_definition,'overlap_file','');
 if ~isempty(overlap_file), forcing.overlap_file = overlap_file; end
 results = HydroPol2D_Voronoi_Run(case_definition.mesh_file,config,forcing);
 
@@ -41,7 +65,7 @@ assert(all(isfinite(results.surface_depth_m),'all') && all(results.surface_depth
 assert(all(isfinite(results.surface_velocity_m_s),'all') && all(results.surface_velocity_m_s >= 0,'all'), ...
     'HydroPol2D:VoronoiAcceptance','Surface velocity contains invalid values.');
 d = results.diagnostics;
-recorded_input = sum([d.precipitation_volume_m3]) + ...
+recorded_input = sum([d.surface_source_volume_m3]) + ...
     sum(max([d.boundary_net_inflow_volume_m3],0));
 if isfield(case_definition,'expected_input_volume_m3')
     expected = double(case_definition.expected_input_volume_m3);
@@ -80,16 +104,57 @@ save(fullfile(output_directory,[prefix '-prepared-case.mat']),'case_definition')
 results.summary = summary;
 results.output_netcdf = config.output_netcdf;
 results.raster_files = strings(0,1);
-if write_rasters
-    assert(~isempty(overlap_file), 'HydroPol2D:InvalidVoronoiCase', ...
-        'Raster export requires overlap_file.');
-    results.raster_files = HydroPol2D_Export_Voronoi_Rasters( ...
-        case_definition.mesh_file,overlap_file,results,output_directory,prefix);
+if postprocess_requested
+    results.postprocessing = HydroPol2D_Postprocess_Voronoi(config.output_netcdf, ...
+        case_definition.mesh_file,overlap_file,fullfile(output_directory,'Modeling_Results'), ...
+        output_controls);
+    results.raster_files=results.postprocessing.raster_files;
+end
+if ~output_controls.write_native_archive && exist(config.output_netcdf,'file')==2
+    delete(config.output_netcdf);
+end
+
+function preflight_postprocessing(mesh_file,overlap_file,controls)
+assert(~isempty(overlap_file) && exist(overlap_file,'file')==2, ...
+    'HydroPol2D:InvalidVoronoiCase','Voronoi post-processing requires overlap_file.');
+assert(exist(mesh_file,'file')==2,'HydroPol2D:InvalidVoronoiCase', ...
+    'Voronoi post-processing mesh file is unavailable.');
+if controls.write_final_geotiffs || controls.write_temporal_geotiffs
+    assert(exist('geotiffwrite','file')==2 && exist('maprefcells','file')==2 && ...
+        exist('Tiff','class')==8,'HydroPol2D:MissingMappingToolbox', ...
+        'Voronoi raster output requires Mapping Toolbox and TIFF support.');
+end
+if controls.write_figures
+    assert(exist('exportgraphics','file')~=0,'HydroPol2D:MissingGraphicsSupport', ...
+        'Voronoi figure output requires exportgraphics.');
+end
+if controls.write_videos
+    assert(exist('VideoWriter','class')==8,'HydroPol2D:MissingVideoSupport', ...
+        'Voronoi video output requires VideoWriter.');
+end
+mesh_info=ncinfo(mesh_file,'cell_area_m2');
+mesh_cells=mesh_info.Size;
+overlap_cells=numel(ncread(overlap_file,'mesh_area_m2'));
+assert(mesh_cells==overlap_cells,'HydroPol2D:InvalidVoronoiOutput', ...
+    'Overlap weights do not match the selected UGRID mesh.');
 end
 end
 
 function value = optional(source,name,default_value)
 if isfield(source,name) && ~isempty(source.(name)), value=source.(name); else, value=default_value; end
+end
+
+function controls=output_defaults(controls)
+values=struct('write_native_archive',true,'native_output_interval_s',300, ...
+    'write_final_geotiffs',true,'write_temporal_geotiffs',true, ...
+    'raster_stack_interval_s',3600,'write_figures',true,'write_videos',true, ...
+    'write_gauge_hydrographs',true,'video_fps',8);
+names=fieldnames(values);
+for k=1:numel(names), if ~isfield(controls,names{k}) || isempty(controls.(names{k})), controls.(names{k})=values.(names{k}); end, end
+ratio=controls.raster_stack_interval_s/controls.native_output_interval_s;
+assert(ratio>=1 && abs(ratio-round(ratio))<=1e-9*max(ratio,1), ...
+    'HydroPol2D:InvalidVoronoiConfiguration', ...
+    'raster_stack_interval_s must be an integer multiple of native_output_interval_s.');
 end
 
 function validate_mesh_metadata(mesh_file,options)
@@ -103,12 +168,6 @@ for k=1:numel(numeric)
     assert(abs(saved-options.(numeric{k})) <= 1e-9*max(abs(saved),1), ...
         'HydroPol2D:VoronoiMeshConfigurationMismatch', ...
         'Prepared mesh metadata does not match %s.',numeric{k});
-end
-if any(attribute_names == "preferred_cells_across")
-    saved_cells=double(ncreadatt(mesh_file,'/','preferred_cells_across'));
-    assert(saved_cells==options.river_preferred_cells_across, ...
-        'HydroPol2D:VoronoiMeshConfigurationMismatch', ...
-        'Prepared mesh metadata does not match river_preferred_cells_across.');
 end
 if any(attribute_names == "unresolved_river_policy")
     saved_policy=char(ncreadatt(mesh_file,'/','unresolved_river_policy'));

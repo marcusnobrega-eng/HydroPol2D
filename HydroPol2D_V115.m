@@ -2,8 +2,8 @@
 % HydroPol2D | Main Run Script
 % Developer: Marcus Nobrega, Ph.D.
 % Main launcher for HydroPol2D
-% ----------------------------- Version 1.16.0 ----------------------------
-% Last official model update: 07/18/2026
+% ---------------------------- Version 1.18.0-rc1 -------------------------
+% Release-candidate update: 09/04/2026
 %
 % PURPOSE
 %   This script is the main entry point to run a complete HydroPol2D
@@ -467,7 +467,25 @@ if VoronoiSelection.enabled
     assert(isfield(prepared,'VoronoiCase') && isstruct(prepared.VoronoiCase), ...
         'HydroPol2D:InvalidVoronoiCase', ...
         'Prepared MAT file must contain a structure named VoronoiCase.');
-    prepared.VoronoiCase.options=VoronoiSelection.options;
+    base_options=struct();
+    if isfield(prepared.VoronoiCase,'options')
+        base_options=prepared.VoronoiCase.options;
+    end
+    selected_names=fieldnames(VoronoiSelection.options);
+    for option_index=1:numel(selected_names)
+        option_name=selected_names{option_index};
+        if strcmp(option_name,'subgrid_table_path') && ...
+                strlength(strtrim(string(VoronoiSelection.options.(option_name)))) == 0
+            continue
+        end
+        if strcmp(option_name,'voronoi_subgrid_enabled') && ...
+                ~VoronoiSelection.subgrid_choice_explicit
+            continue
+        end
+        base_options.(option_name)=VoronoiSelection.options.(option_name);
+    end
+    prepared.VoronoiCase.options=HydroPol2D_Voronoi_Options(1,base_options);
+    prepared.VoronoiCase.output_controls=VoronoiSelection.output_controls;
     voronoi_output=fullfile(Paths.Results,'Voronoi');
     VoronoiResults=HydroPol2D_Run_Voronoi_Case( ...
         prepared.VoronoiCase,voronoi_output,run_postprocessing);

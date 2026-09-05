@@ -75,7 +75,7 @@ by_cell=zeros(mesh.n_cells,1);
 if isfield(config,'resolved_river_mask') && ~isempty(config.resolved_river_mask)
     resolved=logical(config.resolved_river_mask(:));
 else
-    resolved=isfinite(mesh.cell_roughness(:));
+    resolved=false(mesh.n_cells,1);
 end
 cells=find(resolved);
 if ~isempty(cells)

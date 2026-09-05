@@ -49,6 +49,11 @@ end
 surface_volume = max(surface_volume, 0);
 edge_q(internal) = qnew;
 edge_q(~internal) = 0; % Boundary fluxes are supplied separately by the runner.
+% The face flow depth PAIRED with the discharge stored in edge_q. Diagnostics must
+% divide by this rather than recomputing a depth from the post-step state; see
+% HydroPol2D_Voronoi_Cell_Velocity.
+diagnostics.face_flow_depth_m = zeros(mesh.n_edges,1);
+diagnostics.face_flow_depth_m(internal) = hflow;
 diagnostics.max_depth_m = max(depth);
 diagnostics.max_velocity_m_s = max(abs(qnew) ./ max(hflow, options.dry_tolerance_m), [], 'omitnan');
 diagnostics.internal_flux_volume_m3 = sum(abs(Q)) * dt;

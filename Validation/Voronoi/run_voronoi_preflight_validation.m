@@ -2,7 +2,8 @@ function summary = run_voronoi_preflight_validation(mesh_file)
 %RUN_VORONOI_PREFLIGHT_VALIDATION Resource and unsupported-backend gates.
 
 config = struct('routing_solver','local_inertial','compute_backend','cpu', ...
-    'maximum_adjacent_size_ratio',2,'available_memory_bytes',1e9);
+    'maximum_adjacent_size_ratio',2,'available_memory_bytes',1e9, ...
+    'allow_legacy_mesh',true);
 [~,report] = HydroPol2D_Voronoi_Preflight(mesh_file,config);
 
 gpu_failed = false;
