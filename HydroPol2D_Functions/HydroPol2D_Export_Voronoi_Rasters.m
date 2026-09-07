@@ -6,7 +6,7 @@ if exist('geotiffwrite','file') ~= 2 || exist('maprefcells','file') ~= 2
         'Voronoi GeoTIFF export requires geotiffwrite and maprefcells.');
 end
 if exist(output_directory,'dir') ~= 7, mkdir(output_directory); end
-mapping = HydroPol2D_Read_Overlap(overlap_file);
+mapping = HydroPol2D_Read_Overlap(overlap_file, mesh_file);
 mesh = HydroPol2D_Read_UGRID(mesh_file);
 assert(size(mapping.mesh_to_raster,2)==mesh.n_cells, ...
     'HydroPol2D:InvalidVoronoiCase','Overlap weights do not match the mesh.');
@@ -49,7 +49,11 @@ if ~isempty(mesh.crs_wkt) && exist('projcrs','file')==2
 end
 names = fieldnames(native); files = strings(numel(names),1); mapped = struct();
 for k=1:numel(names)
-    flat = mapping.mesh_to_raster*double(native.(names{k})(:));
+    % Every field in `native` is INTENSIVE -- depths, velocities, heads,
+    % cumulative metres -- so the conservative remap would scale each partly
+    % covered raster cell down by its coverage fraction.  See
+    % hp2d_remap_intensive for the measured symptom.
+    flat = hp2d_remap_intensive(mapping, native.(names{k})(:), 0.5, NaN);
     map = reshape(flat,[mapping.raster_cols mapping.raster_rows])';
     mapped.(names{k}) = flipud(map);
     files(k)=fullfile(output_directory,[prefix '-' strrep(names{k},'_','-') '.tif']);

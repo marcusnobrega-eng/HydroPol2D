@@ -1,7 +1,8 @@
 function [mesh, report] = HydroPol2D_Voronoi_Preflight(mesh_file, config)
 %HYDROPOL2D_VORONOI_PREFLIGHT Fail early on invalid or unaffordable meshes.
 
-mesh = HydroPol2D_Read_UGRID(mesh_file);
+allow_legacy = isfield(config, 'allow_legacy_mesh') && logical(config.allow_legacy_mesh);
+mesh = HydroPol2D_Read_UGRID(mesh_file, allow_legacy=allow_legacy);
 if isfield(config, 'compute_backend') && ~strcmpi(config.compute_backend, 'cpu')
     error('HydroPol2D:VoronoiGPUNotValidated', ...
         'Voronoi GPU execution is gated until CPU validation and a no-host-transfer GPU kernel pass.');

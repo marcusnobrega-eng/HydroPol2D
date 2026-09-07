@@ -4,6 +4,7 @@ function HydroPol2D_validate_numerical_configuration(flags)
 if ~isstruct(flags)
     error('HydroPol2D:InvalidFlags', 'flags must be a structure.');
 end
+flags = HydroPol2D_Normalize_Subgrid_Flags(flags);
 if isfield(flags, 'flag_D8') && gather_scalar(flags.flag_D8) == 1
     error('HydroPol2D:LegacyD8Retired', [ ...
         'The historical raster D8 implementation is incomplete and has been retired. ' ...
@@ -27,7 +28,7 @@ if voronoi == 1
     end
     error('HydroPol2D:VoronoiStandaloneRunnerRequired', [ ...
         'flag_voronoi=1 cannot use the raster preprocessing loop. Generate the UGRID mesh ' ...
-        'with HydroPolMesh and run HydroPol2D_Voronoi_Run.']);
+        'with HydroBathyDEM and run HydroPol2D_Voronoi_Run.']);
 end
 
 names = {'flag_CA','flag_inertial','flag_diffusive','flag_kinematic','flag_full_momentum'};

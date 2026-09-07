@@ -2,8 +2,8 @@
 % HydroPol2D | Main Run Script
 % Developer: Marcus Nobrega, Ph.D.
 % Main launcher for HydroPol2D
-% ----------------------------- Version 1.16.0 ----------------------------
-% Last official model update: 07/18/2026
+% ---------------------------- Version 1.18.0-rc1 -------------------------
+% Release-candidate update: 09/04/2026
 %
 % PURPOSE
 %   This script is the main entry point to run a complete HydroPol2D

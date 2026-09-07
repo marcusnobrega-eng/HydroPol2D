@@ -5,7 +5,7 @@ arguments
     mesh_directory (1,:) char
     output_directory (1,:) char
     rainfall_intensity_mm_h (1,1) double {mustBePositive} = 30
-    mesh_names (1,:) string = ["fine" "variable"]
+    mesh_names (1,:) string = ["uniform20" "variable"]
     simulation_duration_min (1,1) double {mustBeGreaterThanOrEqual(simulation_duration_min,90)} = 90
     maximum_dt_s (1,1) double {mustBePositive} = 1
 end
@@ -51,8 +51,8 @@ for k = 1:numel(names)
     Maps.(char(names(k) + "_voronoi_depth_m")) = all_maps{k}(:);
 end
 writetable(Maps, fullfile(output_directory, 'vtilted-final-depth-maps.csv'));
-if numel(names) == 2 && all(ismember(["fine" "variable"], names))
-    fine_index = find(names == "fine", 1); variable_index = find(names == "variable", 1);
+if numel(names) == 2 && all(ismember(["uniform20" "variable"], names))
+    fine_index = find(names == "uniform20", 1); variable_index = find(names == "variable", 1);
     Convergence = compare_voronoi_meshes(all_series{fine_index}, all_series{variable_index}, ...
         all_maps{fine_index}, all_maps{variable_index}, Summary.cell_count(fine_index), Summary.cell_count(variable_index));
     writetable(Convergence, fullfile(output_directory, 'vtilted-voronoi-convergence-summary.csv'));
@@ -109,12 +109,12 @@ end
 
 function [Series, final_map, metrics] = run_voronoi_case(mesh_file, overlap_file, reference, output_file, rain, storm_duration_s, duration_s, maximum_dt_s)
 mesh = HydroPol2D_Read_UGRID(mesh_file);
-mapping = HydroPol2D_Read_Overlap(overlap_file);
+mapping = HydroPol2D_Read_Overlap(overlap_file, mesh_file);
 outlet = find(mesh.edge_neighbor == 0 & abs(mesh.edge_midpoint_y) < 1e-8 & ...
     mesh.edge_midpoint_x >= 380 & mesh.edge_midpoint_x <= 440);
 assert(abs(sum(mesh.edge_length(outlet))-60) <= 1e-8, 'V-tilted outlet width must be exactly 60 m.');
 config = struct('duration_s',duration_s,'min_dt_s',0.01,'max_dt_s',maximum_dt_s, ...
-    'output_interval_s',60,'forcing_interval_s',inf,'courant',0.6, ...
+    'output_interval_s',60,'forcing_interval_s',inf,'courant',0.2, ...
     'surface_roughness',0.04,'critical_flow',true,'compute_backend','cpu', ...
     'output_netcdf',output_file,'overwrite_output',true);
 forcing = struct('surface_source_m_s',@(time_s,~,~) rain * double(time_s < storm_duration_s), ...
