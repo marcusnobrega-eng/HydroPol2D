@@ -1,4 +1,4 @@
-# HydroPol2D MATLAB v1.18.0-rc1
+# HydroPol2D MATLAB v1.18.0
 
 ## Purpose
 
