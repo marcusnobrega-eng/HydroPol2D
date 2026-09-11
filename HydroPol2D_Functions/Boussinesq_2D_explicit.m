@@ -297,30 +297,39 @@ end
 
 function [Fx, Fy] = compute_fluxes_conservative(h, z0, K, dx, dy, dt, Sy)
     % Returns conservative, flux-limited interface fluxes
+    valid = isfinite(h) & isfinite(z0) & isfinite(K) & isfinite(Sy);
     H = max(h - z0, 0);
-    [nRows, nCols] = size(h);
+    H(~valid) = 0;
 
     % === X-direction fluxes ===
+    valid_x = valid(:,1:end-1) & valid(:,2:end);
     Hx = 0.5 * (H(:,1:end-1) + H(:,2:end));
     Kx = 0.5 * (K(:,1:end-1) + K(:,2:end));
     dHdx = (h(:,2:end) - h(:,1:end-1)) / dx;
     Fx = -Kx .* Hx .* dHdx;
+    Fx(~valid_x) = 0;
 
-    donor_Hx = H(:,1:end-1);
-    max_flux_x = Sy(:,1:end-1) .* donor_Hx / dt;
+    max_flux_x = Sy(:,1:end-1) .* H(:,1:end-1) / dt;
+    right_donor = Fx < 0;
+    right_capacity = Sy(:,2:end) .* H(:,2:end) / dt;
+    max_flux_x(right_donor) = right_capacity(right_donor);
     Fx = sign(Fx) .* min(abs(Fx), max_flux_x);
-    Fx(isnan(H(:,2:end))) = 0;
+    Fx(~valid_x) = 0;
 
     % === Y-direction fluxes ===
+    valid_y = valid(1:end-1,:) & valid(2:end,:);
     Hy = 0.5 * (H(1:end-1,:) + H(2:end,:));
     Ky = 0.5 * (K(1:end-1,:) + K(2:end,:));
     dHdy = (h(2:end,:) - h(1:end-1,:)) / dy;
     Fy = -Ky .* Hy .* dHdy;
+    Fy(~valid_y) = 0;
 
-    donor_Hy = H(1:end-1,:);
-    max_flux_y = Sy(1:end-1,:) .* donor_Hy / dt;
+    max_flux_y = Sy(1:end-1,:) .* H(1:end-1,:) / dt;
+    bottom_donor = Fy < 0;
+    bottom_capacity = Sy(2:end,:) .* H(2:end,:) / dt;
+    max_flux_y(bottom_donor) = bottom_capacity(bottom_donor);
     Fy = sign(Fy) .* min(abs(Fy), max_flux_y);
-    Fy(isnan(H(2:end,:))) = 0;
+    Fy(~valid_y) = 0;
 end
 
 function div = compute_flux_divergence(Fx, Fy, dx, dy, bc)
