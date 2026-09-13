@@ -645,7 +645,10 @@ if flags.flag_automatic_calibration ~= 1
         if saver_count > 12
             saver_count = 1;
             tempDir = Paths.Temp;
-            save(fullfile(tempDir, ['save_map_hydro_' num2str(store) '.mat']), 'Maps', '-v7.3');
+            map_checkpoint = fullfile(tempDir, ['save_map_hydro_' num2str(store) '.mat']);
+            map_checkpoint_tmp = [map_checkpoint '.tmp.mat'];
+            save(map_checkpoint_tmp, 'Maps', '-v7.3');
+            movefile(map_checkpoint_tmp, map_checkpoint, 'f');
             store = store + 1;
         end
     end

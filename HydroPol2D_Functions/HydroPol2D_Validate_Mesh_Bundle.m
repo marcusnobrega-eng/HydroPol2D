@@ -425,7 +425,18 @@ function require_matching_crs(mesh_file, child_file, kind)
 require_nonempty_attribute(child_file, 'crs_wkt', kind);
 mesh_crs = string(ncreadatt(mesh_file, '/', 'crs_wkt'));
 child_crs = string(ncreadatt(child_file, '/', 'crs_wkt'));
-if mesh_crs ~= child_crs
+matches = mesh_crs == child_crs;
+if ~matches
+    % HydroBathyDEM may serialize the same CRS as WKT1 in the UGRID file and
+    % WKT2 in a raster-derived overlap. Compare parsed coordinate systems so
+    % formatting differences do not reject an otherwise consistent bundle.
+    try
+        matches = isequal(projcrs(char(mesh_crs)), projcrs(char(child_crs)));
+    catch
+        matches = false;
+    end
+end
+if ~matches
     error('HydroPol2D:ContractCRS', ...
         '%s %s uses a CRS different from mesh %s.', kind, child_file, mesh_file);
 end

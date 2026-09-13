@@ -114,8 +114,13 @@ fprintf('Mean I_t        = %.4f mm\n', mean(Soil_Properties.I_t(:), 'omitnan'));
 % outlet_type = 1;
 
 
-flags.flag_dashboard = 0;
-running_control.report_every_percent = 5;
+if ~isfield(flags, 'flag_dashboard') || isempty(flags.flag_dashboard)
+    flags.flag_dashboard = 0;
+end
+if ~isfield(running_control, 'report_every_percent') || ...
+        isempty(running_control.report_every_percent)
+    running_control.report_every_percent = 5;
+end
 zero_matrix = zeros(ny,nx); zero_matrix(idx_nan) = nan;
 tic
 k = 1; % time-step counter
@@ -645,12 +650,6 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
 
                     else
                         % -------------------- Local Inertial Formulation ----------------%
-                        %                         [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf,Qc,Qf,Qci,Qfi,C_a] = ...
-                        %                             Local_Inertial_Model_D4_old(flags.flag_numerical_scheme,Reservoir_Data.x_index,Reservoir_Data.y_index,Reservoir_Data.k1,Reservoir_Data.h1,Reservoir_Data.k2,Reservoir_Data.k3,Reservoir_Data.h2,Reservoir_Data.k4,Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index,Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index,...
-                        %                             flags.flag_reservoir,Elevation_Properties.elevation_cell,...
-                        %                             depths.d_tot, depths.d_p,LULC_Properties.roughness,Wshed_Properties.cell_area,time_step,Wshed_Properties.Resolution,outlet_index,outlet_type,slope_outlet,Wshed_Properties.row_outlet,Wshed_Properties.col_outlet,CA_States.depth_tolerance,outflow_prev,idx_nan,flags.flag_critical,flags.flag_subgrid,Wshed_Properties.Inbank_Manning,Wshed_Properties.Overbank_Manning,Wshed_Properties.River_Width, Wshed_Properties.River_Depth,Qc,Qf,Qci,Qfi,C_a,Subgrid_Properties,flags.flag_overbanks,flags.flag_inflow, SubgridTables);
-                        %
-                        %                         % Original baseline local inertial solver
                         [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t,outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf,Qc,Qf,Qci,Qfi,C_a] = ...
                             Local_Inertial_Model_D4( ...
                             flags.flag_numerical_scheme, ...
@@ -874,7 +873,6 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
 
             %% Mass Balance Check
             mass_balance_check
-            close all
             % surfmap(depths.d_t); pause(0.1)
 
             % ------------------------------------------------------------------------
@@ -1064,14 +1062,6 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         % current_storage = previous_storage;
         update_spatial_BC
 
-        if  t/running_control.routing_time*100 > 100
-            % Save Workspace for post-processing in case something breaks
-            % afterwards
-            try
-                save('modeled_results.mat', '-v7.3')
-            end
-        end
-
     end
 end
 
@@ -1126,7 +1116,10 @@ if flags.flag_waterquality == 1
     Maps.WQ_States.Pol_mass_map=Maps.WQ_States.Pol_mass_map(:,:,1:saver_count);
 end
 tempDir = fullfile(Paths.Temp);
-save(fullfile(tempDir, ['save_map_hydro_' num2str(store) '.mat']), 'Maps', '-v7.3');
+map_checkpoint = fullfile(tempDir, ['save_map_hydro_' num2str(store) '.mat']);
+map_checkpoint_tmp = [map_checkpoint '.tmp.mat'];
+save(map_checkpoint_tmp, 'Maps', '-v7.3');
+movefile(map_checkpoint_tmp, map_checkpoint, 'f');
 
 
 %% Returning Variables to CPU
@@ -1212,12 +1205,12 @@ if flags.flag_GPU == 1
 end
 
 
-leftovers = find_gpu_leftovers_in_workspace();
-% disp(leftovers);
-
 %% Save Workspace for post-processing
 try
-    save('modeled_results.mat', '-v7.3')
+    workspace_checkpoint = fullfile(pwd, 'modeled_results.mat');
+    workspace_checkpoint_tmp = [workspace_checkpoint '.tmp.mat'];
+    save(workspace_checkpoint_tmp, '-v7.3')
+    movefile(workspace_checkpoint_tmp, workspace_checkpoint, 'f');
 end
 
 function x = gather_deep(x)
