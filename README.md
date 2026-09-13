@@ -100,6 +100,22 @@ the solver. Configure the two schedules and export switches in the
 `Voronoi Output` block of `General_Data.xlsx` or
 `InputData_Bypass.VoronoiOutput`.
 
+### Shared edited-mesh acceptance
+
+The MATLAB reader and solver are checked against the same edited UGRID package
+used by HydroPol2D-Python. From MATLAB, run:
+
+```matlab
+run_mesh_editor_shared_acceptance(meshFile, overlapFile, outputDirectory)
+```
+
+The acceptance requires identical zero-based owner/neighbor topology after
+MATLAB's explicit internal one-based conversion, identical initial storage,
+and numerical-precision mass closure. CRS validation first compares exact WKT
+and then compares parsed projected CRS definitions, so equivalent WKT1 and
+WKT2 encodings are accepted while genuinely different coordinate systems are
+rejected.
+
 Optional application workflows, including the SLURM template and SNISB dam-case runners, are grouped in [`Applications`](Applications/README.md).
 
 ## Example
@@ -276,7 +292,6 @@ The bundled TopoToolbox runtime is documented in
 - University of São Paulo — São Carlos School of Engineering
 - University of Texas at San Antonio — Civil and Environmental Engineering
 - Stanford University — Stanford Doerr School of Sustainability; Department of Earth System Science
-
 
 
 
