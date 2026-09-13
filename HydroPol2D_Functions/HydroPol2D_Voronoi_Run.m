@@ -68,34 +68,44 @@ if use_subgrid
         subgrid_tables.validation.subgrid_cells, mesh.n_cells);
 end
 
-times = []; depths = {}; edge_discharges = {}; momentum_x = {}; momentum_y = {};
-face_flow_depths = {};   % the face depth PAIRED with each stored edge_q
-channel_depths = {}; channel_discharges = {}; transition_discharges = {};
-groundwater_heads = {}; groundwater_exchange = {}; groundwater_seepage = {};
-hydrology_outputs = {}; surface_source_rates = {}; cumulative_surface_source = zeros(n,1);
-cumulative_surface_sources = {}; potential_et_rates = {}; outlet_discharges = [];
+n_output_slots = ceil(config.duration_s / config.output_interval_s) + 1;
+output_count = 1;
+times = zeros(n_output_slots,1);
+depths = cell(n_output_slots,1); edge_discharges = cell(n_output_slots,1);
+momentum_x = cell(n_output_slots,1); momentum_y = cell(n_output_slots,1);
+face_flow_depths = cell(n_output_slots,1);   % depth paired with each stored edge_q
+channel_depths = cell(n_output_slots,1); channel_discharges = cell(n_output_slots,1);
+transition_discharges = cell(n_output_slots,1);
+groundwater_heads = cell(n_output_slots,1); groundwater_exchange = cell(n_output_slots,1);
+groundwater_seepage = cell(n_output_slots,1); hydrology_outputs = cell(n_output_slots,1);
+surface_source_rates = cell(n_output_slots,1); cumulative_surface_source = zeros(n,1);
+cumulative_surface_sources = cell(n_output_slots,1); potential_et_rates = cell(n_output_slots,1);
+outlet_discharges = zeros(n_output_slots,1);
 [gauge_names,gauge_cells,gauge_edges,gauge_signs] = gauge_configuration(config,mesh);
 gauge_discharges = {}; gauge_depths = {}; gauge_wse = {}; diagnostics = struct([]);
 cached_et=[]; cached_open_water_et=[]; next_meteorology_update=0;
 [initial_gauge_q,initial_gauge_depth,initial_gauge_wse] = ...
     gauge_values(gauge_cells,gauge_edges,gauge_signs,edge_q,mesh,surface_volume);
-times=0; depths={surface_volume./mesh.surface_area(:)}; edge_discharges={edge_q};
-face_flow_depths={zeros(mesh.n_edges,1)};
-surface_source_rates={zeros(n,1)}; cumulative_surface_sources={zeros(n,1)};
-potential_et_rates={zeros(n,1)}; outlet_discharges= ...
+times(1)=0; depths{1}=surface_volume./mesh.surface_area(:); edge_discharges{1}=edge_q;
+face_flow_depths{1}=zeros(mesh.n_edges,1);
+surface_source_rates{1}=zeros(n,1); cumulative_surface_sources{1}=zeros(n,1);
+potential_et_rates{1}=zeros(n,1); outlet_discharges(1)= ...
     sum(max(edge_q(mesh.edge_neighbor==0).*mesh.edge_length(mesh.edge_neighbor==0),0));
-gauge_discharges={initial_gauge_q}; gauge_depths={initial_gauge_depth}; gauge_wse={initial_gauge_wse};
-if solver=="full_momentum", momentum_x={hu}; momentum_y={hv}; end
+gauge_discharges=cell(n_output_slots,1); gauge_depths=cell(n_output_slots,1);
+gauge_wse=cell(n_output_slots,1);
+gauge_discharges{1}=initial_gauge_q; gauge_depths{1}=initial_gauge_depth;
+gauge_wse{1}=initial_gauge_wse;
+if solver=="full_momentum", momentum_x{1}=hu; momentum_y{1}=hv; end
 if mesh.channel.n_nodes>0
-    channel_depths={channel_volume./mesh.channel.plan_area(:)};
-    channel_discharges={link_q}; transition_discharges={transition_q};
+    channel_depths{1}=channel_volume./mesh.channel.plan_area(:);
+    channel_discharges{1}=link_q; transition_discharges{1}=transition_q;
 end
 if groundwater.enabled
-    groundwater_heads={groundwater.head};
-    groundwater_exchange={groundwater.last_river_exchange_rate_m_s};
-    groundwater_seepage={groundwater.last_seepage_rate_m_s};
+    groundwater_heads{1}=groundwater.head;
+    groundwater_exchange{1}=groundwater.last_river_exchange_rate_m_s;
+    groundwater_seepage{1}=groundwater.last_seepage_rate_m_s;
 end
-if hydrology.enabled, hydrology_outputs={aggregate_hydrology(hydrology)}; end
+if hydrology.enabled, hydrology_outputs{1}=aggregate_hydrology(hydrology); end
 time_tolerance=max(1e-9,100*eps(max(config.duration_s,1)));
 while t < config.duration_s-time_tolerance
     cfl_state=struct('surface_volume_m3',surface_volume,'channel_volume_m3',channel_volume, ...
@@ -303,44 +313,63 @@ while t < config.duration_s-time_tolerance
                 'surface_depth_m',live_depth,'maximum_depth_m',live_max_depth, ...
                 'maximum_depth_cell',live_max_cell,'maximum_velocity_m_s',surface_diag.max_velocity_m_s, ...
                 'mass_residual_m3',mass-expected,'cfl',cfl); %#ok<NASGU>
-            save(config.progress_checkpoint_file,'live','-v7.3');
+            atomic_save_live(config.progress_checkpoint_file,live);
         end
         next_progress = next_progress + config.progress_interval_s;
     end
     initial_mass = expected;
     if t + eps(t) >= next_output
-        times(end+1,1) = t; %#ok<AGROW>
-        depths{end+1,1} = surface_volume ./ mesh.surface_area(:); %#ok<AGROW>
-        edge_discharges{end+1,1} = edge_q; %#ok<AGROW>
+        output_count = output_count + 1;
+        times(output_count,1) = t;
+        depths{output_count,1} = surface_volume ./ mesh.surface_area(:);
+        edge_discharges{output_count,1} = edge_q;
         if isfield(surface_diag,'face_flow_depth_m')
-            face_flow_depths{end+1,1} = surface_diag.face_flow_depth_m; %#ok<AGROW>
+            face_flow_depths{output_count,1} = surface_diag.face_flow_depth_m;
         else
-            face_flow_depths{end+1,1} = nan(mesh.n_edges,1); %#ok<AGROW>
+            face_flow_depths{output_count,1} = nan(mesh.n_edges,1);
         end
-        surface_source_rates{end+1,1} = source; %#ok<AGROW>
-        cumulative_surface_sources{end+1,1} = cumulative_surface_source; %#ok<AGROW>
-        potential_et_rates{end+1,1} = potential_et; %#ok<AGROW>
+        surface_source_rates{output_count,1} = source;
+        cumulative_surface_sources{output_count,1} = cumulative_surface_source;
+        potential_et_rates{output_count,1} = potential_et;
         boundary_edges = mesh.edge_neighbor == 0;
-        outlet_discharges(end+1,1) = sum(max(edge_q(boundary_edges).*mesh.edge_length(boundary_edges),0)); %#ok<AGROW>
+        outlet_discharges(output_count,1) = sum(max(edge_q(boundary_edges).*mesh.edge_length(boundary_edges),0));
         if solver == "full_momentum"
-            momentum_x{end+1,1}=hu; momentum_y{end+1,1}=hv; %#ok<AGROW>
+            momentum_x{output_count,1}=hu; momentum_y{output_count,1}=hv;
         end
         if mesh.channel.n_nodes > 0
-            channel_depths{end+1,1} = channel_volume ./ mesh.channel.plan_area(:); %#ok<AGROW>
-            channel_discharges{end+1,1} = link_q; %#ok<AGROW>
-            transition_discharges{end+1,1} = transition_q; %#ok<AGROW>
+            channel_depths{output_count,1} = channel_volume ./ mesh.channel.plan_area(:);
+            channel_discharges{output_count,1} = link_q;
+            transition_discharges{output_count,1} = transition_q;
         end
         if groundwater.enabled
-            groundwater_heads{end+1,1}=groundwater.head; %#ok<AGROW>
-            groundwater_exchange{end+1,1}=groundwater.last_river_exchange_rate_m_s; %#ok<AGROW>
-            groundwater_seepage{end+1,1}=groundwater.last_seepage_rate_m_s; %#ok<AGROW>
+            groundwater_heads{output_count,1}=groundwater.head;
+            groundwater_exchange{output_count,1}=groundwater.last_river_exchange_rate_m_s;
+            groundwater_seepage{output_count,1}=groundwater.last_seepage_rate_m_s;
         end
-        if hydrology.enabled, hydrology_outputs{end+1,1}=aggregate_hydrology(hydrology); end %#ok<AGROW>
-        [gauge_discharges{end+1,1},gauge_depths{end+1,1},gauge_wse{end+1,1}] = ... %#ok<AGROW>
+        if hydrology.enabled, hydrology_outputs{output_count,1}=aggregate_hydrology(hydrology); end
+        [gauge_discharges{output_count,1},gauge_depths{output_count,1},gauge_wse{output_count,1}] = ...
             gauge_values(gauge_cells,gauge_edges,gauge_signs,edge_q,mesh,surface_volume);
         next_output = next_output + config.output_interval_s;
     end
 end
+times=times(1:output_count); depths=depths(1:output_count); edge_discharges=edge_discharges(1:output_count);
+face_flow_depths=face_flow_depths(1:output_count); momentum_x=momentum_x(1:output_count);
+momentum_y=momentum_y(1:output_count); channel_depths=channel_depths(1:output_count);
+channel_discharges=channel_discharges(1:output_count); transition_discharges=transition_discharges(1:output_count);
+groundwater_heads=groundwater_heads(1:output_count); groundwater_exchange=groundwater_exchange(1:output_count);
+groundwater_seepage=groundwater_seepage(1:output_count); hydrology_outputs=hydrology_outputs(1:output_count);
+surface_source_rates=surface_source_rates(1:output_count); cumulative_surface_sources=cumulative_surface_sources(1:output_count);
+potential_et_rates=potential_et_rates(1:output_count); outlet_discharges=outlet_discharges(1:output_count);
+gauge_discharges=gauge_discharges(1:output_count); gauge_depths=gauge_depths(1:output_count);
+gauge_wse=gauge_wse(1:output_count);
+if solver ~= "full_momentum", momentum_x={}; momentum_y={}; end
+if mesh.channel.n_nodes == 0
+    channel_depths={}; channel_discharges={}; transition_discharges={};
+end
+if ~groundwater.enabled
+    groundwater_heads={}; groundwater_exchange={}; groundwater_seepage={};
+end
+if ~hydrology.enabled, hydrology_outputs={}; end
 results.mesh_file = mesh_file;
 results.preflight = preflight;
 results.time_s = times;
@@ -391,6 +420,13 @@ if isfield(forcing,'overlap_file'), results.overlap_file=forcing.overlap_file; e
 if ~isempty(config.output_netcdf)
     HydroPol2D_Write_Voronoi_Output(config.output_netcdf, mesh, results, config.overwrite_output);
 end
+end
+
+function atomic_save_live(path,live)
+temporary_path=[path '.tmp.mat'];
+save(temporary_path,'live','-v7.3');
+[moved,message]=movefile(temporary_path,path,'f');
+assert(moved,'HydroPol2D:CheckpointWrite','Could not promote checkpoint: %s',message);
 end
 
 function config = defaults(config)
