@@ -141,10 +141,6 @@ if exist('Outlet_Properties','var') && isstruct(Outlet_Properties) && ...
     flag_HR_full_momentum = Outlet_Properties.flag_HR_full_momentum;
 end
 
-% Safety velocity limiter. This is a numerical protection, not a boundary
-% condition. You can increase this after verification if needed.
-max_velocity = 10.0;          % [m/s]
-
 % Coarse-grid full-momentum version.
 Qc  = 0; Qf  = 0; Qci = 0; Qfi = 0;
 
@@ -245,8 +241,8 @@ n2(~isfinite(n2) | n2 < 0) = 0;
 % -------------------------------------------------------------------------
 [hu,hv] = recover_momentum_from_outflow(outflow, C_a, dx, h, h_dry, active);
 
-% Remove momentum from dry/inactive cells and prevent unrealistic velocities.
-[hu,hv] = clean_and_limit_momentum(hu, hv, h, h_dry, active, max_velocity);
+% Remove momentum from dry or inactive cells.
+[hu,hv] = clean_momentum(hu, hv, h, h_dry, active);
 
 %% ------------------------------------------------------------------------
 % 1B. Bed-slope + exact implicit Manning friction predictor
@@ -292,8 +288,7 @@ if flag_source_friction_predictor == 1
     [hu_flux,hv_flux] = apply_manning_friction_exact_implicit( ...
         hu_star, hv_star, h, n2, dt, g, h_dry, active);
 
-    [hu_flux,hv_flux] = clean_and_limit_momentum( ...
-        hu_flux, hv_flux, h, h_dry, active, max_velocity);
+    [hu_flux,hv_flux] = clean_momentum(hu_flux, hv_flux, h, h_dry, active);
 
     use_source_friction_predictor = true;
 
@@ -464,7 +459,7 @@ if flag_post_flux_friction_corrector == 1
 
 end
 
-[hu_new,hv_new] = clean_and_limit_momentum(hu_new, hv_new, h_new, h_dry, active, max_velocity);
+[hu_new,hv_new] = clean_momentum(hu_new, hv_new, h_new, h_dry, active);
 %% ------------------------------------------------------------------------
 % 7. Reservoir boundary condition copied in structure from local inertial
 % -------------------------------------------------------------------------
@@ -705,7 +700,7 @@ end
 % Final dry cleanup after outlet.
 h_final = max(d_t/1000, 0);
 h_final(~active) = 0;
-[hu_new,hv_new] = clean_and_limit_momentum(hu_new, hv_new, h_final, h_dry, active, max_velocity);
+[hu_new,hv_new] = clean_momentum(hu_new, hv_new, h_final, h_dry, active);
 
 %% ------------------------------------------------------------------------
 % 10. Assemble outputs in the same style as Local_Inertial_Model_D4
@@ -766,7 +761,7 @@ hv(~active | h <= h_dry) = 0;
 
 end
 
-function [hu,hv] = clean_and_limit_momentum(hu, hv, h, h_dry, active, max_velocity)
+function [hu,hv] = clean_momentum(hu, hv, h, h_dry, active)
 
 hu(~isfinite(hu)) = 0;
 hv(~isfinite(hv)) = 0;
@@ -774,16 +769,6 @@ hv(~isfinite(hv)) = 0;
 iswet = active & h > h_dry;
 hu(~iswet) = 0;
 hv(~iswet) = 0;
-
-speed = zeros(size(h), 'like', h);
-speed(iswet) = sqrt(hu(iswet).^2 + hv(iswet).^2) ./ max(h(iswet), h_dry);
-
-idx = iswet & speed > max_velocity;
-if any(idx(:))
-    fac = max_velocity ./ max(speed(idx), 1e-12);
-    hu(idx) = hu(idx) .* fac;
-    hv(idx) = hv(idx) .* fac;
-end
 
 end
 

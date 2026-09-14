@@ -291,26 +291,8 @@ if flag_critical == 1
     outflow = min(max(outflow, -critical_velocity), critical_velocity);
 end
 
-%% Convert q -> discharge rate Q
+%% Apply the conservative draining limiter
 q = outflow; % [m2/s]
-
-if use_sharedface_subgrid
-    outflow_rate = zeros(size(q), 'like', q);
-    outflow_rate(:,:,1) = q(:,:,1) .* Wf_x;
-    outflow_rate(:,:,2) = q(:,:,2) .* Wf_y;
-else
-    outflow_rate = outflow .* cell_width;
-end
-
-outflow = outflow_rate./cell_area*1000*3600; % [mm/h]
-matrix_store = outflow;
-
-%% Limiting outflow to maximum velocity
-max_velocity = 10; % [m/s]
-threshold_velocity = Hf(:,:,1:size(outflow,3)) * max_velocity;
-q = min(max(q, -threshold_velocity), threshold_velocity);
-
-% Recompute discharge after clipping
 if use_sharedface_subgrid
     outflow_rate = zeros(size(q), 'like', q);
     outflow_rate(:,:,1) = q(:,:,1) .* Wf_x;

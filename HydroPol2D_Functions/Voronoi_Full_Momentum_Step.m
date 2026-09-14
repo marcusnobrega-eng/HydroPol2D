@@ -15,7 +15,6 @@ arguments
     dt (1,1) double {mustBePositive}
     options.gravity (1,1) double = 9.81
     options.dry_tolerance_m (1,1) double = 1e-6
-    options.maximum_velocity_m_s (1,1) double {mustBePositive} = 10
 end
 
 n = mesh.n_cells;
@@ -110,7 +109,7 @@ hnew=surface_volume./mesh.surface_area(:);
 % Exact pointwise implicit Manning friction.  It is safe for CPU now and
 % vectorized for the later gpuArray execution path.
 [hu,hv]=apply_manning_friction(hu,hv,hnew,roughness,dt,options.gravity,options.dry_tolerance_m);
-[hu,hv]=limit_momentum(hu,hv,hnew,options.dry_tolerance_m,options.maximum_velocity_m_s);
+[hu,hv]=clean_momentum(hu,hv,hnew,options.dry_tolerance_m);
 internal_q=Q(internal); boundary_q=Q(~internal);
 speed=sqrt(hu.^2+hv.^2)./max(hnew,options.dry_tolerance_m);
 diagnostics=struct('max_depth_m',max(hnew),'max_velocity_m_s',max(speed,[],'omitnan'), ...
@@ -176,8 +175,7 @@ updated(active)=2.*magnitude(active)./(1+sqrt(1+4.*a(active).*magnitude(active))
 scale=zeros(size(h)); scale(active)=updated(active)./magnitude(active); hu=hu.*scale; hv=hv.*scale;
 end
 
-function [hu,hv] = limit_momentum(hu,hv,h,dry,max_velocity)
-wet=h>dry; hu(~wet)=0; hv(~wet)=0; speed=zeros(size(h)); speed(wet)=sqrt(hu(wet).^2+hv(wet).^2)./h(wet);
-limited=wet & speed>max_velocity; factor=max_velocity./speed(limited); hu(limited)=hu(limited).*factor; hv(limited)=hv(limited).*factor;
+function [hu,hv] = clean_momentum(hu,hv,h,dry)
+wet=h>dry; hu(~wet)=0; hv(~wet)=0;
 hu(~isfinite(hu))=0; hv(~isfinite(hv))=0;
 end
