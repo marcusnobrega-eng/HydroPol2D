@@ -16,6 +16,8 @@ bundle and the HydroPol2D-Python `0.9.0rc1` compatibility set.
 - Removed the arbitrary 10 m/s surface-velocity cap from regular-grid and Voronoi routing;
   stability remains controlled by the shared Courant timestep, wet/dry treatment, friction, and
   conservative draining limiters.
+- Aligned the MATLAB Voronoi wet/dry default with Python at 1 mm, so sub-millimetre numerical
+  films do not generate surface discharge.
 - Shared mesh acceptance for explicit zero-based file indexing, MATLAB one-based conversion,
   topology, initial storage, and mass closure.
 - Native post-processing exports now preserve groundwater-only maps and use consistent gathered

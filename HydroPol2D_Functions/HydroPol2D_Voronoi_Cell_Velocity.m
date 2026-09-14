@@ -13,7 +13,7 @@ function velocity = HydroPol2D_Voronoi_Cell_Velocity(mesh, depth_m, edge_q_m2_s,
 %   only the diagnostic was inconsistent.  With the paired depth the same run
 %   reports 1.020 m/s and no cell above 5 m/s.
 
-if nargin < 4 || isempty(dry_tolerance_m), dry_tolerance_m = 1e-6; end
+if nargin < 4 || isempty(dry_tolerance_m), dry_tolerance_m = 1e-3; end
 if nargin < 5, face_depth_m = []; end
 assert(size(depth_m,1) == mesh.n_cells && size(edge_q_m2_s,1) == mesh.n_edges);
 assert(size(depth_m,2) == size(edge_q_m2_s,2));

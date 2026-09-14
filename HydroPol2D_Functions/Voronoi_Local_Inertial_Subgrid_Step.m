@@ -36,7 +36,7 @@ arguments
     tables struct
     dt (1,1) double {mustBePositive}
     options.gravity (1,1) double = 9.81
-    options.dry_tolerance_m (1,1) double = 1e-6
+    options.dry_tolerance_m (1,1) double = 1e-3
     options.critical_flow (1,1) logical = false
 end
 

@@ -6,7 +6,7 @@ arguments
     surface_volume (:,1) double
     roughness double
     dt (1,1) double {mustBePositive}
-    options.dry_tolerance_m (1,1) double = 1e-6
+    options.dry_tolerance_m (1,1) double = 1e-3
     options.slope_regularization (1,1) double {mustBePositive} = 1e-4
 end
 
