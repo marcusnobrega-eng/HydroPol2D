@@ -312,6 +312,48 @@ if flags.flag_elapsed_time ~=1
     end
 end
 
+% Map snapshots represent completed recording intervals.  time_records also
+% contains the initial interval boundary, so a complete run normally has one
+% fewer saved maps than time records.  Count the maps on disk instead of
+% assuming those lengths are identical.
+mapChunkFiles = dir(fullfile(tempDir, 'save_map_hydro_*.mat'));
+if isempty(mapChunkFiles)
+    error('No saved map chunks found in %s', tempDir);
+end
+mapChunkNumbers = nan(numel(mapChunkFiles), 1);
+for chunk_i = 1:numel(mapChunkFiles)
+    token = regexp(mapChunkFiles(chunk_i).name, '^save_map_hydro_(\d+)\.mat$', 'tokens', 'once');
+    if ~isempty(token)
+        mapChunkNumbers(chunk_i) = str2double(token{1});
+    end
+end
+mapChunkFiles = mapChunkFiles(isfinite(mapChunkNumbers));
+mapChunkNumbers = mapChunkNumbers(isfinite(mapChunkNumbers));
+[mapChunkNumbers, chunkOrder] = sort(mapChunkNumbers);
+mapChunkFiles = mapChunkFiles(chunkOrder);
+if isempty(mapChunkFiles) || ~isequal(mapChunkNumbers(:), (1:numel(mapChunkFiles))')
+    error('Saved map chunks must be consecutively numbered from 1 in %s', tempDir);
+end
+
+lastChunk = load(fullfile(mapChunkFiles(end).folder, mapChunkFiles(end).name), 'Maps');
+lastChunkMapCount = size(lastChunk.Maps.Hydro.d, 3);
+clear lastChunk
+n_saved_maps = (numel(mapChunkFiles) - 1) * saver_memory_maps + lastChunkMapCount;
+n_time_records = numel(running_control.time_records);
+if n_saved_maps == n_time_records - 1
+    map_time_records = running_control.time_records(2:end);
+elseif n_saved_maps == n_time_records
+    map_time_records = running_control.time_records;
+elseif n_saved_maps < n_time_records && n_saved_maps + 1 <= n_time_records
+    warning(['Found %d saved maps for %d time records. Using the first %d ' ...
+        'completed interval times.'], n_saved_maps, n_time_records, n_saved_maps);
+    map_time_records = running_control.time_records(2:(n_saved_maps + 1));
+else
+    error('Found %d saved maps but only %d time records.', n_saved_maps, n_time_records);
+end
+fprintf('Post-processing %d saved maps using %d interval-end timestamps.\n', ...
+    n_saved_maps, numel(map_time_records));
+
 
 %% Outlet Hydrograph
 close all force
@@ -627,7 +669,7 @@ if flags.flag_spatial_rainfall == 1 && running_control.record_time_spatial_rainf
     store = 1;
     flag_loader = 1;
     rainfall_sum = zeros(size(zero_matrix));
-    for i = 1:length(running_control.time_records)
+    for i = 1:n_saved_maps
         if i > saver_memory_maps * store
             store = store + 1;
             load(fullfile(tempDir, ['save_map_hydro_' num2str(store)]), 'Maps');
@@ -769,7 +811,7 @@ if flags.flag_ETP == 1
     ETR_sum = zeros(size(zero_matrix));
     ETP_sum = zeros(size(zero_matrix));
 
-    for i = 1:length(running_control.time_records)
+    for i = 1:n_saved_maps
         try
             % Load new batch of saved maps when needed
             if i > saver_memory_maps * store
@@ -1406,9 +1448,9 @@ if flags.flag_export_maps == 1
     %=========================================================
     % 3) PREPARE TIME VECTOR FOR AGGREGATED NETCDF FILES
     %=========================================================
-    nTimes = length(running_control.time_records);
+    nTimes = n_saved_maps;
 
-    tvec = running_control.time_records(:);
+    tvec = map_time_records(:);
 
     if flags.flag_elapsed_time == 1
         % --------------------------------------------------
@@ -1501,9 +1543,9 @@ if flags.flag_export_maps == 1
     flag_loader = 1;
     mapFile = fullfile(tempDir, sprintf('save_map_hydro_%d', store));
 
-    for i = 1:length(running_control.time_records)
+    for i = 1:n_saved_maps
 
-        raster_exportion_percentage = i / length(running_control.time_records) * 100
+        raster_exportion_percentage = i / n_saved_maps * 100
 
         %-----------------------------------------
         % Load maps in chunks (platform independent)
@@ -1538,13 +1580,13 @@ if flags.flag_export_maps == 1
         local_i = i - ((store-1) * saver_memory_maps);
 
         % Threshold mask
-        idx_depth = Maps.Hydro.d(:,:,local_i) < 0 * 1000; % currently deactivated
+        idx_depth = gather(Maps.Hydro.d(:,:,local_i) < 0 * 1000); % currently deactivated
 
         if flags.flag_elapsed_time ~= 1
-            time_map = datestr(running_control.time_records(i), 'yyyy_mm_dd_hh_MM_ss');
-            time_stamp_str = datestr(running_control.time_records(i), 'yyyy-mm-dd HH:MM:ss');
+            time_map = datestr(map_time_records(i), 'yyyy_mm_dd_hh_MM_ss');
+            time_stamp_str = datestr(map_time_records(i), 'yyyy-mm-dd HH:MM:ss');
         else
-            time_map = running_control.time_records(i) / 60; % hours
+            time_map = map_time_records(i) / 60; % hours
             time_stamp_str = sprintf('Elapsed time = %.6f h', time_map);
         end
 
@@ -1558,7 +1600,7 @@ if flags.flag_export_maps == 1
                 baseName = sprintf('Flood_Depths_%s', string(time_map));
             end
 
-            raster_exportion = Maps.Hydro.d(:,:,local_i) / 1000; % m
+            raster_exportion = gather(Maps.Hydro.d(:,:,local_i)) / 1000; % m
             raster_exportion(idx_nan) = no_data_value;
             raster_exportion(idx_depth) = no_data_value;
 
@@ -1569,7 +1611,7 @@ if flags.flag_export_maps == 1
                 baseName = sprintf('Water_Surface_Elevation_%s', string(time_map));
             end
 
-            raster_exportion = Maps.Hydro.d(:,:,local_i)/1000 + ...
+            raster_exportion = gather(Maps.Hydro.d(:,:,local_i))/1000 + ...
                 double(idx_Elevation_Properties.elevation_cell) .* Elevation_Properties.elevation_cell;
 
             raster_exportion(idx_nan) = no_data_value;
@@ -1581,7 +1623,7 @@ if flags.flag_export_maps == 1
         %-----------------------------------------
         % Export HYDRO (subgrid vs regular)
         %-----------------------------------------
-        if flags.flag_subgrid ~= 1
+        if flags.flag_subgrid ~= 1 || flags.flag_overbanks == 1
             raster_to_export = DEM_raster;
             raster_to_export.Z = raster_exportion;
         else
@@ -1630,7 +1672,7 @@ if flags.flag_export_maps == 1
             end
             outTifVel = fullfile(myFolder_vel, baseNameVel + ".tif");
 
-            vel_exp = double(Maps.Hydro.velocity(:,:,local_i));
+            vel_exp = double(gather(Maps.Hydro.velocity(:,:,local_i)));
             vel_exp(~isfinite(vel_exp)) = no_data_value;
             vel_exp(idx_nan) = no_data_value;
 
@@ -1652,7 +1694,7 @@ if flags.flag_export_maps == 1
             end
             outTifHaz = fullfile(myFolder_haz, baseNameHaz + ".tif");
 
-            haz_exp = double(Maps.Hydro.hazard_dv(:,:,local_i));
+            haz_exp = double(gather(Maps.Hydro.hazard_dv(:,:,local_i)));
             haz_exp(~isfinite(haz_exp)) = no_data_value;
             haz_exp(idx_nan) = no_data_value;
 
@@ -1674,7 +1716,7 @@ if flags.flag_export_maps == 1
             end
             outTifInf = fullfile(myFolder_inf, baseNameInf + ".tif");
 
-            inf_exp = double(Maps.Hydro.I_t(:,:,local_i)) / 1000; % mm → m
+            inf_exp = double(gather(Maps.Hydro.I_t(:,:,local_i))) / 1000; % mm → m
             inf_exp(~isfinite(inf_exp)) = no_data_value;
             inf_exp(idx_nan)            = no_data_value;
 
@@ -1720,7 +1762,7 @@ if flags.flag_export_maps == 1
 
             outTifWQ = fullfile(myFolder_wq, baseNameWQ + ".tif");
 
-            raster_exportion = Maps.WQ_States.Pol_Conc_Map(:,:,local_i);
+            raster_exportion = gather(Maps.WQ_States.Pol_Conc_Map(:,:,local_i));
             idx_ = raster_exportion < LULC_Properties.Pol_min;
             raster_exportion(idx_) = no_data_value;
             raster_exportion(isnan(raster_exportion)) = no_data_value;
@@ -1767,7 +1809,7 @@ if flags.flag_export_maps == 1
 
             outTifHR = fullfile(myFolder_hr, baseNameHR + ".tif");
 
-            raster_exportion = double(Maps.Hydro.risk(:,:,local_i));
+            raster_exportion = double(gather(Maps.Hydro.risk(:,:,local_i)));
             raster_exportion(isnan(raster_exportion)) = no_data_value;
             raster_exportion(isinf(raster_exportion)) = no_data_value;
             raster_exportion(raster_exportion < 0) = no_data_value;
@@ -1931,7 +1973,7 @@ if flags.flag_export_maps == 1
 
         zzz = -inf(size(DEM_raster.Z,1), size(DEM_raster.Z,2));
 
-        for i = 1:length(running_control.time_records)
+        for i = 1:n_saved_maps
             if i > saver_memory_maps * store
                 store = store + 1;
                 mapFile = fullfile(tempDir, sprintf('save_map_hydro_%d', store));
@@ -1979,7 +2021,7 @@ if flags.flag_export_maps == 1
             store = 1;
             flag_loader = 1;
 
-            for i = 1:length(running_control.time_records)
+            for i = 1:n_saved_maps
                 if i > saver_memory_maps * store
                     store = store + 1;
                     mapFile = fullfile(tempDir, sprintf('save_map_hydro_%d', store));
@@ -2038,6 +2080,12 @@ if flags.flag_export_maps == 1
     if flags.flag_subgrid ~= 1
         raster_to_export = DEM_raster;
         zzz = depths.dmax_final / 1000;
+        idx_wse = zzz < depths.depth_wse;
+    elseif flags.flag_overbanks == 1
+        % Neal channel subgrid stores surface/overbank depth on the model
+        % grid. It does not define a separate fine-resolution DEM.
+        raster_to_export = DEM_raster;
+        zzz = Max_depth_d / 1000;
         idx_wse = zzz < depths.depth_wse;
     else
         raster_to_export = DEM_raster_high_resolution;
@@ -2167,8 +2215,8 @@ if flags.flag_export_maps == 1
         store = 1;
         flag_loader = 1;
 
-        for i = 1:length(running_control.time_records)
-            if i == length(running_control.time_records)
+        for i = 1:n_saved_maps
+            if i == n_saved_maps
 
                 outTif = fullfile(Dirs.RastersStatic, "Final_Mass_Of_Pollutant.tif");
 
@@ -3346,7 +3394,7 @@ end
 
 function gw_exp = local_get_groundwater_depth_export(HydroMaps, local_i, Soil_Properties)
 % Returns depth to water table below surface [m].
-    gw_exp = double(HydroMaps.GWdepth_save(:,:,local_i));
+    gw_exp = double(gather(HydroMaps.GWdepth_save(:,:,local_i)));
     is_new_zwt = isfield(HydroMaps, 'GWdepth_is_zwt') && isequal(HydroMaps.GWdepth_is_zwt, 1);
     if ~is_new_zwt
         gw_exp = Soil_Properties.Soil_Depth - gw_exp;

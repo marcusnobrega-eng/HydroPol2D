@@ -365,16 +365,16 @@ targetW = [];
 % Create colorbars once to reduce jitter
 cb1 = []; cb2 = [];
 
-for t = 1:f:length(running_control.time_records)
+for t = 1:f:n_saved_maps
 
-    t_title = running_control.time_records(t);
+    t_title = map_time_records(t);
 
     if t > saver_memory_maps * store
         store = store + 1;
-        load(fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store)), 'Maps');
+        load(fullfile(tempDir, sprintf('save_map_hydro_%d', store)), 'Maps');
         flag_loader = 0;
     elseif flag_loader == 1
-        load(fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store)), 'Maps');
+        load(fullfile(tempDir, sprintf('save_map_hydro_%d', store)), 'Maps');
         flag_loader = 0;
     end
 
@@ -519,18 +519,18 @@ cb.FontName = 'Garamond';
 cb.FontSize = 12;
 cb.TickDirection = 'out';
 
-for t = 1:f:length(running_control.time_records)
+for t = 1:f:n_saved_maps
 
     cla(ax);
 
-    t_title = running_control.time_records(t);
+    t_title = map_time_records(t);
 
     if t > saver_memory_maps * store
         store = store + 1;
-        load(fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store)), 'Maps');
+        load(fullfile(tempDir, sprintf('save_map_hydro_%d', store)), 'Maps');
         flag_loader = 0;
     elseif flag_loader == 1
-        load(fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store)), 'Maps');
+        load(fullfile(tempDir, sprintf('save_map_hydro_%d', store)), 'Maps');
         flag_loader = 0;
     end
 
@@ -622,17 +622,17 @@ if flags.flag_subgrid == 1 && flags.flag_overbanks ~= 1
     cb.FontSize = 12;
     cb.TickDirection = 'out';
 
-    for t = 1:f:length(running_control.time_records)
+    for t = 1:f:n_saved_maps
         cla(ax);
 
-        t_title = running_control.time_records(t);
+        t_title = map_time_records(t);
 
         if t > saver_memory_maps * store
             store = store + 1;
-            load(fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store)), 'Maps');
+            load(fullfile(tempDir, sprintf('save_map_hydro_%d', store)), 'Maps');
             flag_loader = 0;
         elseif flag_loader == 1
-            load(fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store)), 'Maps');
+            load(fullfile(tempDir, sprintf('save_map_hydro_%d', store)), 'Maps');
             flag_loader = 0;
         end
 
@@ -642,7 +642,7 @@ if flags.flag_subgrid == 1 && flags.flag_overbanks ~= 1
         z2 = gatherIfNeeded(Maps.Hydro.d(:, :, local_t)) / 1000;
         z2(z2 <= 0 | idx2(:, :, local_t)) = NaN;
 
-        if flags.flag_subgrid ~= 1
+        if flags.flag_subgrid ~= 1 || flags.flag_overbanks == 1
             raster_to_export = DEM_raster;
             raster_to_export.Z = z2;
             x_grid_local = raster_to_export.refmat(3,1) + (1:size(raster_to_export.Z,2)) * raster_to_export.cellsize;
@@ -733,16 +733,16 @@ if flags.flag_snow_modeling == 1
     cb.FontName = 'Garamond'; cb.FontSize = 12; cb.TickDirection  = 'out';
     ylabel(cb,'Snowpack [mm]','Interpreter','Latex','FontSize',12);
 
-    for t = 1:f:length(running_control.time_records)
+    for t = 1:f:n_saved_maps
         cla(ax);
-        t_title = running_control.time_records(t);
+        t_title = map_time_records(t);
 
         if t > saver_memory_maps*store
             store = store + 1;
-            load(fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store)), 'Maps');
+            load(fullfile(tempDir, sprintf('save_map_hydro_%d', store)), 'Maps');
             flag_loader = 0;
         elseif flag_loader == 1
-            load(fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store)), 'Maps');
+            load(fullfile(tempDir, sprintf('save_map_hydro_%d', store)), 'Maps');
             flag_loader = 0;
         end
 
@@ -820,7 +820,7 @@ if flags.flag_snow_modeling == 1
         end
     end
     surf(x_grid,y_grid,F);
-    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
+    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid))])
     shading interp;
     title(title_isoietal,'Interpreter','Latex','FontSize',12);
     colormap(Spectrum)
@@ -862,7 +862,7 @@ if flags.flag_groundwater_modeling == 1
         end
     end
     surf(x_grid,y_grid,F);
-    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
+    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid))])
     shading interp;
     title(title_isoietal,'Interpreter','Latex','FontSize',12);
     colormap(Spectrum)
@@ -920,17 +920,17 @@ if flags.flag_groundwater_modeling == 1 && flag_export_groundwater_maps
     cb.FontSize = 12;
     cb.TickDirection = 'out';
 
-    for t = 1:f:length(running_control.time_records)
+    for t = 1:f:n_saved_maps
         cla(ax);
 
-        t_title = running_control.time_records(t);
+        t_title = map_time_records(t);
 
         if t > saver_memory_maps * store
             store = store + 1;
-            load(fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store)), 'Maps');
+            load(fullfile(tempDir, sprintf('save_map_hydro_%d', store)), 'Maps');
             flag_loader = 0;
         elseif flag_loader == 1
-            load(fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store)), 'Maps');
+            load(fullfile(tempDir, sprintf('save_map_hydro_%d', store)), 'Maps');
             flag_loader = 0;
         end
 
@@ -1020,17 +1020,17 @@ if flags.flag_abstraction == 1
     cb = colorbar(ax); cb.FontName='Garamond'; cb.FontSize=12; cb.TickDirection='out';
     ylabel(cb,'Interception [mm]','Interpreter','Latex','FontSize',12);
 
-    for t = 1:f:length(running_control.time_records)
+    for t = 1:f:n_saved_maps
         cla(ax);
 
-        t_title = running_control.time_records(t);
+        t_title = map_time_records(t);
 
         if t > saver_memory_maps*store
             store = store + 1;
-            load(fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store)), 'Maps');
+            load(fullfile(tempDir, sprintf('save_map_hydro_%d', store)), 'Maps');
             flag_loader = 0;
         elseif flag_loader == 1
-            load(fullfile('Temporary_Files', sprintf('save_map_hydro_%d', store)), 'Maps');
+            load(fullfile(tempDir, sprintf('save_map_hydro_%d', store)), 'Maps');
             flag_loader = 0;
         end
 
@@ -1122,7 +1122,7 @@ if flags.flag_spatial_rainfall == 1
     end
 
     surf(x_grid,y_grid,F);
-    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
+    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid))])
     shading interp;
     title(title_isoietal,'Interpreter','Latex','FontSize',12);
     colormap(Spectrum)
@@ -1174,7 +1174,7 @@ if flags.flag_ETP == 1
         end
     end
     surf(x_grid,y_grid,F);
-    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
+    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid))])
     shading interp;
     title(title_isoietal,'Interpreter','Latex','FontSize',12);
     colormap(Spectrum)
@@ -1226,7 +1226,7 @@ if flags.flag_ETP == 1
         end
     end
     surf(x_grid,y_grid,F);
-    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
+    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid))])
     shading interp;
     title(title_isoietal,'Interpreter','Latex','FontSize',12);
     colormap(Spectrum)
@@ -1271,7 +1271,7 @@ if flags.flag_infiltration == 1
         end
     end
     surf(x_grid,y_grid,F);
-    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid)) zmin zmax])
+    axis([min(min(x_grid)) max(max(x_grid)) min(min(y_grid)) max(max(y_grid))])
     shading interp;
     title(title_isoietal,'Interpreter','Latex','FontSize',12);
     colormap(Spectrum)
@@ -1364,10 +1364,10 @@ if flags.flag_waterquality == 1
     ylabel(cb, 'Concentration (mg/L)', 'Interpreter', 'Latex', 'FontSize', 12)
 
     if isfinite(zmax_all)
-        for t = 1:f:length(running_control.time_records)
+        for t = 1:f:n_saved_maps
             cla(ax);
 
-            t_title = running_control.time_records(t);
+            t_title = map_time_records(t);
             zmax = max(z(:,:,t), [], 'all', 'omitnan');
             zmin = min(z(:,:,t), [], 'all', 'omitnan');
             zmax = max(zmax, 0);
@@ -1454,10 +1454,10 @@ if flags.flag_waterquality == 1
     cb.TickDirection = 'out';
     ylabel(cb, 'Log-scale Mass of pollutant ($\mathrm{g/m^2}$)', 'Interpreter', 'Latex', 'FontSize', 12)
 
-    for t = 1:f:length(running_control.time_records)
+    for t = 1:f:n_saved_maps
         cla(ax);
 
-        t_title = running_control.time_records(t);
+        t_title = map_time_records(t);
         LULC_Properties.Pol_min = 0.01;
         z(z <= LULC_Properties.Pol_min) = nan;
         F = z([ybegin:1:yend],[xbegin:1:xend],t);
@@ -1649,11 +1649,16 @@ function ok = convertAviToMp4FFmpeg(aviPath, mp4Path, fps, crf, preset)
     cmd = sprintf('ffmpeg -y -hide_banner -loglevel error -r %g -i "%s" -c:v libx264 -pix_fmt yuv420p -crf %d -preset %s "%s"', ...
         fps, aviPath, crf, preset, mp4Path);
 
-    [status, ~] = system(cmd);
+    [status, output] = system(cmd);
+    if status ~= 0
+        cmd = sprintf('ffmpeg -y -hide_banner -loglevel error -r %g -i "%s" -c:v mpeg4 -q:v 3 -pix_fmt yuv420p "%s"', ...
+            fps, aviPath, mp4Path);
+        [status, output] = system(cmd);
+    end
     if status == 0 && exist(mp4Path,'file')
         ok = true;
     else
-        warning('ffmpeg conversion failed for %s', aviPath);
+        warning('ffmpeg conversion failed for %s: %s', aviPath, strtrim(output));
     end
 end
 
