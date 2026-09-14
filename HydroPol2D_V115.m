@@ -79,6 +79,12 @@ run_mode = 'bypass';   % 'excel' or 'bypass'
 clean_output_folder = true;   % true = wipe Outputs folder before run
 run_postprocessing  = true;   % run post_processing step
 enable_logging      = true;   % write log file
+if strcmp(getenv('HYDROPOL_PREFLIGHT_ONLY'), '1')
+    clean_output_folder = false;
+end
+if strcmp(getenv('HYDROPOL_SKIP_POSTPROCESS'), '1')
+    run_postprocessing = false;
+end
 
 %% ========================================================================
 % SECTION A — EXCEL MODE INPUTS
@@ -192,6 +198,34 @@ input_data_bypass_script_path = fullfile(launcher_root, 'Config', ...
 % -------------------------------------------------------------------------
 Overrides = struct();
 
+% Optional cluster/case profile. Empty means the portable defaults above.
+india_case_root = getenv('HYDROPOL_INDIA_CASE_ROOT');
+if ~isempty(india_case_root)
+    static_root = fullfile(india_case_root, 'Static');
+    forcing_root = fullfile(india_case_root, 'Forcing');
+    Overrides.DEM_path = fullfile(static_root, 'DEM.tif');
+    Overrides.LULC_path = fullfile(static_root, 'LULC.tif');
+    Overrides.SOIL_path = fullfile(static_root, 'SOIL.tif');
+    Overrides.DTB_path = fullfile(static_root, 'DTB.tif');
+    Overrides.GW_table_path = fullfile(static_root, 'GW_table.tif');
+    Overrides.GW_Dirichlet_Head_path = fullfile(static_root, 'GW_Dirichlet_Head.tif');
+    Overrides.LAI_path = fullfile(static_root, 'LAI.tif');
+    Overrides.Albedo_path = fullfile(static_root, 'Albedo.tif');
+    Overrides.RiverWidths_path = fullfile(static_root, 'RiverWidths.tif');
+    Overrides.RiverDepths_path = fullfile(static_root, 'RiverDepths.tif');
+    Overrides.Initial_Soil_Moisture_path = fullfile(static_root, 'Initial_Soil_Moisture.tif');
+    Overrides.Rainfall_Rasters_Folder = fullfile(forcing_root, 'Rainfall');
+    Overrides.Inflow_Hydrograph_CSV = fullfile(forcing_root, 'Inflow', 'inflow_hydrograph.csv');
+    Overrides.ETP_input_spreadsheet = fullfile( ...
+        forcing_root, 'Evapotranspiration', 'ETP_input_data.xlsx');
+    Overrides.Observed_Gauges_CSV = fullfile( ...
+        forcing_root, 'Observed_Gauges', 'camels_india_gauges_2km.csv');
+    Overrides.export_root_dir = fullfile(india_case_root, 'Outputs');
+    if ~strcmp(getenv('HYDROPOL_DISABLE_ERA5_DAILY_NETCDF'), '1')
+        Overrides.ERA5_Daily_Netcdf_Folder = getenv('HYDROPOL_ERA5_DAILY_FOLDER');
+    end
+end
+
 % ===== Example overrides (leave commented unless needed) ==================
 % Overrides.DEM_path                     = '/path/to/case/Static/DEM.tif';
 % Overrides.LULC_path                    = '/path/to/case/Static/LULC.tif';
@@ -233,6 +267,10 @@ end
 if strcmpi(run_mode,'bypass') && isfield(Overrides,'export_root_dir') && ...
         ~isempty(Overrides.export_root_dir)
     export_root_dir = char(Overrides.export_root_dir);
+end
+export_root_env = getenv('HYDROPOL_EXPORT_ROOT_DIR');
+if ~isempty(export_root_env)
+    export_root_dir = char(export_root_env);
 end
 
 if ~isfolder(export_root_dir)

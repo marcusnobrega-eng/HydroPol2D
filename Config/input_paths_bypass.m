@@ -68,7 +68,7 @@
 % will sort them chronologically.
 % ========================================================================
 
-function InputPaths = input_paths_bypass(model_root, Overrides)
+function InputPaths = input_paths_bypass(model_root_or_topo, Overrides_or_tools, OptionalOverrides)
 
 InputPaths = struct();
 
@@ -79,18 +79,38 @@ if nargin < 1
     error('input_paths_bypass requires model_root as its first input.');
 end
 
-if nargin < 2 || isempty(Overrides)
-    Overrides = struct();
+if nargin >= 3
+    topo_path = model_root_or_topo;
+    hydropol2d_tools = Overrides_or_tools;
+    Overrides = OptionalOverrides;
+    model_root = fileparts(char(hydropol2d_tools));
+else
+    model_root = model_root_or_topo;
+    topo_path = fullfile(char(model_root), 'third_party', 'topotoolbox_lite');
+    hydropol2d_tools = fullfile(char(model_root), 'HydroPol2D_Functions');
+    if nargin < 2 || isempty(Overrides_or_tools)
+        Overrides = struct();
+    else
+        Overrides = Overrides_or_tools;
+    end
 end
 
 if ~(ischar(model_root) || isstring(model_root))
     error('model_root must be a character array or string.');
+end
+if ~(ischar(topo_path) || isstring(topo_path))
+    error('topo_path must be a character array or string.');
+end
+if ~(ischar(hydropol2d_tools) || isstring(hydropol2d_tools))
+    error('hydropol2d_tools must be a character array or string.');
 end
 if ~isstruct(Overrides)
     error('Overrides must be a struct.');
 end
 
 model_root = char(model_root);
+InputPaths.topo_path = char(topo_path);
+InputPaths.hydropol2d_tools = char(hydropol2d_tools);
 
 %% ========================================================================
 % 1) GENERAL SETTINGS

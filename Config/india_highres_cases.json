@@ -1,0 +1,206 @@
+{
+  "schema_version": 1,
+  "description": "Reproducible HydroPol2D 2 km, 90 m, and nested 30 m India comparison cases.",
+  "defaults": {
+    "target_crs": "EPSG:32643",
+    "warmup_days": 30,
+    "primary_flood_depth_m": 0.05,
+    "sensitivity_flood_depth_m": [0.01, 0.15, 0.30],
+    "manning_n": 0.035,
+    "minimum_effective_soil_depth_m": 0.01,
+    "d4_min_river_area_km2": 5.0,
+    "albedo": 0.25,
+    "full_basin_resolutions_m": [2000, 90],
+    "nested_resolution_m": 30,
+    "full_basin_30m_cell_limit": 3000000,
+    "minimum_observed_streamflow_coverage": 0.80,
+    "memory": {
+      "base_gib": 8,
+      "bytes_per_active_cell": 12288,
+      "request_buckets_gib": [16, 24, 32, 48, 64, 96, 128]
+    },
+    "hydrobathydem": {
+      "beta_1": 2.2695,
+      "beta_2": 0.4942,
+      "alfa_1": 0.1097,
+      "alfa_2": 0.3856,
+      "river_width_cap_m": 250.0,
+      "river_depth_cap_m": 8.0,
+      "max_h_abg_m": 8.0,
+      "max_nodata_fill_pixels": 10,
+      "slope_percentile": 99.5,
+      "smooth_filter_cells": 3,
+      "breach_flat_increment": 0.01,
+      "fill_max_depth_m": 0.15,
+      "lin_calibration_threshold_km2": 20.0
+    }
+  },
+  "sources": {
+    "catchments": {
+      "product": "CAMELS-IND catchment boundaries",
+      "version": "Zenodo record 14999580, sufficient-streamflow package",
+      "source_url": "https://zenodo.org/records/14999580",
+      "native_resolution": "vector",
+      "resampling": "none",
+      "role": "basin boundary and gauge reference"
+    },
+    "observed_streamflow": {
+      "product": "CAMELS-IND streamflow_observed.csv",
+      "version": "Zenodo record 14999580, sufficient-streamflow package",
+      "source_url": "https://zenodo.org/records/14999580",
+      "native_resolution": "daily",
+      "resampling": "none",
+      "role": "validation only"
+    },
+    "topography": {
+      "product": "FABDEM",
+      "version": "v1.2",
+      "native_resolution": "30 m",
+      "resampling": "bilinear through HydroBathyDEM",
+      "role": "terrain and D4 drainage"
+    },
+    "river_geometry": {
+      "product": "Lin et al. (2020) bankfull width and Q2 with HydroBathyDEM",
+      "version": "HydroBathyDEM spatial coefficients where supported, published fallback elsewhere",
+      "native_resolution": "vector reaches / model grid",
+      "resampling": "rasterized on the model grid",
+      "role": "river width and Manning Q2 depth"
+    },
+    "land_cover": {
+      "product": "ESA WorldCover 2020",
+      "version": "v100",
+      "earth_engine_id": "ESA/WorldCover/v100/2020",
+      "native_resolution": "10 m",
+      "resampling": "nearest neighbour",
+      "role": "land cover and built-up class 50"
+    },
+    "soil_texture": {
+      "product": "OpenLandMap USDA soil texture class",
+      "version": "v02",
+      "earth_engine_id": "OpenLandMap/SOL/SOL_TEXTURE-CLASS_USDA-TT_M/v02",
+      "native_resolution": "250 m",
+      "resampling": "nearest neighbour",
+      "role": "HydroPol2D soil class"
+    },
+    "depth_to_bedrock": {
+      "product": "existing documented Earth Engine asset",
+      "version": "asset snapshot at download",
+      "earth_engine_id": "projects/ee-marcusep2025/assets/Depth_to_bedrock",
+      "native_resolution": "approximately 1 km",
+      "resampling": "bilinear",
+      "role": "soil and groundwater depth limit"
+    },
+    "soil_moisture": {
+      "product": "ERA5-Land hourly data",
+      "version": "Earth Engine catalog snapshot at download",
+      "earth_engine_id": "ECMWF/ERA5_LAND/HOURLY",
+      "native_resolution": "0.1 degree hourly",
+      "resampling": "bilinear",
+      "role": "four-layer initial soil water at simulation start"
+    },
+    "water_table": {
+      "product": "Fan et al. global annual-mean water-table depth",
+      "version": "Fan et al. (2017) EartH2Observe release",
+      "opendap_url": "http://thredds-gfnl.usc.es/thredds/dodsC/GLOBALWTDFTP/annualmeans/EURASIA_WTD_annualmean.nc",
+      "native_resolution": "30 arc-second",
+      "resampling": "bilinear",
+      "role": "initial groundwater depth converted to hydraulic head"
+    },
+    "rainfall": {
+      "product": "GPM IMERG Final Run",
+      "version": "V07",
+      "earth_engine_id": "NASA/GPM_L3/IMERG_V07",
+      "native_resolution": "0.1 degree, 30 minutes",
+      "resampling": "HydroPol2D spatial rainfall path; no fine-scale rainfall is created",
+      "role": "rainfall forcing"
+    },
+    "meteorology": {
+      "product": "ERA5 hourly data",
+      "version": "Earth Engine catalog snapshot at download",
+      "earth_engine_id": "ECMWF/ERA5/HOURLY",
+      "native_resolution": "0.25 degree hourly",
+      "resampling": "station/grid sampling for internal Penman-Monteith",
+      "role": "temperature, dew point, and wind"
+    },
+    "lai": {
+      "product": "MODIS leaf-area index",
+      "version": "MCD15A3H v061",
+      "earth_engine_id": "MODIS/061/MCD15A3H",
+      "native_resolution": "500 m",
+      "resampling": "bilinear",
+      "role": "median LAI over warmup and event"
+    },
+    "albedo": {
+      "product": "MODIS albedo",
+      "version": "MCD43A3 v061",
+      "earth_engine_id": "MODIS/061/MCD43A3",
+      "native_resolution": "500 m",
+      "resampling": "archived only; model uses constant national value 0.25",
+      "role": "provenance and later sensitivity analysis"
+    },
+    "population": {
+      "product": "WorldPop",
+      "version": "year nearest each event",
+      "earth_engine_id": "WorldPop/GP/100m/pop",
+      "native_resolution": "100 m",
+      "resampling": "sum for exposure summaries",
+      "role": "context only; never a model input"
+    },
+    "flood_evidence": {
+      "product": "IFI, Groundsource, MODIS Global Flood Database, and Sentinel-1 where available",
+      "version": "case-specific source snapshots",
+      "native_resolution": "variable",
+      "resampling": "none",
+      "role": "validation only; never a forcing"
+    }
+  },
+  "cases": {
+    "mumbai_ulhas_2005": {
+      "label": "Mumbai-Ulhas",
+      "event_start": "2005-07-24T00:00:00",
+      "simulation_end": "2005-08-06T00:00:00",
+      "camels_subdir": "14_wfr_tapi_tadri",
+      "catchment_file": "14_wfr_tapi_tadri_catchments.shp",
+      "station_file": "14_wfr_tapi_tadri_stations.shp",
+      "gauge_ids": ["14001"],
+      "gauges": [{"id": "14001", "name": "Badlapur", "river": "Ulhas"}],
+      "coastal_free_outflow": true,
+      "full_basin_area_km2_reference": 973.04,
+      "nested_30m_aoi": null
+    },
+    "ahmedabad_sabarmati_watrak_2005": {
+      "label": "Ahmedabad-Sabarmati/Watrak",
+      "event_start": "2005-06-22T00:00:00",
+      "simulation_end": "2005-07-16T00:00:00",
+      "camels_subdir": "11_sabarmati",
+      "catchment_file": "11_sabarmati_catchments.shp",
+      "station_file": "11_sabarmati_stations.shp",
+      "gauge_ids": ["11001", "11007", "11010"],
+      "gauges": [
+        {"id": "11001", "name": "Derol Bridge", "river": "Sabarmati"},
+        {"id": "11007", "name": "Ratanpur", "river": "Sabarmati/Watrak"},
+        {"id": "11010", "name": "Vautha", "river": "Sabarmati"}
+      ],
+      "coastal_free_outflow": false,
+      "full_basin_area_km2_reference": 18327.90,
+      "nested_30m_aoi": null
+    },
+    "kochi_periyar_chalakudy_2018": {
+      "label": "Kochi-Periyar/Chalakudy",
+      "event_start": "2018-08-08T00:00:00",
+      "simulation_end": "2018-08-26T00:00:00",
+      "camels_subdir": "15_wfr_tadri_kanyakumari",
+      "catchment_file": "15_wfr_tadri_kanyakumari_catchments.shp",
+      "station_file": "15_wfr_tadri_kanyakumari_stations.shp",
+      "gauge_ids": ["15005", "15021", "15026"],
+      "gauges": [
+        {"id": "15005", "name": "Arangaly", "river": "Periyar/Chalakudy"},
+        {"id": "15021", "name": "Neeleswaram", "river": "Periyar"},
+        {"id": "15026", "name": "Ramamangalam", "river": "Muvattupuzha"}
+      ],
+      "coastal_free_outflow": true,
+      "full_basin_area_km2_reference": 6938.71,
+      "nested_30m_aoi": null
+    }
+  }
+}
