@@ -15,6 +15,10 @@ bundle and the HydroPol2D-Python `0.9.0rc1` compatibility set.
 - Reduced avoidable CPU/GPU transfers while preserving existing numerical behavior.
 - Shared mesh acceptance for explicit zero-based file indexing, MATLAB one-based conversion,
   topology, initial storage, and mass closure.
+- Native post-processing exports now preserve groundwater-only maps and use consistent gathered
+  arrays for velocity, hazard, infiltration, and recharge products.
+- The India high-resolution workflow now has portable preparation, preflight, calibration, Slurm,
+  and output-summary utilities without hard-coded local runtime paths.
 
 ## Validation
 
@@ -24,6 +28,8 @@ bundle and the HydroPol2D-Python `0.9.0rc1` compatibility set.
 - Atomic checkpoint and preallocated output-history checks passed in MATLAB R2025b.
 - The clean-wheel shared acceptance read 61 cells and 143 faces identically in MATLAB and Python
   and reported zero relative mass error.
+- The portable India case configuration suite passes 16 checks covering environment overrides,
+  preprocessing-only runs, output locations, and post-processing inputs.
 
 This is not a stable release. Current-candidate CUDA validation, Apple Metal validation, and the
 Windows packaged-Studio gate remain open. Voronoi execution remains CPU-only until a JAX/CUDA
