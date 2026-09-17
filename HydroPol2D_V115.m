@@ -27,7 +27,8 @@
 %
 % IMPORTANT
 %   If "clean_output_folder = true", the selected export folder will be
-%   cleaned before the new simulation starts.
+%   cleaned before the new simulation starts. If Windows keeps an old file
+%   locked, the run continues in a timestamped subfolder instead.
 %
 % BYPASS MODE
 %   In bypass mode this launcher uses:
@@ -80,7 +81,7 @@ end
 % -------------------------------------------------------------------------
 % Output / run behavior flags
 % -------------------------------------------------------------------------
-clean_output_folder = true;   % true = wipe Outputs folder before run
+clean_output_folder = true;   % clean old outputs; locked files use Run_<timestamp>
 run_postprocessing  = true;   % run post_processing step
 enable_logging      = true;   % write log file
 if strcmp(getenv('HYDROPOL_PREFLIGHT_ONLY'), '1')
@@ -448,6 +449,7 @@ fprintf('Bundled HydroPol2D runtime: %s\n\n', ...
 fprintf('Initializing output folder tree...\n');
 
 Paths = init_results_tree(export_root_dir, clean_output_folder);
+export_root_dir = Paths.Root;
 
 % Keep compatibility with legacy scripts that expect these variables
 ExportRootDir = Paths.Root;
@@ -697,20 +699,8 @@ function Paths = init_results_tree(exportRootDir, cleanOutputFolder)
     % ---------------------------------------------------------------------
     % Prepare export root
     % ---------------------------------------------------------------------
-    if ~exist(exportRootDir,'dir')
-        mkdir(exportRootDir);
-    else
-        if cleanOutputFolder && ~is_dir_empty(exportRootDir)
-            warning(['HydroPol2D:ExportRootNotEmpty\n' ...
-                     'Export root already exists and contains files:\n  %s\n' ...
-                     'Deleting all existing contents before exporting new results.'], exportRootDir);
-            delete_dir_contents(exportRootDir);
-        elseif ~cleanOutputFolder && ~is_dir_empty(exportRootDir)
-            warning(['HydroPol2D:ExportRootNotEmpty\n' ...
-                     'Export root already exists and contains files:\n  %s\n' ...
-                     'Existing contents will be preserved because clean_output_folder = false.'], exportRootDir);
-        end
-    end
+    exportRootDir = hydropol2d_prepare_output_root( ...
+        exportRootDir, cleanOutputFolder);
 
     % ---------------------------------------------------------------------
     % Main folders
@@ -762,37 +752,6 @@ function Paths = init_results_tree(exportRootDir, cleanOutputFolder)
 
     mkdir_if_missing(Paths.Anim);
     mkdir_if_missing(Paths.Shapes);
-end
-
-function tf = is_dir_empty(d)
-%IS_DIR_EMPTY Return true if directory contains no files/folders besides
-% "." and "..".
-
-    L = dir(d);
-    names = {L.name};
-    tf = all(ismember(names, {'.','..'}));
-end
-
-function delete_dir_contents(d)
-%DELETE_DIR_CONTENTS Delete all files and folders inside directory d,
-% while keeping directory d itself.
-
-    L = dir(d);
-    for i = 1:numel(L)
-        name = L(i).name;
-
-        if strcmp(name,'.') || strcmp(name,'..')
-            continue;
-        end
-
-        target = fullfile(d, name);
-
-        if L(i).isdir
-            rmdir(target, 's');
-        else
-            delete(target);
-        end
-    end
 end
 
 function mkdir_if_missing(d)

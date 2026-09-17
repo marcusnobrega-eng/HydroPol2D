@@ -157,6 +157,7 @@ model_folder = '';
 GD = [];
 
 Paths = init_results_tree(export_root_dir, clean_output_folder);
+export_root_dir = Paths.Root;
 ExportRootDir = Paths.Root;
 resultsDir = Paths.Results;
 write_case_manifest(export_root_dir, dam_dir, dem_path, lulc_path, soil_path, inflow_csv, rainfall_timeseries_path, outlet_csv, warmup_depth_path, enable_warmup, enable_inflow, enable_rainfall, enable_infiltration, enable_perimeter_outlet, dry_run, simulation_minutes, record_time_maps_minutes, routing_model, manning_value);
@@ -243,11 +244,8 @@ function write_case_manifest(export_root_dir, dam_dir, dem_path, lulc_path, soil
 end
 
 function Paths = init_results_tree(exportRootDir, cleanOutputFolder)
-    if ~exist(exportRootDir,'dir')
-        mkdir(exportRootDir);
-    elseif cleanOutputFolder && ~is_dir_empty(exportRootDir)
-        delete_dir_contents(exportRootDir);
-    end
+    exportRootDir = hydropol2d_prepare_output_root( ...
+        exportRootDir, cleanOutputFolder);
 
     Paths = struct();
     Paths.Root = exportRootDir;
@@ -273,28 +271,6 @@ function Paths = init_results_tree(exportRootDir, cleanOutputFolder)
         d = Paths.(fields{i});
         if ischar(d) && ~exist(d, 'dir')
             mkdir(d);
-        end
-    end
-end
-
-function tf = is_dir_empty(d)
-    L = dir(d);
-    names = {L.name};
-    tf = all(ismember(names, {'.','..'}));
-end
-
-function delete_dir_contents(d)
-    L = dir(d);
-    for i = 1:numel(L)
-        name = L(i).name;
-        if strcmp(name,'.') || strcmp(name,'..')
-            continue;
-        end
-        target = fullfile(d, name);
-        if L(i).isdir
-            rmdir(target, 's');
-        else
-            delete(target);
         end
     end
 end
