@@ -637,7 +637,9 @@ if flags.flag_automatic_calibration ~= 1
         if flags.flag_dashboard == 1
             ax.timer = minutes(double(gather(running_control.time_records(recording_parameters.actual_record_state)))) + date_begin;
             ax.percentage = gather((t)/running_control.routing_time*100);
-            ax = HydroPol2D_running_dashboard(ax, Maps, v0, DEM_raster, gauges, BC_States, time_step, Resolution, 1, 1, C_a);
+            ax = HydroPol2D_running_dashboard( ...
+                ax, Maps, velocities.velocity_raster, DEM_raster, gauges, ...
+                BC_States, time_step, Resolution, 0, 1, C_a);
         end
 
         saver_count = saver_count + 1;
