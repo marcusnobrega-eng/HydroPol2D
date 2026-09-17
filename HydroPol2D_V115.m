@@ -59,7 +59,7 @@ while ~isfolder(fullfile(model_root, 'HydroPol2D_Functions'))
     model_root = parent_root;
 end
 addpath(fullfile(model_root, 'HydroPol2D_Functions'));
-runtime = hydropol2d_add_runtime_paths(model_root); %#ok<NASGU>
+hydropol2d_add_runtime_paths(model_root);
 
 %% ========================================================================
 % USER INPUTS (EDIT ONLY THIS SECTION)
@@ -72,6 +72,10 @@ runtime = hydropol2d_add_runtime_paths(model_root); %#ok<NASGU>
 %               + Config/input_data_bypass_script.m
 % -------------------------------------------------------------------------
 run_mode = 'bypass';   % 'excel' or 'bypass'
+run_mode_override = strtrim(getenv('HYDROPOL_RUN_MODE'));
+if ~isempty(run_mode_override)
+    run_mode = run_mode_override;
+end
 
 % -------------------------------------------------------------------------
 % Output / run behavior flags
@@ -93,10 +97,14 @@ end
 
 % Main HydroPol2D Excel input file
 input_excel_file = fullfile(model_root, 'Input_Data_Sheets', 'General_Data.xlsx');
+input_excel_override = strtrim(getenv('HYDROPOL_INPUT_EXCEL_FILE'));
+if ~isempty(input_excel_override)
+    input_excel_file = input_excel_override;
+end
 
 % Optional folder containing input spreadsheets
 add_input_sheets_to_path = true;
-input_sheets_folder      = 'Input_Data_Sheets';
+input_sheets_folder      = fileparts(input_excel_file);
 
 %% ========================================================================
 % SECTION B — BYPASS MODE INPUTS
@@ -107,12 +115,20 @@ input_sheets_folder      = 'Input_Data_Sheets';
 % Path to the function that builds InputPaths for this case
 % -------------------------------------------------------------------------
 input_paths_function = fullfile(launcher_root, 'Config', 'input_paths_bypass.m');
+input_paths_override = strtrim(getenv('HYDROPOL_INPUT_PATHS_FUNCTION'));
+if ~isempty(input_paths_override)
+    input_paths_function = input_paths_override;
+end
 
 % -------------------------------------------------------------------------
 % Path to the case-specific MATLAB bypass input-data script
 % -------------------------------------------------------------------------
 input_data_bypass_script_path = fullfile(launcher_root, 'Config', ...
     'input_data_bypass_script.m');
+input_data_override = strtrim(getenv('HYDROPOL_INPUT_DATA_BYPASS_SCRIPT'));
+if ~isempty(input_data_override)
+    input_data_bypass_script_path = input_data_override;
+end
 
 % -------------------------------------------------------------------------
 % Optional path/file overrides for bypass mode
@@ -422,7 +438,7 @@ else
     error('Unsupported run mode.');
 end
 
-runtime = hydropol2d_add_runtime_paths(model_root); %#ok<NASGU>
+hydropol2d_add_runtime_paths(model_root);
 fprintf('Bundled HydroPol2D runtime: %s\n\n', ...
     fullfile(model_root, 'third_party', 'topotoolbox_lite'));
 
@@ -498,13 +514,23 @@ VoronoiSelection = HydroPol2D_Voronoi_Selection(run_mode,input_excel_file, ...
     input_data_bypass_script_path,selection_paths);
 if VoronoiSelection.enabled
     case_file=VoronoiSelection.case_file;
-    if ~isfile(case_file), case_file=fullfile(model_root,case_file); end
+    if ~isfile(case_file) && strcmpi(run_mode,'excel')
+        case_file=fullfile(fileparts(input_excel_file),case_file);
+    end
+    if ~isfile(case_file), case_file=fullfile(model_root,VoronoiSelection.case_file); end
     assert(isfile(case_file),'HydroPol2D:MissingVoronoiCase', ...
         'Prepared Voronoi case not found: %s',case_file);
     prepared=load(case_file);
     assert(isfield(prepared,'VoronoiCase') && isstruct(prepared.VoronoiCase), ...
         'HydroPol2D:InvalidVoronoiCase', ...
         'Prepared MAT file must contain a structure named VoronoiCase.');
+    prepared.VoronoiCase.mesh_file=resolve_prepared_case_path( ...
+        prepared.VoronoiCase.mesh_file,case_file,model_root,'mesh');
+    if isfield(prepared.VoronoiCase,'overlap_file') && ...
+            ~isempty(prepared.VoronoiCase.overlap_file)
+        prepared.VoronoiCase.overlap_file=resolve_prepared_case_path( ...
+            prepared.VoronoiCase.overlap_file,case_file,model_root,'overlap');
+    end
     base_options=struct();
     if isfield(prepared.VoronoiCase,'options')
         base_options=prepared.VoronoiCase.options;
@@ -616,6 +642,22 @@ function v = xlget(GD, key)
     end
 
     v = GD{rr, cc+1};
+end
+
+function resolved = resolve_prepared_case_path(value,case_file,model_root,label)
+%RESOLVE_PREPARED_CASE_PATH Resolve portable paths stored in prepared cases.
+
+resolved=char(string(value));
+if isfile(resolved), return; end
+candidates={fullfile(fileparts(case_file),resolved),fullfile(model_root,resolved)};
+for index=1:numel(candidates)
+    if isfile(candidates{index})
+        resolved=candidates{index};
+        return
+    end
+end
+error('HydroPol2D:MissingPreparedCaseFile', ...
+    'Prepared-case %s file not found: %s',label,resolved);
 end
 
 function Paths = init_results_tree(exportRootDir, cleanOutputFolder)

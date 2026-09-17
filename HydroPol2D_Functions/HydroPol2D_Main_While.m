@@ -293,7 +293,11 @@ end
 
 S_UZ = nansum(nansum(Wshed_Properties.Resolution^2.*Soil_Properties.I_t/1000)); % UZ storage
 S_GW = nansum(nansum(Wshed_Properties.Resolution^2.*Soil_Properties.Sy.*(BC_States.h_t - (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth)))); % GW Storage
-S_SWE = nansum(nansum(Wshed_Properties.Resolution^2.*Snow_Properties.SWE_t/1000)); % Snow water equivalent
+if flags.flag_snow_modeling == 1
+    S_SWE = nansum(nansum(Wshed_Properties.Resolution^2.*Snow_Properties.SWE_t/1000)); % Snow water equivalent
+else
+    S_SWE = 0;
+end
 S_prev = S_c + S_p + S_UZ + S_GW + S_SWE;
 
 % Optional non-intrusive, event-scale water-balance ledger. It is disabled

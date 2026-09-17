@@ -196,7 +196,32 @@ else
     RiverWidths_path = xlgetstr(GD,'RiverWidths_path',"");
     RiverDepths_path = xlgetstr(GD,'RiverDepths_path',"");
 
+    DEM_path = resolve_excel_input_path(DEM_path,model_folder,runtime_model_root);
+    LULC_path = resolve_excel_input_path(LULC_path,model_folder,runtime_model_root);
+    SOIL_path = resolve_excel_input_path(SOIL_path,model_folder,runtime_model_root);
+    Warmup_Depth_path = resolve_excel_input_path(Warmup_Depth_path,model_folder,runtime_model_root);
+    Initial_Buildup_path = resolve_excel_input_path(Initial_Buildup_path,model_folder,runtime_model_root);
+    Initial_Soil_Moisture_path = resolve_excel_input_path(Initial_Soil_Moisture_path,model_folder,runtime_model_root);
+    Initial_SWE_path = resolve_excel_input_path(Initial_SWE_path,model_folder,runtime_model_root);
+    Initial_Snow_Depth_path = resolve_excel_input_path(Initial_Snow_Depth_path,model_folder,runtime_model_root);
+    Albedo_path = resolve_excel_input_path(Albedo_path,model_folder,runtime_model_root);
+    LAI_path = resolve_excel_input_path(LAI_path,model_folder,runtime_model_root);
+    DTB_path = resolve_excel_input_path(DTB_path,model_folder,runtime_model_root);
+    GW_table_path = resolve_excel_input_path(GW_table_path,model_folder,runtime_model_root);
+    GW_Dirichlet_Head_path = resolve_excel_input_path(GW_Dirichlet_Head_path,model_folder,runtime_model_root);
+    ImperviousFraction_path = resolve_excel_input_path(ImperviousFraction_path,model_folder,runtime_model_root);
+    Prescribed_Recharge_Timeseries_File = resolve_excel_input_path(Prescribed_Recharge_Timeseries_File,model_folder,runtime_model_root);
+    B1_path = resolve_excel_input_path(B1_path,model_folder,runtime_model_root);
+    B2_path = resolve_excel_input_path(B2_path,model_folder,runtime_model_root);
+    W1_path = resolve_excel_input_path(W1_path,model_folder,runtime_model_root);
+    W2_path = resolve_excel_input_path(W2_path,model_folder,runtime_model_root);
+    Subgrid_DEM_path = resolve_excel_input_path(Subgrid_DEM_path,model_folder,runtime_model_root);
+    RiverWidths_path = resolve_excel_input_path(RiverWidths_path,model_folder,runtime_model_root);
+    RiverDepths_path = resolve_excel_input_path(RiverDepths_path,model_folder,runtime_model_root);
+
 end
+
+flags = HydroPol2D_Normalize_Subgrid_Flags(flags);
 
 % The historical D8 path is incomplete and bypasses several selected
 % routing solvers. Fail before allocating rasters or requesting a GPU.
@@ -4772,6 +4797,26 @@ try
     out = xlgetstr(GD, key, defaultValue);
 catch
     out = string(defaultValue);
+end
+end
+
+function path_out = resolve_excel_input_path(path_in, workbook_path, model_root)
+path_out = string(path_in);
+if ismissing(path_out) || strlength(strtrim(path_out)) == 0
+    path_out = "";
+    return
+end
+path_out = strtrim(path_out);
+if isfile(path_out) || isfolder(path_out)
+    return
+end
+candidates = [fullfile(fileparts(string(workbook_path)),path_out), ...
+    fullfile(string(model_root),path_out)];
+for candidate = candidates
+    if isfile(candidate) || isfolder(candidate)
+        path_out = candidate;
+        return
+    end
 end
 end
 

@@ -252,7 +252,7 @@ InputData_Bypass.general.Bmax   = 1.0;
 % -------------------------------------------------------------------------
 % DEM smoothing / geomorphic preprocessing controls
 % -------------------------------------------------------------------------
-InputData_Bypass.general.min_area  = 0.5;      % km2
+InputData_Bypass.general.min_area  = 25;       % km2
 InputData_Bypass.general.tau       = 0.2;     % between 0 and 1
 InputData_Bypass.general.K_value   = 10;      % between 0 and 20
 InputData_Bypass.general.sl        = 0.001;   % m/m
@@ -571,10 +571,10 @@ SOIL_table.Soil_type = { ...
 SOIL_table.Index = [1;2;3;4;5;6;7;8;9;10;11;12;0];
 
 SOIL_table.ksat_mm_h = [0.3;0.5;0.6;1.0;1.0;1.5;7.6;3.4;10.9;3.4;29.9;117.8;0.3];
-SOIL_table.n_vg = [1.09;1.23;1.31;1.31;1.23;1.48;1.68;1.56;1.89;1.37;1.75;2.68;1.09];
-SOIL_table.alpha_vg_1_m = [0.8;1.0;1.5;1.9;1.5;3.0;2.0;3.6;6.0;1.6;11.0;14.5;0.8];
-SOIL_table.theta_sat = [0.385;0.423;0.321;0.309;0.432;0.330;0.432;0.399;0.387;0.481;0.390;0.430;0.385];
-SOIL_table.theta_r   = [0.068;0.089;0.075;0.095;0.089;0.065;0.067;0.078;0.100;0.034;0.049;0.045;0.068];
+SOIL_table.n_vg = [1.09;1.23;1.31;1.31;1.23;1.48;1.41;1.56;1.89;1.37;2.28;2.68;1.09];
+SOIL_table.alpha_vg_1_m = [0.8;1.0;1.5;1.9;1.5;3.0;4.5;3.6;7.5;4.0;14.5;14.5;0.8];
+SOIL_table.theta_sat = [0.385;0.423;0.321;0.309;0.432;0.330;0.434;0.486;0.412;0.486;0.401;0.417;0.385];
+SOIL_table.theta_r   = [0.068;0.089;0.075;0.095;0.089;0.065;0.067;0.078;0.065;0.067;0.057;0.045;0.068];
 SOIL_table.theta_i   = [0.0997;0.1224;0.0996;0.1164;0.1233;0.0915;0.1220;0.1104;0.1287;0.1234;0.1172;0.1225;0.0997];
 SOIL_table.Sy        = [0.03;0.04;0.06;0.08;0.09;0.11;0.14;0.18;0.22;0.12;0.25;0.30;0.03];
 SOIL_table.ksat_gw_mm_h = [6;10;12;20;20;30;152;68;218;68;598;2356;6];
@@ -582,6 +582,9 @@ SOIL_table.Soil_Depth_m = ones(13,1);
 SOIL_table.Ks_multiplier_near_surface = ones(13,1);
 SOIL_table.Ks_multiplier_root_zone = ones(13,1);
 SOIL_table.Ks_multiplier_transmission = ones(13,1);
+SOIL_table.Ltop_m = 0.05 .* ones(13,1);
+SOIL_table.dh_max_m = ones(13,1);
+SOIL_table.l_vg = 0.5 .* ones(13,1);
 
 InputData_Bypass.SOIL.table = SOIL_table;
 

@@ -9,8 +9,8 @@ face/edge/channel histories use `time_s`; the requested raster schedule uses `ma
 Final and temporal-maximum rasters are computed after conservative remapping, and Neal
 channel depth/discharge are exported separately from floodplain surface depth.
 
-The output controls are available under `InputData_Bypass.VoronoiOutput` and in the
-`Voronoi Output` block of `General_Data.xlsx`. The native cadence must evenly divide the
+The output controls are available under `InputData_Bypass.VoronoiOutput` and in
+`Voronoi_Settings.xlsx`. The native cadence must evenly divide the
 raster-stack cadence. `run_voronoi_output_validation` checks the archive contract, while
 `run_voronoi_vtilted_end_to_end_validation` exercises rainfall, infiltration, ET,
 groundwater, tables, figures, and GeoTIFF histories.
@@ -83,7 +83,8 @@ prototype is retained only for historical inspection: its clipped boundary
 represents a 70 m outlet and is not a like-for-like comparison.
 
 This writes a reusable `vtilted-variable-case.mat`. In the ordinary launcher,
-set `flag_voronoi=1` and set `Voronoi case file` (Excel) or
+set `flag_voronoi=1` and set `Voronoi case file` in
+`Voronoi_Settings.xlsx` (Excel) or
 `InputData_Bypass.Voronoi.case_file` (script mode) to that MAT file. With
 `flag_voronoi=0`, the existing raster D4 preprocessing and solver are used
 unchanged. Unresolved rivers accept only `neal_subgrid` or `none`.

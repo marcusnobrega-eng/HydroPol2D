@@ -67,28 +67,67 @@ Ensure the following are present in your working directory:
 - `/config/` folder (parameters and flags)
 - `/HydroPol2D_functions`
 - `/third_party/topotoolbox_lite/` (bundled terrain runtime)
-- `Input_Spreadsheets` (if excel version is used)
+- `Input_Data_Sheets` (when Excel configuration is used)
 
 ### 4. Set Up MATLAB
 Open MATLAB or directly go in your model folder and open the file `HydroPol2D_V115.m` that MATLAB will automatically path to the model folder.
 
 ### 5. Configure the Model
 
-Edit inputs in:
+Choose one configuration source:
 
-- `/config/` folder. In particular, the file `input_data_bypass_script.m`. In case your forcing or other inputs do not follow the folder structure of the model, you may change the filepaths by editing `input_paths_bypass.m` in the same folder.
-- Edit `HydroPol2D_V115.m` to select `run_mode` and, for Excel mode, the `General_Data.xlsx` file. HydroPol2D registers its own functions and bundled terrain runtime automatically.
-- Excel parameter files located in the `\Input_Data_Sheets` if you are running the model under the `Excel` mode, defined in the `HydroPol2D_V115.m` file.
+- **Excel:** use `General_Data.xlsx` with the companion parameter and forcing
+  workbooks in the same directory. Relative raster paths are resolved from the
+  selected workbook directory.
+- **MATLAB configuration:** use `Config/input_data_bypass_script.m` and
+  `Config/input_paths_bypass.m` for automated or version-controlled studies.
+
+The tested [V-Tilted Excel example](Examples/VTilted_Excel/README.md) uses one
+`General_Data.xlsx` workbook for the simulation and a dedicated
+`Voronoi_Settings.xlsx` workbook for prepared-mesh compatibility and output
+controls. It reproduces the standard 10.8 mm/h, 90-minute validation storm and
+continues routing to 180 minutes to capture hydrograph propagation and
+recession, without requiring edits to the main script.
+
+The portable [Stanford 30 m example](Examples/Stanford/README.md) can also be
+run from either the supplied Excel workbooks or the equivalent MATLAB
+configuration. Both routes use the same 100 mm/h, 60-minute storm and continue
+routing to 180 minutes.
 
 ### 6. Run the Model
-`HydroPol2D_V115.m`
 
-The mesh selector is intentionally compact: `flag_voronoi=0` uses the
+Run `HydroPol2D_V115.m`, or start with the reproducible V-Tilted example.
+For spreadsheet inputs:
+
+```matlab
+run('Examples/VTilted_Excel/run_excel.m')
+```
+
+For the equivalent MATLAB-code inputs:
+
+```matlab
+addpath('Examples/VTilted_Excel')
+run_code('regular')
+run_code('voronoi')
+```
+
+For the Stanford example, use:
+
+```matlab
+run('Examples/Stanford/run_excel.m')
+addpath('Examples/Stanford')
+run_code
+```
+
+Find `flag_voronoi` in the Excel `Flags` worksheet before running the spreadsheet
+example. The mesh selector
+is intentionally compact: `flag_voronoi=0` uses the
 production raster D4 workflow; `flag_voronoi=1` loads the prepared UGRID case
-specified by `Voronoi case file` in Excel or
+specified by `Voronoi case file` in `Voronoi_Settings.xlsx` or
 `InputData_Bypass.Voronoi.case_file` in script mode. Voronoi controls define
-background, urban, and minimum widths, the adjacent-size ratio, cells across
-resolved rivers, and whether unresolved rivers use `neal_subgrid` or `none`.
+background, urban, and minimum widths, the adjacent-size ratio, and whether
+unresolved rivers use `neal_subgrid` or `none`. These values validate the
+prepared mesh metadata; they do not regenerate the mesh during a run.
 Voronoi execution is CPU-only. `local_inertial` supports resolved 2D flow and
 the Neal channel graph; `kinematic`, explicit `diffusive`, and
 `full_momentum` currently support resolved 2D flow only. GPU execution and
@@ -101,7 +140,7 @@ tables under `Modeling_Results`. The complete polygon/edge/channel history is
 kept separately at `Modeling_Results/Native/unstructured_results.nc` and can
 be post-processed later with `HydroPol2D_Postprocess_Voronoi` without rerunning
 the solver. Configure the two schedules and export switches in the
-`Voronoi Output` block of `General_Data.xlsx` or
+dedicated `Voronoi_Settings.xlsx` workbook or
 `InputData_Bypass.VoronoiOutput`.
 
 ### Shared edited-mesh acceptance
@@ -296,13 +335,6 @@ The bundled TopoToolbox runtime is documented in
 - University of São Paulo — São Carlos School of Engineering
 - University of Texas at San Antonio — Civil and Environmental Engineering
 - Stanford University — Stanford Doerr School of Sustainability; Department of Earth System Science
-
-
-
-
-
-
-
 
 
 

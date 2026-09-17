@@ -129,7 +129,12 @@ q = [0; interp1(diagnostic_time,diagnostic_q,diagnostic_query,'linear')];
 outlet_volume = [0; interp1(diagnostic_time,diagnostic_outlet_volume,diagnostic_query,'linear')];
 output_storage = sum(run.surface_depth_m.*mesh.surface_area,1)';
 output_query = min(max(target_s, 0), run.time_s(end));
-storage = interp1([0;run.time_s],[0;output_storage],output_query,'linear');
+output_time = run.time_s(:);
+if output_time(1) > 0
+    output_time = [0; output_time];
+    output_storage = [0; output_storage];
+end
+storage = interp1(output_time,output_storage,output_query,'linear');
 input = rain.*min(target_s,storm_duration_s).*sum(mesh.cell_area);
 mass_error_pct = zeros(size(input));
 mass_error_pct(2:end) = 100*(storage(2:end)+outlet_volume(2:end)-input(2:end))./input(2:end);
@@ -142,7 +147,10 @@ for i = 1:numel(run.time_s)
     left = mapped(:,1:20,i); right = fliplr(mapped(:,22:end,i));
     symmetry_output(i)=sqrt(mean((left-right).^2,'all'));
 end
-symmetry = interp1([0;run.time_s],[0;symmetry_output],output_query,'linear');
+if run.time_s(1) > 0
+    symmetry_output = [0; symmetry_output];
+end
+symmetry = interp1(output_time,symmetry_output,output_query,'linear');
 final_map = mapped(:,:,end);
 Series = table(target_s/60,q,storage,outlet_volume,mass_error_pct,symmetry, ...
     'VariableNames',{'time_min','outlet_discharge_m3_s','storage_m3','outlet_volume_m3','mass_error_pct','symmetry_rmse_m'});

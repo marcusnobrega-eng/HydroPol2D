@@ -484,14 +484,15 @@ if ~isfield(flags,'flag_voronoi')
     flags.flag_voronoi = 0;
 end
 
+VoronoiGrid = HydroPol2D_Read_Voronoi_Settings(model_folder,GD);
 Voronoi_Input = struct( ...
-    'background_target_width_m', xlnum_optional(GD,'Background width',2000), ...
-    'minimum_cell_width_m', xlnum_optional(GD,'Minimum cell width',100), ...
-    'maximum_adjacent_size_ratio', xlnum_optional(GD,'Adjacent size ratio',2), ...
-    'urban_target_width_m', xlnum_optional(GD,'Urban target width',200), ...
-    'urban_transition_buffer_m', xlnum_optional(GD,'Urban buffer',1000), ...
-    'unresolved_river_policy', xlstr_optional(GD,'Unresolved rivers','neal_subgrid'), ...
-    'subgrid_table_path',xlstr_optional(GD,'Voronoi subgrid table',''));
+    'background_target_width_m', xlnum_optional(VoronoiGrid,'Background width',2000), ...
+    'minimum_cell_width_m', xlnum_optional(VoronoiGrid,'Minimum cell width',100), ...
+    'maximum_adjacent_size_ratio', xlnum_optional(VoronoiGrid,'Adjacent size ratio',2), ...
+    'urban_target_width_m', xlnum_optional(VoronoiGrid,'Urban target width',200), ...
+    'urban_transition_buffer_m', xlnum_optional(VoronoiGrid,'Urban buffer',1000), ...
+    'unresolved_river_policy', xlstr_optional(VoronoiGrid,'Unresolved rivers','neal_subgrid'), ...
+    'subgrid_table_path',xlstr_optional(VoronoiGrid,'Voronoi subgrid table',''));
 if flags.flag_voronoi_subgrid == 1
     Voronoi_Input.voronoi_subgrid_enabled=true;
 end
@@ -553,7 +554,7 @@ outlet_type = single(flags.flag_outlet_type);
 
 
 slope_outlet   = xlnum(GD,'slope_outlet');
-n_outlets_data = 1; % Fixed in one
+n_outlets_data = xlnum_optional(GD,'n_outlets_data',1);
 
 % ---------------- Maps and Plots Control ----------------
 running_control.record_time_maps             = xlnum(GD,'record_time_maps');
@@ -940,6 +941,10 @@ elseif flags.flag_huff == 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_
 end
 
 %%% ---- Inflow Hydrograph ---- %%%
+if flags.flag_inflow == 1 && flags.flag_stage_hydrograph == 1
+    error('There is no way to enter both boundary conditions (inflow and stage-hydrograph). Choose one or none of them.')
+end
+if flags.flag_inflow == 1
 input_table = readtable('Inflow_Hydrograph.xlsx');
 input_table_labels = input_table(1:2,:); %#ok<NASGU>
 input_table_values = input_table(3:end,:);
@@ -1015,17 +1020,19 @@ Inflow_Parameters.inflow_discharge = Qall;
 Inflow_Parameters.n_stream_obs     = numel(time_inflow);
 Inflow_Parameters.time_step_inflow = dt_inflow;
 
-if flags.flag_inflow == 1
-    if Wshed_Properties.n_inlets == 0
+    if all(Wshed_Properties.n_inlets == 0)
         error('Please, insert the inlet coordinate(s) in the Inflow_Hydrograph.xlsx file')
     end
-end
-
-if flags.flag_inflow == 1 && flags.flag_stage_hydrograph == 1
-    error('There is no way to enter both boundary conditions (inflow and stage-hydrograph). Choose one or none of them.')
+else
+    Inflow_Parameters = struct('n_stream_gauges',0,'n_stream_obs',0, ...
+        'time_inflow',zeros(0,1),'time_step_inflow',0, ...
+        'inflow_discharge',zeros(0,0),'inflow_hydrograph_rate',zeros(0,0), ...
+        'easting_inlet_cells',zeros(0,0),'northing_inlet_cells',zeros(0,0));
+    Wshed_Properties.n_inlets = 0;
 end
 
 %%% ---- Stage Hydrograph ---- %%%
+if flags.flag_stage_hydrograph == 1
 input_table = readtable('Stage_Hydrograph.xlsx');
 input_table_labels = input_table(1:2,:); %#ok<NASGU>
 input_table_values = input_table(3:end,:);
@@ -1100,6 +1107,12 @@ Stage_Parameters.time_stage      = time_stage(:);
 Stage_Parameters.stage           = Hall;
 Stage_Parameters.n_stage_obs     = numel(time_stage);
 Stage_Parameters.time_step_stage = dt_stage;
+else
+    Stage_Parameters = struct('n_stage_gauges',0,'n_stage_obs',0, ...
+        'time_stage',zeros(0,1),'time_step_stage',0,'stage',zeros(0,0), ...
+        'easting_inlet_cells',zeros(0,0),'northing_inlet_cells',zeros(0,0));
+    Wshed_Properties.n_inlets_stage = 0;
+end
 
 % Entering a boundary condition for rainfall if design storms are used
 if flags.flag_huff == 1 || flags.flag_alternated_blocks == 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_real_time_satellite_rainfall == 0 && flags.flag_satellite_rainfall == 0
@@ -1109,12 +1122,12 @@ if flags.flag_huff == 1 || flags.flag_alternated_blocks == 1 && flags.flag_input
     flags.flag_spatial_rainfall = 0;
 end
 
-if flags.flag_resample
-    Area = GIS_data.resolution_resample^2*Wshed_Properties.n_inlets; % m2
-    Inflow_Parameters.inflow_discharge = Inflow_Parameters.inflow_discharge(:,1:Inflow_Parameters.n_stream_gauges);
-    Inflow_Parameters.inflow_hydrograph_rate = Inflow_Parameters.inflow_discharge./Area*1000*3600; % mm/h
-else
-    Area = Wshed_Properties.Resolution^2*Wshed_Properties.n_inlets; % m2
+if flags.flag_inflow == 1
+    if flags.flag_resample
+        Area = GIS_data.resolution_resample^2*Wshed_Properties.n_inlets; % m2
+    else
+        Area = Wshed_Properties.Resolution^2*Wshed_Properties.n_inlets; % m2
+    end
     Inflow_Parameters.inflow_discharge = Inflow_Parameters.inflow_discharge(:,1:Inflow_Parameters.n_stream_gauges);
     Inflow_Parameters.inflow_hydrograph_rate = Inflow_Parameters.inflow_discharge./Area*1000*3600; % mm/h
 end
