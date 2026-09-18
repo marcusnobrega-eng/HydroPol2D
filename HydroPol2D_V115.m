@@ -570,6 +570,12 @@ fprintf('------------------------------------------------------------\n\n');
 
 HydroPol2D_preprocessing;
 
+if strcmp(getenv('HYDROPOL_PREFLIGHT_ONLY'), '1')
+    if enable_logging, diary('off'); end
+    fprintf('\nHydroPol2D preflight completed successfully. The numerical solver was not run.\n');
+    return
+end
+
 % 2) Main solver
 fprintf('\n------------------------------------------------------------\n');
 fprintf('STEP 2/3 | Running HydroPol2D_Main_While\n');

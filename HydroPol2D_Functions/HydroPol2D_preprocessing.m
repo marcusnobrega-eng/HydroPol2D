@@ -1549,13 +1549,6 @@ end
 
 % Wshed_Properties.River_Depth(~idx_facc) = 0;
 
-if flags.flag_subgrid && flags.flag_river_rasters
-    Wshed_Properties.River_Width = double(widths_raster.Z);
-    Wshed_Properties.River_Width(isnan(Wshed_Properties.River_Width)) = 0;
-    Wshed_Properties.River_Depth = double(depths_raster.Z);
-    Wshed_Properties.River_Depth(isnan(Wshed_Properties.River_Depth)) = 0;
-end
-
 % Reducing Elevation in creeks (if flag reduce DEM is used and not in the subgrid
 % is deactivated
 if flags.flag_reduce_DEM == 1 && flags.flag_subgrid == 0
@@ -1596,6 +1589,15 @@ if flags.flag_D8 ~= 1
     Wshed_Properties.River_Depth = H;
     Wshed_Properties.River_Depth(isnan(Wshed_Properties.River_Depth)) = 0;
     % Wshed_Properties.River_Depth(~idx_facc) = 0;
+end
+
+% Prepared channel rasters are already on the model routing grid and are
+% authoritative after any internally derived D4 geometry.
+if flags.flag_subgrid && flags.flag_river_rasters
+    Wshed_Properties.River_Width = double(widths_raster.Z);
+    Wshed_Properties.River_Width(isnan(Wshed_Properties.River_Width)) = 0;
+    Wshed_Properties.River_Depth = double(depths_raster.Z);
+    Wshed_Properties.River_Depth(isnan(Wshed_Properties.River_Depth)) = 0;
 end
 
 %% Imposing Minimum Slope - If Required

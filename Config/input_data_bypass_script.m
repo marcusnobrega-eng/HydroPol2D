@@ -410,8 +410,6 @@ InputData_Bypass.VoronoiOutput = struct( ...
 % are already aligned to the HydroBathyDEM grid, so no second resampling or
 % DEM conditioning is applied here.
 if ~isempty(getenv('HYDROPOL_INDIA_CASE_ROOT'))
-    InputData_Bypass.general.min_time_step = 30;
-    InputData_Bypass.general.max_time_step = 300;
     max_step_seconds = str2double(getenv('HYDROPOL_MAX_TIMESTEP_SECONDS'));
     if isfinite(max_step_seconds) && max_step_seconds >= InputData_Bypass.general.min_time_step
         InputData_Bypass.general.max_time_step = max_step_seconds;
@@ -628,6 +626,9 @@ SOIL_table.Soil_Depth_m  = ones(13,1);
 SOIL_table.Ks_multiplier_near_surface = ones(13,1);
 SOIL_table.Ks_multiplier_root_zone = ones(13,1);
 SOIL_table.Ks_multiplier_transmission = ones(13,1);
+SOIL_table.Ltop_m = 0.05 .* ones(13,1);
+SOIL_table.dh_max_m = ones(13,1);
+SOIL_table.l_vg = 0.5 .* ones(13,1);
 
 InputData_Bypass.SOIL.table = SOIL_table;
 

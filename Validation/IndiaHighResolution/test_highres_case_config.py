@@ -128,8 +128,26 @@ class HighResolutionCaseConfigTests(unittest.TestCase):
         self.assertIn("flag_neal_channel = 1", profile)
         self.assertIn("HYDROPOL_RAINFALL_INTERVAL_MIN", profile)
         self.assertIn("HYDROPOL_RAINFALL_FILENAME_EXAMPLE", profile)
+        self.assertIn("SOIL_table.Ltop_m", config)
+        self.assertIn("SOIL_table.dh_max_m", config)
+        self.assertIn("SOIL_table.l_vg", config)
+        self.assertNotIn("InputData_Bypass.general.min_time_step = 30", config)
+        self.assertNotIn("InputData_Bypass.general.max_time_step = 300", config)
         self.assertNotIn("flag_subgrid = 1", profile)
         self.assertNotIn("flag_overbanks = 1", profile)
+
+    def test_prepared_river_rasters_override_internal_d4_geometry(self):
+        preprocessing = (ROOT / "HydroPol2D_Functions" / "HydroPol2D_preprocessing.m").read_text()
+        transform = preprocessing.index("if flags.flag_D8 ~= 1", preprocessing.index("%% Converting to 4D"))
+        prepared = preprocessing.index("if flags.flag_subgrid && flags.flag_river_rasters", transform)
+        self.assertGreater(prepared, transform)
+
+    def test_preflight_only_stops_before_solver(self):
+        launcher = (ROOT / "HydroPol2D_V115.m").read_text()
+        preprocessing = launcher.index("HydroPol2D_preprocessing;")
+        preflight_exit = launcher.index("HYDROPOL_PREFLIGHT_ONLY", preprocessing)
+        solver = launcher.index("HydroPol2D_Main_While", preflight_exit)
+        self.assertLess(preflight_exit, solver)
 
     def test_postprocessing_uses_saved_map_count_and_interval_end_times(self):
         postprocessing = (ROOT / "HydroPol2D_Functions" / "post_processing.m").read_text()
