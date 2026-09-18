@@ -3266,7 +3266,7 @@ pervious_fraction(idx_nan) = nan;
 %       I_0 = (theta_i - theta_r) * zwt_init * 1000
 %
 % Case B:
-%   flag_warmup = 1 and Initial_Soil_Moisture_path exists:
+%   flag_warmup = 1 or flag_initial_soil_moisture = 1, and the raster exists:
 %       Initial_Soil_Moisture_path is interpreted as I0 [mm]
 %       I_0 is read directly from raster
 %       theta_i is back-calculated for consistency:
@@ -3276,14 +3276,15 @@ pervious_fraction(idx_nan) = nan;
 %   I_0 is storage ABOVE residual water content [mm].
 % -------------------------------------------------------------------------
 
-use_initial_soil_moisture_raster = false;
+use_initial_soil_moisture_raster = flags.flag_warmup == 1 || ...
+    (isfield(flags, 'flag_initial_soil_moisture') && flags.flag_initial_soil_moisture == 1);
 
-if flags.flag_warmup == 1 && ...
+if use_initial_soil_moisture_raster && ...
         exist('Initial_Soil_Moisture_path','var') && ...
         strlength(string(Initial_Soil_Moisture_path)) > 0 && ...
         isfile(char(Initial_Soil_Moisture_path))
-
-    use_initial_soil_moisture_raster = true;
+else
+    use_initial_soil_moisture_raster = false;
 end
 
 if use_initial_soil_moisture_raster

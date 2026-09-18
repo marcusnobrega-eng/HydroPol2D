@@ -119,6 +119,18 @@ class HighResolutionCaseConfigTests(unittest.TestCase):
         self.assertIn('HP2D_MAX_TIMESTEP_SECONDS:-60', runner)
         self.assertIn('HP2D_MAX_TIMESTEP_SECONDS:-300', runner)
 
+    def test_india_runtime_profile_uses_current_public_flags(self):
+        config = (ROOT / "Config" / "input_data_bypass_script.m").read_text()
+        profile = config.split("if ~isempty(getenv('HYDROPOL_INDIA_CASE_ROOT'))", 1)[1]
+        self.assertIn("flag_spatial_rainfall = 1", profile)
+        self.assertIn("flag_groundwater_modeling = 1", profile)
+        self.assertIn("flag_initial_soil_moisture = 1", profile)
+        self.assertIn("flag_neal_channel = 1", profile)
+        self.assertIn("HYDROPOL_RAINFALL_INTERVAL_MIN", profile)
+        self.assertIn("HYDROPOL_RAINFALL_FILENAME_EXAMPLE", profile)
+        self.assertNotIn("flag_subgrid = 1", profile)
+        self.assertNotIn("flag_overbanks = 1", profile)
+
     def test_postprocessing_uses_saved_map_count_and_interval_end_times(self):
         postprocessing = (ROOT / "HydroPol2D_Functions" / "post_processing.m").read_text()
         animations = (ROOT / "HydroPol2D_Functions" / "Inundation_Maps.m").read_text()

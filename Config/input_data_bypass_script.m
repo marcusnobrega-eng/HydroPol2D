@@ -368,6 +368,7 @@ InputData_Bypass.flags.flag_WQ_Rasters                   = 0;
 InputData_Bypass.flags.flag_GPU                          = 0;
 InputData_Bypass.flags.flag_single                       = 0;
 InputData_Bypass.flags.flag_warmup                       = 0;
+InputData_Bypass.flags.flag_initial_soil_moisture        = 0;
 InputData_Bypass.flags.flag_initial_buildup              = 0;
 InputData_Bypass.flags.flag_resample                     = 1;
 InputData_Bypass.flags.flag_smoothening                  = 0;
@@ -404,6 +405,89 @@ InputData_Bypass.VoronoiOutput = struct( ...
     'write_figures', true, ...
     'write_videos', true, ...
     'write_gauge_hydrographs', true);
+
+% Case-specific India profile selected by the HPC launcher. Static rasters
+% are already aligned to the HydroBathyDEM grid, so no second resampling or
+% DEM conditioning is applied here.
+if ~isempty(getenv('HYDROPOL_INDIA_CASE_ROOT'))
+    InputData_Bypass.general.min_time_step = 30;
+    InputData_Bypass.general.max_time_step = 300;
+    max_step_seconds = str2double(getenv('HYDROPOL_MAX_TIMESTEP_SECONDS'));
+    if isfinite(max_step_seconds) && max_step_seconds >= InputData_Bypass.general.min_time_step
+        InputData_Bypass.general.max_time_step = max_step_seconds;
+    end
+
+    start_text = strtrim(getenv('HYDROPOL_INDIA_START'));
+    end_text = strtrim(getenv('HYDROPOL_INDIA_END'));
+    try
+        InputData_Bypass.general.date_begin = datetime(start_text, 'InputFormat', "yyyy-MM-dd'T'HH:mm:ss");
+        InputData_Bypass.general.date_end = datetime(end_text, 'InputFormat', "yyyy-MM-dd'T'HH:mm:ss");
+    catch
+        error('HYDROPOL_INDIA_START and HYDROPOL_INDIA_END must be UTC ISO-8601 timestamps.');
+    end
+    if InputData_Bypass.general.date_end <= InputData_Bypass.general.date_begin
+        error('India simulation end must be later than its start.');
+    end
+
+    resolution_m = str2double(getenv('HYDROPOL_INDIA_RESOLUTION_M'));
+    if ~isfinite(resolution_m) || resolution_m <= 0
+        error('HYDROPOL_INDIA_RESOLUTION_M must be a positive metre resolution.');
+    end
+    InputData_Bypass.general.resolution_resample = resolution_m;
+    rainfall_interval_min = str2double(getenv('HYDROPOL_RAINFALL_INTERVAL_MIN'));
+    if ~isfinite(rainfall_interval_min) || rainfall_interval_min <= 0
+        rainfall_interval_min = 30;
+    end
+    InputData_Bypass.general.dt_rainfall_maps_min = rainfall_interval_min;
+    rainfall_filename_example = strtrim(getenv('HYDROPOL_RAINFALL_FILENAME_EXAMPLE'));
+    if isempty(rainfall_filename_example)
+        rainfall_filename_example = sprintf( ...
+            'IMERG_30min_mmhr_IndiaRegion_%s.tif', ...
+            datestr(InputData_Bypass.general.date_begin, 'yyyy_mm_dd_HH_MM'));
+    end
+    InputData_Bypass.general.rainfall_filename_example = rainfall_filename_example;
+    InputData_Bypass.general.record_time_maps = min(1440, minutes( ...
+        InputData_Bypass.general.date_end - InputData_Bypass.general.date_begin));
+    record_maps_minutes = str2double(getenv('HYDROPOL_RECORD_MAPS_MIN'));
+    if isfinite(record_maps_minutes) && record_maps_minutes >= 30
+        InputData_Bypass.general.record_time_maps = min(record_maps_minutes, minutes( ...
+            InputData_Bypass.general.date_end - InputData_Bypass.general.date_begin));
+    end
+    InputData_Bypass.general.record_time_hydrographs = 60;
+    InputData_Bypass.general.record_time_spatial_rainfall = rainfall_interval_min;
+    InputData_Bypass.general.slope_outlet = 0.2;
+    InputData_Bypass.general.n_outlets_data = 1;
+
+    InputData_Bypass.flags.flag_resample = 0;
+    InputData_Bypass.flags.flag_rainfall = 1;
+    InputData_Bypass.flags.flag_spatial_rainfall = 1;
+    InputData_Bypass.flags.flag_input_rainfall_map = 1;
+    InputData_Bypass.flags.flag_ETP = 1;
+    InputData_Bypass.flags.flag_input_ETP_map = 0;
+    InputData_Bypass.flags.flag_inflow = double(~strcmp(getenv('HYDROPOL_ENABLE_GLOFAS_INFLOW'), '0'));
+    InputData_Bypass.flags.flag_infiltration = 1;
+    InputData_Bypass.flags.flag_groundwater_modeling = 1;
+    InputData_Bypass.flags.flag_baseflow = 1;
+    if strcmp(getenv('HYDROPOL_DISABLE_GW_2D'), '1')
+        InputData_Bypass.flags.flag_groundwater_modeling = 0;
+        InputData_Bypass.flags.flag_baseflow = 0;
+    elseif strcmp(getenv('HYDROPOL_DISABLE_GW_LATERAL'), '1')
+        InputData_Bypass.flags.flag_baseflow = 0;
+    end
+    InputData_Bypass.flags.groundwater_target_dt_min = 60;
+    InputData_Bypass.flags.flag_boundary = 1;
+    InputData_Bypass.flags.flag_outlet_type = 1;
+    InputData_Bypass.flags.flag_neal_channel = 1;
+    InputData_Bypass.flags.flag_river_rasters = 1;
+    InputData_Bypass.flags.flag_critical = 1;
+    InputData_Bypass.flags.flag_initial_soil_moisture = 1;
+    InputData_Bypass.flags.flag_human_instability = 0;
+    InputData_Bypass.flags.flag_export_groundwater_maps = 1;
+    InputData_Bypass.flags.flag_fill_DEM = 0;
+    InputData_Bypass.flags.flag_obs_gauges = 1;
+    InputData_Bypass.flags.flag_GPU = double(strcmp(getenv('HYDROPOL_USE_GPU'), '1'));
+    InputData_Bypass.flags.flag_single = InputData_Bypass.flags.flag_GPU;
+end
 
 %% ========================================================================
 % SECTION 3 — HUMAN INSTABILITY PARAMETERS
