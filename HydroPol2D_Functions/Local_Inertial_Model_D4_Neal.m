@@ -25,6 +25,10 @@ V_before = hp2d_neal_cell_volume(depth_cell, River_Width, River_Depth, Resolutio
     depth_cell, River_Width, z, z_channel, Resolution, nc, nf, ...
     Qc_prev, Qf_prev, Qci_prev, Qfi_prev, g, dt, idx_rivers, outlet_index);
 
+% A momentum step may request more water than a donor cell stores. Scale all
+% outgoing face fluxes together so continuity remains conservative.
+[Q,Qc,Qf] = hp2d_neal_draining_limiter(Q,Qc,Qf,V_before,dt);
+
 outflow_rate = Q; % [m3/s]
 outflow = outflow_rate ./ cell_area * 1000 * 3600; % [mm/h]
 outflow(~isfinite(outflow)) = 0;
@@ -130,6 +134,62 @@ if flag_critical == 1
     outflow = max(outflow, 0);
 end
 
+end
+
+function [Q,Qc,Qf] = hp2d_neal_draining_limiter(Q,Qc,Qf,V_available,dt)
+[ny,nx,~] = size(Q);
+out_rate = max(Q(:,:,1),0) + max(Q(:,:,2),0);
+out_rate(:,2:end) = out_rate(:,2:end) + max(-Q(:,1:end-1,1),0);
+out_rate(1:end-1,:) = out_rate(1:end-1,:) + max(-Q(2:end,:,2),0);
+
+scale = ones(ny,nx,'like',V_available);
+limited = out_rate .* dt > V_available & out_rate > 0;
+scale(limited) = V_available(limited) ./ (out_rate(limited) .* dt);
+scale(~isfinite(scale)) = 0;
+scale = max(min(scale,1),0);
+
+for component = 1:2
+    face = Q(:,:,component);
+    channel = Qc(:,:,component);
+    floodplain = Qf(:,:,component);
+    if component == 1
+        donor_positive = scale(:,1:end-1);
+        donor_negative = scale(:,2:end);
+        columns = 1:nx-1;
+        positive = face(:,columns) > 0;
+        negative = face(:,columns) < 0;
+        face_part = face(:,columns);
+        channel_part = channel(:,columns);
+        floodplain_part = floodplain(:,columns);
+    else
+        donor_positive = scale(2:end,:);
+        donor_negative = scale(1:end-1,:);
+        rows = 2:ny;
+        positive = face(rows,:) > 0;
+        negative = face(rows,:) < 0;
+        face_part = face(rows,:);
+        channel_part = channel(rows,:);
+        floodplain_part = floodplain(rows,:);
+    end
+    factor = ones(size(face_part),'like',face_part);
+    factor(positive) = donor_positive(positive);
+    factor(negative) = donor_negative(negative);
+    face_part = face_part .* factor;
+    channel_part = channel_part .* factor;
+    floodplain_part = floodplain_part .* factor;
+    if component == 1
+        face(:,columns) = face_part;
+        channel(:,columns) = channel_part;
+        floodplain(:,columns) = floodplain_part;
+    else
+        face(rows,:) = face_part;
+        channel(rows,:) = channel_part;
+        floodplain(rows,:) = floodplain_part;
+    end
+    Q(:,:,component) = face;
+    Qc(:,:,component) = channel;
+    Qf(:,:,component) = floodplain;
+end
 end
 
 function [Q_out,qc_old_new,qf_old_new] = hp2d_neal_outlet_free_flux( ...

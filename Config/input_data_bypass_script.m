@@ -410,11 +410,6 @@ InputData_Bypass.VoronoiOutput = struct( ...
 % are already aligned to the HydroBathyDEM grid, so no second resampling or
 % DEM conditioning is applied here.
 if ~isempty(getenv('HYDROPOL_INDIA_CASE_ROOT'))
-    max_step_seconds = str2double(getenv('HYDROPOL_MAX_TIMESTEP_SECONDS'));
-    if isfinite(max_step_seconds) && max_step_seconds >= InputData_Bypass.general.min_time_step
-        InputData_Bypass.general.max_time_step = max_step_seconds;
-    end
-
     start_text = strtrim(getenv('HYDROPOL_INDIA_START'));
     end_text = strtrim(getenv('HYDROPOL_INDIA_END'));
     try
@@ -432,6 +427,26 @@ if ~isempty(getenv('HYDROPOL_INDIA_CASE_ROOT'))
         error('HYDROPOL_INDIA_RESOLUTION_M must be a positive metre resolution.');
     end
     InputData_Bypass.general.resolution_resample = resolution_m;
+
+    % Resolution-aware adaptive timestep limits from the shallow-water CFL.
+    % The lower limit represents a severe state (u = 10 m/s, h = 15 m),
+    % while the upper limit represents a slow, shallow state (u = 0.5 m/s,
+    % h = 0.3 m). The actual step remains dynamically CFL-controlled.
+    timestep_cfl = 0.4;
+    InputData_Bypass.general.alfa_min = timestep_cfl;
+    InputData_Bypass.general.alfa_max = timestep_cfl;
+    InputData_Bypass.general.min_time_step = timestep_cfl * resolution_m / ...
+        (10 + sqrt(9.81 * 15));
+    InputData_Bypass.general.max_time_step = timestep_cfl * resolution_m / ...
+        (0.5 + sqrt(9.81 * 0.3));
+
+    % An explicit environment value may impose a tighter ceiling, but never
+    % relax the resolution-aware stability limit.
+    max_step_seconds = str2double(getenv('HYDROPOL_MAX_TIMESTEP_SECONDS'));
+    if isfinite(max_step_seconds) && max_step_seconds >= InputData_Bypass.general.min_time_step
+        InputData_Bypass.general.max_time_step = min( ...
+            InputData_Bypass.general.max_time_step, max_step_seconds);
+    end
     rainfall_interval_min = str2double(getenv('HYDROPOL_RAINFALL_INTERVAL_MIN'));
     if ~isfinite(rainfall_interval_min) || rainfall_interval_min <= 0
         rainfall_interval_min = 30;
@@ -460,12 +475,17 @@ if ~isempty(getenv('HYDROPOL_INDIA_CASE_ROOT'))
     InputData_Bypass.flags.flag_rainfall = 1;
     InputData_Bypass.flags.flag_spatial_rainfall = 1;
     InputData_Bypass.flags.flag_input_rainfall_map = 1;
-    InputData_Bypass.flags.flag_ETP = 1;
+    InputData_Bypass.flags.flag_ETP = double(~strcmp(getenv('HYDROPOL_ENABLE_ETP'), '0'));
     InputData_Bypass.flags.flag_input_ETP_map = 0;
     InputData_Bypass.flags.flag_inflow = double(~strcmp(getenv('HYDROPOL_ENABLE_GLOFAS_INFLOW'), '0'));
-    InputData_Bypass.flags.flag_infiltration = 1;
-    InputData_Bypass.flags.flag_groundwater_modeling = 1;
-    InputData_Bypass.flags.flag_baseflow = 1;
+    InputData_Bypass.flags.flag_abstraction = double( ...
+        ~strcmp(getenv('HYDROPOL_ENABLE_CANOPY_INTERCEPTION'), '0'));
+    InputData_Bypass.flags.flag_infiltration = double( ...
+        ~strcmp(getenv('HYDROPOL_ENABLE_INFILTRATION'), '0'));
+    InputData_Bypass.flags.flag_groundwater_modeling = double( ...
+        ~strcmp(getenv('HYDROPOL_ENABLE_GROUNDWATER'), '0'));
+    InputData_Bypass.flags.flag_baseflow = InputData_Bypass.flags.flag_groundwater_modeling;
+    InputData_Bypass.flags.flag_capillary_rise = InputData_Bypass.flags.flag_groundwater_modeling;
     if strcmp(getenv('HYDROPOL_DISABLE_GW_2D'), '1')
         InputData_Bypass.flags.flag_groundwater_modeling = 0;
         InputData_Bypass.flags.flag_baseflow = 0;
@@ -474,14 +494,24 @@ if ~isempty(getenv('HYDROPOL_INDIA_CASE_ROOT'))
     end
     InputData_Bypass.flags.groundwater_target_dt_min = 60;
     InputData_Bypass.flags.flag_boundary = 1;
-    InputData_Bypass.flags.flag_outlet_type = 1;
+    InputData_Bypass.flags.flag_D8 = 0;
+    InputData_Bypass.flags.flag_CA = 0;
+    InputData_Bypass.flags.flag_inertial = 1;
+    InputData_Bypass.flags.flag_full_momentum = 0;
+    InputData_Bypass.flags.flag_kinematic = 0;
+    InputData_Bypass.flags.flag_diffusive = 0;
+    InputData_Bypass.flags.flag_outlet_type = 2;
     InputData_Bypass.flags.flag_neal_channel = 1;
     InputData_Bypass.flags.flag_river_rasters = 1;
     InputData_Bypass.flags.flag_critical = 1;
     InputData_Bypass.flags.flag_initial_soil_moisture = 1;
     InputData_Bypass.flags.flag_human_instability = 0;
     InputData_Bypass.flags.flag_export_groundwater_maps = 1;
-    InputData_Bypass.flags.flag_fill_DEM = 0;
+    fill_dem_setting = str2double(getenv('HYDROPOL_FILL_DEM'));
+    if ~isfinite(fill_dem_setting)
+        fill_dem_setting = 0;
+    end
+    InputData_Bypass.flags.flag_fill_DEM = double(fill_dem_setting ~= 0);
     InputData_Bypass.flags.flag_obs_gauges = 1;
     InputData_Bypass.flags.flag_GPU = double(strcmp(getenv('HYDROPOL_USE_GPU'), '1'));
     InputData_Bypass.flags.flag_single = InputData_Bypass.flags.flag_GPU;

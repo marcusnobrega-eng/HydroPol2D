@@ -358,6 +358,11 @@ end
 running_control.report_every_percent = max(running_control.report_every_percent, eps);
 next_report_percent = running_control.report_every_percent;
 
+run_progress_path = strtrim(getenv('HYDROPOL_PROGRESS_FILE'));
+run_metrics_path = strtrim(getenv('HYDROPOL_METRICS_FILE'));
+next_monitor_percent = 1;
+run_monitor_timer = tic;
+
 %% ------------------------------------------------------------------------
 % Cumulative mass-balance diagnostics
 % errors = [Interception, Snow, ET/ETR, Infiltration, Groundwater] in m3
@@ -681,6 +686,12 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             end
         end
 
+        active_depths = depths.d_t(~idx_nan);
+        if any(~isfinite(active_depths), 'all') || any(active_depths > 1e6, 'all')
+            error('HydroPol2D:NumericalInstability', ...
+                'Numerical instability detected: non-finite or >1000 m surface-water depth.');
+        end
+
         %         zzz_time_tesk(k,1) = toc;
         %
         %         if k == 1000
@@ -779,16 +790,6 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         % Refreshing time-step script
         refreshing_timestep;
 
-        % -------------------------------------------------------------------------
-        % Print diagnostics only every chosen % of simulation progress
-        % This does NOT change saving logic; it only changes console printing
-        % -------------------------------------------------------------------------
-        do_report_now = false;
-        if progress_percent >= next_report_percent || progress_percent >= 100
-            do_report_now = true;
-            next_report_percent = next_report_percent + running_control.report_every_percent;
-        end
-
         %% Human Instability Calculations
         Human_Instability_Module
 
@@ -819,6 +820,27 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         % Simulation progress [%]
         % -------------------------------------------------------------------------
         progress_percent = (t / running_control.routing_time) * 100;
+
+        if ~isempty(run_progress_path) && progress_percent >= next_monitor_percent
+            elapsed_seconds = toc(run_monitor_timer);
+            bounded_percent = min(max(progress_percent, 0), 100);
+            if bounded_percent > 0
+                eta_seconds = elapsed_seconds * (100 - bounded_percent) / bounded_percent;
+            else
+                eta_seconds = NaN;
+            end
+            run_monitor_values = struct( ...
+                'stage', 'simulation', ...
+                'simulated_minutes', min(t, running_control.routing_time), ...
+                'total_minutes', running_control.routing_time, ...
+                'percent', bounded_percent, ...
+                'time_step_seconds', time_step * 60, ...
+                'elapsed_seconds', elapsed_seconds, ...
+                'eta_seconds', eta_seconds);
+            hp2d_write_run_monitor(run_progress_path, run_metrics_path, ...
+                run_monitor_values, false);
+            next_monitor_percent = floor(bounded_percent) + 1;
+        end
 
         %% Saving Output Maps
 
@@ -877,6 +899,47 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
 
             %% Mass Balance Check
             mass_balance_check
+
+            if ~isempty(run_progress_path)
+                elapsed_seconds = toc(run_monitor_timer);
+                bounded_percent = min(max(progress_percent, 0), 100);
+                eta_seconds = elapsed_seconds * (100 - bounded_percent) / max(bounded_percent, eps);
+                step_minutes = max(t - t_previous, eps);
+                rainfall_rate = gather_deep(BC_States.delta_p_agg) * 60 / step_minutes;
+                valid_rain = rainfall_rate(~isnan(rainfall_rate));
+                if isempty(valid_rain)
+                    rainfall_mean_mm_h = 0;
+                    rainfall_max_mm_h = 0;
+                else
+                    rainfall_mean_mm_h = mean(valid_rain, 'omitnan');
+                    rainfall_max_mm_h = max(valid_rain, [], 'omitnan');
+                end
+                outlet_area_reporting = C_a;
+                if flags.flag_subgrid == 1 && flags.flag_overbanks ~= 1
+                    outlet_area_reporting = ones(size(C_a), 'like', C_a) .* Wshed_Properties.cell_area;
+                    outlet_area_reporting(isnan(Elevation_Properties.elevation_cell)) = NaN;
+                end
+                outlet_discharge_m3_s = nansum(nansum( ...
+                    outlet_states.outlet_flow .* outlet_area_reporting)) / 1000 / 3600;
+                groundwater_depth = gather_deep(Elevation_Properties.elevation_cell - BC_States.h_t);
+                run_monitor_values = struct( ...
+                    'stage', 'simulation', ...
+                    'simulated_minutes', min(t, running_control.routing_time), ...
+                    'total_minutes', running_control.routing_time, ...
+                    'percent', bounded_percent, ...
+                    'time_step_seconds', time_step * 60, ...
+                    'elapsed_seconds', elapsed_seconds, ...
+                    'eta_seconds', eta_seconds, ...
+                    'rainfall_mean_mm_h', rainfall_mean_mm_h, ...
+                    'rainfall_max_mm_h', rainfall_max_mm_h, ...
+                    'max_surface_depth_m', max(gather_deep(depths.d_t(:)), [], 'omitnan') / 1000, ...
+                    'outlet_discharge_m3_s', gather_deep(outlet_discharge_m3_s), ...
+                    'total_storage_m3', gather_deep(current_storage), ...
+                    'mass_balance_error_m3', gather_deep(volume_error), ...
+                    'mean_groundwater_depth_m', mean(groundwater_depth(:), 'omitnan'));
+                hp2d_write_run_monitor(run_progress_path, run_metrics_path, ...
+                    run_monitor_values, true);
+            end
             % surfmap(depths.d_t); pause(0.1)
 
             % ------------------------------------------------------------------------

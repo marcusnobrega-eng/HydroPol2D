@@ -562,6 +562,10 @@ if VoronoiSelection.enabled
 end
 
 % 1) Pre-processing
+run_progress_path = strtrim(getenv('HYDROPOL_PROGRESS_FILE'));
+run_metrics_path = strtrim(getenv('HYDROPOL_METRICS_FILE'));
+hp2d_write_run_monitor(run_progress_path, run_metrics_path, ...
+    struct('stage', 'preprocessing', 'percent', NaN), false);
 fprintf('------------------------------------------------------------\n');
 fprintf('STEP 1/3 | Running HydroPol2D_preprocessing\n');
 fprintf('This step reads inputs, loads rasters/tables, and prepares\n');
@@ -570,13 +574,22 @@ fprintf('------------------------------------------------------------\n\n');
 
 HydroPol2D_preprocessing;
 
+% HydroPol2D_preprocessing is a script that clears non-model workspace
+% variables, so restore the monitor paths before the remaining stages.
+run_progress_path = strtrim(getenv('HYDROPOL_PROGRESS_FILE'));
+run_metrics_path = strtrim(getenv('HYDROPOL_METRICS_FILE'));
+
 if strcmp(getenv('HYDROPOL_PREFLIGHT_ONLY'), '1')
+    hp2d_write_run_monitor(run_progress_path, run_metrics_path, ...
+        struct('stage', 'complete', 'percent', 100), false);
     if enable_logging, diary('off'); end
     fprintf('\nHydroPol2D preflight completed successfully. The numerical solver was not run.\n');
     return
 end
 
 % 2) Main solver
+hp2d_write_run_monitor(run_progress_path, run_metrics_path, ...
+    struct('stage', 'simulation', 'percent', 0), false);
 fprintf('\n------------------------------------------------------------\n');
 fprintf('STEP 2/3 | Running HydroPol2D_Main_While\n');
 fprintf('This step executes the main HydroPol2D numerical simulation.\n');
@@ -586,6 +599,8 @@ HydroPol2D_Main_While
 
 % 3) Post-processing
 if run_postprocessing
+    hp2d_write_run_monitor(run_progress_path, run_metrics_path, ...
+        struct('stage', 'postprocessing', 'percent', NaN), false);
     fprintf('\n------------------------------------------------------------\n');
     fprintf('STEP 3/3 | Running post_processing\n');
     fprintf('This step exports figures, tables, rasters, animations,\n');
@@ -597,6 +612,9 @@ if run_postprocessing
 else
     fprintf('\nPost-processing was skipped because "run_postprocessing = false".\n');
 end
+
+hp2d_write_run_monitor(run_progress_path, run_metrics_path, ...
+    struct('stage', 'complete', 'percent', 100), false);
 
 %% ------------------------------------------------------------------------
 % Finish logging

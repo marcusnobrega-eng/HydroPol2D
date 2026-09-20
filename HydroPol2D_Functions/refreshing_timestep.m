@@ -225,17 +225,11 @@ if running_control.delta_time_save > 0 || k == 1
     % NOTE: keeping stagnant masking as requested by user
     % ---------------------------------------------------------------------
     wave_celerity = sqrt(9.81 * max(depth_timestep, 0)); % m/s
-    wave_celerity = max(wave_celerity, 1e-10);
-    wave_celerity(isinf(wave_celerity)) = nan;
-    wave_celerity(idx_stagnant) = nan; % kept intentionally as requested
+    wave_celerity(~isfinite(wave_celerity)) = nan;
 
-    if flags.flag_adaptive_timestepping == 1
-        dt_wave = nanmin(Courant_Parameters.alfa_min * Wshed_Properties.Resolution ./ wave_celerity, [], 'all');
-    else
-        max_vel = velocities.velocity_raster; % fixed bug: use local speed raster
-        dt_wave = nanmin(Courant_Parameters.alfa_min * Wshed_Properties.Resolution ./ ...
-            (max_vel + wave_celerity), [], 'all');
-    end
+    signal_speed = abs(velocities.velocity_raster) + wave_celerity;
+    signal_speed(signal_speed <= 1e-10) = nan;
+    dt_wave = nanmin(Courant_Parameters.alfa_min * Wshed_Properties.Resolution ./ signal_speed, [], 'all');
 
     if isnan(dt_wave)
         dt_wave = running_control.max_time_step;
