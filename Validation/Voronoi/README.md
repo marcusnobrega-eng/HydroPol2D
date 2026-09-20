@@ -30,6 +30,20 @@ No Python runtime is used by the MATLAB writer or post-processor.
 This directory validates the separate Voronoi finite-volume runner. It does
 not alter or replace the raster D4 validation cases.
 
+## Restricted urban quadtree
+
+`HydroPol2D_Run_Quadtree_Case` accepts the Case Builder's square UGRID mesh and
+checks that all cell widths belong to a strict power-of-two sequence. The first
+configuration uses 90 m urban cells, 180 m transition cells, and 360 m basin
+cells. Refinement follows only the urban polygon and its 120 m buffer. River
+cells use HydroBathyDEM subgrid terrain and conveyance tables without creating
+a separate one-dimensional channel graph or forcing additional refinement.
+
+Run `run_quadtree_smoke_validation(mesh_file, output_directory)` for the short
+surface-routing test. A prepared case is started with
+`HydroPol2D_Run_Prepared_Quadtree(case_root)`, which also exercises raster-to-
+mesh mapping, rainfall, hydrology, groundwater, and the river subgrid tables.
+
 The suite currently covers:
 
 - configuration rejection for retired raster D8 and conflicting solvers;
