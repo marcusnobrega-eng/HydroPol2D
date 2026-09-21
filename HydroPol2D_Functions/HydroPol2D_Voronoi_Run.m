@@ -53,7 +53,8 @@ if config.hydrology_enabled
 end
 t = 0; next_output = config.output_interval_s; next_progress = config.progress_interval_s;
 progress_timer = tic;
-step = 0; running_min_dt = inf; initial_mass = sum(surface_volume) + sum(channel_volume);
+step = 0; running_min_dt = inf; timestep_floor_clamp_count = 0;
+initial_mass = sum(surface_volume) + sum(channel_volume);
 if groundwater.enabled, initial_mass = initial_mass + groundwater_mass(groundwater, mesh) + sum(groundwater.pending_exchange_m3); end
 if hydrology.enabled, initial_mass = initial_mass + hydrology_mass(hydrology); end
 % ---- optional HEC-RAS style sub-grid property tables --------------------
@@ -116,9 +117,22 @@ while t < config.duration_s-time_tolerance
         groundwater, roughness, hu, hv, cfl_boundary, config, t);
     stability_dt = min(dt,config.max_dt_s);
     if stability_dt < config.min_dt_s && config.duration_s - t > config.min_dt_s
-        error('HydroPol2D:VoronoiTimestepFloor', 'Required timestep %.6g s is below minimum %.6g s.', stability_dt, config.min_dt_s);
+        if strcmpi(config.timestep_floor_action,'clamp')
+            timestep_floor_clamp_count = timestep_floor_clamp_count + 1;
+            if timestep_floor_clamp_count == 1
+                warning('HydroPol2D:VoronoiTimestepFloorClamped', ...
+                    ['Required timestep %.6g s is below minimum %.6g s. ' ...
+                     'Clamping to the minimum and continuing; numerical stability is not guaranteed.'], ...
+                    stability_dt, config.min_dt_s);
+            end
+            integration_dt = config.min_dt_s;
+        else
+            error('HydroPol2D:VoronoiTimestepFloor', 'Required timestep %.6g s is below minimum %.6g s.', stability_dt, config.min_dt_s);
+        end
+    else
+        integration_dt = stability_dt;
     end
-    dt = min([stability_dt, config.duration_s - t, next_output-t]);
+    dt = min([integration_dt, config.duration_s - t, next_output-t]);
     if groundwater.enabled
         remaining_groundwater=config.groundwater_update_interval_s-groundwater.elapsed_s;
         if remaining_groundwater>time_tolerance, dt=min(dt,remaining_groundwater); end
@@ -318,6 +332,7 @@ while t < config.duration_s-time_tolerance
                 'eta_seconds',elapsed_seconds*max(100-percent,0)/max(percent,eps), ...
                 'stability_dt_s',stability_dt, ...
                 'minimum_stability_dt_s',running_min_dt, ...
+                'timestep_floor_clamp_count',timestep_floor_clamp_count, ...
                 'surface_depth_m',live_depth,'maximum_depth_m',live_max_depth, ...
                 'maximum_depth_cell',live_max_cell,'maximum_velocity_m_s',surface_diag.max_velocity_m_s, ...
                 'mass_residual_m3',mass-expected,'cfl',cfl); %#ok<NASGU>
@@ -445,6 +460,7 @@ end
 function config = defaults(config)
 values = struct('routing_solver','local_inertial','duration_s',3600,'initial_surface_depth_m',0, ...
     'initial_channel_depth_m',0,'surface_roughness',0.05,'min_dt_s',0.01,'max_dt_s',30, ...
+    'timestep_floor_action','error', ...
     'output_interval_s',300,'courant',0.2,'gravity',9.81, ...
     'dry_tolerance_m',1e-3,'critical_flow',false,'groundwater_enabled',false, ...
     'voronoi_subgrid_enabled',[],'subgrid_table_path','', ...
