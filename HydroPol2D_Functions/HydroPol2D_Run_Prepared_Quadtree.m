@@ -69,9 +69,12 @@ end
 rainfall_files=dir(fullfile(forcing_root,'Rainfall','*.tif'));
 [~,order]=sort({rainfall_files.name}); rainfall_files=rainfall_files(order);
 assert(~isempty(rainfall_files),'HydroPol2D:MissingRainfall','No prepared rainfall maps were found.');
+projected=projcrs(mesh.crs_wkt);
+[mesh_latitude,mesh_longitude]=projinv(projected,mesh.cell_x,mesh.cell_y);
 forcing=struct();
-forcing.raster_source_m_s=@(time_s,state,current_mesh) rainfall_at( ...
-    time_s,rainfall_files,forcing_root,double(config_json.forcing.rainfall_interval_minutes)*60);
+forcing.surface_source_m_s=@(time_s,state,current_mesh) rainfall_at( ...
+    time_s,rainfall_files,forcing_root,double(config_json.forcing.rainfall_interval_minutes)*60, ...
+    mesh_latitude,mesh_longitude);
 if flags.internal_etp
     etp_path=fullfile(forcing_root,'Evapotranspiration','ETP_input_data.xlsx');
     if exist(etp_path,'file')==2
@@ -109,7 +112,8 @@ end
 
 function value=map_mean(path,mapping,fallback)
 raw=read_south_up(path); valid=isfinite(raw);
-numerator=mapping.raster_to_mesh*(raw.*valid);
+raw(~valid)=0;
+numerator=mapping.raster_to_mesh*raw;
 denominator=mapping.raster_to_mesh*double(valid);
 value=numerator./max(denominator,eps);
 if isscalar(fallback), fallback=repmat(fallback,size(value)); end
@@ -139,11 +143,17 @@ value=repmat(fallback,size(code));
 for k=1:numel(keys), value(code==keys(k))=values(k); end
 end
 
-function rate=rainfall_at(time_s,files,forcing_root,interval_s)
+function rate=rainfall_at(time_s,files,forcing_root,interval_s,latitude,longitude)
 index=min(numel(files),max(1,floor(time_s/interval_s)+1));
 path=fullfile(forcing_root,'Rainfall',files(index).name);
-raw=read_south_up(path); raw(~isfinite(raw))=0;
-rate=max(raw,0)./1000/3600;
+[raw,reference]=readgeoraster(path,'OutputType','double');
+for missing=double(georasterinfo(path).MissingDataIndicator(:))'
+    raw(raw==missing)=NaN;
+end
+[column,row]=geographicToIntrinsic(reference,latitude,longitude);
+sampled=interp2(raw,column,row,'nearest',0);
+sampled(~isfinite(sampled))=0;
+rate=max(sampled(:),0)./1000/3600;
 end
 
 function data=read_etp_workbook(path,mesh)
