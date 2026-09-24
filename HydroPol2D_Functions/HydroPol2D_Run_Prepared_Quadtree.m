@@ -22,6 +22,8 @@ lai=map_mean(fullfile(static_root,'LAI.tif'),mapping,0);
 initial_theta=map_mean(fullfile(static_root,'Initial_Soil_Moisture_Fraction.tif'),mapping,0.25);
 dtb=max(map_mean(fullfile(static_root,'DTB.tif'),mapping,2),0.1);
 groundwater_head=map_mean(fullfile(static_root,'GW_table.tif'),mapping,mesh.cell_bed-2);
+[groundwater_fixed_mask,groundwater_fixed_head]=map_fixed_head( ...
+    fullfile(static_root,'GW_Dirichlet_Head.tif'),mapping,groundwater_head);
 
 roughness=lookup(lulc,[10 20 30 40 50 60 70 80 90 95 100], ...
     [0.100 0.080 0.060 0.050 0.030 0.035 0.020 0.035 0.120 0.150 0.080],0.05);
@@ -55,9 +57,12 @@ solver_config=struct( ...
     'max_dt_s',double(simulation.maximum_timestep_s),'critical_flow',true, ...
     'hydrology_enabled',logical(flags.canopy_interception || flags.infiltration || flags.internal_etp), ...
     'hydrology',hydrology,'groundwater_enabled',logical(flags.groundwater), ...
+    'groundwater_lateral_flow',~strcmpi(string(config_json.parameters.groundwater_boundary),'local'), ...
     'initial_groundwater_head_m',min(max(groundwater_head,mesh.cell_bed-dtb),mesh.cell_bed), ...
     'aquifer_bottom_m',mesh.cell_bed-dtb,'hydraulic_conductivity_m_s',1e-5, ...
     'specific_yield',0.2,'groundwater_update_interval_s',3600, ...
+    'groundwater_fixed_head_mask',groundwater_fixed_mask, ...
+    'groundwater_fixed_head_m',groundwater_fixed_head, ...
     'forcing_interval_s',double(config_json.forcing.rainfall_interval_minutes)*60, ...
     'progress_interval_s',max(double(simulation.duration_seconds)/100,60), ...
     'progress_checkpoint_file',run_progress_path);
@@ -87,8 +92,7 @@ if flags.internal_etp
             'The prepared ETP workbook is absent; evapotranspiration is zero.');
     end
 end
-boundary=find(mesh.edge_neighbor==0);
-forcing.surface_boundary=struct('edge_id',boundary,'type',"critical_flow",'value',0);
+forcing.surface_boundary=prepared_surface_boundary(case_root,mesh,simulation.start_utc);
 
 case_definition=struct( ...
     'mesh_file',mesh_file,'overlap_file',overlap_file, ...
@@ -104,11 +108,60 @@ if exist(subgrid_path,'file')==2
     case_definition.options=struct('voronoi_subgrid_enabled',true, ...
         'subgrid_table_path',subgrid_path);
 end
+
 hp2d_write_run_monitor(run_progress_path,run_metrics_path, ...
     struct('stage','simulation','percent',0),false);
 results=HydroPol2D_Run_Quadtree_Case(case_definition,fullfile(case_root,'Outputs'),false);
 hp2d_write_run_monitor(run_progress_path,run_metrics_path, ...
     struct('stage','complete','percent',100),false);
+end
+
+function forcing=prepared_surface_boundary(case_root,mesh,start_utc)
+plan_path=fullfile(case_root,'processed_inputs','Forcing','Boundary','surface_boundary_plan.json');
+series_path=fullfile(case_root,'processed_inputs','Forcing','Boundary','surface_boundary.csv');
+if exist(plan_path,'file')~=2
+    boundary=find(mesh.edge_neighbor==0);
+    forcing=struct('edge_id',boundary,'type',"critical_flow",'value',0);
+    return
+end
+plan=jsondecode(fileread(plan_path));
+critical=double(plan.critical_flow_edge_ids(:))+1;
+if exist(series_path,'file')~=2
+    forcing=struct('edge_id',critical,'type',"critical_flow",'value',0);
+    return
+end
+table=readtable(series_path,'TextType','string');
+if isempty(table)
+    forcing=struct('edge_id',critical,'type',"critical_flow",'value',0);
+    return
+end
+origin=datetime(start_utc,'TimeZone','UTC','InputFormat','yyyy-MM-dd''T''HH:mm:ssXXX');
+timestamps=datetime(table.time_utc,'TimeZone','UTC','InputFormat','yyyy-MM-dd''T''HH:mm:ssXXX');
+data=struct('time_s',seconds(timestamps-origin),'edge_id',double(table.edge_id)+1, ...
+    'type',string(table.type),'value',double(table.value),'critical',critical, ...
+    'glofas_interpolation',string(plan.inflows_interpolation),'tide_interpolation',string(plan.tide.interpolation));
+forcing=@(time_s,state,current_mesh) boundary_at_time(data,time_s);
+end
+
+function boundary=boundary_at_time(data,time_s)
+edge_id=data.critical(:); types=repmat("critical_flow",numel(edge_id),1); values=zeros(numel(edge_id),1);
+dynamic=unique(data.edge_id(:));
+for k=1:numel(dynamic)
+    selected=data.edge_id==dynamic(k);
+    times=data.time_s(selected); series=data.value(selected); kind=data.type(find(selected,1));
+    [times,order]=sort(times); series=series(order);
+    method=data.glofas_interpolation;
+    if kind=="stage", method=data.tide_interpolation; end
+    if method=="linear"
+        value=interp1(times,series,time_s,'linear','extrap');
+    else
+        index=find(times<=time_s,1,'last');
+        if isempty(index), index=1; end
+        value=series(index);
+    end
+    edge_id(end+1,1)=dynamic(k); types(end+1,1)=kind; values(end+1,1)=value;
+end
+boundary=struct('edge_id',edge_id,'type',types,'value',values);
 end
 
 function value=map_mean(path,mapping,fallback)
@@ -119,6 +172,16 @@ denominator=mapping.raster_to_mesh*double(valid);
 value=numerator./max(denominator,eps);
 if isscalar(fallback), fallback=repmat(fallback,size(value)); end
 value(denominator<=0)=fallback(denominator<=0);
+end
+
+function [mask,value]=map_fixed_head(path,mapping,fallback)
+if exist(path,'file')~=2
+    mask=false(size(fallback)); value=fallback; return
+end
+raw=read_south_up(path); valid=isfinite(raw); raw(~valid)=0;
+weight=mapping.raster_to_mesh*double(valid);
+value=(mapping.raster_to_mesh*raw)./max(weight,eps);
+mask=weight>0; value(~mask)=fallback(~mask);
 end
 
 function value=map_category(path,mapping)

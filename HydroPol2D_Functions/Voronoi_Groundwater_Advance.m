@@ -17,14 +17,30 @@ groundwater.head = groundwater.bottom + groundwater.storage ./ ...
 
 remaining = duration_s; substeps = 0; maximum_flux = 0; river_exchange = 0;
 river_exchange_by_cell=zeros(mesh.n_cells,1);
+fixed_head_exchange=0;
 while remaining > 10*eps(max(duration_s,1))
-    stable = groundwater_stable_timestep(mesh,groundwater,config.courant);
+    if isfield(config,'groundwater_lateral_flow') && ~config.groundwater_lateral_flow
+        stable=remaining;
+    else
+        stable = groundwater_stable_timestep(mesh,groundwater,config.courant);
+    end
     dt = min(remaining,stable);
-    [groundwater.head,lateral] = Voronoi_Boussinesq_Step(mesh,groundwater.head,groundwater.bottom, ...
-        groundwater.hydraulic_conductivity,groundwater.specific_yield,dt);
+    if isfield(config,'groundwater_lateral_flow') && ~config.groundwater_lateral_flow
+        lateral=struct('max_flux_m3_s',0);
+    else
+        [groundwater.head,lateral] = Voronoi_Boussinesq_Step(mesh,groundwater.head,groundwater.bottom, ...
+            groundwater.hydraulic_conductivity,groundwater.specific_yield,dt);
+    end
     groundwater.storage = groundwater.specific_yield .* max(groundwater.head-groundwater.bottom,0) .* mesh.cell_area(:);
     [surface_volume,channel_volume,groundwater,exchange] = river_exchange_step( ...
         mesh,surface_volume,channel_volume,groundwater,dt,config);
+    if isfield(config,'groundwater_fixed_head_mask') && ~isempty(config.groundwater_fixed_head_mask)
+        fixed=logical(config.groundwater_fixed_head_mask(:));
+        target=groundwater.specific_yield(fixed).*(double(config.groundwater_fixed_head_m(fixed))-groundwater.bottom(fixed)).*mesh.cell_area(fixed);
+        fixed_head_exchange=fixed_head_exchange+sum(max(target,0)-groundwater.storage(fixed));
+        groundwater.storage(fixed)=max(target,0);
+        groundwater.head(fixed)=double(config.groundwater_fixed_head_m(fixed));
+    end
     maximum_flux=max([maximum_flux,lateral.max_flux_m3_s,exchange.maximum_flux_m3_s]);
     river_exchange=river_exchange+exchange.net_groundwater_to_river_m3;
     river_exchange_by_cell=river_exchange_by_cell+exchange.by_cell_m3;
@@ -41,7 +57,7 @@ groundwater.last_river_exchange_rate_m_s=river_exchange_by_cell./mesh.cell_area(
 groundwater.last_seepage_rate_m_s=excess./mesh.cell_area(:)./duration_s;
 diagnostics = struct('max_flux_m3_s',maximum_flux,'substep_count',substeps, ...
     'river_exchange_m3',river_exchange,'seepage_volume_m3',sum(excess), ...
-    'mass_change_m3',0);
+    'fixed_head_exchange_m3',fixed_head_exchange,'mass_change_m3',0);
 end
 
 function dt = groundwater_stable_timestep(mesh,groundwater,courant)
@@ -110,5 +126,6 @@ q=volume./dt;
 end
 
 function diagnostics = empty_diagnostics()
-diagnostics=struct('max_flux_m3_s',0,'substep_count',0,'river_exchange_m3',0,'seepage_volume_m3',0,'mass_change_m3',0);
+diagnostics=struct('max_flux_m3_s',0,'substep_count',0,'river_exchange_m3',0, ...
+    'seepage_volume_m3',0,'fixed_head_exchange_m3',0,'mass_change_m3',0);
 end
