@@ -290,18 +290,18 @@ function files=write_figures(histories,metadata,time,native_file,folders)
 files=strings(0,1); names=fieldnames(histories); preferred={'surface_depth','velocity','infiltration_depth','actual_et_depth','groundwater_head','groundwater_depth'};
 selected=intersect(preferred,names,'stable'); if isempty(selected), return; end
 figure_handle=figure('Visible','off','Color','w','Position',[50 50 1200 800]); layout=tiledlayout(figure_handle,2,3,'TileSpacing','compact','Padding','compact');
-for k=1:numel(selected), name=selected{k}; ax=nexttile(layout); imagesc(ax,histories.(name)(:,:,end)); axis(ax,'image','off'); colormap(ax,parula(256)); colorbar(ax); title(ax,strrep(metadata.(name).stem,'_',' '),'FontName','Helvetica','FontWeight','normal'); set(ax,'FontName','Helvetica','LineWidth',1.5); end
+for k=1:numel(selected), name=selected{k}; ax=nexttile(layout); imagesc(ax,histories.(name)(:,:,end)); axis(ax,'image','off'); colormap(ax,parula(256)); colorbar(ax); title(ax,strrep(metadata.(name).stem,'_',' '),'FontName','Helvetica Neue Light','FontWeight','normal'); set(ax,'FontName','Helvetica Neue Light','LineWidth',1.5); end
 files=[files; save_figure(figure_handle,folders,'State_Summary')]; close(figure_handle);
 outlet=read_any(native_file,{'outlet_discharge_m3_s'});
 if ~isempty(outlet)
-    figure_handle=figure('Visible','off','Color','w','Position',[50 50 720 420]); plot(time/3600,outlet,'LineWidth',1.5,'Color',[0 0.447 0.741]); grid on; xlabel('Time (h)'); ylabel('Discharge (m^3/s)'); set(gca,'FontName','Helvetica','LineWidth',1.5); title('Outlet hydrograph','FontWeight','normal');
+    figure_handle=figure('Visible','off','Color','w','Position',[50 50 720 420]); plot(time/3600,outlet,'LineWidth',2.0,'Color',[0.043 0.506 0.635]); grid on; xlabel('Time (h)'); ylabel('Discharge (m^3/s)'); set(gca,'FontName','Helvetica Neue Light','LineWidth',1.5); title('Outlet hydrograph','FontWeight','normal');
     files=[files;save_figure(figure_handle,folders,'Outlet_Hydrograph')]; close(figure_handle);
 end
 gauge_q=read_any(native_file,{'gauge_discharge_m3_s'});
 if ~isempty(gauge_q)
     figure_handle=figure('Visible','off','Color','w','Position',[50 50 720 420]);
     plot(time/3600,gauge_q','LineWidth',1.5); grid on; xlabel('Time (h)'); ylabel('Discharge (m^3/s)');
-    set(gca,'FontName','Helvetica','LineWidth',1.5); title('Configured-gauge hydrographs','FontWeight','normal');
+    set(gca,'FontName','Helvetica Neue Light','LineWidth',1.5); title('Configured-gauge hydrographs','FontWeight','normal');
     legend(gauge_names(native_file,size(gauge_q,1)),'Location','best','Interpreter','none');
     files=[files;save_figure(figure_handle,folders,'Gauge_Hydrographs')]; close(figure_handle);
 end
@@ -318,7 +318,7 @@ for k=1:numel(names), name=names{k}; maps=histories.(name); if size(maps,3)<2, c
     file=fullfile(folder,[metadata.(name).stem '.mp4']); video=VideoWriter(file,'MPEG-4'); video.FrameRate=fps; open(video);
     limits=[min(maps(:)) max(maps(:))]; if limits(2)<=limits(1), limits(2)=limits(1)+1; end
     figure_handle=figure('Visible','off','Color','w','Position',[50 50 720 520]);
-    for j=1:numel(indices), imagesc(maps(:,:,indices(j)),limits); axis image off; colormap(parula(256)); colorbar; title(sprintf('%s | t = %.2f h',strrep(metadata.(name).stem,'_',' '),map_time(j)/3600),'FontName','Helvetica','FontWeight','normal'); drawnow; writeVideo(video,getframe(figure_handle)); end
+    for j=1:numel(indices), imagesc(maps(:,:,indices(j)),limits); axis image off; colormap(parula(256)); colorbar; title(sprintf('%s | t = %.2f h',strrep(metadata.(name).stem,'_',' '),map_time(j)/3600),'FontName','Helvetica Neue Light','FontWeight','normal'); drawnow; writeVideo(video,getframe(figure_handle)); end
     close(video); close(figure_handle); files(end+1)=file; %#ok<AGROW>
 end
 preferred={'surface_depth','velocity','infiltration_depth','actual_et_depth', ...
@@ -332,10 +332,10 @@ if numel(selected)>=2
         for k=1:numel(selected)
             name=selected{k}; maps=histories.(name); ax=nexttile(layout);
             imagesc(ax,maps(:,:,indices(j))); axis(ax,'image','off'); colormap(ax,parula(256)); colorbar(ax);
-            title(ax,strrep(metadata.(name).stem,'_',' '),'FontName','Helvetica','FontWeight','normal');
+            title(ax,strrep(metadata.(name).stem,'_',' '),'FontName','Helvetica Neue Light','FontWeight','normal');
         end
         title(layout,sprintf('HydroPol2D | t = %.2f h',map_time(j)/3600), ...
-            'FontName','Helvetica','FontWeight','normal'); drawnow; writeVideo(video,getframe(figure_handle));
+            'FontName','Helvetica Neue Light','FontWeight','normal'); drawnow; writeVideo(video,getframe(figure_handle));
     end
     close(video); close(figure_handle); files(end+1)=file;
 end
