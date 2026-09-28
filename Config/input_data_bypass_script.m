@@ -467,6 +467,10 @@ if ~isempty(getenv('HYDROPOL_INDIA_CASE_ROOT'))
             InputData_Bypass.general.date_end - InputData_Bypass.general.date_begin));
     end
     InputData_Bypass.general.record_time_hydrographs = 60;
+    record_diagnostics_minutes = str2double(getenv('HYDROPOL_RECORD_DIAGNOSTICS_MIN'));
+    if isfinite(record_diagnostics_minutes) && record_diagnostics_minutes > 0
+        InputData_Bypass.general.record_time_hydrographs = record_diagnostics_minutes;
+    end
     InputData_Bypass.general.record_time_spatial_rainfall = rainfall_interval_min;
     InputData_Bypass.general.slope_outlet = 0.2;
     InputData_Bypass.general.n_outlets_data = 1;
