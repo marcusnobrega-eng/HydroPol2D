@@ -305,6 +305,10 @@ if flags.flag_snow_modeling == 1
 else
     S_SWE = 0;
 end
+if isfield(flags, 'flag_deep_aquifer') && flags.flag_deep_aquifer == 1 && ...
+        isfield(BC_States, 'deep_aquifer_initial_storage_m3')
+    S_GW = S_GW + sum(BC_States.deep_aquifer_initial_storage_m3(:), 'omitnan');
+end
 S_prev = S_c + S_p + S_UZ + S_GW + S_SWE;
 
 % Optional non-intrusive, event-scale water-balance ledger. It is disabled

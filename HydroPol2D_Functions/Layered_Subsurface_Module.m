@@ -68,7 +68,11 @@ lay_soil_demand_mm = zeros(size(elevation), 'like', elevation);
 if flags.flag_ETP == 1
     lay_open_water_mm = max(Hydro_States.Ep, 0).*dt_days;
     if flags.flag_input_ETP_map == 1
-        lay_rate = input_evaporation + input_transpiration;
+        if isfield(BC_States, 'current_evaporation_map') && ~isempty(BC_States.current_evaporation_map)
+            lay_rate = BC_States.current_evaporation_map + BC_States.current_transpiration_map;
+        else
+            lay_rate = input_evaporation + input_transpiration;
+        end
     else
         if isfield(LULC_Properties, 'Kc') && ~isempty(LULC_Properties.Kc)
             lay_rate = Hydro_States.ETP.*LULC_Properties.Kc;
