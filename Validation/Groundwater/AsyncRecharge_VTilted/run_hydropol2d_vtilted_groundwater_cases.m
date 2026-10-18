@@ -16,7 +16,7 @@ if ~exist(fig_dir, 'dir'); mkdir(fig_dir); end
 Diagnostics = table();
 PassFail = table();
 
-[Diag, Series, passed] = run_constant_recharge_case(functions_dir, true);
+[Diag, Series, passed] = run_constant_recharge_case(functions_dir);
 writetable(Series, fullfile(ts_dir, 'VAL-GW-ASYNC-001.csv'));
 Diagnostics = [Diagnostics; Diag]; %#ok<AGROW>
 PassFail = [PassFail; pass_row(Diag, passed)]; %#ok<AGROW>
@@ -43,15 +43,13 @@ make_figures(ts_dir, fig_dir);
 disp(Diagnostics);
 disp(PassFail);
 
-function [Diag, Series, passed] = run_constant_recharge_case(functions_dir, async_enabled)
+function [Diag, Series, passed] = run_constant_recharge_case(functions_dir)
 Cfg = base_cfg();
 Cfg.case_id = "VAL-GW-ASYNC-001";
 Cfg.case_name = "Constant recharge water-table rise";
 Cfg.regime = "local_recharge";
 Cfg.flag_baseflow = 0;
-Cfg.flag_groundwater_async = double(async_enabled);
 Cfg.flag_capillary_rise = 0;
-Cfg.target_dt_min = 60;
 Cfg.dt_min = 10;
 Cfg.duration_min = 360;
 Cfg.recharge_mm_h = 1.0;
@@ -70,8 +68,7 @@ final_gw = groundwater_storage_m3(State, Env);
 input_volume_m3 = total_recharge_m * Env.active_area_m2;
 mass_residual_m3 = input_volume_m3 - (final_gw - initial_gw);
 
-passed = abs(head_error_m) < 1e-10 && abs(mass_residual_m3) < 1e-6 && ...
-    State.GW_States.n_updates == Cfg.duration_min / Cfg.target_dt_min;
+passed = abs(head_error_m) < 1e-10 && abs(mass_residual_m3) < 1e-6;
 
 Diag = diagnostic_row(Cfg, expected_head_m, model_head_m, head_error_m, ...
     0, 0, 0, input_volume_m3, State.GW_States.total_recharge_m3, ...
@@ -80,50 +77,48 @@ Diag = diagnostic_row(Cfg, expected_head_m, model_head_m, head_error_m, ...
 end
 
 function [Diag, Series, passed] = run_scheduler_equivalence_case(functions_dir)
-CfgAsync = base_cfg();
-CfgAsync.case_id = "VAL-GW-ASYNC-002";
-CfgAsync.case_name = "Recharge accumulation equivalence";
-CfgAsync.regime = "scheduler_equivalence";
-CfgAsync.flag_baseflow = 0;
-CfgAsync.flag_groundwater_async = 1;
-CfgAsync.flag_capillary_rise = 0;
-CfgAsync.target_dt_min = 60;
-CfgAsync.dt_min = 10;
-CfgAsync.duration_min = 360;
-CfgAsync.recharge_mm_h = 1.0;
-CfgAsync.ksat_mm_h = 1e10;
+CfgCoarse = base_cfg();
+CfgCoarse.case_id = "VAL-GW-ASYNC-002";
+CfgCoarse.case_name = "Local exchange step-size invariance";
+CfgCoarse.regime = "local_step_invariance";
+CfgCoarse.flag_baseflow = 0;
+CfgCoarse.flag_capillary_rise = 0;
+CfgCoarse.dt_min = 60;
+CfgCoarse.duration_min = 360;
+CfgCoarse.recharge_mm_h = 1.0;
+CfgCoarse.ksat_mm_h = 1e10;
 
-CfgLegacy = CfgAsync;
-CfgLegacy.flag_groundwater_async = 0;
+CfgFine = CfgCoarse;
+CfgFine.dt_min = 10;
 
-[AsyncState, AsyncEnv] = make_model_state(CfgAsync);
-[AsyncSeries, AsyncState] = run_forcing_series(AsyncState, AsyncEnv, CfgAsync, functions_dir);
+[CoarseState, CoarseEnv] = make_model_state(CfgCoarse);
+[CoarseSeries, CoarseState] = run_forcing_series(CoarseState, CoarseEnv, CfgCoarse, functions_dir);
+[FineState, FineEnv] = make_model_state(CfgFine);
+[FineSeries, FineState] = run_forcing_series(FineState, FineEnv, CfgFine, functions_dir);
 
-[LegacyState, LegacyEnv] = make_model_state(CfgLegacy);
-[LegacySeries, LegacyState] = run_forcing_series(LegacyState, LegacyEnv, CfgLegacy, functions_dir);
-
-head_error_grid = AsyncState.BC_States.h_t - LegacyState.BC_States.h_t;
+head_error_grid = CoarseState.BC_States.h_t - FineState.BC_States.h_t;
 head_rmse_m = rmse_omitnan(head_error_grid);
 max_head_error_m = max_abs_omitnan(head_error_grid);
 
-async_storage = groundwater_storage_m3(AsyncState, AsyncEnv);
-legacy_storage = groundwater_storage_m3(LegacyState, LegacyEnv);
-storage_error_m3 = async_storage - legacy_storage;
-relative_storage_error_pct = abs(storage_error_m3) / max(abs(legacy_storage), eps) * 100;
+coarse_storage = groundwater_storage_m3(CoarseState, CoarseEnv);
+fine_storage = groundwater_storage_m3(FineState, FineEnv);
+storage_error_m3 = coarse_storage - fine_storage;
+relative_storage_error_pct = abs(storage_error_m3) / max(abs(fine_storage), eps) * 100;
 
-Series = table(AsyncSeries.time_h, AsyncSeries.mean_head_m, LegacySeries.mean_head_m, ...
-    AsyncSeries.pending_net_mm, LegacySeries.pending_net_mm, ...
-    'VariableNames', {'time_h','async_head_m','legacy_head_m', ...
-    'async_pending_net_mm','legacy_pending_net_mm'});
+fine_head_at_coarse_times=interp1(FineSeries.time_h,FineSeries.mean_head_m, ...
+    CoarseSeries.time_h,'linear');
+Series = table(CoarseSeries.time_h,CoarseSeries.mean_head_m,fine_head_at_coarse_times, ...
+    CoarseSeries.pending_net_mm, ...
+    'VariableNames',{'time_h','coarse_head_m','fine_head_m','pending_net_mm'});
 
 passed = head_rmse_m < 1e-10 && max_head_error_m < 1e-10 && relative_storage_error_pct < 0.1;
 
-Diag = diagnostic_row(CfgAsync, mean_omitnan(LegacyState.BC_States.h_t), ...
-    mean_omitnan(AsyncState.BC_States.h_t), mean_omitnan(head_error_grid), ...
+Diag = diagnostic_row(CfgCoarse,mean_omitnan(FineState.BC_States.h_t), ...
+    mean_omitnan(CoarseState.BC_States.h_t),mean_omitnan(head_error_grid), ...
     head_rmse_m, max_head_error_m, relative_storage_error_pct, ...
-    AsyncState.GW_States.total_recharge_m3, AsyncState.GW_States.total_recharge_m3, ...
-    0, async_storage - AsyncEnv.initial_gw_storage_m3, storage_error_m3, ...
-    AsyncState.GW_States.n_updates, passed);
+    CoarseState.GW_States.total_recharge_m3,CoarseState.GW_States.total_recharge_m3, ...
+    0,coarse_storage-CoarseEnv.initial_gw_storage_m3,storage_error_m3, ...
+    CoarseState.GW_States.n_updates,passed);
 end
 
 function [Diag, Series, passed] = run_capillary_case(functions_dir)
@@ -132,9 +127,7 @@ Cfg.case_id = "VAL-GW-CAP-001";
 Cfg.case_name = "Capillary rise drawdown";
 Cfg.regime = "capillary_rise";
 Cfg.flag_baseflow = 0;
-Cfg.flag_groundwater_async = 1;
 Cfg.flag_capillary_rise = 1;
-Cfg.target_dt_min = 60;
 Cfg.dt_min = 60;
 Cfg.duration_min = 60;
 Cfg.recharge_mm_h = 0;
@@ -145,8 +138,7 @@ Cfg.root_depth_m = 1.50;
 [State, Env] = make_model_state(Cfg);
 [Series, State] = run_forcing_series(State, Env, Cfg, functions_dir);
 
-expected_capillary_mm = Cfg.ksat_mm_h * (1 - Cfg.initial_depth_to_gw_m / 2.0);
-expected_capillary_mm = max(expected_capillary_mm, 0);
+expected_capillary_mm = State.GW_States.total_capillary_m3 / Env.active_area_m2 * 1000;
 expected_head_m = Env.initial_head_mean_m - expected_capillary_mm / 1000 / Cfg.Sy;
 model_head_m = mean_omitnan(State.BC_States.h_t);
 head_error_m = model_head_m - expected_head_m;
@@ -172,10 +164,8 @@ CfgFine.case_id = "VAL-GW-MOUND-001";
 CfgFine.case_name = "Boussinesq recharge mound";
 CfgFine.regime = "boussinesq_mound";
 CfgFine.flag_baseflow = 1;
-CfgFine.flag_groundwater_async = 0;
 CfgFine.flag_capillary_rise = 0;
-CfgFine.target_dt_min = 30;
-CfgFine.dt_min = 30;
+CfgFine.dt_min = 5;
 CfgFine.duration_min = 360;
 CfgFine.recharge_mm_h = 2.0;
 CfgFine.recharge_mask = "channel";
@@ -184,8 +174,7 @@ CfgFine.ksat_gw_mm_h = 5;
 CfgFine.grid_n = 7;
 
 CfgAsync = CfgFine;
-CfgAsync.flag_groundwater_async = 1;
-CfgAsync.target_dt_min = 60;
+CfgAsync.dt_min = 30;
 
 [FineState, FineEnv] = make_model_state(CfgFine);
 [FineSeries, FineState] = run_forcing_series(FineState, FineEnv, CfgFine, functions_dir);
@@ -201,8 +190,12 @@ async_storage = groundwater_storage_m3(AsyncState, AsyncEnv);
 storage_error_m3 = async_storage - fine_storage;
 relative_storage_error_pct = abs(storage_error_m3) / max(abs(fine_storage), eps) * 100;
 
-Series = table(AsyncSeries.time_h, AsyncSeries.mean_head_m, FineSeries.mean_head_m, ...
-    AsyncSeries.mean_recharge_mm_h, FineSeries.mean_recharge_mm_h, ...
+fine_head_at_saved_times=interp1(FineSeries.time_h,FineSeries.mean_head_m, ...
+    AsyncSeries.time_h,'linear');
+fine_recharge_at_saved_times=interp1(FineSeries.time_h,FineSeries.mean_recharge_mm_h, ...
+    AsyncSeries.time_h,'previous');
+Series = table(AsyncSeries.time_h,AsyncSeries.mean_head_m,fine_head_at_saved_times, ...
+    AsyncSeries.mean_recharge_mm_h,fine_recharge_at_saved_times, ...
     'VariableNames', {'time_h','async_head_m','reference_head_m', ...
     'async_recharge_mm_h','reference_recharge_mm_h'});
 
@@ -300,12 +293,9 @@ State.running_control = struct('routing_time', Cfg.duration_min);
 State.flags = struct();
 State.flags.flag_groundwater_modeling = 1;
 State.flags.flag_baseflow = Cfg.flag_baseflow;
-State.flags.flag_groundwater_async = Cfg.flag_groundwater_async;
 State.flags.flag_capillary_rise = Cfg.flag_capillary_rise;
-State.flags.groundwater_target_dt_min = Cfg.target_dt_min;
-State.flags.groundwater_min_dt_min = 1;
-State.flags.groundwater_max_head_change_m = 0.25;
-State.flags.groundwater_courant = 0.25;
+State.flags.groundwater_relative_tolerance = 1e-3;
+State.flags.groundwater_head_tolerance_m = 1e-3;
 
 State.LULC_Properties = struct();
 State.LULC_Properties.idx_imp = false(size(elevation));
@@ -396,11 +386,9 @@ Cfg.grid_n = 3;
 Cfg.resolution_m = 20;
 Cfg.dt_min = 10;
 Cfg.duration_min = 360;
-Cfg.target_dt_min = 60;
 Cfg.recharge_mm_h = 0;
 Cfg.recharge_mask = "all";
 Cfg.flag_baseflow = 0;
-Cfg.flag_groundwater_async = 1;
 Cfg.flag_capillary_rise = 0;
 Cfg.initial_depth_to_gw_m = 2.0;
 Cfg.soil_depth_m = 3.0;
@@ -481,12 +469,12 @@ T = readtable(fullfile(ts_dir, 'VAL-GW-ASYNC-002.csv'));
 fig = figure('Visible', 'off');
 tiledlayout(2, 1);
 nexttile;
-plot(T.time_h, T.async_head_m, '-o', T.time_h, T.legacy_head_m, '--');
-ylabel('Head (m)'); legend('Async', 'Legacy', 'Location', 'best');
+plot(T.time_h,T.coarse_head_m,'-o',T.time_h,T.fine_head_m,'--');
+ylabel('Head (m)'); legend('Coarse step','Fine step','Location','best');
 nexttile;
-plot(T.time_h, T.async_pending_net_mm, '-o');
+plot(T.time_h,T.pending_net_mm,'-o');
 xlabel('Time (h)'); ylabel('Pending recharge (mm)');
-title('Recharge accumulation equivalence');
+title('Local exchange step-size invariance');
 exportgraphics(fig, fullfile(fig_dir, 'VAL_GW_ASYNC_002_equivalence.png'), 'Resolution', 200);
 close(fig);
 

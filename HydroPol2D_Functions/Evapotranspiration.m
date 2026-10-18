@@ -6,7 +6,7 @@
 % Reference: Marco Antônio Fonseca Conceição. (2006). "Calculation Guide for Reference 
 % Evapotranspiration Using the Penman-Monteith-FAO Method." EMBRAPA Technical Circular.
 
-function [ETP,Ep] = Evapotranspiration(DEM,Temp,Temp_max,Temp_min,Day_year,lat,U_2_input,U_R_input,Krs,albedo,G_input)
+function [ETP,Ep] = Evapotranspiration(DEM,Temp,Temp_max,Temp_min,Day_year,lat,U_2_input,~,Krs,albedo,G_input)
 
 %% Input Data
 
@@ -21,7 +21,6 @@ latitude = lat;
 G = G_input;
 T = Temp;
 U_2 = U_2_input;
-U_R = U_R_input;
 Tmax = Temp_max;
 Tmin = Temp_min;
 
@@ -67,7 +66,7 @@ dr = 1 + 0.033 * cos((2 * pi / 365) * J);
 Ra = (118.08 / pi) .* dr .* (ws .* sin(phi) .* sin(dec_sol) + cos(phi) .* cos(dec_sol) .* sin(ws));
 
 % Compute incident solar radiation (MJ m^-2/day) based on temperature variation
-Rs_input = Krs .* Ra .* sqrt((Tmax - Tmin));
+Rs_input = Krs .* Ra .* sqrt(max(Tmax - Tmin, 0));
 
 % Compute incident solar radiation under clear skies (MJ m^-2/day)
 Rso = (0.75 + 2 * (10^-5) .* DEM) .* Ra;
@@ -81,7 +80,7 @@ e_a = 0.61 * exp((17.27 * Tmin) ./ (Tmin + 237.3)); % Actual vapor pressure (alt
 
 % Compute net longwave radiation (MJ m^-2/day)
 Rnl = theta_S_B .* ((((Tmax + 273.16).^4) + ((Tmin + 273.16).^4)) / 2) .* (0.34 - 0.14 * sqrt(e_a)) .* ...
-      (1.35 * (Rs_input ./ Rso) - 0.35);
+      (1.35 * (Rs_input ./ max(Rso, 1e-12)) - 0.35);
 
 % Compute daily net radiation (MJ m^-2/day)
 Rn = Rns - Rnl;

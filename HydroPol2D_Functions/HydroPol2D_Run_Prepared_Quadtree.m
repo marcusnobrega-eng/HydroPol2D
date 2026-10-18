@@ -21,29 +21,37 @@ soil=max(1,min(12,map_category(fullfile(static_root,'SOIL.tif'),mapping)));
 lai=map_mean(fullfile(static_root,'LAI.tif'),mapping,0);
 initial_theta=map_mean(fullfile(static_root,'Initial_Soil_Moisture_Fraction.tif'),mapping,0.25);
 dtb=max(map_mean(fullfile(static_root,'DTB.tif'),mapping,2),0.1);
-groundwater_head=map_mean(fullfile(static_root,'GW_table.tif'),mapping,mesh.cell_bed-2);
+groundwater_head=map_mean_required(fullfile(static_root,'GW_table.tif'),mapping,'initial groundwater head');
 [groundwater_fixed_mask,groundwater_fixed_head]=map_fixed_head( ...
     fullfile(static_root,'GW_Dirichlet_Head.tif'),mapping,groundwater_head);
 
-roughness=lookup(lulc,[10 20 30 40 50 60 70 80 90 95 100], ...
-    [0.100 0.080 0.060 0.050 0.030 0.035 0.020 0.035 0.120 0.150 0.080],0.05);
-theta_r=[0.068 0.089 0.075 0.095 0.089 0.065 0.067 0.078 0.100 0.034 0.049 0.045];
-theta_sat=[0.385 0.423 0.321 0.309 0.432 0.330 0.432 0.399 0.387 0.481 0.390 0.430];
-alpha_vg=[1.09 1.23 1.31 1.31 1.23 1.48 1.68 1.56 1.89 1.37 1.75 2.68];
-n_vg=[1.8 2.0 2.5 2.9 2.5 4.0 3.0 4.6 7.0 2.6 12.0 15.5];
-ksat_mm_h=[0.3 0.5 0.6 1.0 1.0 1.5 7.6 3.4 10.9 3.4 29.9 117.8];
-soil_index=round(soil);
-tr=theta_r(soil_index)'; ts=theta_sat(soil_index)';
+land_cover_parameters=config_json.class_parameters.land_cover;
+soil_parameters=config_json.class_parameters.soil;
+roughness=parameter_lookup(land_cover_parameters,lulc,'manning_n', ...
+    double(config_json.parameters.surface_manning_fallback_n));
+root_depth=parameter_lookup_required(land_cover_parameters,lulc,'root_depth_m');
+impervious=logical(parameter_lookup_required(land_cover_parameters,lulc,'impervious'));
+tr=parameter_lookup_required(soil_parameters,soil,'theta_r');
+ts=parameter_lookup_required(soil_parameters,soil,'theta_s');
+alpha_vg=parameter_lookup_required(soil_parameters,soil,'alpha_vg_m_inverse');
+n_vg=parameter_lookup_required(soil_parameters,soil,'n_vg');
+ksat_mm_h=parameter_lookup_required(soil_parameters,soil,'ksat_mm_h');
+specific_yield=parameter_lookup_required(soil_parameters,soil,'specific_yield');
+groundwater_ksat_mm_h=parameter_lookup_required(soil_parameters,soil,'groundwater_ksat_mm_h');
 
 flags=config_json.flags;
 hydrology=struct( ...
-    'pervious_fraction',double(lulc~=50 & lulc~=80), ...
+    'pervious_fraction',double(~impervious), ...
     'lai',lai.*double(flags.canopy_interception), ...
-    'soil_depth_m',dtb,'root_depth_m',min(dtb,1), ...
+    'soil_depth_m',dtb,'root_depth_m',min(dtb,root_depth), ...
     'theta_r',tr,'theta_sat',ts, ...
-    'alpha_vg_1_m',alpha_vg(soil_index)', ...
-    'n_vg',n_vg(soil_index)', ...
-    'ksat_m_s',ksat_mm_h(soil_index)'./1000./3600, ...
+    'alpha_vg_1_m',alpha_vg,'n_vg',n_vg, ...
+    'ksat_m_s',ksat_mm_h./1000./3600, ...
+    'surface_layer_depth_m',double(config_json.parameters.surface_layer_depth_m), ...
+    'infiltration_head_cap_m',double(config_json.parameters.infiltration_head_cap_m), ...
+    'surface_conductivity_weight',double(config_json.parameters.surface_conductivity_weight), ...
+    'wilting_saturation',double(config_json.parameters.wilting_saturation), ...
+    'capillary_field_capacity_head_m',double(config_json.parameters.capillary_field_capacity_head_m), ...
     'initial_soil_saturation',min(max((initial_theta-tr)./max(ts-tr,eps),0),1));
 if ~flags.infiltration, hydrology.pervious_fraction(:)=0; end
 
@@ -60,21 +68,37 @@ profile=lower(string(outputs.profile));
 write_full=profile=="full";
 write_native=profile=="standard" || write_full;
 write_media=profile=="standard" || write_full;
+groundwater_relative_tolerance=1e-3;
+groundwater_head_tolerance_m=1e-3;
+if isfield(config_json.parameters,'groundwater_relative_tolerance')
+    groundwater_relative_tolerance=double(config_json.parameters.groundwater_relative_tolerance);
+end
+if isfield(config_json.parameters,'groundwater_head_tolerance_m')
+    groundwater_head_tolerance_m=double(config_json.parameters.groundwater_head_tolerance_m);
+end
 solver_config=struct( ...
     'duration_s',double(simulation.duration_seconds), ...
     'output_interval_s',map_interval_s,'raster_output_interval_s',map_interval_s, ...
     'routing_solver','local_inertial','surface_roughness',roughness, ...
-    'courant',0.2,'min_dt_s',double(simulation.minimum_timestep_s), ...
+    'courant',double(config_json.parameters.routing_courant), ...
+    'min_dt_s',double(simulation.minimum_timestep_s), ...
     'timestep_floor_action','clamp', ...
     'max_dt_s',double(simulation.maximum_timestep_s),'critical_flow',true, ...
     'hydrology_enabled',logical(flags.canopy_interception || flags.infiltration || flags.internal_etp), ...
     'hydrology',hydrology,'groundwater_enabled',logical(flags.groundwater), ...
+    'river_groundwater_exchange',logical(flags.river_groundwater_exchange), ...
+    'riverbed_thickness_m',double(config_json.parameters.riverbed_thickness_m), ...
     'groundwater_lateral_flow',~strcmpi(string(config_json.parameters.groundwater_boundary),'local'), ...
     'initial_groundwater_head_m',min(max(groundwater_head,mesh.cell_bed-dtb),mesh.cell_bed), ...
-    'aquifer_bottom_m',mesh.cell_bed-dtb,'hydraulic_conductivity_m_s',1e-5, ...
-    'specific_yield',0.2,'groundwater_update_interval_s',3600, ...
+    'aquifer_bottom_m',mesh.cell_bed-dtb, ...
+    'hydraulic_conductivity_m_s',groundwater_ksat_mm_h./1000./3600, ...
+    'specific_yield',specific_yield, ...
+    'groundwater_relative_tolerance',groundwater_relative_tolerance, ...
+    'groundwater_head_tolerance_m',groundwater_head_tolerance_m, ...
+    'groundwater_courant',double(config_json.parameters.groundwater_courant), ...
     'groundwater_fixed_head_mask',groundwater_fixed_mask, ...
     'groundwater_fixed_head_m',groundwater_fixed_head, ...
+    'map_variables',{cellstr(string(outputs.map_variables))}, ...
     'forcing_interval_s',double(config_json.forcing.rainfall_interval_minutes)*60, ...
     'progress_interval_s',diagnostic_interval_s, ...
     'progress_checkpoint_file',run_progress_path);
@@ -96,7 +120,9 @@ forcing.surface_source_m_s=@(time_s,state,current_mesh) rainfall_at( ...
 if flags.internal_etp
     etp_path=fullfile(forcing_root,'Evapotranspiration','ETP_input_data.xlsx');
     if exist(etp_path,'file')==2
-        meteorology=read_etp_workbook(etp_path,mesh);
+        meteorology=read_etp_workbook(etp_path,mesh, ...
+            double(config_json.parameters.reference_et_krs), ...
+            double(config_json.parameters.reference_crop_albedo));
         forcing.meteorology=@(time_s,state,current_mesh) meteorology_at(time_s,meteorology);
     else
         forcing.potential_et_m_s=0;
@@ -116,7 +142,8 @@ case_definition=struct( ...
         'native_output_interval_s',map_interval_s,'write_final_geotiffs',true, ...
         'write_temporal_geotiffs',write_full,'raster_stack_interval_s',map_interval_s, ...
         'write_figures',write_media,'write_videos',write_media, ...
-        'write_gauge_hydrographs',true));
+        'write_gauge_hydrographs',true, ...
+        'map_variables',{cellstr(string(outputs.map_variables))}));
 if exist(subgrid_path,'file')==2
     case_definition.options=struct('voronoi_subgrid_enabled',true, ...
         'subgrid_table_path',subgrid_path);
@@ -125,6 +152,7 @@ end
 hp2d_write_run_monitor(run_progress_path,run_metrics_path, ...
     struct('stage','simulation','percent',0),false);
 results=HydroPol2D_Run_Quadtree_Case(case_definition,fullfile(case_root,'Outputs'),true);
+HydroPol2D_Write_Run_Manifest(case_root,results,fullfile(case_root,'Outputs','Modeling_Results'));
 hp2d_write_run_monitor(run_progress_path,run_metrics_path, ...
     struct('stage','complete','percent',100),false);
 end
@@ -157,8 +185,14 @@ forcing=@(time_s,state,current_mesh) boundary_at_time(data,time_s);
 end
 
 function boundary=boundary_at_time(data,time_s)
-edge_id=data.critical(:); types=repmat("critical_flow",numel(edge_id),1); values=zeros(numel(edge_id),1);
+critical=data.critical(:);
 dynamic=unique(data.edge_id(:));
+n_critical=numel(critical);
+edge_id=zeros(n_critical+numel(dynamic),1);
+types=strings(size(edge_id));
+values=zeros(size(edge_id));
+edge_id(1:n_critical)=critical;
+types(1:n_critical)="critical_flow";
 for k=1:numel(dynamic)
     selected=data.edge_id==dynamic(k);
     times=data.time_s(selected); series=data.value(selected); kind=data.type(find(selected,1));
@@ -172,7 +206,10 @@ for k=1:numel(dynamic)
         if isempty(index), index=1; end
         value=series(index);
     end
-    edge_id(end+1,1)=dynamic(k); types(end+1,1)=kind; values(end+1,1)=value;
+    output_index=n_critical+k;
+    edge_id(output_index)=dynamic(k);
+    types(output_index)=kind;
+    values(output_index)=value;
 end
 boundary=struct('edge_id',edge_id,'type',types,'value',values);
 end
@@ -185,6 +222,21 @@ denominator=mapping.raster_to_mesh*double(valid);
 value=numerator./max(denominator,eps);
 if isscalar(fallback), fallback=repmat(fallback,size(value)); end
 value(denominator<=0)=fallback(denominator<=0);
+end
+
+function value=map_mean_required(path,mapping,label)
+assert(isfile(path),'HydroPol2D:MissingPreparedRaster', ...
+    'The current solver requires the prepared %s raster: %s.',label,path);
+raw=read_south_up(path); valid=isfinite(raw);
+raw(~valid)=0;
+numerator=mapping.raster_to_mesh*raw;
+denominator=mapping.raster_to_mesh*double(valid);
+assert(all(denominator>0),'HydroPol2D:IncompletePreparedRasterCoverage', ...
+    ['The prepared %s raster does not cover every native mesh cell. ' ...
+     'Rebuild the case instead of using an implicit groundwater fallback.'],label);
+value=numerator./denominator;
+assert(all(isfinite(value)),'HydroPol2D:InvalidPreparedRaster', ...
+    'The prepared %s raster produced non-finite native values.',label);
 end
 
 function [mask,value]=map_fixed_head(path,mapping,fallback)
@@ -212,12 +264,33 @@ info=georasterinfo(path);
 for missing=double(info.MissingDataIndicator(:))'
     array(array==missing)=NaN;
 end
-raw=flipud(array); raw=raw(:);
+% Overlap raster indices are C/NetCDF row-major. MATLAB's ``(:)`` is
+% column-major, so transpose before vectorising to preserve the shared
+% south-up row-major contract used by the Builder and Python solver.
+raw=flipud(array).'; raw=raw(:);
 end
 
-function value=lookup(code,keys,values,fallback)
-value=repmat(fallback,size(code));
-for k=1:numel(keys), value(code==keys(k))=values(k); end
+function value=parameter_lookup(records,code,field_name,fallback)
+value=repmat(double(fallback),size(code));
+for k=1:numel(records)
+    selected=code==double(records(k).index);
+    raw=records(k).(field_name);
+    value(selected)=double(raw);
+end
+end
+
+function value=parameter_lookup_required(records,code,field_name)
+value=nan(size(code));
+for k=1:numel(records)
+    assert(isfield(records(k),field_name), ...
+        'HydroPol2D:MissingPhysicsV2Parameter', ...
+        'HydroPol2D class %g is missing %s.',double(records(k).index),field_name);
+    selected=code==double(records(k).index);
+    value(selected)=double(records(k).(field_name));
+end
+assert(all(isfinite(value)), ...
+    'HydroPol2D:MissingPhysicsV2Class', ...
+    'HydroPol2D has no %s value for one or more mapped classes.',field_name);
 end
 
 function rate=rainfall_at(time_s,files,forcing_root,interval_s,latitude,longitude)
@@ -233,7 +306,7 @@ sampled(~isfinite(sampled))=0;
 rate=max(sampled(:),0)./1000/3600;
 end
 
-function data=read_etp_workbook(path,mesh)
+function data=read_etp_workbook(path,mesh,reference_et_krs,reference_crop_albedo)
 raw=readcell(path,'Sheet','ETP');
 station_count=floor((size(raw,2)-2)/6);
 assert(station_count>0,'HydroPol2D:InvalidETP','The ETP workbook has no ERA5 stations.');
@@ -242,34 +315,50 @@ for station=1:station_count
     first=3+6*(station-1);
     x(station)=double(raw{1,first+3}); y(station)=double(raw{1,first+5});
 end
-nearest=zeros(mesh.n_cells,1);
-for cell_id=1:mesh.n_cells
-    [~,nearest(cell_id)]=min((x-mesh.cell_x(cell_id)).^2+(y-mesh.cell_y(cell_id)).^2);
+projected=projcrs(mesh.crs_wkt);
+[station_latitude,station_longitude]=projinv(projected,x,y);
+[mesh_latitude,mesh_longitude]=projinv(projected,mesh.cell_x,mesh.cell_y);
+[longitude,~,longitude_index]=unique(round(station_longitude,10));
+[latitude,~,latitude_index]=unique(round(station_latitude,10));
+use_linear=numel(longitude)>=2 && numel(latitude)>=2 && ...
+    numel(longitude)*numel(latitude)==station_count;
+if use_linear
+    target_longitude=min(max(mesh_longitude,min(longitude)),max(longitude));
+    target_latitude=min(max(mesh_latitude,min(latitude)),max(latitude));
+else
+    nearest=zeros(mesh.n_cells,1);
+    for cell_id=1:mesh.n_cells
+        [~,nearest(cell_id)]=min((x-mesh.cell_x(cell_id)).^2+(y-mesh.cell_y(cell_id)).^2);
+    end
 end
 rows=3:size(raw,1); count=numel(rows);
 fields={'maximum_temperature_c','minimum_temperature_c','temperature_c', ...
     'wind_speed_m_s','relative_humidity_pct','ground_heat_flux_mj_m2_day'};
 for name=1:numel(fields), data.(fields{name})=zeros(count,mesh.n_cells); end
 data.times=NaT(count,1,'TimeZone','UTC');
+data.reference_et_krs=reference_et_krs;
+data.reference_crop_albedo=reference_crop_albedo;
 for day_index=1:count
     timestamp=raw{rows(day_index),2};
     if isdatetime(timestamp), data.times(day_index)=datetime(timestamp,'TimeZone','UTC');
     else, data.times(day_index)=datetime(timestamp,'ConvertFrom','excel','TimeZone','UTC'); end
-    for cell_id=1:mesh.n_cells
-        first=3+6*(nearest(cell_id)-1);
-        for name=1:numel(fields)
-            data.(fields{name})(day_index,cell_id)=double(raw{rows(day_index),first+name-1});
+    for name=1:numel(fields)
+        station_values=zeros(station_count,1);
+        for station=1:station_count
+            first=3+6*(station-1);
+            station_values(station)=double(raw{rows(day_index),first+name-1});
+        end
+        if use_linear
+            grid=nan(numel(latitude),numel(longitude));
+            grid(sub2ind(size(grid),latitude_index,longitude_index))=station_values;
+            data.(fields{name})(day_index,:)=interp2(longitude,latitude,grid, ...
+                target_longitude,target_latitude,'linear')';
+        else
+            data.(fields{name})(day_index,:)=station_values(nearest)';
         end
     end
 end
-try
-    projected=projcrs(mesh.crs_wkt);
-    [data.latitude_deg,~]=projinv(projected,mesh.cell_x,mesh.cell_y);
-catch
-    data.latitude_deg=zeros(mesh.n_cells,1);
-    warning('HydroPol2D:QuadtreeLatitudeFallback', ...
-        'Could not transform mesh centres to latitude; ET uses 0 degrees latitude.');
-end
+data.latitude_deg=mesh_latitude;
 end
 
 function result=meteorology_at(time_s,data)
@@ -283,5 +372,5 @@ result=struct( ...
     'wind_speed_m_s',data.wind_speed_m_s(index,:)', ...
     'relative_humidity_pct',data.relative_humidity_pct(index,:)', ...
     'ground_heat_flux_mj_m2_day',data.ground_heat_flux_mj_m2_day(index,:)', ...
-    'albedo',0.25,'krs',0.16);
+    'albedo',data.reference_crop_albedo,'krs',data.reference_et_krs);
 end

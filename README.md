@@ -5,6 +5,14 @@ HydroPol2D is an open-source, high-resolution 2D model built in MATLAB for simul
 
 The model is particularly suited for urban, peri-urban, and rural catchments in both gauged and data-scarce regions.
 
+For a Case Builder-managed scientific case, this repository is a solver, not a
+second case-building or calibration system. The Builder owns the finalized
+domain, forcing, parameters, initial states, and provenance. The optional
+groundwater inverse procedure runs in HydroPol2D-Python; accepted results are
+written back through the Builder and exported to MATLAB with the rest of the
+final case. See the shared
+[model-building workflow](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/getting-started/model-building-workflow).
+
 The current integration candidate is `v1.19.0-rc1`, coordinated with HydroPol2D-Python
 `v0.9.0-rc1` and HydroBathyDEM `v0.4.0-rc1`. The stable public numerical reference remains
 `v1.17.0` until the remaining hardware and packaging gates pass.
@@ -335,7 +343,5 @@ The bundled TopoToolbox runtime is documented in
 - University of São Paulo — São Carlos School of Engineering
 - University of Texas at San Antonio — Civil and Environmental Engineering
 - Stanford University — Stanford Doerr School of Sustainability; Department of Earth System Science
-
-
 
 

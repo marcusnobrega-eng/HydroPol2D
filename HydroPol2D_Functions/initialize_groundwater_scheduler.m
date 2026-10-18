@@ -1,16 +1,13 @@
 function [flags, GW_States] = initialize_groundwater_scheduler(flags, GW_States, template, idx_nan)
-%INITIALIZE_GROUNDWATER_SCHEDULER Defaults and state for async GW coupling.
+%INITIALIZE_GROUNDWATER_SCHEDULER State for error-controlled GW coupling.
 
 if nargin < 4 || isempty(idx_nan)
     idx_nan = false(size(template));
 end
 
-flags = local_default_flag(flags, 'flag_groundwater_async', 1);
 flags = local_default_flag(flags, 'flag_capillary_rise', 1);
-flags = local_default_flag(flags, 'groundwater_target_dt_min', 1440);
-flags = local_default_flag(flags, 'groundwater_min_dt_min', 1);
-flags = local_default_flag(flags, 'groundwater_max_head_change_m', 0.25);
-flags = local_default_flag(flags, 'groundwater_courant', 0.25);
+flags = local_default_flag(flags, 'groundwater_relative_tolerance', 1e-3);
+flags = local_default_flag(flags, 'groundwater_head_tolerance_m', 1e-3);
 flags = local_default_flag(flags, 'flag_groundwater_surface_coupling', 1);
 flags = local_default_flag(flags, 'flag_prescribed_recharge', 0);
 flags = local_default_flag(flags, 'prescribed_recharge_damping_factor', 1);
@@ -65,20 +62,18 @@ scalar_defaults = { ...
     'last_boundary_seepage_discharge_mm_h', 0; ...
     'last_mass_balance_seepage_discharge_m3_s', 0; ...
     'last_mass_balance_seepage_discharge_mm_h', 0; ...
-    'last_mass_balance_active_area_m2', 0};
+    'last_mass_balance_active_area_m2', 0; ...
+    'suggested_dt_s', inf; ...
+    'adaptive_accepted_steps', 0; ...
+    'adaptive_rejected_steps', 0};
 
 for i = 1:size(scalar_defaults, 1)
     name = scalar_defaults{i, 1};
     if ~isfield(GW_States, name) || isempty(GW_States.(name)) || ...
-            ~isfinite(GW_States.(name))
+            (~isfinite(GW_States.(name)) && ~strcmp(name,'suggested_dt_s'))
         GW_States.(name) = scalar_defaults{i, 2};
     end
 end
-
-GW_States.target_dt_s = max(double(flags.groundwater_target_dt_min) * 60, eps);
-GW_States.min_dt_s = max(double(flags.groundwater_min_dt_min) * 60, eps);
-GW_States.max_head_change_m = max(double(flags.groundwater_max_head_change_m), eps);
-GW_States.groundwater_courant = max(min(double(flags.groundwater_courant), 1), eps);
 
 if isfield(flags, 'flag_prescribed_recharge') && flags.flag_prescribed_recharge == 1
     init_storage = double(flags.prescribed_recharge_initial_storage_mm);

@@ -74,6 +74,14 @@ if ~isempty(results.groundwater_head_m)
         results.groundwater_river_exchange_m_s,'face',mesh.n_cells,nt,'m s-1');
     write_matrix(output_file,'groundwater_seepage_face_m_s', ...
         results.groundwater_seepage_m_s,'face',mesh.n_cells,nt,'m s-1');
+    write_matrix(output_file,'cumulative_groundwater_exchange_face_mm', ...
+        results.cumulative_groundwater_exchange_m.*1000,'face',mesh.n_cells,nt,'mm');
+    write_matrix(output_file,'cumulative_groundwater_seepage_face_mm', ...
+        results.cumulative_groundwater_seepage_m.*1000,'face',mesh.n_cells,nt,'mm');
+    write_vector(output_file,'cumulative_river_groundwater_exchange_m3', ...
+        mesh.cell_area(:)'*results.cumulative_groundwater_exchange_m,'time_s','m3');
+    write_vector(output_file,'cumulative_groundwater_seepage_m3', ...
+        mesh.cell_area(:)'*results.cumulative_groundwater_seepage_m,'time_s','m3');
 end
 if ~isempty(fieldnames(results.hydrology))
     fields={'soil_water_m','canopy_storage_m','cumulative_infiltration_m', ...
@@ -83,6 +91,16 @@ if ~isempty(fieldnames(results.hydrology))
     for k=1:numel(fields)
         write_matrix(output_file,[fields{k} '_face'],results.hydrology.(fields{k}), ...
             'face',mesh.n_cells,nt,units{k});
+    end
+    cumulative_fields={'cumulative_infiltration_m','cumulative_recharge_m', ...
+        'cumulative_capillary_m','cumulative_potential_et_m','cumulative_actual_et_m'};
+    cumulative_names={'cumulative_infiltration_face_mm','cumulative_recharge_face_mm', ...
+        'cumulative_capillary_rise_face_mm','cumulative_potential_evaporation_face_mm', ...
+        'cumulative_actual_evapotranspiration_face_mm'};
+    for k=1:numel(cumulative_fields)
+        write_matrix(output_file,cumulative_names{k}, ...
+            results.hydrology.(cumulative_fields{k}).*1000, ...
+            'face',mesh.n_cells,nt,'mm');
     end
     n_hru=size(results.hydrology.hru_fraction,2);
     hru_fields={'hru_fraction','final_canopy_storage_m','final_near_surface_storage_m', ...
@@ -116,8 +134,10 @@ if ~isempty(results.diagnostics)
         'precipitation_volume_m3','surface_source_volume_m3','infiltration_volume_m3', ...
         'actual_et_volume_m3','recharge_volume_m3','capillary_volume_m3', ...
         'hydrology_mass_residual_m3'};
+    units={'s','m3','m3','m','m s-1','m','m s-1','m s-1','m3 s-1', ...
+        'm3','m3','1','m3','m3','m3','m3','m3','m3','m3','m3','m3'};
     for k=1:numel(fields)
-        write_vector(output_file,fields{k},[results.diagnostics.(fields{k})]','step','');
+        write_vector(output_file,fields{k},[results.diagnostics.(fields{k})]','step',units{k});
     end
 end
 
@@ -132,40 +152,76 @@ if ~isempty(results.overlap_file)
     write_vector(output_file,'row',(0:mapping.raster_rows-1)','row','1');
     write_vector(output_file,'column',(0:mapping.raster_cols-1)','column','1');
 
-    write_face_map('surface_depth_map_m',results.surface_depth_m,'m');
-    write_face_map('surface_velocity_map_m_s',results.surface_velocity_m_s,'m s-1');
-    write_face_map('water_surface_elevation_map_m', ...
-        results.surface_depth_m+mesh.surface_bed(:),'m');
-    write_face_map('rainfall_rate_map_m_s',results.surface_source_rate_m_s,'m s-1');
-    write_face_map('cumulative_rainfall_map_m',results.cumulative_surface_source_m,'m');
-    write_face_map('potential_et_rate_map_m_s',results.potential_et_rate_m_s,'m s-1');
+    if wants_map(results,'surface_depth')
+        write_face_map('surface_depth_map_m',results.surface_depth_m,'m');
+        write_face_map('water_surface_elevation_map_m', ...
+            results.surface_depth_m+mesh.surface_bed(:),'m');
+    end
+    if wants_map(results,'surface_velocity')
+        write_face_map('surface_velocity_map_m_s',results.surface_velocity_m_s,'m s-1');
+    end
+    if wants_map(results,'rainfall_intensity')
+        write_face_map('rainfall_rate_map_m_s',results.surface_source_rate_m_s,'m s-1');
+    end
+    if wants_map(results,'cumulative_rainfall')
+        write_face_map('cumulative_rainfall_map_mm', ...
+            results.cumulative_surface_source_m.*1000,'mm');
+    end
+    if wants_map(results,'cumulative_potential_evaporation')
+        write_face_map('potential_et_rate_map_m_s',results.potential_et_rate_m_s,'m s-1');
+    end
 
     if ~isempty(results.groundwater_head_m)
-        write_face_map('groundwater_head_map_m',results.groundwater_head_m,'m');
-        write_face_map('groundwater_depth_map_m', ...
-            max(mesh.surface_bed(:)-results.groundwater_head_m,0),'m');
-        write_face_map('groundwater_river_exchange_map_m_s', ...
-            results.groundwater_river_exchange_m_s,'m s-1');
-        write_face_map('groundwater_seepage_map_m_s',results.groundwater_seepage_m_s,'m s-1');
+        if wants_map(results,'groundwater_depth')
+            write_face_map('groundwater_head_map_m',results.groundwater_head_m,'m');
+            write_face_map('groundwater_depth_map_m', ...
+                max(mesh.surface_bed(:)-results.groundwater_head_m,0),'m');
+        end
+        if wants_map(results,'river_groundwater_exchange_rate')
+            write_face_map('river_groundwater_exchange_rate_map_m_s', ...
+                results.groundwater_river_exchange_m_s,'m s-1');
+        end
+        if wants_map(results,'groundwater_seepage_rate')
+            write_face_map('groundwater_seepage_rate_map_m_s', ...
+                results.groundwater_seepage_m_s,'m s-1');
+        end
+        if wants_map(results,'cumulative_river_groundwater_exchange')
+            write_face_map('cumulative_groundwater_exchange_map_mm', ...
+                results.cumulative_groundwater_exchange_m.*1000,'mm');
+        end
+        if wants_map(results,'cumulative_groundwater_seepage')
+            write_face_map('cumulative_groundwater_seepage_map_mm', ...
+                results.cumulative_groundwater_seepage_m.*1000,'mm');
+        end
     end
     if ~isempty(fieldnames(results.hydrology))
         map_fields={'soil_water_m','cumulative_infiltration_m','cumulative_recharge_m', ...
-            'cumulative_actual_et_m','infiltration_rate_m_s','recharge_rate_m_s', ...
+            'cumulative_capillary_m','cumulative_potential_et_m','cumulative_actual_et_m', ...
+            'infiltration_rate_m_s','recharge_rate_m_s', ...
             'actual_et_rate_m_s'};
-        map_names={'soil_water_map_m','cumulative_infiltration_map_m', ...
-            'cumulative_recharge_map_m','cumulative_actual_et_map_m', ...
+        map_names={'soil_water_map_m','cumulative_infiltration_map_mm', ...
+            'cumulative_recharge_map_mm','cumulative_capillary_rise_map_mm', ...
+            'cumulative_potential_evaporation_map_mm','cumulative_actual_evapotranspiration_map_mm', ...
             'infiltration_rate_map_m_s','recharge_rate_map_m_s','actual_et_rate_map_m_s'};
-        map_units={'m','m','m','m','m s-1','m s-1','m s-1'};
+        map_units={'m','mm','mm','mm','mm','mm','m s-1','m s-1','m s-1'};
+        map_scales=[1 1000 1000 1000 1000 1000 1 1 1];
+        map_selectors={'groundwater_depth','cumulative_infiltration', ...
+            'cumulative_recharge','cumulative_recharge', ...
+            'cumulative_potential_evaporation','cumulative_actual_evapotranspiration', ...
+            'cumulative_infiltration','cumulative_recharge', ...
+            'cumulative_actual_evapotranspiration'};
         for k=1:numel(map_fields)
-            write_face_map(map_names{k},results.hydrology.(map_fields{k}),map_units{k});
+            if ~wants_map(results,map_selectors{k}), continue; end
+            write_face_map(map_names{k}, ...
+                results.hydrology.(map_fields{k}).*map_scales(k),map_units{k});
         end
     end
-    if mesh.channel.n_nodes>0 && ~isempty(results.channel_depth_m)
+    if wants_map(results,'surface_depth') && mesh.channel.n_nodes>0 && ~isempty(results.channel_depth_m)
         face_values=zeros(mesh.n_cells,nt);
         face_values(mesh.channel.host_cell,:)=results.channel_depth_m;
         write_face_map('channel_depth_map_m',face_values,'m');
     end
-    if mesh.channel.n_links>0 && ~isempty(results.channel_discharge_history_m3_s)
+    if wants_map(results,'surface_depth') && mesh.channel.n_links>0 && ~isempty(results.channel_discharge_history_m3_s)
         face_values=zeros(mesh.n_cells,nt);
         for link=1:mesh.channel.n_links
             host=mesh.channel.host_cell(mesh.channel.link_down(link));
@@ -191,6 +247,14 @@ ncwriteatt(output_file,'/','title','HydroPol2D native Voronoi finite-volume outp
         maps=map_history(mapping,double(face_history(:,map_indices)));
         write_map_cube(output_file,name,maps,units);
     end
+end
+
+function selected=wants_map(results,name)
+if ~isfield(results,'map_variables') || isempty(results.map_variables)
+    selected=true;
+    return
+end
+selected=any(strcmpi(string(results.map_variables),string(name)));
 end
 
 function write_matrix(path,name,values,space_dimension,n_space,n_time,units)

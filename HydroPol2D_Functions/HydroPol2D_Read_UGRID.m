@@ -27,6 +27,17 @@ mesh.cell_x = double(ncread(mesh_file, 'mesh2d_face_x'));
 mesh.cell_y = double(ncread(mesh_file, 'mesh2d_face_y'));
 mesh.cell_target_width = double(ncread(mesh_file, 'cell_target_width_m'));
 mesh.cell_refinement_source = double(ncread(mesh_file, 'cell_refinement_source'));
+if any(variables == "cell_riverbed_area_m2")
+    mesh.cell_riverbed_area = double(ncread(mesh_file, 'cell_riverbed_area_m2'));
+else
+    mesh.cell_riverbed_area = nan(size(mesh.cell_area));
+end
+if any(variables == "cell_riverbed_hydraulic_conductivity_m_s")
+    mesh.cell_riverbed_hydraulic_conductivity = double( ...
+        ncread(mesh_file, 'cell_riverbed_hydraulic_conductivity_m_s'));
+else
+    mesh.cell_riverbed_hydraulic_conductivity = nan(size(mesh.cell_area));
+end
 if any(variables == "cell_hydraulic_roughness")
     mesh.cell_roughness = double(ncread(mesh_file, 'cell_hydraulic_roughness'));
 else
@@ -75,6 +86,16 @@ assert(all(mesh.edge_length > 0 & mesh.edge_distance > 0), 'HydroPol2D:InvalidMe
 assert(numel(mesh.cell_cfl_width) == mesh.n_cells && ...
     all(mesh.cell_cfl_width > 0 & isfinite(mesh.cell_cfl_width)), ...
     'HydroPol2D:InvalidMesh', 'Cell CFL widths must be positive and finite.');
+if all(isfinite(mesh.cell_riverbed_area))
+    assert(all(mesh.cell_riverbed_area >= 0 & mesh.cell_riverbed_area <= mesh.cell_area), ...
+        'HydroPol2D:InvalidRiverbedArea', ...
+        'cell_riverbed_area_m2 must be finite and within each cell area.');
+end
+if all(isfinite(mesh.cell_riverbed_hydraulic_conductivity))
+    assert(all(mesh.cell_riverbed_hydraulic_conductivity >= 0), ...
+        'HydroPol2D:InvalidRiverbedConductivity', ...
+        'cell_riverbed_hydraulic_conductivity_m_s must be nonnegative.');
+end
 
 mesh.channel = struct('n_nodes', 0, 'n_links', 0, 'n_transitions', 0);
 if any(variables == "channel_node_host_cell")

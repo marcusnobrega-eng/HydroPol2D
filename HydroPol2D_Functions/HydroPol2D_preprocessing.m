@@ -104,6 +104,9 @@ if use_inputpaths_bypass == 1
     Warmup_Depth_path          = get_inputpaths_field(InputPaths,'Warmup_Depth_path','');
     Initial_Buildup_path       = get_inputpaths_field(InputPaths,'Initial_Buildup_path','');
     Initial_Soil_Moisture_path = get_inputpaths_field(InputPaths,'Initial_Soil_Moisture_path','');
+    InitialNearSurfaceTheta_path = get_inputpaths_field(InputPaths,'InitialNearSurfaceTheta_path','');
+    InitialRootZoneTheta_path = get_inputpaths_field(InputPaths,'InitialRootZoneTheta_path','');
+    InitialTransmissionTheta_path = get_inputpaths_field(InputPaths,'InitialTransmissionTheta_path','');
     Initial_SWE_path           = get_inputpaths_field(InputPaths,'Initial_SWE_path','');
     Initial_Snow_Depth_path    = get_inputpaths_field(InputPaths,'Initial_Snow_Depth_path','');
 
@@ -124,6 +127,12 @@ if use_inputpaths_bypass == 1
 
     RiverWidths_path = get_inputpaths_field(InputPaths,'RiverWidths_path','');
     RiverDepths_path = get_inputpaths_field(InputPaths,'RiverDepths_path','');
+    RiverbedHydraulicConductivity_path = get_inputpaths_field( ...
+        InputPaths,'RiverbedHydraulicConductivity_path','');
+    DeepAquiferSubbasins_path = get_inputpaths_field( ...
+        InputPaths,'DeepAquiferSubbasins_path','');
+    DeepAquiferChannelWeight_path = get_inputpaths_field( ...
+        InputPaths,'DeepAquiferChannelWeight_path','');
 
 else
 
@@ -144,6 +153,9 @@ else
     Warmup_Depth_path          = xlgetstr(GD,'Warmup_Depth_path',"");
     Initial_Buildup_path       = xlgetstr(GD,'Initial_Buildup_path',"");
     Initial_Soil_Moisture_path = xlgetstr(GD,'Initial_Soil_Moisture_path',"");
+    InitialNearSurfaceTheta_path = "";
+    InitialRootZoneTheta_path = "";
+    InitialTransmissionTheta_path = "";
     Initial_SWE_path           = xlgetstr_optional(GD,'Initial_SWE_path',"");
     Initial_Snow_Depth_path    = xlgetstr_optional(GD,'Initial_Snow_Depth_path',"");
 
@@ -195,6 +207,8 @@ else
 
     RiverWidths_path = xlgetstr(GD,'RiverWidths_path',"");
     RiverDepths_path = xlgetstr(GD,'RiverDepths_path',"");
+    DeepAquiferSubbasins_path = xlgetstr_optional(GD,'DeepAquiferSubbasins_path',"");
+    DeepAquiferChannelWeight_path = xlgetstr_optional(GD,'DeepAquiferChannelWeight_path',"");
 
     DEM_path = resolve_excel_input_path(DEM_path,model_folder,runtime_model_root);
     LULC_path = resolve_excel_input_path(LULC_path,model_folder,runtime_model_root);
@@ -202,6 +216,9 @@ else
     Warmup_Depth_path = resolve_excel_input_path(Warmup_Depth_path,model_folder,runtime_model_root);
     Initial_Buildup_path = resolve_excel_input_path(Initial_Buildup_path,model_folder,runtime_model_root);
     Initial_Soil_Moisture_path = resolve_excel_input_path(Initial_Soil_Moisture_path,model_folder,runtime_model_root);
+    InitialNearSurfaceTheta_path = resolve_excel_input_path(InitialNearSurfaceTheta_path,model_folder,runtime_model_root);
+    InitialRootZoneTheta_path = resolve_excel_input_path(InitialRootZoneTheta_path,model_folder,runtime_model_root);
+    InitialTransmissionTheta_path = resolve_excel_input_path(InitialTransmissionTheta_path,model_folder,runtime_model_root);
     Initial_SWE_path = resolve_excel_input_path(Initial_SWE_path,model_folder,runtime_model_root);
     Initial_Snow_Depth_path = resolve_excel_input_path(Initial_Snow_Depth_path,model_folder,runtime_model_root);
     Albedo_path = resolve_excel_input_path(Albedo_path,model_folder,runtime_model_root);
@@ -218,6 +235,10 @@ else
     Subgrid_DEM_path = resolve_excel_input_path(Subgrid_DEM_path,model_folder,runtime_model_root);
     RiverWidths_path = resolve_excel_input_path(RiverWidths_path,model_folder,runtime_model_root);
     RiverDepths_path = resolve_excel_input_path(RiverDepths_path,model_folder,runtime_model_root);
+    DeepAquiferSubbasins_path = resolve_excel_input_path( ...
+        DeepAquiferSubbasins_path,model_folder,runtime_model_root);
+    DeepAquiferChannelWeight_path = resolve_excel_input_path( ...
+        DeepAquiferChannelWeight_path,model_folder,runtime_model_root);
 
 end
 
@@ -273,6 +294,9 @@ widths_raster   = [];
 depths_raster   = [];
 Initial_SWE_raster = [];
 Initial_Snow_Depth_raster = [];
+DeepAquiferSubbasins_raster = [];
+DeepAquiferChannelWeight_raster = [];
+ParameterRasters = struct();
 
 if use_inputpaths_bypass == 1
 
@@ -317,6 +341,15 @@ if use_inputpaths_bypass == 1
         widths_raster = GRIDobj(char(RiverWidths_path));
         depths_raster = GRIDobj(char(RiverDepths_path));
     end
+    if strlength(strtrim(string(RiverbedHydraulicConductivity_path))) > 0 && ...
+            isfile(char(RiverbedHydraulicConductivity_path))
+        riverbed_conductivity_raster = GRIDobj(char(RiverbedHydraulicConductivity_path));
+    end
+    if isfile(DeepAquiferSubbasins_path) && isfile(DeepAquiferChannelWeight_path)
+        DeepAquiferSubbasins_raster = GRIDobj(char(DeepAquiferSubbasins_path));
+        DeepAquiferChannelWeight_raster = GRIDobj(char(DeepAquiferChannelWeight_path));
+    end
+    ParameterRasters = load_optional_parameter_rasters(InputPaths);
 
 else
 
@@ -373,6 +406,11 @@ else
         widths_raster = GRIDobj(char(RiverWidths_path));
         depths_raster = GRIDobj(char(RiverDepths_path));
     end
+    if isfield(flags,'flag_deep_aquifer') && flags.flag_deep_aquifer == 1 && ...
+            isfile(DeepAquiferSubbasins_path) && isfile(DeepAquiferChannelWeight_path)
+        DeepAquiferSubbasins_raster = GRIDobj(char(DeepAquiferSubbasins_path));
+        DeepAquiferChannelWeight_raster = GRIDobj(char(DeepAquiferChannelWeight_path));
+    end
 
 end
 
@@ -423,6 +461,8 @@ if flags.flag_resample == 1
     if ~isempty(depths_raster), depths_raster = resample(depths_raster, DEM_raster, 'nearest');  end
     if ~isempty(Initial_SWE_raster), Initial_SWE_raster = resample(Initial_SWE_raster, DEM_raster, 'bilinear'); end
     if ~isempty(Initial_Snow_Depth_raster), Initial_Snow_Depth_raster = resample(Initial_Snow_Depth_raster, DEM_raster, 'bilinear'); end
+    if ~isempty(DeepAquiferSubbasins_raster), DeepAquiferSubbasins_raster = resample(DeepAquiferSubbasins_raster, DEM_raster, 'nearest'); end
+    if ~isempty(DeepAquiferChannelWeight_raster), DeepAquiferChannelWeight_raster = resample(DeepAquiferChannelWeight_raster, DEM_raster, 'bilinear'); end
 end
 
 % =========================
@@ -443,6 +483,13 @@ end
 if ~isempty(Initial_Snow_Depth_raster)
     Initial_Snow_Depth_raster = resample(Initial_Snow_Depth_raster, DEM_raster, 'bilinear');
 end
+if ~isempty(DeepAquiferSubbasins_raster)
+    DeepAquiferSubbasins_raster = resample(DeepAquiferSubbasins_raster, DEM_raster, 'nearest');
+end
+if ~isempty(DeepAquiferChannelWeight_raster)
+    DeepAquiferChannelWeight_raster = resample(DeepAquiferChannelWeight_raster, DEM_raster, 'bilinear');
+end
+ParameterRasters = align_parameter_rasters(ParameterRasters, DEM_raster);
 
 % =========================
 % Convert to matrices, domain mask
@@ -517,23 +564,24 @@ end
 if ~isfield(flags, 'flag_groundwater_modeling')
     flags.flag_groundwater_modeling = 0;
 end
-if ~isfield(flags, 'flag_groundwater_async') || ~isfinite(double(flags.flag_groundwater_async))
-    flags.flag_groundwater_async = 1;
+if ~isfield(flags, 'flag_deep_aquifer') || ~isfinite(double(flags.flag_deep_aquifer))
+    flags.flag_deep_aquifer = 0;
+end
+if flags.flag_deep_aquifer == 1 && flags.flag_groundwater_modeling == 0
+    error('flag_deep_aquifer = 1 requires flag_groundwater_modeling = 1.');
 end
 if ~isfield(flags, 'flag_capillary_rise') || ~isfinite(double(flags.flag_capillary_rise))
     flags.flag_capillary_rise = 1;
 end
-if ~isfield(flags, 'groundwater_target_dt_min') || ~isfinite(double(flags.groundwater_target_dt_min))
-    flags.groundwater_target_dt_min = 1440;
+if ~isfield(flags, 'groundwater_relative_tolerance') || ...
+        ~isfinite(double(flags.groundwater_relative_tolerance)) || ...
+        flags.groundwater_relative_tolerance <= 0
+    flags.groundwater_relative_tolerance = 1e-3;
 end
-if ~isfield(flags, 'groundwater_min_dt_min') || ~isfinite(double(flags.groundwater_min_dt_min))
-    flags.groundwater_min_dt_min = 1;
-end
-if ~isfield(flags, 'groundwater_max_head_change_m') || ~isfinite(double(flags.groundwater_max_head_change_m))
-    flags.groundwater_max_head_change_m = 0.25;
-end
-if ~isfield(flags, 'groundwater_courant') || ~isfinite(double(flags.groundwater_courant))
-    flags.groundwater_courant = 0.25;
+if ~isfield(flags, 'groundwater_head_tolerance_m') || ...
+        ~isfinite(double(flags.groundwater_head_tolerance_m)) || ...
+        flags.groundwater_head_tolerance_m <= 0
+    flags.groundwater_head_tolerance_m = 1e-3;
 end
 
 if flags.flag_baseflow == 1 && flags.flag_groundwater_modeling == 0
@@ -1600,6 +1648,34 @@ if flags.flag_subgrid && flags.flag_river_rasters
     Wshed_Properties.River_Depth(isnan(Wshed_Properties.River_Depth)) = 0;
 end
 
+if isfield(flags,'flag_river_groundwater_exchange') && ...
+        flags.flag_river_groundwater_exchange == 1
+    assert(exist('riverbed_conductivity_raster','var')==1, ...
+        'HydroPol2D:MissingRiverbedConductivity', ...
+        'River-groundwater exchange requires RiverbedHydraulicConductivity.tif.');
+    Soil_Properties.riverbed_hydraulic_conductivity_m_s = ...
+        double(riverbed_conductivity_raster.Z);
+    assert(isequal(size(Soil_Properties.riverbed_hydraulic_conductivity_m_s),size(DEM_raster.Z)), ...
+        'HydroPol2D:InvalidRiverbedConductivity', ...
+        'The riverbed conductivity raster must match the hydraulic grid.');
+    active_k=Soil_Properties.riverbed_hydraulic_conductivity_m_s(~idx_nan);
+    assert(all(isfinite(active_k)) && all(active_k>=0), ...
+        'HydroPol2D:InvalidRiverbedConductivity', ...
+        'The aligned riverbed conductivity raster must be finite and nonnegative.');
+    Soil_Properties.cell_riverbed_area_m2 = min( ...
+        max(Wshed_Properties.River_Width,0).*Wshed_Properties.Resolution, ...
+        Wshed_Properties.cell_area);
+    Soil_Properties.riverbed_thickness_m = riverbed_thickness_m;
+end
+if flags.flag_deep_aquifer == 1
+    assert(deep_recharge_fraction > 0 && deep_recharge_fraction <= 1, ...
+        'deep_recharge_fraction must be in (0,1].');
+    assert(deep_aquifer_response_time_days > 0, ...
+        'deep_aquifer_response_time_days must be positive.');
+    Soil_Properties.deep_recharge_fraction = deep_recharge_fraction;
+    Soil_Properties.deep_aquifer_response_time_days = deep_aquifer_response_time_days;
+end
+
 %% Imposing Minimum Slope - If Required
 if flags.flag_diffusive ~= 1 && flags.flag_inertial == 1 && flags.flag_kinematic == 1
     % Impose Mininum Slope
@@ -2467,6 +2543,13 @@ if any(soil_unmapped, 'all')
 end
 Soil_Properties.m_vg = 1 - 1 ./ Soil_Properties.n_vg;
 
+% Optional spatial parameter maps override only finite cells. Raster nodata
+% deliberately keeps the class-table value already assigned above.
+active_parameter_cells = ~idx_nan;
+[Soil_Properties, LULC_Properties, ParameterRasterAudit] = ...
+    hp2d_apply_spatial_parameter_overrides(Soil_Properties, LULC_Properties, ...
+    ParameterRasters, active_parameter_cells);
+
 % -------------------------------------------------------------------------
 % Per-LULC snow properties and optional raster initial conditions.
 % -------------------------------------------------------------------------
@@ -3100,6 +3183,13 @@ end
 if isempty(DTB_path)
     Soil_Properties.Soil_Depth = elevation ./ elevation; % 1 meter soil
 end
+[Soil_Properties.Soil_Depth, ParameterRasterAudit.SoilDepthParameter] = ...
+    apply_parameter_override(Soil_Properties.Soil_Depth, ParameterRasters, ...
+    'SoilDepthParameter', ~idx_nan);
+if any(~isfinite(Soil_Properties.Soil_Depth(~idx_nan)) | ...
+        Soil_Properties.Soil_Depth(~idx_nan) <= 0)
+    error('Spatial soil-depth values must be finite and positive on active cells.');
+end
 
 C = 0; k = 1; Rainfall_Parameters.index_aggregation = 1;
 
@@ -3229,6 +3319,47 @@ else
 end
 
 BC_States.h_t = BC_States.h_0;
+
+if flags.flag_deep_aquifer == 1
+    assert(~isempty(DeepAquiferSubbasins_raster) && ...
+        ~isempty(DeepAquiferChannelWeight_raster), ...
+        'Deep aquifer requires DeepAquiferSubbasins.tif and DeepAquiferChannelWeight.tif.');
+    BC_States.deep_aquifer_subbasin_id = round(double(DeepAquiferSubbasins_raster.Z));
+    BC_States.deep_aquifer_channel_weight = ...
+        double(DeepAquiferChannelWeight_raster.Z);
+    assert(isequal(size(BC_States.deep_aquifer_subbasin_id),size(BC_States.h_t)) && ...
+        isequal(size(BC_States.deep_aquifer_channel_weight),size(BC_States.h_t)), ...
+        'Deep-aquifer rasters must match the model grid.');
+    active_deep = ~idx_nan;
+    assert(all(BC_States.deep_aquifer_subbasin_id(active_deep) >= 1) && ...
+        all(isfinite(BC_States.deep_aquifer_subbasin_id(active_deep))), ...
+        'Every active cell must have a positive deep-aquifer subbasin ID.');
+    assert(all(BC_States.deep_aquifer_channel_weight(active_deep) >= 0) && ...
+        all(isfinite(BC_States.deep_aquifer_channel_weight(active_deep))), ...
+        'Deep-aquifer channel weights must be finite and nonnegative.');
+    initial_deep_path = string(getenv('HYDROPOL_DEEP_INITIAL_STATE_PATH'));
+    if strlength(initial_deep_path) > 0
+        assert(isfile(initial_deep_path), ...
+            'Deep-aquifer initial-state JSON does not exist: %s', initial_deep_path);
+        initial_deep = jsondecode(fileread(initial_deep_path));
+        assert(isfield(initial_deep,'subbasins') && ~isempty(initial_deep.subbasins), ...
+            'Deep-aquifer initial-state JSON must contain subbasins.');
+        expected_ids = unique(BC_States.deep_aquifer_subbasin_id(active_deep));
+        records = initial_deep.subbasins;
+        supplied_ids = reshape([records.subbasin_id],[],1);
+        assert(numel(unique(supplied_ids)) == numel(supplied_ids) && ...
+            isequal(sort(supplied_ids),sort(expected_ids)), ...
+            'Deep-aquifer initial-state IDs must exactly match the subbasin raster IDs.');
+        storage = reshape([records.initial_storage_m3],[],1);
+        discharge = reshape([records.initial_discharge_m3_s],[],1);
+        assert(all(isfinite(storage) & storage >= 0) && ...
+            all(isfinite(discharge) & discharge >= 0), ...
+            'Initial deep-aquifer storage and discharge must be finite and nonnegative.');
+        [~,order] = ismember(expected_ids,supplied_ids);
+        BC_States.deep_aquifer_initial_storage_m3 = storage(order);
+        BC_States.deep_aquifer_initial_discharge_m3_s = discharge(order);
+    end
+end
 
 BC_States.gw_dirichlet_mask = false(size(BC_States.h_t));
 BC_States.gw_dirichlet_head = nan(size(BC_States.h_t));
@@ -3377,9 +3508,32 @@ end
 Soil_Properties.I_p = Soil_Properties.I_0;
 Soil_Properties.I_t = Soil_Properties.I_0;
 
-layer_options = struct('near_surface_depth_m', 0.10, 'min_layer_thickness_m', 0.005);
+layer_options = struct('near_surface_depth_m', 0.05, 'min_layer_thickness_m', 0.005);
 [Soil_Properties, LULC_Properties] = derive_layered_soil_profile( ...
     Soil_Properties, LULC_Properties, BC_States, elevation, idx_nan, layer_options);
+layer_theta_paths = {InitialNearSurfaceTheta_path, InitialRootZoneTheta_path, ...
+    InitialTransmissionTheta_path};
+if all(cellfun(@(p) strlength(string(p)) > 0 && isfile(char(p)), layer_theta_paths))
+    layer_theta = cell(1,3);
+    for layer_index = 1:3
+        layer_raster = GRIDobj(char(layer_theta_paths{layer_index}));
+        layer_raster = resample(layer_raster, DEM_raster, 'bilinear');
+        values = double(layer_raster.Z);
+        values = min(max(values, Soil_Properties.theta_r), Soil_Properties.theta_sat);
+        values(idx_nan) = nan;
+        layer_theta{layer_index} = values;
+    end
+    Soil_Properties.Layers.near_surface_storage_mm = ...
+        max(layer_theta{1} - Soil_Properties.theta_r,0) .* ...
+        Soil_Properties.Layers.near_surface_thickness_m .* 1000;
+    Soil_Properties.Layers.root_zone_storage_mm = ...
+        max(layer_theta{2} - Soil_Properties.theta_r,0) .* ...
+        Soil_Properties.Layers.root_zone_thickness_m .* 1000;
+    Soil_Properties.Layers.transmission_storage_mm = ...
+        max(layer_theta{3} - Soil_Properties.theta_r,0) .* ...
+        Soil_Properties.Layers.transmission_thickness_m .* 1000;
+    Soil_Properties.initial_soil_storage_source = 'layer_specific_theta_rasters';
+end
 Soil_Properties = initialize_layered_soil_storage(Soil_Properties, idx_nan);
 
 GW_Depth_check = BC_States.h_t - (elevation - Soil_Properties.Soil_Depth);
@@ -4374,8 +4528,8 @@ clear spatial_domain
 
 function T = read_block_table(GD, blockName, requiredHeaders)
 
-    % Find the anchor cell
-    [r0,c0] = find(strcmp(string(GD), blockName), 1, 'first');
+    % Find the anchor cell without converting the entire worksheet
+    [r0,c0] = find_cell(GD, blockName);
     if isempty(r0)
         error('General_Data block "%s" was not found.', blockName);
     end
@@ -5356,4 +5510,44 @@ function val = get_inputpaths_field(InputPaths, fieldName, defaultValue)
     else
         val = defaultValue;
     end
+end
+
+function rasters = load_optional_parameter_rasters(InputPaths)
+    rasters = struct();
+    path_fields = { ...
+        'SoilDepthParameter_path', 'ThetaR_path', 'ThetaS_path', ...
+        'AlphaVG_path', 'NVG_path', 'KsatNearSurface_path', ...
+        'KsatRootZone_path', 'KsatTransmission_path', 'RootDepth_path', ...
+        'SpecificYield_path', 'GroundwaterKsat_path'};
+    raster_fields = { ...
+        'SoilDepthParameter', 'ThetaR', 'ThetaS', 'AlphaVG', 'NVG', ...
+        'KsatNearSurface', 'KsatRootZone', 'KsatTransmission', ...
+        'RootDepth', 'SpecificYield', 'GroundwaterKsat'};
+    for i = 1:numel(path_fields)
+        path = get_inputpaths_field(InputPaths, path_fields{i}, '');
+        if strlength(strtrim(string(path))) > 0 && isfile(path)
+            rasters.(raster_fields{i}) = GRIDobj(char(path));
+        end
+    end
+end
+
+function rasters = align_parameter_rasters(rasters, dem_raster)
+    names = fieldnames(rasters);
+    for i = 1:numel(names)
+        rasters.(names{i}) = resample(rasters.(names{i}), dem_raster, 'bilinear');
+    end
+end
+
+function [values, override_count] = apply_parameter_override(values, rasters, name, active)
+    override_count = 0;
+    if ~isfield(rasters, name) || isempty(rasters.(name))
+        return
+    end
+    candidate = double(rasters.(name).Z);
+    if ~isequal(size(candidate), size(values))
+        error('Spatial parameter raster %s does not match the model grid.', name);
+    end
+    use = active & isfinite(candidate);
+    values(use) = candidate(use);
+    override_count = nnz(use);
 end
