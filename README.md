@@ -271,6 +271,40 @@ structured raster solver; Voronoi subgrid requires the standalone Voronoi runner
 HydroBathyDEM mesh package. The former `flag_subgrid` and `flag_overbanks` names are accepted only
 for migration of older cases and are converted with an explicit warning.
 
+### Layered subsurface and Feddes stress (opt-in)
+
+`flag_layered_subsurface = 1` replaces the three-layer soil column over a single aquifer
+with a layered soil-over-regolith column, the same physics as HydroPol2D-Python
+(`vertical.subsurface.scheme: layered`, `docs/layered-subsurface.md` there):
+
+- three soil slots (near-surface, root zone, transmission) down to the soil base, then deep
+  slots (0.25 m, doubling, at most 4 m) down to the depth to bedrock, capped at 50 m;
+- one water table per cell splitting the slot it is in, with Noah-MP MMF rules (a rise
+  fills theta_s - theta; a fall leaves field capacity), gravity drainage between slots, a
+  Darcy flux at the table (recharge or capillary rise), layered transmissivity for lateral
+  flow, and the existing deep linear reservoir below;
+- a rising water table no longer pushes soil water to the surface.
+
+`flag_feddes = 1` adds Feddes et al. (1978) root-water stress to ET in either scheme.
+Both default to 0. Settings are optional rows of the `Flags` sheet (or `InputData_Bypass.flags`),
+with the HydroPol2D-Python defaults: `subsurface_soil_base_depth_m` (2), `subsurface_depth_to_bedrock_m`,
+`subsurface_max_depth_m` (50), `subsurface_deep_first_thickness_m` (0.25), `subsurface_deep_growth_ratio` (2),
+`subsurface_deep_max_thickness_m` (4), `regolith_theta_s` (0.35), `regolith_theta_r` (0.05),
+`regolith_alpha_vg_m_inverse` (2), `regolith_n_vg` (1.5), `regolith_ksat_v_mm_h` (5),
+`regolith_ksat_h_mm_h` (empty: `ksat_gw`), `regolith_specific_yield` (empty: theta_s - theta_fc),
+`soil_lateral_anisotropy` (1), `subsurface_drainage_substeps` (1), `capillary_field_capacity_head_m` (3.3),
+`groundwater_target_dt_s` (3600), `groundwater_min_dt_s` (60), `groundwater_courant` (0.25) and
+`feddes_h1_m`, `feddes_h2_m`, `feddes_h3_m`, `feddes_h3_low_m`, `feddes_h3_high_m`, `feddes_h4_m`.
+Environment variables `HYDROPOL_SUBSURFACE_SCHEME`, `HYDROPOL_ENABLE_FEDDES` and
+`HYDROPOL_<NAME>` override them (the Case Builder uses them).
+
+Optional rasters (`<Name>_path` in `General_Data` or `InputPaths`, default `Static/<Name>.tif`):
+`SoilBaseDepth`, `RegolithThetaS`, `RegolithThetaR`, `RegolithAlphaVG`, `RegolithNVG`,
+`RegolithKsatV`, `RegolithKsatH`, `RegolithSpecificYield`. Finite raster cells win; the
+scalar fills the rest. The column bottom is the DTB raster, then `subsurface_depth_to_bedrock_m`,
+then `Soil_Depth` (with a warning). The standalone Voronoi/quadtree runner reads
+`config.layered_subsurface` (or the environment). Tests: `Validation/Groundwater/Layered`.
+
 ---
 
 ##  Performance & Scaling
