@@ -72,6 +72,7 @@ if config.hydrology_enabled
         end
         hydrology.layered = hp2d_voronoi_layered_initialize(mesh,hydrology,column_aquifer,layered_cfg,config.hydrology);
         if groundwater.enabled
+            groundwater.bottom = hydrology.layered.ground_m - hydrology.layered.base_depth_m;
             groundwater.head = hydrology.layered.head_m;
             groundwater.lateral_reference_head_m = groundwater.head;
             groundwater.storage = layered_saturated_storage(hydrology.layered,groundwater.head,n);
