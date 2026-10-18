@@ -3197,7 +3197,9 @@ try
 end
 
 if isempty(DTB_path)
-    Soil_Properties.Soil_Depth = elevation ./ elevation; % 1 meter soil
+    % 1 m soil. (elevation./elevation gave NaN where the elevation is exactly 0.)
+    Soil_Properties.Soil_Depth = ones(size(elevation));
+    Soil_Properties.Soil_Depth(idx_nan) = nan;
 end
 Soil_Depth_from_DTB = [];
 if ~isempty(DTB_path) && exist('DTB_raster', 'var') && ~isempty(DTB_raster)
