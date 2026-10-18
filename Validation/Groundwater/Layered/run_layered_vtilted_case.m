@@ -14,9 +14,8 @@ work = fullfile(tempdir, ['hp2d_layered_vtilted_' variant]);
 if isfolder(work), rmdir(work, 's'); end
 copyfile(fullfile(root, 'Examples', 'VTilted_Excel'), work);
 workbook = fullfile(work, 'Input_Data_Sheets', 'General_Data.xlsx');
-% Groundwater runs need DTB_path in Excel mode; the working-copy example workbook
-% lacks the DTB_path and GW_table_path keys (2026-10-17). Point DTB_path at
-% Static/DTB.tif in the temporary copy and leave GW_table_path empty.
+% Groundwater runs need DTB_path in Excel mode: point it at a 6 m DTB raster in the
+% temporary copy (keys are added if a workbook lacks them).
 G = readcell(workbook, 'Sheet', 'General_Data');
 % A 6 m depth to bedrock gives the column deep (rock) slots below a 1.2 m soil base.
 addpath(fullfile(root, 'third_party', 'topotoolbox_lite'));
@@ -24,7 +23,8 @@ dtb_file = fullfile(work, 'Static', 'DTB_layered.tif');
 D = GRIDobj(fullfile(work, 'Static', 'DTB.tif'));
 D.Z(isfinite(D.Z)) = 6;
 GRIDobj2geotiff(D, dtb_file);
-keys = {'DTB_path', dtb_file; 'GW_table_path', ''};
+% Numeric layered settings are General_Data keys (the Flags sheet reads only flag_* rows).
+keys = {'DTB_path', dtb_file; 'GW_table_path', ''; 'subsurface_soil_base_depth_m', 1.2};
 for i = 1:size(keys, 1)
     [r, c] = find(strcmpi(string(G), keys{i, 1}), 1);
     if isempty(r)
@@ -39,7 +39,6 @@ writecell(G, workbook, 'Sheet', 'General_Data');
 C = readcell(workbook, 'Sheet', 'Flags');
 settings = {'flag_infiltration', 1; 'flag_groundwater_modeling', 1; 'flag_capillary_rise', 1; ...
     'flag_single', 0; 'flag_GPU', 0; 'flag_layered_subsurface', double(~strcmp(variant, 'legacy')); ...
-    'subsurface_depth_to_bedrock_m', 6; 'subsurface_soil_base_depth_m', 1.2; ...
     'flag_baseflow', double(strcmp(variant, 'lateral')); 'flag_feddes', double(strcmp(variant, 'feddes'))};
 for i = 1:size(settings, 1)
     C = set_flag(C, settings{i, 1}, settings{i, 2});

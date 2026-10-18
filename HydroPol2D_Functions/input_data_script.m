@@ -533,6 +533,24 @@ end
 flags.groundwater_relative_tolerance = xlnum_optional(GD,'groundwater_relative_tolerance',1e-3);
 flags.groundwater_head_tolerance_m   = xlnum_optional(GD,'groundwater_head_tolerance_m',1e-3);
 
+% Layered subsurface and Feddes settings: optional General_Data keys (block "Layered
+% Subsurface" and "Feddes Root-Water Stress"). Empty cells keep the defaults and
+% fallbacks of hp2d_layered_subsurface_config; the switches are the Flags rows
+% flag_layered_subsurface and flag_feddes.
+layered_input_keys = {'subsurface_soil_base_depth_m','subsurface_depth_to_bedrock_m', ...
+    'subsurface_max_depth_m','subsurface_deep_first_thickness_m','subsurface_deep_growth_ratio', ...
+    'subsurface_deep_max_thickness_m','regolith_theta_s','regolith_theta_r', ...
+    'regolith_alpha_vg_m_inverse','regolith_n_vg','regolith_ksat_v_mm_h','regolith_ksat_h_mm_h', ...
+    'regolith_specific_yield','soil_lateral_anisotropy','subsurface_drainage_substeps', ...
+    'capillary_field_capacity_head_m','groundwater_target_dt_s','groundwater_min_dt_s', ...
+    'feddes_h1_m','feddes_h2_m','feddes_h3_m','feddes_h3_low_m','feddes_h3_high_m','feddes_h4_m'};
+for layered_key_index = 1:numel(layered_input_keys)
+    layered_value = xlnum_optional(GD,layered_input_keys{layered_key_index},NaN);
+    if isfinite(layered_value)
+        flags.(layered_input_keys{layered_key_index}) = layered_value;
+    end
+end
+
 % Little Constraints
 if flags.flag_infiltration == 0
     flags.flag_ETP = 0;
