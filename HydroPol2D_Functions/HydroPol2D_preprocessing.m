@@ -415,8 +415,9 @@ else
     % Layered-subsurface rasters (General_Data keys SoilBaseDepth_path, Regolith*_path).
     LayeredPaths = struct();
     for layered_name = layered_subsurface_raster_names()
-        LayeredPaths.([layered_name{1} '_path']) = ...
-            string(xlgetstr_optional(GD, [layered_name{1} '_path'], ""));
+        layered_path = string(xlgetstr_optional(GD, [layered_name{1} '_path'], ""));
+        layered_path(ismissing(layered_path)) = "";  % empty workbook cells read as <missing>
+        LayeredPaths.([layered_name{1} '_path']) = layered_path;
     end
     ParameterRasters = load_layered_subsurface_rasters(ParameterRasters, LayeredPaths, ...
         model_folder, runtime_model_root);
@@ -5601,8 +5602,11 @@ end
 function rasters = load_layered_subsurface_rasters(rasters, paths, workbook_path, model_root)
 %LOAD_LAYERED_SUBSURFACE_RASTERS Optional SoilBaseDepth and Regolith* rasters.
     for name = layered_subsurface_raster_names()
-        path = get_inputpaths_field(paths, [name{1} '_path'], '');
-        path = strtrim(string(path));
+        field = [name{1} '_path'];
+        if ~isfield(paths, field) || isempty(paths.(field)) || any(ismissing(string(paths.(field))))
+            continue
+        end
+        path = strtrim(string(paths.(field)));
         if strlength(path) == 0
             continue
         end

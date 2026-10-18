@@ -286,8 +286,10 @@ with a layered soil-over-regolith column, the same physics as HydroPol2D-Python
 - a rising water table no longer pushes soil water to the surface.
 
 `flag_feddes = 1` adds Feddes et al. (1978) root-water stress to ET in either scheme.
-Both default to 0. Settings are optional rows of the `Flags` sheet (or `InputData_Bypass.flags`),
-with the HydroPol2D-Python defaults: `subsurface_soil_base_depth_m` (2), `subsurface_depth_to_bedrock_m`,
+Both default to 0 and are rows of the `Flags` sheet (column E, rows 38-39 in the distributed
+workbooks). The numeric settings are `General_Data` keys, in the blocks "Layered Subsurface"
+(D10:F28) and "Feddes Root-Water Stress" (D30:F36); in bypass mode they are fields of
+`InputData_Bypass.flags`. An empty value keeps the HydroPol2D-Python default or fallback: `subsurface_soil_base_depth_m` (2), `subsurface_depth_to_bedrock_m`,
 `subsurface_max_depth_m` (50), `subsurface_deep_first_thickness_m` (0.25), `subsurface_deep_growth_ratio` (2),
 `subsurface_deep_max_thickness_m` (4), `regolith_theta_s` (0.35), `regolith_theta_r` (0.05),
 `regolith_alpha_vg_m_inverse` (2), `regolith_n_vg` (1.5), `regolith_ksat_v_mm_h` (5),
@@ -298,7 +300,8 @@ with the HydroPol2D-Python defaults: `subsurface_soil_base_depth_m` (2), `subsur
 Environment variables `HYDROPOL_SUBSURFACE_SCHEME`, `HYDROPOL_ENABLE_FEDDES` and
 `HYDROPOL_<NAME>` override them (the Case Builder uses them).
 
-Optional rasters (`<Name>_path` in `General_Data` or `InputPaths`, default `Static/<Name>.tif`):
+Optional rasters (`<Name>_path` keys in `General_Data`, T21:T28, or `InputPaths` fields with default
+`Static/<Name>.tif` in bypass mode):
 `SoilBaseDepth`, `RegolithThetaS`, `RegolithThetaR`, `RegolithAlphaVG`, `RegolithNVG`,
 `RegolithKsatV`, `RegolithKsatH`, `RegolithSpecificYield`. Finite raster cells win; the
 scalar fills the rest. The column bottom is the DTB raster, then `subsurface_depth_to_bedrock_m`,
