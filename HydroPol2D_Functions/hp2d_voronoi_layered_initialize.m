@@ -34,7 +34,8 @@ host = repmat((1:n)', h, 1);
         end
     end
 surface_bed = mesh.surface_bed(:);
-base_cell = max(surface_bed - groundwater.bottom(:), 0);
+% Column bottom: the aquifer bottom, capped at the layered maximum depth (as on the grid).
+base_cell = min(max(surface_bed - groundwater.bottom(:), 0), cfg.subsurface_max_depth_m);
 base = base_cell(host);
 soil_base = min(cell_value('soil_base_depth_m', cfg.subsurface_soil_base_depth_m), base);
 root = state.root_depth_m(:);
