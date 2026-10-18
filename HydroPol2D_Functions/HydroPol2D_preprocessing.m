@@ -1085,6 +1085,10 @@ end
 if flags.flag_baseflow == 1
     Maps.Hydro.GWdepth_save = zeros(size(dem,1),size(dem,2),saver_memory_maps);
 end
+if isfield(flags,'flag_layered_subsurface') && flags.flag_layered_subsurface == 1 && ...
+        flags.flag_groundwater_modeling == 1
+    Maps.Hydro.DeepVadose_save = zeros(size(dem,1),size(dem,2),saver_memory_maps);
+end
 
 %% Snowpack
 if flags.flag_snow_modeling == 1

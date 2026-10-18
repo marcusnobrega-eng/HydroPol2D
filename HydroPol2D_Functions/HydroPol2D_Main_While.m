@@ -1202,6 +1202,9 @@ end
 if flags.flag_groundwater_modeling == 1 && isfield(Maps.Hydro,'GWdepth_save')
     Maps.Hydro.GWdepth_save = Maps.Hydro.GWdepth_save(:,:,1:saver_count);
 end
+if isfield(Maps.Hydro,'DeepVadose_save') && size(Maps.Hydro.DeepVadose_save,3) >= saver_count
+    Maps.Hydro.DeepVadose_save = Maps.Hydro.DeepVadose_save(:,:,1:saver_count);
+end
 if flags.flag_waterquality == 1
     Maps.WQ_States.Pol_Conc_Map=Maps.WQ_States.Pol_Conc_Map(:,:,1:saver_count);
     Maps.WQ_States.Pol_mass_map=Maps.WQ_States.Pol_mass_map(:,:,1:saver_count);
