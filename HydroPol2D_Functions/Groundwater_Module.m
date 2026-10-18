@@ -474,7 +474,14 @@ end
 % -------------------------------------------------------------------------
 
 if groundwater_update_ran && has_layered_soil && ~has_prescribed_recharge
-    layer_options = struct('near_surface_depth_m', 0.10, 'min_layer_thickness_m', 0.005);
+    % Keep the near-surface thickness set at preprocessing (0.05 m there; this call used
+    % 0.10 m, so the layer thickness jumped at the first groundwater update).
+    near_surface_target_m = 0.05;
+    if isfield(Soil_Properties.Layers, 'near_surface_target_m') && ...
+            ~isempty(Soil_Properties.Layers.near_surface_target_m)
+        near_surface_target_m = Soil_Properties.Layers.near_surface_target_m;
+    end
+    layer_options = struct('near_surface_depth_m', near_surface_target_m, 'min_layer_thickness_m', 0.005);
     [Soil_Properties, LULC_Properties] = derive_layered_soil_profile( ...
         Soil_Properties, LULC_Properties, BC_States, z_terrain, idx_nan, layer_options);
     [Soil_Properties, excess_mm] = clamp_layered_soil_storage(Soil_Properties, idx_nan);

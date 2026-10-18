@@ -69,6 +69,11 @@ if flags.flag_groundwater_modeling == 1 && exist('GW_States', 'var') && ...
         isstruct(GW_States) && isfield(GW_States, 'pending_net_exchange_m')
     S_GW = S_GW + nansum(nansum(coarse_cell_area .* GW_States.pending_net_exchange_m));
 end
+% Deep-aquifer reservoirs hold water that returns to channels: count their storage.
+if isfield(flags, 'flag_deep_aquifer') && flags.flag_deep_aquifer == 1 && exist('GW_States', 'var') && ...
+        isstruct(GW_States) && isfield(GW_States, 'deep_aquifer_storage_m3')
+    S_GW = S_GW + sum(GW_States.deep_aquifer_storage_m3(:), 'omitnan');
+end
 layered_mass_balance = isfield(flags, 'flag_layered_subsurface') && ...
     flags.flag_layered_subsurface == 1 && exist('Subsurface', 'var') && isstruct(Subsurface);
 if layered_mass_balance
@@ -123,6 +128,10 @@ if flags.flag_groundwater_modeling == 1 && exist('GW_States', 'var') && ...
 end
 if layered_mass_balance
     current_storage = S_p + nansum(nansum(C_a.*Hydro_States.S/1000)) + S_UZ;
+end
+if isfield(flags, 'flag_deep_aquifer') && flags.flag_deep_aquifer == 1 && exist('GW_States', 'var') && ...
+        isstruct(GW_States) && isfield(GW_States, 'deep_aquifer_storage_m3')
+    current_storage = current_storage + sum(GW_States.deep_aquifer_storage_m3(:), 'omitnan');
 end
 
 loss_volume = inf_volume;

@@ -110,7 +110,13 @@ if flags.flag_ETP == 1
     if flags.flag_input_ETP_map == 1
         % CASE A: Actual ET prescribed by input maps. Do not apply Kc here:
         % the forcing already represents evaporation plus transpiration.
-        ETR_demand = input_evaporation + input_transpiration;   % mm/day
+        % The forcing loop (update_spatial_BC) refreshes current_*_map; input_* hold
+        % only the first map.
+        if isfield(BC_States, 'current_evaporation_map') && ~isempty(BC_States.current_evaporation_map)
+            ETR_demand = BC_States.current_evaporation_map + BC_States.current_transpiration_map;
+        else
+            ETR_demand = input_evaporation + input_transpiration;   % mm/day
+        end
     else
         % CASE B: Internally computed reference ET is converted to a
         % land-cover-specific soil ET demand using Kc.
