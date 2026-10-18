@@ -35,14 +35,20 @@ interception_module
 % Snow Module
 Snow_Module
 
-% Evaporation / Evapotranspiration Module
-Evaporation_Evapotranspiration_Module
+if isfield(flags, 'flag_layered_subsurface') && flags.flag_layered_subsurface == 1
+    % Layered soil-over-regolith column: infiltration, ET (Feddes), drainage, the
+    % water-table flux, the MMF table update, river exchange and lateral flow.
+    Layered_Subsurface_Module
+else
+    % Evaporation / Evapotranspiration Module
+    Evaporation_Evapotranspiration_Module
 
-% Infiltration Module
-Infiltration_Module
+    % Infiltration Module
+    Infiltration_Module
 
-% Recharge and Groundwater Module
-Groundwater_Module
+    % Recharge and Groundwater Module
+    Groundwater_Module
+end
 
 % Inflow
 depths.d_t = depths.d_t + BC_States.inflow;

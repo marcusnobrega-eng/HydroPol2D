@@ -127,6 +127,10 @@ if flags.flag_ETP == 1
     ETR_demand(isnan(ETR_demand)) = 0;
     ETR_demand(idx_nan) = nan;
 
+    % Potential rate before the pervious fraction (Feddes demand-dependent h3).
+    ETR_potential_rate = ETR_demand;
+    ETR_potential_rate(~isfinite(ETR_potential_rate)) = 0;
+
     % Soil ET is represented only over the pervious part of mixed cells.
     if isfield(LULC_Properties, 'frac_perv') && ~isempty(LULC_Properties.frac_perv)
         perv_frac = min(max(LULC_Properties.frac_perv, 0), 1);
@@ -172,7 +176,8 @@ if flags.flag_ETP == 1
         if has_layered_soil
             et_demand_depth_mm = ETR_demand .* dt_days;
             [Soil_Properties, actual_et_depth_mm] = extract_layered_et( ...
-                Soil_Properties, et_demand_depth_mm, idx_soil_available, idx_nan);
+                Soil_Properties, et_demand_depth_mm, idx_soil_available, idx_nan, ...
+                ETR_potential_rate);
 
             Hydro_States.ETR(idx_soil_available) = ...
                 actual_et_depth_mm(idx_soil_available) ./ max(dt_days, eps);
