@@ -134,7 +134,14 @@ if flags.flag_automatic_calibration ~= 1
         % Groundwater depth
         % -----------------------------------------------------------------
         if flags.flag_groundwater_modeling == 1
-            Maps.Hydro.GWdepth_save(:,:,1) = max(min(elevation - BC_States.h_t, Soil_Properties.Soil_Depth), 0); % depth to water table below surface [m]
+            gw_depth_cap = Soil_Properties.Soil_Depth;
+            if exist('Subsurface', 'var') && isstruct(Subsurface)
+                % Layered column: the table can sit anywhere above min(DTB, max depth).
+                gw_depth_cap = Subsurface.column_base_depth_m;
+                Maps.Hydro.DeepVadose_save(:,:,1) = reshape(sum(Subsurface.water_mm(:,4:end), 2), size(elevation)); % deep-slot water above theta_r [mm]
+                Maps.Hydro.ColumnBaseDepth_m = Subsurface.column_base_depth_m;
+            end
+            Maps.Hydro.GWdepth_save(:,:,1) = max(min(elevation - BC_States.h_t, gw_depth_cap), 0); % depth to water table below surface [m]
             Maps.Hydro.GWdepth_is_zwt = 1;
         end
 
@@ -240,7 +247,14 @@ if flags.flag_automatic_calibration ~= 1
         % Groundwater
         % -----------------------------------------------------------------
         if flags.flag_groundwater_modeling == 1
-            Maps.Hydro.GWdepth_save(:,:,saver_count) = max(min(elevation - BC_States.h_t, Soil_Properties.Soil_Depth), 0); % depth to water table below surface [m]
+            gw_depth_cap = Soil_Properties.Soil_Depth;
+            if exist('Subsurface', 'var') && isstruct(Subsurface)
+                % Layered column: the table can sit anywhere above min(DTB, max depth).
+                gw_depth_cap = Subsurface.column_base_depth_m;
+                Maps.Hydro.DeepVadose_save(:,:,saver_count) = reshape(sum(Subsurface.water_mm(:,4:end), 2), size(elevation)); % deep-slot water above theta_r [mm]
+                Maps.Hydro.ColumnBaseDepth_m = Subsurface.column_base_depth_m;
+            end
+            Maps.Hydro.GWdepth_save(:,:,saver_count) = max(min(elevation - BC_States.h_t, gw_depth_cap), 0); % depth to water table below surface [m]
             Maps.Hydro.GWdepth_is_zwt = 1;
         end
 
