@@ -165,6 +165,10 @@ if use_inputdata_bypass == 1
     % One scalar, authoritative channel/in-bank Manning coefficient.
     LULC_Parameters.River_Manning = require_field(G,'Manning');
     River_K_coeff = get_optional_field(G,'River_K_coeff',nan);
+    riverbed_thickness_m = get_optional_field(G,'riverbed_thickness_m',0.5);
+    deep_recharge_fraction = get_optional_field(G,'deep_recharge_fraction',0.05);
+    deep_aquifer_response_time_days = get_optional_field(G, ...
+        'deep_aquifer_tau_days',get_optional_field(G,'deep_aquifer_response_time_days',180));
 
     % ---------------- Water Quality Inputs ----------------
     ADD    = require_field(G,'ADD');
@@ -524,12 +528,10 @@ if ~isfield(flags,'flag_prescribed_recharge')
     flags.flag_prescribed_recharge = 0;
 end
 
-% Groundwater scheduler controls are non-flag numeric settings. Keep them in
-% General_Data so Excel-mode runs expose the same controls as bypass mode.
-flags.groundwater_target_dt_min      = xlnum_optional(GD,'groundwater_target_dt_min',1440);
-flags.groundwater_min_dt_min         = xlnum_optional(GD,'groundwater_min_dt_min',1);
-flags.groundwater_max_head_change_m  = xlnum_optional(GD,'groundwater_max_head_change_m',0.25);
-flags.groundwater_courant            = xlnum_optional(GD,'groundwater_courant',0.25);
+% Error tolerances control the lateral groundwater clock; fixed intervals are
+% no longer model inputs.
+flags.groundwater_relative_tolerance = xlnum_optional(GD,'groundwater_relative_tolerance',1e-3);
+flags.groundwater_head_tolerance_m   = xlnum_optional(GD,'groundwater_head_tolerance_m',1e-3);
 
 % Little Constraints
 if flags.flag_infiltration == 0

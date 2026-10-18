@@ -232,6 +232,9 @@ InputData_Bypass.general.beta_2  = 1.0;
 % One authoritative channel/in-bank n [s m^-1/3]. In Neal (2012) mode,
 % LULC_table.roughness provides the spatial floodplain/overbank roughness.
 InputData_Bypass.general.Manning = 0.035;
+InputData_Bypass.general.riverbed_thickness_m = 0.5;
+InputData_Bypass.general.deep_recharge_fraction = 0.05;
+InputData_Bypass.general.deep_aquifer_response_time_days = 180;
 
 % Optional river parameter
 % InputData_Bypass.general.River_K_coeff = NaN;
@@ -339,12 +342,10 @@ InputData_Bypass.flags.flag_waterquality                 = 0;
 InputData_Bypass.flags.flag_reservoir                    = 0;
 InputData_Bypass.flags.flag_wq_model                     = 0;
 InputData_Bypass.flags.flag_groundwater_modeling         = 0;
-InputData_Bypass.flags.flag_groundwater_async            = 1;
+InputData_Bypass.flags.flag_river_groundwater_exchange   = 0;
 InputData_Bypass.flags.flag_capillary_rise               = 1;
-InputData_Bypass.flags.groundwater_target_dt_min         = 1440;
-InputData_Bypass.flags.groundwater_min_dt_min            = 1;
-InputData_Bypass.flags.groundwater_max_head_change_m     = 0.25;
-InputData_Bypass.flags.groundwater_courant               = 0.25;
+InputData_Bypass.flags.groundwater_relative_tolerance    = 1e-3;
+InputData_Bypass.flags.groundwater_head_tolerance_m      = 1e-3;
 InputData_Bypass.flags.flag_real_time_satellite_rainfall = 0;
 InputData_Bypass.flags.flag_dam_break                    = 0;
 InputData_Bypass.flags.flag_human_instability            = 1; % can be 0, 1, or 3
@@ -488,15 +489,30 @@ if ~isempty(getenv('HYDROPOL_INDIA_CASE_ROOT'))
         ~strcmp(getenv('HYDROPOL_ENABLE_INFILTRATION'), '0'));
     InputData_Bypass.flags.flag_groundwater_modeling = double( ...
         ~strcmp(getenv('HYDROPOL_ENABLE_GROUNDWATER'), '0'));
+    InputData_Bypass.flags.flag_river_groundwater_exchange = double( ...
+        strcmp(getenv('HYDROPOL_ENABLE_RIVER_GW_EXCHANGE'), '1'));
+    InputData_Bypass.flags.flag_deep_aquifer = double( ...
+        strcmp(getenv('HYDROPOL_ENABLE_DEEP_AQUIFER'), '1'));
     InputData_Bypass.flags.flag_baseflow = InputData_Bypass.flags.flag_groundwater_modeling;
     InputData_Bypass.flags.flag_capillary_rise = InputData_Bypass.flags.flag_groundwater_modeling;
+    riverbed_thickness_m = str2double(getenv('HYDROPOL_RIVERBED_THICKNESS_M'));
+    if isfinite(riverbed_thickness_m) && riverbed_thickness_m > 0
+        InputData_Bypass.general.riverbed_thickness_m = riverbed_thickness_m;
+    end
+    deep_fraction = str2double(getenv('HYDROPOL_DEEP_RECHARGE_FRACTION'));
+    if isfinite(deep_fraction) && deep_fraction > 0 && deep_fraction <= 1
+        InputData_Bypass.general.deep_recharge_fraction = deep_fraction;
+    end
+    deep_tau_days = str2double(getenv('HYDROPOL_DEEP_RESPONSE_TIME_DAYS'));
+    if isfinite(deep_tau_days) && deep_tau_days > 0
+        InputData_Bypass.general.deep_aquifer_response_time_days = deep_tau_days;
+    end
     if strcmp(getenv('HYDROPOL_DISABLE_GW_2D'), '1')
         InputData_Bypass.flags.flag_groundwater_modeling = 0;
         InputData_Bypass.flags.flag_baseflow = 0;
     elseif strcmp(getenv('HYDROPOL_DISABLE_GW_LATERAL'), '1')
         InputData_Bypass.flags.flag_baseflow = 0;
     end
-    InputData_Bypass.flags.groundwater_target_dt_min = 60;
     InputData_Bypass.flags.flag_boundary = 1;
     InputData_Bypass.flags.flag_D8 = 0;
     InputData_Bypass.flags.flag_CA = 0;
@@ -505,7 +521,11 @@ if ~isempty(getenv('HYDROPOL_INDIA_CASE_ROOT'))
     InputData_Bypass.flags.flag_kinematic = 0;
     InputData_Bypass.flags.flag_diffusive = 0;
     InputData_Bypass.flags.flag_outlet_type = 2;
-    InputData_Bypass.flags.flag_neal_channel = 1;
+    subgrid_method = lower(strtrim(getenv('HYDROPOL_SUBGRID_METHOD')));
+    if isempty(subgrid_method)
+        subgrid_method = 'neal';
+    end
+    InputData_Bypass.flags.flag_neal_channel = double(strcmp(subgrid_method, 'neal'));
     InputData_Bypass.flags.flag_river_rasters = 1;
     InputData_Bypass.flags.flag_critical = 1;
     InputData_Bypass.flags.flag_initial_soil_moisture = 1;

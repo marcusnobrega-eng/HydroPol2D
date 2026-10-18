@@ -35,21 +35,6 @@ throughfall = max(provisional - capacity,0);
 state.canopy_storage_m = min(provisional,capacity);
 surface_volume = surface_volume + sum(throughfall .* state.area_m2,2);
 
-% Ponded cells evaporate from the shared surface store; otherwise ET is
-% extracted from root-accessible HRU storage above its wilting threshold.
-ponded = surface_volume > 0;
-surface_evaporation_volume = min(surface_volume, open_water_evaporation_m_s .* dt_s .* mesh.cell_area(:));
-surface_evaporation_volume(~ponded) = 0;
-surface_volume = surface_volume - surface_evaporation_volume;
-soil_et_demand = pet_hru .* state.crop_coefficient;
-soil_et_demand(ponded,:) = 0;
-[state.near_storage_m, take_near] = extract_above_wilting( ...
-    state.near_storage_m,state.near_capacity_m,state.wilting_saturation,soil_et_demand);
-remaining_et = soil_et_demand - take_near;
-[state.root_storage_m, take_root] = extract_above_wilting( ...
-    state.root_storage_m,state.root_capacity_m,state.wilting_saturation,remaining_et);
-actual_soil_et = take_near + take_root;
-
 % Darcy-vG/Mualem infiltration closure from the raster implementation.
 surface_depth = surface_volume ./ mesh.cell_area(:);
 available = surface_depth + zeros(size(state.fraction));
@@ -87,6 +72,21 @@ surface_volume = max(surface_volume-infiltration_volume,0);
     add_top_down(state.near_storage_m,state.root_storage_m,state.transmission_storage_m, ...
     state.near_capacity_m,state.root_capacity_m,state.transmission_capacity_m,infiltration);
 
+% Match the reference ordering: infiltration first, then open-water
+% evaporation or root-accessible ET above the wilting threshold.
+ponded = surface_volume > 0;
+surface_evaporation_volume = min(surface_volume, open_water_evaporation_m_s .* dt_s .* mesh.cell_area(:));
+surface_evaporation_volume(~ponded) = 0;
+surface_volume = surface_volume - surface_evaporation_volume;
+soil_et_demand = pet_hru .* state.crop_coefficient;
+soil_et_demand(ponded,:) = 0;
+[state.near_storage_m, take_near] = extract_above_wilting( ...
+    state.near_storage_m,state.near_capacity_m,state.wilting_saturation,soil_et_demand);
+remaining_et = soil_et_demand - take_near;
+[state.root_storage_m, take_root] = extract_above_wilting( ...
+    state.root_storage_m,state.root_capacity_m,state.wilting_saturation,remaining_et);
+actual_soil_et = take_near + take_root;
+
 % Reuse the same free-drainage ordering as the layered raster model.
 [state.near_storage_m,state.root_storage_m,state.transmission_storage_m,recharge] = drain_layers(state,dt_s);
 capillary = zeros(size(recharge));
@@ -105,6 +105,8 @@ end
 
 state.cumulative_infiltration_m = state.cumulative_infiltration_m + infiltration;
 state.cumulative_recharge_m = state.cumulative_recharge_m + recharge;
+state.cumulative_capillary_m = state.cumulative_capillary_m + capillary;
+state.cumulative_potential_et_m = state.cumulative_potential_et_m + pet_hru;
 state.cumulative_actual_et_m = state.cumulative_actual_et_m + actual_soil_et + canopy_evaporation;
 state.cumulative_surface_evaporation_m = state.cumulative_surface_evaporation_m + ...
     surface_evaporation_volume ./ mesh.cell_area(:);
@@ -134,6 +136,15 @@ state.near_thickness_m=min(state.surface_layer_depth_m,zwt);
 root_bottom=min(state.root_depth_m,zwt);
 state.root_thickness_m=max(root_bottom-state.near_thickness_m,0);
 state.transmission_thickness_m=max(zwt-state.near_thickness_m-state.root_thickness_m,0);
+min_layer_thickness_m=0.005;
+tiny_root=state.root_thickness_m>0 & state.root_thickness_m<min_layer_thickness_m;
+state.near_thickness_m(tiny_root)=state.near_thickness_m(tiny_root)+state.root_thickness_m(tiny_root);
+state.root_thickness_m(tiny_root)=0;
+tiny_transmission=state.transmission_thickness_m>0 & ...
+    state.transmission_thickness_m<min_layer_thickness_m;
+state.root_thickness_m(tiny_transmission)=state.root_thickness_m(tiny_transmission)+ ...
+    state.transmission_thickness_m(tiny_transmission);
+state.transmission_thickness_m(tiny_transmission)=0;
 water_capacity=state.pervious_fraction.*max(state.theta_sat-state.theta_r,0);
 state.near_capacity_m=water_capacity.*state.near_thickness_m;
 state.root_capacity_m=water_capacity.*state.root_thickness_m;
@@ -190,21 +201,18 @@ upper=upper-moved; lower=lower+moved;
 end
 
 function [state,capillary] = capillary_rise(state,available_cell_depth,dt_s)
-remaining=available_cell_depth+zeros(size(state.fraction)); capillary=zeros(size(remaining));
-proximity=max(1-state.water_table_depth_m./state.capillary_extinction_depth_m,0);
-[state.transmission_storage_m,moved]=fill(state.transmission_storage_m,state.transmission_capacity_m,state.ksat_m_s,proximity,dt_s,remaining);
-remaining=remaining-moved; capillary=capillary+moved;
-[state.root_storage_m,moved]=fill(state.root_storage_m,state.root_capacity_m,state.ksat_m_s,proximity,dt_s,remaining);
-remaining=remaining-moved; capillary=capillary+moved;
-eligible=state.transmission_capacity_m<=0 & state.root_capacity_m<=0;
-[candidate,moved]=fill(state.near_storage_m,state.near_capacity_m,state.ksat_m_s,proximity,dt_s,remaining);
-moved(~eligible)=0; state.near_storage_m(eligible)=candidate(eligible); capillary=capillary+moved;
-end
-
-function [storage,moved] = fill(storage,capacity,ksat,proximity,dt_s,remaining)
-dryness=max(1-storage./max(capacity,eps),0);
-moved=min(min(max(capacity-storage,0),ksat.*proximity.*dryness.*dt_s),max(remaining,0));
-moved(capacity<=0)=0; storage=storage+moved;
+remaining=max(available_cell_depth,0)+zeros(size(state.fraction));
+gap=max(state.water_table_depth_m-state.root_depth_m,0);
+use_root=state.root_capacity_m>0;
+rooted_capacity=state.root_capacity_m;
+rooted_capacity(~use_root)=state.near_capacity_m(~use_root).*(state.root_depth_m(~use_root)>0);
+rooted_storage=state.root_storage_m;
+rooted_storage(~use_root)=state.near_storage_m(~use_root);
+capillary=hp2d_vg_mualem_capillary_transfer(state.ksat_m_s,state.alpha_vg_1_m, ...
+    state.n_vg,state.l_vg,gap,state.capillary_field_capacity_head_m, ...
+    rooted_capacity,rooted_storage,remaining,dt_s);
+state.root_storage_m=state.root_storage_m+capillary.*use_root;
+state.near_storage_m=state.near_storage_m+capillary.*~use_root;
 end
 
 function total = hru_storage(state)

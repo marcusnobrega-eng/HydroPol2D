@@ -54,6 +54,7 @@ if exist(native_directory,'dir')~=7, mkdir(native_directory); end
 config.output_netcdf = fullfile(native_directory,'unstructured_results.nc');
 config.output_interval_s=output_controls.native_output_interval_s;
 config.raster_output_interval_s=output_controls.raster_stack_interval_s;
+config.map_variables=output_controls.map_variables;
 config.overwrite_output = true;
 
 forcing = case_definition.forcing;
@@ -148,7 +149,8 @@ function controls=output_defaults(controls)
 values=struct('write_native_archive',true,'native_output_interval_s',300, ...
     'write_final_geotiffs',true,'write_temporal_geotiffs',true, ...
     'raster_stack_interval_s',3600,'write_figures',true,'write_videos',true, ...
-    'write_gauge_hydrographs',true,'video_fps',8);
+    'write_gauge_hydrographs',true,'video_fps',8, ...
+    'map_variables',{{'surface_depth','surface_velocity'}});
 names=fieldnames(values);
 for k=1:numel(names), if ~isfield(controls,names{k}) || isempty(controls.(names{k})), controls.(names{k})=values.(names{k}); end, end
 ratio=controls.raster_stack_interval_s/controls.native_output_interval_s;

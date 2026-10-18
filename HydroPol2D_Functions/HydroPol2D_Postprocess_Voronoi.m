@@ -61,7 +61,11 @@ add_face('recharge_rate',{'recharge_rate_m_s_face','recharge_rate_m_s'},folders.
     'Recharge_Rate','mm_h',1000*3600,false);
 add_face('recharge_depth',{'cumulative_recharge_m_face','cumulative_recharge_m'}, ...
     folders.recharge,'Cumulative_Recharge','mm',1000,false);
+add_face('capillary_depth',{'cumulative_capillary_rise_face_mm'}, ...
+    folders.recharge,'Cumulative_Capillary_Rise','mm',1,false);
 add_face('pet_rate',{'potential_et_rate_face_m_s'},folders.et,'Potential_ET','mm_day',1000*86400,false);
+add_face('potential_et_depth',{'cumulative_potential_evaporation_face_mm'}, ...
+    folders.et,'Cumulative_Potential_Evaporation','mm',1,false);
 add_face('actual_et_rate',{'actual_et_rate_m_s_face','actual_et_rate_m_s'}, ...
     folders.et,'Actual_ET_Rate','mm_day',1000*86400,false);
 add_face('actual_et_depth',{'cumulative_actual_et_m_face','cumulative_actual_et_m'}, ...
@@ -75,6 +79,10 @@ add_face('groundwater_exchange',{'groundwater_river_exchange_face_m_s', ...
     'mm_day',1000*86400,true);
 add_face('groundwater_seepage',{'groundwater_seepage_face_m_s','groundwater_seepage_m_s'}, ...
     folders.groundwater,'Groundwater_Seepage','mm_day',1000*86400,false);
+add_face('groundwater_exchange_depth',{'cumulative_groundwater_exchange_face_mm'}, ...
+    folders.groundwater,'Cumulative_Groundwater_River_Exchange','mm',1,true);
+add_face('groundwater_seepage_depth',{'cumulative_groundwater_seepage_face_mm'}, ...
+    folders.groundwater,'Cumulative_Groundwater_Seepage','mm',1,false);
 
 channel_depth=read_any(native_file,{'channel_depth_node_m','channel_depth_m'});
 if ~isempty(channel_depth) && mesh.channel.n_nodes>0
@@ -92,6 +100,18 @@ if ~isempty(channel_q) && mesh.channel.n_links>0
     end
     [histories.channel_discharge,metadata.channel_discharge]=field( ...
         map_history(mapping,face_values),folders.channel,'Channel_Discharge','m3_s',true);
+end
+
+selected=string(options.map_variables);
+if ~isempty(selected)
+    available=fieldnames(histories);
+    for k=1:numel(available)
+        selector=history_selector(available{k});
+        if ~isempty(selector) && ~any(strcmpi(selected,selector))
+            histories=rmfield(histories,available{k});
+            metadata=rmfield(metadata,available{k});
+        end
+    end
 end
 
 manifest=table(strings(0,1),zeros(0,1),strings(0,1), ...
@@ -145,8 +165,42 @@ end
 function options=defaults(options)
 values=struct('write_final_geotiffs',true,'write_temporal_geotiffs',true, ...
     'raster_stack_interval_s',[],'write_figures',true,'write_videos',true, ...
-    'write_gauge_hydrographs',true,'video_fps',8);
+    'write_gauge_hydrographs',true,'video_fps',8, ...
+    'map_variables',{{'surface_depth','surface_velocity'}});
 names=fieldnames(values); for k=1:numel(names), if ~isfield(options,names{k}), options.(names{k})=values.(names{k}); end, end
+end
+
+function selector=history_selector(name)
+switch string(name)
+    case {"surface_depth","wse","depth_velocity","instability","channel_depth","channel_discharge"}
+        selector="surface_depth";
+    case "velocity"
+        selector="surface_velocity";
+    case "rainfall_rate"
+        selector="rainfall_intensity";
+    case "rainfall_depth"
+        selector="cumulative_rainfall";
+    case {"infiltration_rate","infiltration_depth"}
+        selector="cumulative_infiltration";
+    case {"recharge_rate","recharge_depth","capillary_depth"}
+        selector="cumulative_recharge";
+    case {"pet_rate","potential_et_depth"}
+        selector="cumulative_potential_evaporation";
+    case {"actual_et_rate","actual_et_depth"}
+        selector="cumulative_actual_evapotranspiration";
+    case {"groundwater_head","groundwater_depth","soil_water"}
+        selector="groundwater_depth";
+    case "groundwater_exchange"
+        selector="river_groundwater_exchange_rate";
+    case "groundwater_exchange_depth"
+        selector="cumulative_river_groundwater_exchange";
+    case "groundwater_seepage"
+        selector="groundwater_seepage_rate";
+    case "groundwater_seepage_depth"
+        selector="cumulative_groundwater_seepage";
+    otherwise
+        selector="";
+end
 end
 
 function validate_inputs(native_file,mesh_file,overlap_file,options)

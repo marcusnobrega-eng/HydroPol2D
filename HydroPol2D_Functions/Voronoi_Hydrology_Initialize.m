@@ -40,7 +40,8 @@ state.surface_layer_depth_m = field(hydrology, 'surface_layer_depth_m', 0.10, n,
 state.infiltration_head_cap_m = field(hydrology, 'infiltration_head_cap_m', 1, n, h, 0, inf);
 state.surface_conductivity_weight = field(hydrology, 'surface_conductivity_weight', 0.5, n, h, 0, 1);
 state.wilting_saturation = field(hydrology, 'wilting_saturation', 0.10, n, h, 0, 1);
-state.capillary_extinction_depth_m = field(hydrology, 'capillary_extinction_depth_m', 2, n, h, eps, inf);
+state.capillary_field_capacity_head_m = field( ...
+    hydrology, 'capillary_field_capacity_head_m', 3.3, n, h, eps, inf);
 state.capillary_rise_enabled = logical(getfield_default(hydrology, 'capillary_rise_enabled', true));
 
 state.canopy_storage_m = field(hydrology, 'initial_canopy_storage_m', 0, n, h, 0, inf);
@@ -51,6 +52,8 @@ state.root_storage_m = initial_saturation .* state.root_capacity_m;
 state.transmission_storage_m = initial_saturation .* state.transmission_capacity_m;
 state.cumulative_infiltration_m = zeros(n,h);
 state.cumulative_recharge_m = zeros(n,h);
+state.cumulative_capillary_m = zeros(n,h);
+state.cumulative_potential_et_m = zeros(n,h);
 state.cumulative_actual_et_m = zeros(n,h);
 state.cumulative_surface_evaporation_m = zeros(n,1);
 state.last_infiltration_rate_m_s = zeros(n,h);
@@ -68,6 +71,15 @@ near_thickness = min(state.surface_layer_depth_m, zwt);
 root_bottom = min(state.root_depth_m, zwt);
 root_thickness = max(root_bottom - near_thickness, 0);
 transmission_thickness = max(zwt - near_thickness - root_thickness, 0);
+min_layer_thickness_m = 0.005;
+tiny_root = root_thickness > 0 & root_thickness < min_layer_thickness_m;
+near_thickness(tiny_root) = near_thickness(tiny_root) + root_thickness(tiny_root);
+root_thickness(tiny_root) = 0;
+tiny_transmission = transmission_thickness > 0 & ...
+    transmission_thickness < min_layer_thickness_m;
+root_thickness(tiny_transmission) = root_thickness(tiny_transmission) + ...
+    transmission_thickness(tiny_transmission);
+transmission_thickness(tiny_transmission) = 0;
 water_capacity = state.pervious_fraction .* max(state.theta_sat - state.theta_r, 0);
 state.water_table_depth_m = zwt;
 state.near_thickness_m = near_thickness;

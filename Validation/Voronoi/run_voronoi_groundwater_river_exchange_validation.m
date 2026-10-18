@@ -3,8 +3,11 @@ function Summary = run_voronoi_groundwater_river_exchange_validation(mesh_file)
 
 mesh=HydroPol2D_Read_UGRID(mesh_file);
 assert(mesh.channel.n_nodes>0,'Validation mesh must contain Neal channel nodes.');
-config=struct('courant',0.2,'riverbed_hydraulic_conductivity_m_s',1e-6, ...
-    'riverbed_thickness_m',0.5,'resolved_river_mask',false(mesh.n_cells,1));
+mesh.cell_riverbed_area=zeros(mesh.n_cells,1);
+mesh.cell_riverbed_area(mesh.channel.host_cell)=mesh.channel.plan_area;
+mesh.cell_riverbed_hydraulic_conductivity=1e-6*ones(mesh.n_cells,1);
+config=struct('courant',0.2,'river_groundwater_exchange',true, ...
+    'riverbed_thickness_m',0.5);
 duration=600;
 
 % Gaining reach: groundwater stage is above an initially dry channel, but

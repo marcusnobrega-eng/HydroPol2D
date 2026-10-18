@@ -68,6 +68,7 @@ if use_subgrid
         mesh.n_cells, mesh.n_edges);
     fprintf('Sub-grid tables: %d of %d cells use the level-pool closure.\n', ...
         subgrid_tables.validation.subgrid_cells, mesh.n_cells);
+    config.subgrid_tables = subgrid_tables;
 end
 
 n_output_slots = ceil(config.duration_s / config.output_interval_s) + 1;
@@ -79,7 +80,9 @@ face_flow_depths = cell(n_output_slots,1);   % depth paired with each stored edg
 channel_depths = cell(n_output_slots,1); channel_discharges = cell(n_output_slots,1);
 transition_discharges = cell(n_output_slots,1);
 groundwater_heads = cell(n_output_slots,1); groundwater_exchange = cell(n_output_slots,1);
-groundwater_seepage = cell(n_output_slots,1); hydrology_outputs = cell(n_output_slots,1);
+groundwater_seepage = cell(n_output_slots,1);
+cumulative_groundwater_exchange = cell(n_output_slots,1);
+cumulative_groundwater_seepage = cell(n_output_slots,1); hydrology_outputs = cell(n_output_slots,1);
 surface_source_rates = cell(n_output_slots,1); cumulative_surface_source = zeros(n,1);
 cumulative_surface_sources = cell(n_output_slots,1); potential_et_rates = cell(n_output_slots,1);
 outlet_discharges = zeros(n_output_slots,1);
@@ -106,6 +109,8 @@ if groundwater.enabled
     groundwater_heads{1}=groundwater.head;
     groundwater_exchange{1}=groundwater.last_river_exchange_rate_m_s;
     groundwater_seepage{1}=groundwater.last_seepage_rate_m_s;
+    cumulative_groundwater_exchange{1}=groundwater.cumulative_river_exchange_m;
+    cumulative_groundwater_seepage{1}=groundwater.cumulative_seepage_m;
 end
 if hydrology.enabled, hydrology_outputs{1}=aggregate_hydrology(hydrology); end
 time_tolerance=max(1e-9,100*eps(max(config.duration_s,1)));
@@ -133,10 +138,6 @@ while t < config.duration_s-time_tolerance
         integration_dt = stability_dt;
     end
     dt = min([integration_dt, config.duration_s - t, next_output-t]);
-    if groundwater.enabled
-        remaining_groundwater=config.groundwater_update_interval_s-groundwater.elapsed_s;
-        if remaining_groundwater>time_tolerance, dt=min(dt,remaining_groundwater); end
-    end
     if config.hydrology_enabled && isfinite(config.meteorology_interval_s)
         remaining_meteorology=config.meteorology_interval_s-mod(t,config.meteorology_interval_s);
         if remaining_meteorology>time_tolerance, dt=min(dt,remaining_meteorology); end
@@ -206,14 +207,43 @@ while t < config.duration_s-time_tolerance
         groundwater.pending_exchange_m3 = groundwater.pending_exchange_m3 + groundwater_source_volume;
         groundwater.elapsed_s = groundwater.elapsed_s + dt;
         event_tolerance=max(1e-9,100*eps(max(t+dt,1)));
-        update_due = groundwater.elapsed_s >= config.groundwater_update_interval_s-event_tolerance || ...
-            config.duration_s-(t+dt) <= max(1e-9,100*eps(max(config.duration_s,1)));
+        suggested_dt=groundwater.suggested_dt_s;
+        groundwater.suggested_dt_s=inf;
+        local_config=config;
+        local_config.groundwater_lateral_flow=false;
+        [surface_volume,channel_volume,groundwater,local_groundwater_diag] = ...
+            Voronoi_Groundwater_Advance(mesh,surface_volume,channel_volume,groundwater,dt,local_config);
+        groundwater.suggested_dt_s=suggested_dt;
+
+        scale=config.groundwater_head_tolerance_m+config.groundwater_relative_tolerance.* ...
+            max(groundwater.head-groundwater.bottom,0);
+        normalized_change=abs(groundwater.head-groundwater.lateral_reference_head_m)./max(scale,realmin);
+        head_change_due=max(normalized_change,[],'omitnan')>=1;
+        update_due = config.groundwater_lateral_flow && ...
+            (groundwater.elapsed_s >= groundwater.suggested_dt_s-event_tolerance || ...
+             head_change_due || ...
+             config.duration_s-(t+dt) <= max(1e-9,100*eps(max(config.duration_s,1))));
+        groundwater_diag=local_groundwater_diag;
         if update_due
-            [surface_volume,channel_volume,groundwater,groundwater_diag] = Voronoi_Groundwater_Advance( ...
-                mesh,surface_volume,channel_volume,groundwater,groundwater.elapsed_s,config);
+            local_river_rate=groundwater.last_river_exchange_rate_m_s;
+            lateral_config=config;
+            lateral_config.river_groundwater_exchange=false;
+            [surface_volume,channel_volume,groundwater,lateral_diag] = ...
+                Voronoi_Groundwater_Advance(mesh,surface_volume,channel_volume, ...
+                groundwater,groundwater.elapsed_s,lateral_config);
+            groundwater.last_river_exchange_rate_m_s=local_river_rate;
+            groundwater.suggested_dt_s=lateral_diag.suggested_dt_s;
+            groundwater.lateral_reference_head_m=groundwater.head;
             groundwater.elapsed_s=0;
-        else
-            groundwater_diag=empty_groundwater_diagnostics();
+            groundwater_diag.max_flux_m3_s=max(groundwater_diag.max_flux_m3_s,lateral_diag.max_flux_m3_s);
+            groundwater_diag.substep_count=groundwater_diag.substep_count+lateral_diag.substep_count;
+            groundwater_diag.rejected_steps=groundwater_diag.rejected_steps+lateral_diag.rejected_steps;
+            groundwater_diag.seepage_volume_m3=groundwater_diag.seepage_volume_m3+lateral_diag.seepage_volume_m3;
+            groundwater_diag.fixed_head_exchange_m3= ...
+                groundwater_diag.fixed_head_exchange_m3+lateral_diag.fixed_head_exchange_m3;
+        elseif ~config.groundwater_lateral_flow
+            groundwater.elapsed_s=0;
+            groundwater.lateral_reference_head_m=groundwater.head;
         end
     else
         groundwater_diag=empty_groundwater_diagnostics();
@@ -370,6 +400,8 @@ while t < config.duration_s-time_tolerance
             groundwater_heads{output_count,1}=groundwater.head;
             groundwater_exchange{output_count,1}=groundwater.last_river_exchange_rate_m_s;
             groundwater_seepage{output_count,1}=groundwater.last_seepage_rate_m_s;
+            cumulative_groundwater_exchange{output_count,1}=groundwater.cumulative_river_exchange_m;
+            cumulative_groundwater_seepage{output_count,1}=groundwater.cumulative_seepage_m;
         end
         if hydrology.enabled, hydrology_outputs{output_count,1}=aggregate_hydrology(hydrology); end
         [gauge_discharges{output_count,1},gauge_depths{output_count,1},gauge_wse{output_count,1}] = ...
@@ -382,7 +414,10 @@ face_flow_depths=face_flow_depths(1:output_count); momentum_x=momentum_x(1:outpu
 momentum_y=momentum_y(1:output_count); channel_depths=channel_depths(1:output_count);
 channel_discharges=channel_discharges(1:output_count); transition_discharges=transition_discharges(1:output_count);
 groundwater_heads=groundwater_heads(1:output_count); groundwater_exchange=groundwater_exchange(1:output_count);
-groundwater_seepage=groundwater_seepage(1:output_count); hydrology_outputs=hydrology_outputs(1:output_count);
+groundwater_seepage=groundwater_seepage(1:output_count);
+cumulative_groundwater_exchange=cumulative_groundwater_exchange(1:output_count);
+cumulative_groundwater_seepage=cumulative_groundwater_seepage(1:output_count);
+hydrology_outputs=hydrology_outputs(1:output_count);
 surface_source_rates=surface_source_rates(1:output_count); cumulative_surface_sources=cumulative_surface_sources(1:output_count);
 potential_et_rates=potential_et_rates(1:output_count); outlet_discharges=outlet_discharges(1:output_count);
 gauge_discharges=gauge_discharges(1:output_count); gauge_depths=gauge_depths(1:output_count);
@@ -434,6 +469,8 @@ results.final_channel_volume_m3 = channel_volume;
 results.final_groundwater_head_m = groundwater.head;
 results.groundwater_river_exchange_m_s=cat_or_empty(groundwater_exchange,n);
 results.groundwater_seepage_m_s=cat_or_empty(groundwater_seepage,n);
+results.cumulative_groundwater_exchange_m=cat_or_empty(cumulative_groundwater_exchange,n);
+results.cumulative_groundwater_seepage_m=cat_or_empty(cumulative_groundwater_seepage,n);
 results.hydrology = pack_hydrology_outputs(hydrology_outputs,hydrology,n);
 results.edge_discharge_per_width_m2_s = edge_q;
 results.channel_discharge_m3_s = link_q;
@@ -441,6 +478,7 @@ results.channel_transition_discharge_m3_s = transition_q;
 results.channel_boundary_discharge_m3_s = channel_boundary_q;
 results.diagnostics = diagnostics;
 results.map_time_s = selected_output_times(results.time_s,config.raster_output_interval_s);
+results.map_variables = config.map_variables;
 if isfield(forcing,'overlap_file'), results.overlap_file=forcing.overlap_file; else, results.overlap_file=''; end
 if ~isempty(config.output_netcdf)
     HydroPol2D_Write_Voronoi_Output(config.output_netcdf, mesh, results, config.overwrite_output);
@@ -470,17 +508,19 @@ values = struct('routing_solver','local_inertial','duration_s',3600,'initial_sur
     'initial_surface_momentum_y_m2_s',0, ...
     'initial_channel_discharge_m3_s',0, ...
     'initial_groundwater_head_m',0,'aquifer_bottom_m',-10,'hydraulic_conductivity_m_s',1e-5, ...
-    'specific_yield',0.2,'groundwater_lateral_flow',true, ...
+    'specific_yield',0.2,'groundwater_lateral_flow',true,'groundwater_courant',0.25, ...
     'groundwater_fixed_head_mask',[],'groundwater_fixed_head_m',[], ...
     'compute_backend','cpu','output_netcdf','', ...
     'overwrite_output',false,'forcing_interval_s',inf,'hydrology_enabled',false, ...
     'allow_legacy_mesh',false, ...
-    'hydrology',struct(),'groundwater_update_interval_s',3600, ...
+    'hydrology',struct(),'groundwater_relative_tolerance',1e-3, ...
+    'groundwater_head_tolerance_m',1e-3, ...
     'meteorology_interval_s',86400, ...
     'diffusive_slope_regularization',1e-4, ...
-    'riverbed_hydraulic_conductivity_m_s',0,'riverbed_thickness_m',0.5, ...
+    'river_groundwater_exchange',false,'riverbed_thickness_m',0.5, ...
     'resolved_river_mask',[],'raster_output_interval_s',3600,'gauges',struct([]), ...
-    'progress_interval_s',inf,'progress_checkpoint_file','');
+    'progress_interval_s',inf,'progress_checkpoint_file','', ...
+    'map_variables',{{'surface_depth','surface_velocity'}});
 names = fieldnames(values);
 for k = 1:numel(names)
     if ~isfield(config, names{k}), config.(names{k}) = values.(names{k}); end
@@ -503,13 +543,18 @@ assert(~config.voronoi_subgrid_enabled || subgrid_path_present, ...
 assert(config.voronoi_subgrid_enabled || ~subgrid_path_present, ...
     'HydroPol2D:VoronoiSubgridConfigurationConflict', ...
     'subgrid_table_path is set while Voronoi subgrid is disabled.');
-assert(config.groundwater_update_interval_s>0 && config.meteorology_interval_s>0 && config.riverbed_thickness_m>0, ...
-    'HydroPol2D:InvalidVoronoiConfiguration','Groundwater interval and riverbed thickness must be positive.');
+assert(config.groundwater_relative_tolerance>0 && config.groundwater_head_tolerance_m>0 && ...
+    config.meteorology_interval_s>0 && config.riverbed_thickness_m>0, ...
+    'HydroPol2D:InvalidVoronoiConfiguration','Groundwater tolerances and riverbed thickness must be positive.');
 assert(config.diffusive_slope_regularization>0 && isfinite(config.diffusive_slope_regularization), ...
     'HydroPol2D:InvalidVoronoiConfiguration','diffusive_slope_regularization must be positive and finite.');
-assert(isfinite(config.courant) && config.courant>0 && config.courant<=0.3, ...
+assert(isfinite(config.courant) && config.courant>0 && config.courant<=1.0, ...
     'HydroPol2D:InvalidVoronoiCourant', ...
-    'Voronoi Courant must be in (0, 0.3]; use 0.2 unless a validated case requires less.');
+    'Voronoi Courant must be in (0, 1].');
+assert(isfinite(config.groundwater_courant) && config.groundwater_courant>0 && ...
+    config.groundwater_courant<=1.0, ...
+    'HydroPol2D:InvalidVoronoiGroundwaterCourant', ...
+    'Voronoi groundwater Courant must be in (0, 1].');
 ratio=config.raster_output_interval_s/config.output_interval_s;
 assert(ratio>=1 && abs(ratio-round(ratio))<=1e-9*max(ratio,1), ...
     'HydroPol2D:InvalidVoronoiConfiguration', ...
@@ -662,8 +707,12 @@ assert(all(groundwater.head >= groundwater.bottom));
 groundwater.storage = groundwater.specific_yield .* (groundwater.head - groundwater.bottom) .* mesh.cell_area(:);
 groundwater.pending_exchange_m3=zeros(n,1);
 groundwater.elapsed_s=0;
-groundwater.last_river_exchange_rate_m_s=zeros(n,1);
-groundwater.last_seepage_rate_m_s=zeros(n,1);
+groundwater.suggested_dt_s=0;
+groundwater.lateral_reference_head_m=groundwater.head;
+    groundwater.last_river_exchange_rate_m_s=zeros(n,1);
+    groundwater.last_seepage_rate_m_s=zeros(n,1);
+    groundwater.cumulative_river_exchange_m=zeros(n,1);
+    groundwater.cumulative_seepage_m=zeros(n,1);
 end
 
 function value = signed_vector(value, count)
@@ -870,6 +919,8 @@ output.soil_water_m=weighted(state.near_storage_m+state.root_storage_m+state.tra
 output.canopy_storage_m=weighted(state.canopy_storage_m);
 output.cumulative_infiltration_m=weighted(state.cumulative_infiltration_m);
 output.cumulative_recharge_m=weighted(state.cumulative_recharge_m);
+output.cumulative_capillary_m=weighted(state.cumulative_capillary_m);
+output.cumulative_potential_et_m=weighted(state.cumulative_potential_et_m);
 output.cumulative_actual_et_m=weighted(state.cumulative_actual_et_m)+state.cumulative_surface_evaporation_m;
 output.infiltration_rate_m_s=weighted(state.last_infiltration_rate_m_s);
 output.recharge_rate_m_s=weighted(state.last_recharge_rate_m_s);
@@ -901,5 +952,6 @@ end
 
 function diagnostics = empty_groundwater_diagnostics()
 diagnostics=struct('max_flux_m3_s',0,'substep_count',0,'river_exchange_m3',0, ...
-    'seepage_volume_m3',0,'fixed_head_exchange_m3',0,'mass_change_m3',0);
+    'seepage_volume_m3',0,'fixed_head_exchange_m3',0,'mass_change_m3',0, ...
+    'rejected_steps',0,'suggested_dt_s',inf);
 end
