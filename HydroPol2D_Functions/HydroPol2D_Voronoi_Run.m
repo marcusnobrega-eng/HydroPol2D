@@ -17,6 +17,7 @@ if ~any(solver == ["local_inertial" "kinematic" "diffusive" "full_momentum"])
 end
 [mesh, preflight] = HydroPol2D_Voronoi_Preflight(mesh_file, config);
 n = mesh.n_cells;
+config.bates_geometry = resolve_timestep_rule(mesh, config, solver);
 if isfield(forcing, 'overlap_file')
     forcing.mapping = HydroPol2D_Read_Overlap(forcing.overlap_file, mesh_file);
     assert(size(forcing.mapping.raster_to_mesh, 1) == n, ...
@@ -43,6 +44,17 @@ roughness = initial_vector(config.surface_roughness, n);
 roughness(isfinite(mesh.cell_roughness)) = mesh.cell_roughness(isfinite(mesh.cell_roughness));
 groundwater = initialize_groundwater(config, mesh);
 hydrology = struct('enabled',false);
+% Layered subsurface and Feddes: config.layered_subsurface (from
+% hp2d_layered_subsurface_config), else the HYDROPOL_* environment settings.
+if isfield(config,'layered_subsurface') && ~isempty(config.layered_subsurface)
+    layered_cfg = config.layered_subsurface;
+else
+    layered_cfg = hp2d_layered_subsurface_config(struct());
+end
+if config.hydrology_enabled && ~isempty(layered_cfg.feddes) && ...
+        ~(isfield(config.hydrology,'feddes') && ~isempty(config.hydrology.feddes))
+    config.hydrology.feddes = layered_cfg.feddes;
+end
 if config.hydrology_enabled
     if groundwater.enabled
         hydrology_head = groundwater.head;
@@ -50,12 +62,31 @@ if config.hydrology_enabled
         hydrology_head = mesh.surface_bed(:) - 2;
     end
     hydrology = Voronoi_Hydrology_Initialize(mesh,config.hydrology,hydrology_head);
+    if layered_cfg.layered
+        if groundwater.enabled
+            column_aquifer = groundwater;
+        else
+            column_aquifer = struct('head',hydrology_head(:),'hydraulic_conductivity',0, ...
+                'bottom',mesh.surface_bed(:) - max(hydrology.soil_depth_m(:,1),0));
+            if isfield(config,'aquifer_bottom_m'), column_aquifer.bottom = signed_vector(config.aquifer_bottom_m,n); end
+        end
+        hydrology.layered = hp2d_voronoi_layered_initialize(mesh,hydrology,column_aquifer,layered_cfg,config.hydrology);
+        if groundwater.enabled
+            groundwater.head = hydrology.layered.head_m;
+            groundwater.lateral_reference_head_m = groundwater.head;
+            groundwater.storage = layered_saturated_storage(hydrology.layered,groundwater.head,n);
+        end
+        fprintf('Layered subsurface (mesh): %d slots over %d HRU columns.\n', ...
+            hydrology.layered.n_slots, numel(hydrology.layered.host));
+    end
 end
+layered_mesh = isfield(hydrology,'layered');
 t = 0; next_output = config.output_interval_s; next_progress = config.progress_interval_s;
 progress_timer = tic;
 step = 0; running_min_dt = inf; timestep_floor_clamp_count = 0;
 initial_mass = sum(surface_volume) + sum(channel_volume);
-if groundwater.enabled, initial_mass = initial_mass + groundwater_mass(groundwater, mesh) + sum(groundwater.pending_exchange_m3); end
+if groundwater.enabled && ~layered_mesh, initial_mass = initial_mass + groundwater_mass(groundwater, mesh) + sum(groundwater.pending_exchange_m3); end
+if groundwater.enabled && layered_mesh, initial_mass = initial_mass + sum(groundwater.storage) + sum(groundwater.pending_exchange_m3); end
 if hydrology.enabled, initial_mass = initial_mass + hydrology_mass(hydrology); end
 % ---- optional HEC-RAS style sub-grid property tables --------------------
 use_subgrid = logical(config.voronoi_subgrid_enabled);
@@ -179,8 +210,13 @@ while t < config.duration_s-time_tolerance
             open_water_evaporation = forcing_at(forcing,'open_water_evaporation_m_s', ...
                 'raster_open_water_evaporation_m_s',t,state,mesh,n,potential_et);
         end
-        [surface_volume,hydrology,groundwater,hydrology_diag] = Voronoi_Hydrology_Step( ...
-            mesh,surface_volume,hydrology,groundwater,source,potential_et,open_water_evaporation,dt);
+        if layered_mesh
+            [surface_volume,hydrology,groundwater,hydrology_diag] = Voronoi_Layered_Hydrology_Step( ...
+                mesh,surface_volume,hydrology,groundwater,source,potential_et,open_water_evaporation,dt);
+        else
+            [surface_volume,hydrology,groundwater,hydrology_diag] = Voronoi_Hydrology_Step( ...
+                mesh,surface_volume,hydrology,groundwater,source,potential_et,open_water_evaporation,dt);
+        end
     else
         if any(source_volume < 0), source_volume=max(source_volume,-surface_volume); end
         surface_volume=surface_volume+source_volume;
@@ -207,6 +243,22 @@ while t < config.duration_s-time_tolerance
         groundwater.pending_exchange_m3 = groundwater.pending_exchange_m3 + groundwater_source_volume;
         groundwater.elapsed_s = groundwater.elapsed_s + dt;
         event_tolerance=max(1e-9,100*eps(max(t+dt,1)));
+    end
+    if groundwater.enabled && layered_mesh
+        % Python voronoi: one groundwater update per target interval, with the pending
+        % exchange accumulated since the last one.
+        update_due = groundwater.elapsed_s >= layered_cfg.groundwater_target_dt_s - event_tolerance || ...
+            config.duration_s-(t+dt) <= max(1e-9,100*eps(max(config.duration_s,1)));
+        groundwater_diag = empty_groundwater_diagnostics();
+        if update_due
+            [surface_volume,channel_volume,groundwater,hydrology,groundwater_diag] = ...
+                Voronoi_Layered_Groundwater_Advance(mesh,surface_volume,channel_volume, ...
+                groundwater,hydrology,groundwater.elapsed_s,config);
+            groundwater_diag.rejected_steps = 0;
+            groundwater.elapsed_s = 0;
+            groundwater.lateral_reference_head_m = groundwater.head;
+        end
+    elseif groundwater.enabled
         suggested_dt=groundwater.suggested_dt_s;
         groundwater.suggested_dt_s=inf;
         local_config=config;
@@ -266,6 +318,7 @@ while t < config.duration_s-time_tolerance
             mesh,surface_volume,hu,hv,roughness,surface_boundary,dt,gravity=config.gravity, ...
             dry_tolerance_m=config.dry_tolerance_m);
     elseif solver == "local_inertial"
+        edge_q_before_surface = edge_q;
         if use_subgrid
             [surface_volume, edge_q, surface_diag] = Voronoi_Local_Inertial_Subgrid_Step( ...
                 mesh, surface_volume, edge_q, roughness, subgrid_tables, dt, ...
@@ -286,10 +339,12 @@ while t < config.duration_s-time_tolerance
             slope_regularization=config.diffusive_slope_regularization);
     end
     if solver ~= "full_momentum"
+        if ~exist('edge_q_before_surface', 'var'), edge_q_before_surface = edge_q; end
         [surface_volume, edge_q, surface_boundary_diag] = Voronoi_Surface_Boundary_Step( ...
             mesh, surface_volume, edge_q, roughness, surface_boundary, dt, gravity=config.gravity, ...
             dry_tolerance_m=config.dry_tolerance_m, evaluation_volume=surface_flux_evaluation_volume, ...
-            routing_solver=char(solver));
+            routing_solver=char(solver), previous_edge_q=edge_q_before_surface, ...
+            subgrid_tables=boundary_subgrid_tables(use_subgrid, subgrid_tables));
     end
     if mesh.channel.n_nodes > 0
         [surface_volume, channel_volume, ~, exchange] = Voronoi_Equilibrate_Channel_Storage(mesh, surface_volume, channel_volume);
@@ -501,6 +556,9 @@ function config = defaults(config)
 values = struct('routing_solver','local_inertial','duration_s',3600,'initial_surface_depth_m',0, ...
     'initial_channel_depth_m',0,'surface_roughness',0.05,'min_dt_s',0.01,'max_dt_s',30, ...
     'timestep_floor_action','error', ...
+    'timestep_rule','auto','alfa_min',[],'alfa_max',[], ...
+    'use_advective_timestep_limit',true,'timestep_increment_s',0.001, ...
+    'timestep_depth_tolerance_m',0.001, ...
     'output_interval_s',300,'courant',0.2,'gravity',9.81, ...
     'dry_tolerance_m',1e-3,'critical_flow',false,'groundwater_enabled',false, ...
     'voronoi_subgrid_enabled',[],'subgrid_table_path','', ...
@@ -725,6 +783,10 @@ mass = sum(groundwater.specific_yield .* max(groundwater.head - groundwater.bott
 end
 
 function [dt,diagnostic] = stable_timestep(mesh, surface_volume, edge_q, channel_volume, link_q, transition_q, groundwater, roughness, hu, hv, boundary, config, time_s)
+if isfield(config,'bates_geometry') && ~isempty(config.bates_geometry)
+    [dt,diagnostic] = bates_cartesian_timestep(mesh, surface_volume, edge_q, config);
+    return
+end
 depth = max(surface_volume ./ mesh.surface_area(:), 0);
 internal = mesh.edge_neighbor > 0;
 if strcmpi(config.routing_solver, 'kinematic')
@@ -780,6 +842,31 @@ else
     if ~isempty(boundary_edge)
         boundary_owner = mesh.edge_owner(boundary_edge);
         boundary_depth = depth(boundary_owner);
+        % Owners with hydraulic tables: the face's hydraulic depth A/P at the owner's
+        % water surface, where the owner holds water (Python 12f494b).
+        if isfield(config, 'subgrid_tables') && isfield(config.subgrid_tables, 'face_datum_m')
+            tables = config.subgrid_tables;
+            if isfield(tables, 'cell_is_subgrid') && ~isempty(tables.cell_is_subgrid)
+                uses_tables = logical(tables.cell_is_subgrid(boundary_owner));
+            else
+                uses_tables = true(size(boundary_owner));
+            end
+            if any(uses_tables)
+                faces = boundary_edge(uses_tables);
+                sub_tables = struct('face_datum_m', tables.face_datum_m(faces), ...
+                    'face_zeta_m', tables.face_zeta_m(faces, :), ...
+                    'face_flow_area_m2', tables.face_flow_area_m2(faces, :), ...
+                    'face_perimeter_m', tables.face_perimeter_m(faces, :), ...
+                    'face_conveyance', tables.face_conveyance(faces, :), ...
+                    'face_point_count', tables.face_point_count(faces));
+                [cell_wse, ~] = hp2d_voronoi_subgrid_cell_stage(tables, surface_volume);
+                [area, perimeter] = hp2d_voronoi_subgrid_face_state(sub_tables, cell_wse(boundary_owner(uses_tables)));
+                hydraulic = zeros(size(area));
+                hydraulic(perimeter > 0) = area(perimeter > 0)./perimeter(perimeter > 0);
+                hydraulic(surface_volume(boundary_owner(uses_tables)) <= 0) = 0;
+                boundary_depth(uses_tables) = hydraulic;
+            end
+        end
         boundary_q = abs(edge_q(boundary_edge));
         boundary_q(boundary_depth <= config.dry_tolerance_m) = 0;
         boundary_depth = max(boundary_depth, config.dry_tolerance_m);
@@ -909,8 +996,20 @@ if isempty(values), out = zeros(rows,0); else, out = cat(2, values{:}); end
 end
 
 function total = hydrology_mass(state)
+if isfield(state,'layered')
+    % Layered columns: canopy plus the unsaturated water of every slot; the saturated
+    % part is groundwater.storage.
+    L = state.layered;
+    total = sum(state.canopy_storage_m(:).*L.area_m2) + sum(sum(L.water_mm,2)/1000.*L.area_m2);
+    return
+end
 total=sum((state.canopy_storage_m+state.near_storage_m+state.root_storage_m+ ...
     state.transmission_storage_m).*state.area_m2,'all');
+end
+
+function storage = layered_saturated_storage(L, head, n)
+saturated = hp2d_saturated_thickness(L.column, head(L.host));
+storage = accumarray(L.host, sum((L.column.theta_s - L.column.theta_r).*saturated, 2).*L.area_m2, [n 1]);
 end
 
 function output = aggregate_hydrology(state)
@@ -954,4 +1053,104 @@ function diagnostics = empty_groundwater_diagnostics()
 diagnostics=struct('max_flux_m3_s',0,'substep_count',0,'river_exchange_m3',0, ...
     'seepage_volume_m3',0,'fixed_head_exchange_m3',0,'mass_change_m3',0, ...
     'rejected_steps',0,'suggested_dt_s',inf);
+end
+
+function tables = boundary_subgrid_tables(use_subgrid, subgrid_tables)
+if use_subgrid && isstruct(subgrid_tables) && isfield(subgrid_tables, 'face_datum_m')
+    tables = subgrid_tables;
+else
+    tables = struct();
+end
+end
+
+function geometry = resolve_timestep_rule(mesh, config, solver)
+%RESOLVE_TIMESTEP_RULE Bates rule on axis-aligned square-cell meshes (Python voronoi).
+%   'auto' (default) uses the structured solver's Bates et al. (2010) rule, cell by cell,
+%   when the mesh is axis-aligned square cells (quadtree or uniform raster mesh) with
+%   local-inertial routing, no hydraulic tables and no Neal channels; 'unstructured'
+%   keeps the finite-volume CFL; 'bates_cartesian' requires the Bates rule.
+%   Decision by Marcus, 2026-10-10 (Python 3e99e86, a84ca42).
+geometry = [];
+rule = lower(string(config.timestep_rule));
+if rule == "unstructured"
+    return
+end
+internal = mesh.edge_neighbor(:) > 0;
+along_x = abs(mesh.edge_normal_x(:)) >= abs(mesh.edge_normal_y(:));
+sx = sign(mesh.edge_normal_x(:)).*along_x;  % normals snapped to their dominant axis
+sy = sign(mesh.edge_normal_y(:)).*~along_x;
+    function total = per_cell(weight)
+        total = accumarray(mesh.edge_owner(:), weight, [mesh.n_cells 1]) + ...
+            accumarray(mesh.edge_neighbor(internal), weight(internal), [mesh.n_cells 1]);
+    end
+side = sqrt(mesh.cell_area(:));
+length_ = mesh.edge_length(:);
+matches = @(a, b) all(abs(a - b) <= 1e-9*abs(b));
+square = matches(per_cell(length_), 4*side) && matches(per_cell(length_.*abs(sx)), 2*side) && ...
+    matches(per_cell(length_.*abs(sy)), 2*side);
+eligible = solver == "local_inertial" && ~logical(config.voronoi_subgrid_enabled) && ...
+    mesh.channel.n_nodes == 0 && square;
+if rule == "bates_cartesian" && ~eligible
+    error('HydroPol2D:VoronoiTimestepRule', ['timestep_rule bates_cartesian needs local-inertial ', ...
+        'routing on a mesh of axis-aligned square cells, without hydraulic tables or Neal channels.']);
+end
+if ~eligible
+    return
+end
+geometry.internal = find(internal);
+geometry.owner = mesh.edge_owner(internal);
+geometry.neighbor = mesh.edge_neighbor(internal);
+geometry.lx = length_(internal).*sx(internal);
+geometry.ly = length_(internal).*sy(internal);
+geometry.den_x = per_cell(length_.*abs(sx));
+geometry.den_y = per_cell(length_.*abs(sy));
+geometry.width = side;
+end
+
+function [dt, diagnostic] = bates_cartesian_timestep(mesh, surface_volume, edge_q, config)
+%BATES_CARTESIAN_TIMESTEP Structured Bates rule (refreshing_timestep.m) cell by cell.
+%   Face depth = max water surface - max bed; face speed q/h (h below the depth tolerance
+%   counts as 1e9 m); cell speed = magnitude of the mean opposite-face velocities; cell
+%   depth = deepest interior face; wave limit alfa_min*width/sqrt(g h) over cells moving
+%   at >= 0.01 m/s; optional advective limit; floored to the increment.
+G = config.gravity;
+g = config.bates_geometry;
+depth = max(surface_volume(:)./mesh.surface_area(:), 0);
+bed = mesh.surface_bed(:);
+stage = bed + depth;
+o = g.owner; d = g.neighbor;
+hface = max(max(stage(o), stage(d)) - max(bed(o), bed(d)), 0);
+safe = hface;
+safe(hface < config.timestep_depth_tolerance_m) = 1e9;
+speed_face = edge_q(g.internal)./safe;
+n = mesh.n_cells;
+ux = accumarray(o, g.lx.*speed_face, [n 1]) + accumarray(d, g.lx.*speed_face, [n 1]);
+uy = accumarray(o, g.ly.*speed_face, [n 1]) + accumarray(d, g.ly.*speed_face, [n 1]);
+ux(g.den_x > 0) = ux(g.den_x > 0)./g.den_x(g.den_x > 0); ux(g.den_x <= 0) = 0;
+uy(g.den_y > 0) = uy(g.den_y > 0)./g.den_y(g.den_y > 0); uy(g.den_y <= 0) = 0;
+speed = hypot(ux, uy);
+hcell = max(accumarray(o, hface, [n 1], @max, 0), accumarray(d, hface, [n 1], @max, 0));
+celerity = sqrt(G*hcell);
+alfa_min = config.courant; if ~isempty(config.alfa_min), alfa_min = config.alfa_min; end
+alfa_max = config.courant; if ~isempty(config.alfa_max), alfa_max = config.alfa_max; end
+moving = speed >= 0.01 & celerity > 0;
+if any(moving)
+    [dt_wave, index] = min(alfa_min*g.width(moving)./celerity(moving));
+    moving_id = find(moving); control = moving_id(index);
+else
+    dt_wave = config.max_dt_s; control = 1;
+end
+raw = dt_wave;
+if config.use_advective_timestep_limit
+    maximum = max([speed; 0]);
+    alfa = max(alfa_max - 2*max(maximum - 5, 0), alfa_min);
+    fast = speed > 0;
+    if any(fast)
+        raw = min(min(min(g.width(fast)./max(speed(fast), 1e-10)*alfa), config.max_dt_s), dt_wave);
+    end
+end
+increment = config.timestep_increment_s;
+dt = increment*floor(raw/increment);
+diagnostic = struct('cell_id', control, 'x_m', mesh.cell_x(control), 'y_m', mesh.cell_y(control), ...
+    'depth_m', depth(control), 'surface_dt_s', dt, 'channel_dt_s', inf);
 end

@@ -16,6 +16,16 @@ arguments
     options.dry_tolerance_m (1,1) double = 1e-3
     options.evaluation_volume (:,1) double = surface_volume
     options.routing_solver (1,:) char = 'local_inertial'
+    % Edge discharge per width before this step's surface step. The surface step sets
+    % boundary edges to zero, so the stage boundary must read q_old from here (Python
+    % 12f494b, 2026-10-10). Empty keeps edge_q.
+    options.previous_edge_q (:,1) double = []
+    % Hydraulic tables (HydroPol2D_Read_Subgrid_Tables). On a boundary edge whose owner
+    % uses them, the water surface comes from the cell volume curve and the face table
+    % gives A, P and K at the boundary water surface (Python 12f494b): stage
+    % Q = (Q_old - g A dt S)/(1 + g dt |Q_old| A/K^2), normal Q = K sqrt(S), critical
+    % Q = A sqrt(g A/P). On flat tables these equal the flat-prism formulas.
+    options.subgrid_tables struct = struct()
 end
 if isempty(boundary) || ~isfield(boundary, 'edge_id') || isempty(boundary.edge_id)
     diagnostics = struct('net_inflow_volume_m3', 0, 'max_discharge_m3_s', 0); return
@@ -48,7 +58,11 @@ for k = 1:numel(edge_id)
             if strcmpi(options.routing_solver, 'diffusive')
                 qout(k) = width(k) / roughness(owner(k)) * hflow^(5/3) * sign(-slope) * sqrt(abs(slope));
             else
-                qold = edge_q(edge_id(k));
+                if isempty(options.previous_edge_q)
+                    qold = edge_q(edge_id(k));
+                else
+                    qold = options.previous_edge_q(edge_id(k));
+                end
                 denominator = 1 + options.gravity * dt * roughness(owner(k))^2 * abs(qold) / max(hflow^(7/3), eps);
                 qout(k) = width(k) * (qold - options.gravity * hflow * dt * slope) / denominator;
             end
@@ -58,6 +72,49 @@ for k = 1:numel(edge_id)
             qout(k) = width(k) * depth(k) * sqrt(options.gravity * depth(k));
         otherwise
             error('HydroPol2D:UnknownBoundaryType', 'Unknown Voronoi boundary type %s.', types(k));
+    end
+end
+tables = options.subgrid_tables;
+if isfield(tables, 'face_datum_m')
+    if isfield(tables, 'cell_is_subgrid') && ~isempty(tables.cell_is_subgrid)
+        owner_uses_tables = logical(tables.cell_is_subgrid(owner));
+    else
+        owner_uses_tables = true(size(owner));
+    end
+    rows = find(owner_uses_tables & ismember(types, ["stage", "normal_flow", "critical_flow"]));
+    if ~isempty(rows) && ~strcmpi(options.routing_solver, 'kinematic')
+        faces = edge_id(rows);
+        sub_tables = struct('face_datum_m', tables.face_datum_m(faces), ...
+            'face_zeta_m', tables.face_zeta_m(faces, :), ...
+            'face_flow_area_m2', tables.face_flow_area_m2(faces, :), ...
+            'face_perimeter_m', tables.face_perimeter_m(faces, :), ...
+            'face_conveyance', tables.face_conveyance(faces, :), ...
+            'face_point_count', tables.face_point_count(faces));
+        [cell_wse, ~] = hp2d_voronoi_subgrid_cell_stage(tables, options.evaluation_volume);
+        table_wse = cell_wse(owner(rows));
+        is_stage = types(rows) == "stage";
+        face_stage = table_wse;
+        face_stage(is_stage) = max(table_wse(is_stage), values(rows(is_stage)));
+        [area, perimeter, conveyance] = hp2d_voronoi_subgrid_face_state(sub_tables, face_stage);
+        hydraulic_depth = zeros(size(area));
+        wet = perimeter > 0;
+        hydraulic_depth(wet) = area(wet)./perimeter(wet);
+        slope = (values(rows) - table_wse)./mesh.edge_distance(faces);
+        if isempty(options.previous_edge_q)
+            q_unit_old = edge_q(faces);
+        else
+            q_unit_old = options.previous_edge_q(faces);
+        end
+        discharge_old = q_unit_old.*width(rows);
+        stage_q = (discharge_old - options.gravity.*area.*dt.*slope)./ ...
+            (1 + options.gravity.*dt.*abs(discharge_old).*area./max(conveyance.^2, eps));
+        stage_q(~(area > 0 & conveyance > 0)) = 0;
+        normal_q = conveyance.*sqrt(max(values(rows), 0));
+        critical_q = area.*sqrt(options.gravity.*hydraulic_depth);
+        table_q = critical_q;
+        table_q(types(rows) == "normal_flow") = normal_q(types(rows) == "normal_flow");
+        table_q(is_stage) = stage_q(is_stage);
+        qout(rows) = table_q;
     end
 end
 outgoing = zeros(mesh.n_cells, 1);
