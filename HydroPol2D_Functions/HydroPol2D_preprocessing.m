@@ -350,6 +350,7 @@ if use_inputpaths_bypass == 1
         DeepAquiferChannelWeight_raster = GRIDobj(char(DeepAquiferChannelWeight_path));
     end
     ParameterRasters = load_optional_parameter_rasters(InputPaths);
+    ParameterRasters = load_layered_subsurface_rasters(ParameterRasters, InputPaths, '', '');
 
 else
 
@@ -411,6 +412,14 @@ else
         DeepAquiferSubbasins_raster = GRIDobj(char(DeepAquiferSubbasins_path));
         DeepAquiferChannelWeight_raster = GRIDobj(char(DeepAquiferChannelWeight_path));
     end
+    % Layered-subsurface rasters (General_Data keys SoilBaseDepth_path, Regolith*_path).
+    LayeredPaths = struct();
+    for layered_name = layered_subsurface_raster_names()
+        LayeredPaths.([layered_name{1} '_path']) = ...
+            string(xlgetstr_optional(GD, [layered_name{1} '_path'], ""));
+    end
+    ParameterRasters = load_layered_subsurface_rasters(ParameterRasters, LayeredPaths, ...
+        model_folder, runtime_model_root);
 
 end
 
@@ -588,6 +597,9 @@ if flags.flag_baseflow == 1 && flags.flag_groundwater_modeling == 0
     error(['Invalid flag combination: flag_baseflow = 1 requires ', ...
            'flag_groundwater_modeling = 1.']);
 end
+
+% Layered subsurface and Feddes stress (defaults off; see hp2d_layered_subsurface_config).
+[Subsurface_Config, flags] = hp2d_layered_subsurface_config(flags);
 
 
 % ========================================================================
@@ -3183,6 +3195,10 @@ end
 if isempty(DTB_path)
     Soil_Properties.Soil_Depth = elevation ./ elevation; % 1 meter soil
 end
+Soil_Depth_from_DTB = [];
+if ~isempty(DTB_path) && exist('DTB_raster', 'var') && ~isempty(DTB_raster)
+    Soil_Depth_from_DTB = Soil_Properties.Soil_Depth;
+end
 [Soil_Properties.Soil_Depth, ParameterRasterAudit.SoilDepthParameter] = ...
     apply_parameter_override(Soil_Properties.Soil_Depth, ParameterRasters, ...
     'SoilDepthParameter', ~idx_nan);
@@ -3535,6 +3551,21 @@ if all(cellfun(@(p) strlength(string(p)) > 0 && isfile(char(p)), layer_theta_pat
     Soil_Properties.initial_soil_storage_source = 'layer_specific_theta_rasters';
 end
 Soil_Properties = initialize_layered_soil_storage(Soil_Properties, idx_nan);
+Soil_Properties.Feddes = Subsurface_Config.feddes;
+if flags.flag_layered_subsurface == 1
+    if ~exist('layer_theta', 'var'), layer_theta = []; end
+    [Subsurface, BC_States] = hp2d_prepare_layered_subsurface(Subsurface_Config, ...
+        Soil_Properties, LULC_Properties, BC_States, elevation, idx_nan, ParameterRasters, ...
+        Soil_Depth_from_DTB, layer_theta);
+    Soil_Properties = hp2d_sync_layered_soil(Soil_Properties, Subsurface, BC_States.h_t, idx_nan);
+    Soil_Properties.I_0 = Soil_Properties.I_t;
+    Soil_Properties.I_p = Soil_Properties.I_t;
+    fprintf('Layered subsurface: %d slots, column base %.2f-%.2f m, soil base %.2f-%.2f m.\n', ...
+        Subsurface.n_slots, min(Subsurface.column_base_depth_m(:)), max(Subsurface.column_base_depth_m(:)), ...
+        min(Subsurface.soil_base_depth_m(:)), max(Subsurface.soil_base_depth_m(:)));
+else
+    Subsurface = [];
+end
 
 GW_Depth_check = BC_States.h_t - (elevation - Soil_Properties.Soil_Depth);
 zwt_check = Soil_Properties.Soil_Depth - GW_Depth_check;
@@ -4213,7 +4244,7 @@ end
 %% Clearing Variables
 
 % clearvars  -except register saver_memory_maps idx_rivers rainfall_spatial_aggregation model_folder Input_Rainfall Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters GIS_data Inflow_Parameters ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties terrain_runtime idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx	ny	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	theta_r_fulldomain	theta_sat	theta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person
-clearvars  -except run_start_datetime hydropol2d_tools temp_dir folderName_2 folderName run_start_str results_dir use_inputpaths_bypass use_inputdata_bypass SubgridTables extra_parameters_ETP export_root_dir enable_logging input_excel_file input_sheets_folder add_input_sheets_to_path clean_output_folder run_postprocessing Paths InputPaths ValidationCase Cases RunSummary SummaryRow icase case_id case_dir case_root static_dir full_root summary_dir config_dir output_root input_data_bypass_script_path DEM_raster_high_resolution LAI_raster NDVI_raster DTB_raster Albedo_raster C_a input_evaporation input_transpiration Stage_Parameters Qc Qf Qci Qfi register saver_memory_maps extra_parameters Lateral_Groundwater_Flux idx_rivers min_soil_moisture rainfall_spatial_aggregation  model_folder Input_Rainfall Input_Evaporation Input_Transpiration Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters Spatial_ETP_Parameters GIS_data Inflow_Parameters Snow_Properties ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Subgrid_Properties Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties terrain_runtime idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  delta_e_agg delta_tr_agg	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx	ny	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	theta_r_fulldomain	theta_sat	theta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person outflow_bates
+clearvars  -except Subsurface Subsurface_Config run_start_datetime hydropol2d_tools temp_dir folderName_2 folderName run_start_str results_dir use_inputpaths_bypass use_inputdata_bypass SubgridTables extra_parameters_ETP export_root_dir enable_logging input_excel_file input_sheets_folder add_input_sheets_to_path clean_output_folder run_postprocessing Paths InputPaths ValidationCase Cases RunSummary SummaryRow icase case_id case_dir case_root static_dir full_root summary_dir config_dir output_root input_data_bypass_script_path DEM_raster_high_resolution LAI_raster NDVI_raster DTB_raster Albedo_raster C_a input_evaporation input_transpiration Stage_Parameters Qc Qf Qci Qfi register saver_memory_maps extra_parameters Lateral_Groundwater_Flux idx_rivers min_soil_moisture rainfall_spatial_aggregation  model_folder Input_Rainfall Input_Evaporation Input_Transpiration Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters Spatial_ETP_Parameters GIS_data Inflow_Parameters Snow_Properties ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Subgrid_Properties Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties terrain_runtime idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  delta_e_agg delta_tr_agg	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx	ny	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	theta_r_fulldomain	theta_sat	theta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person outflow_bates
 
 
 %% Converting Arrays to GPU Arrays, if required
@@ -4290,6 +4321,10 @@ if flags.flag_GPU == 1
     % Convert struct arrays to GPU
     % ------------------------------------------------------------
     BC_States = convert_struct_fields_recursive(BC_States, @gpuArray);
+    if exist('Subsurface', 'var') && isstruct(Subsurface)
+        Subsurface.column = convert_struct_fields_recursive(Subsurface.column, @gpuArray);
+        Subsurface.water_mm = gpuArray(Subsurface.water_mm);
+    end
     CA_States = structfun(@gpuArray, CA_States, 'UniformOutput', false);
     Courant_Parameters = structfun(@gpuArray, Courant_Parameters, 'UniformOutput', false);
     depths = structfun(@gpuArray, depths, 'UniformOutput', false);
@@ -5550,4 +5585,26 @@ function [values, override_count] = apply_parameter_override(values, rasters, na
     use = active & isfinite(candidate);
     values(use) = candidate(use);
     override_count = nnz(use);
+end
+
+function names = layered_subsurface_raster_names()
+    names = {'SoilBaseDepth', 'RegolithThetaS', 'RegolithThetaR', 'RegolithAlphaVG', ...
+        'RegolithNVG', 'RegolithKsatV', 'RegolithKsatH', 'RegolithSpecificYield'};
+end
+
+function rasters = load_layered_subsurface_rasters(rasters, paths, workbook_path, model_root)
+%LOAD_LAYERED_SUBSURFACE_RASTERS Optional SoilBaseDepth and Regolith* rasters.
+    for name = layered_subsurface_raster_names()
+        path = get_inputpaths_field(paths, [name{1} '_path'], '');
+        path = strtrim(string(path));
+        if strlength(path) == 0
+            continue
+        end
+        if strlength(string(workbook_path)) > 0
+            path = string(resolve_excel_input_path(path, workbook_path, model_root));
+        end
+        if isfile(path)
+            rasters.(name{1}) = GRIDobj(char(path));
+        end
+    end
 end

@@ -69,6 +69,14 @@ if flags.flag_groundwater_modeling == 1 && exist('GW_States', 'var') && ...
         isstruct(GW_States) && isfield(GW_States, 'pending_net_exchange_m')
     S_GW = S_GW + nansum(nansum(coarse_cell_area .* GW_States.pending_net_exchange_m));
 end
+layered_mass_balance = isfield(flags, 'flag_layered_subsurface') && ...
+    flags.flag_layered_subsurface == 1 && exist('Subsurface', 'var') && isstruct(Subsurface);
+if layered_mass_balance
+    % Layered column: unsaturated slot water plus the saturated part below the table.
+    S_UZ = mean(coarse_cell_area(:), 'omitnan')*sum(hp2d_column_storage_mm(Subsurface.column, ...
+        BC_States.h_t(:), Subsurface.water_mm), 'omitnan')/1000;
+    S_GW = 0;
+end
 S_SWE = nansum(nansum(coarse_cell_area.*Snow_Properties.SWE_t/1000)); % Snow water equivalent storge
 
 [dS, fluxes, S_prev, error] = system_mass_balance(P, Qin, E_int, ETR, E_ow, Qout, E_s, S_c, S_p, S_UZ, S_GW, S_SWE, S_prev);
@@ -112,6 +120,9 @@ end
 if flags.flag_groundwater_modeling == 1 && exist('GW_States', 'var') && ...
         isstruct(GW_States) && isfield(GW_States, 'pending_net_exchange_m')
     current_storage = current_storage + nansum(nansum(coarse_cell_area .* GW_States.pending_net_exchange_m));
+end
+if layered_mass_balance
+    current_storage = S_p + nansum(nansum(C_a.*Hydro_States.S/1000)) + S_UZ;
 end
 
 loss_volume = inf_volume;

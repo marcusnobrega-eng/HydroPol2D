@@ -293,6 +293,13 @@ end
 
 S_UZ = nansum(nansum(Wshed_Properties.Resolution^2.*Soil_Properties.I_t/1000)); % UZ storage
 S_GW = nansum(nansum(Wshed_Properties.Resolution^2.*Soil_Properties.Sy.*(BC_States.h_t - (Elevation_Properties.elevation_cell - Soil_Properties.Soil_Depth)))); % GW Storage
+if isfield(flags, 'flag_layered_subsurface') && flags.flag_layered_subsurface == 1 && ...
+        exist('Subsurface', 'var') && isstruct(Subsurface)
+    % Layered column: unsaturated slot water plus the saturated part below the table.
+    S_UZ = Wshed_Properties.Resolution^2*sum(hp2d_column_storage_mm(Subsurface.column, ...
+        BC_States.h_t(:), Subsurface.water_mm), 'omitnan')/1000;
+    S_GW = 0;
+end
 if flags.flag_snow_modeling == 1
     S_SWE = nansum(nansum(Wshed_Properties.Resolution^2.*Snow_Properties.SWE_t/1000)); % Snow water equivalent
 else
@@ -491,6 +498,10 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         end
         if exist('GW_States', 'var') && isstruct(GW_States)
             GW_States_before_step = GW_States;
+        end
+        head_before_step = BC_States.h_t;
+        if exist('Subsurface', 'var') && isstruct(Subsurface)
+            Subsurface_water_before_step = Subsurface.water_mm;
         end
         % -------------- Hydrological Model --------------- %
         Hydrological_Model; % Runs the interception + infiltration + GW routing model
@@ -1107,6 +1118,15 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         if exist('GW_States_before_step', 'var')
             GW_States = GW_States_before_step;
         end
+        % The groundwater head is part of the step state: restore it as well.
+        if exist('head_before_step', 'var')
+            BC_States.h_t = head_before_step;
+            BC_States.h_0 = head_before_step;
+        end
+        if exist('Subsurface_water_before_step', 'var') && exist('Subsurface', 'var') && isstruct(Subsurface)
+            Subsurface.water_mm = Subsurface_water_before_step;
+            Soil_Properties = hp2d_sync_layered_soil(Soil_Properties, Subsurface, BC_States.h_t, idx_nan);
+        end
 
         %% ------------------------------------------------------------
         % Roll back full-momentum conservative memory after rejected step
@@ -1263,6 +1283,14 @@ if flags.flag_GPU == 1
     min_soil_moisture        = gather_deep(min_soil_moisture);
     cumulative_infiltration  = gather_deep(cumulative_infiltration);
     max_GW_depth             = gather(max_GW_depth);
+    if exist('Subsurface', 'var') && isstruct(Subsurface)
+        Subsurface.water_mm = gather(Subsurface.water_mm);
+        column_fields = fieldnames(Subsurface.column);
+        for column_index = 1:numel(column_fields)
+            Subsurface.column.(column_fields{column_index}) = ...
+                gather(Subsurface.column.(column_fields{column_index}));
+        end
+    end
     cumulative_recharge      = gather(cumulative_recharge);
 
     if flags.flag_waterquality == 1
