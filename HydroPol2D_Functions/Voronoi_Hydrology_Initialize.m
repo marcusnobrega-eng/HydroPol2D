@@ -28,6 +28,10 @@ state.crop_coefficient = field(hydrology, 'crop_coefficient', 1, n, h, 0, inf);
 state.canopy_capacity_per_lai_m = field(hydrology, 'canopy_capacity_per_lai_m', 2e-4, n, h, 0, inf);
 state.soil_depth_m = field(hydrology, 'soil_depth_m', 2, n, h, 0, inf);
 state.root_depth_m = min(field(hydrology, 'root_depth_m', 1, n, h, 0, inf), state.soil_depth_m);
+state.feddes = [];
+if isfield(hydrology, 'feddes') && ~isempty(hydrology.feddes)
+    state.feddes = hydrology.feddes;  % Feddes stress on the legacy mesh ET (struct of heads)
+end
 state.theta_r = field(hydrology, 'theta_r', 0.05, n, h, 0, 1);
 state.theta_sat = field(hydrology, 'theta_sat', 0.45, n, h, 0, 1);
 assert(all(state.theta_sat(:) > state.theta_r(:)), ...

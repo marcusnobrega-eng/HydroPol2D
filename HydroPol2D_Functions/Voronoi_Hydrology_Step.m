@@ -80,11 +80,18 @@ surface_evaporation_volume(~ponded) = 0;
 surface_volume = surface_volume - surface_evaporation_volume;
 soil_et_demand = pet_hru .* state.crop_coefficient;
 soil_et_demand(ponded,:) = 0;
-[state.near_storage_m, take_near] = extract_above_wilting( ...
-    state.near_storage_m,state.near_capacity_m,state.wilting_saturation,soil_et_demand);
-remaining_et = soil_et_demand - take_near;
-[state.root_storage_m, take_root] = extract_above_wilting( ...
-    state.root_storage_m,state.root_capacity_m,state.wilting_saturation,remaining_et);
+if isfield(state,'feddes') && ~isempty(state.feddes)
+    [take_near,take_root] = feddes_two_layer_uptake(state,soil_et_demand, ...
+        soil_et_demand .* 1000 .* (86400 ./ dt_s));
+    state.near_storage_m = state.near_storage_m - take_near;
+    state.root_storage_m = state.root_storage_m - take_root;
+else
+    [state.near_storage_m, take_near] = extract_above_wilting( ...
+        state.near_storage_m,state.near_capacity_m,state.wilting_saturation,soil_et_demand);
+    remaining_et = soil_et_demand - take_near;
+    [state.root_storage_m, take_root] = extract_above_wilting( ...
+        state.root_storage_m,state.root_capacity_m,state.wilting_saturation,remaining_et);
+end
 actual_soil_et = take_near + take_root;
 
 % Reuse the same free-drainage ordering as the layered raster model.
@@ -153,6 +160,31 @@ state.near_storage_m=min(old_near,state.near_capacity_m);
 state.root_storage_m=min(old_root,state.root_capacity_m);
 state.transmission_storage_m=min(old_trans,state.transmission_capacity_m);
 excess=(old_near-state.near_storage_m)+(old_root-state.root_storage_m)+(old_trans-state.transmission_storage_m);
+end
+
+function [take_near,take_root] = feddes_two_layer_uptake(state,demand,rate_mm_day)
+%FEDDES_TWO_LAYER_UPTAKE Feddes uptake for the near-surface and root-zone stores (m).
+%   The demand is shared by rooted thickness (uniform root density); each share is
+%   reduced by alpha(h) of its layer and stays above the wilting floor. Same rule as
+%   HydroPol2D-Python root_water_stress.feddes_two_layer_uptake.
+near_rooted = min(max(state.root_depth_m,0),state.near_thickness_m);
+root_rooted = max(state.root_thickness_m,0);
+rooted = near_rooted + root_rooted;
+share_near = zeros(size(rooted)); share_root = share_near;
+has = rooted > 0;
+share_near(has) = near_rooted(has) ./ max(rooted(has),1e-300);
+share_root(has) = root_rooted(has) ./ max(rooted(has),1e-300);
+    function a = layer_alpha(storage,thickness)
+        theta = state.theta_r + max(storage,0) ./ max(state.pervious_fraction .* thickness,1e-300);
+        theta = min(max(theta,state.theta_r),state.theta_sat);
+        head = hp2d_matric_head_from_theta(theta,state.theta_r,state.theta_sat,state.alpha_vg_1_m,state.n_vg);
+        a = hp2d_feddes_alpha(head,state.feddes,rate_mm_day);
+    end
+demand = max(demand,0);
+take_near = min(demand .* share_near .* layer_alpha(state.near_storage_m,state.near_thickness_m), ...
+    max(state.near_storage_m - state.wilting_saturation .* state.near_capacity_m,0));
+take_root = min(demand .* share_root .* layer_alpha(state.root_storage_m,state.root_thickness_m), ...
+    max(state.root_storage_m - state.wilting_saturation .* state.root_capacity_m,0));
 end
 
 function [storage,taken] = extract_above_wilting(storage,capacity,wilting,demand)
