@@ -295,7 +295,10 @@ workbooks). The numeric settings are `General_Data` keys, in the blocks "Layered
 `regolith_alpha_vg_m_inverse` (2), `regolith_n_vg` (1.5), `regolith_ksat_v_mm_h` (5),
 `regolith_ksat_h_mm_h` (empty: `ksat_gw`), `regolith_specific_yield` (empty: theta_s - theta_fc),
 `soil_lateral_anisotropy` (1), `subsurface_drainage_substeps` (1), `capillary_field_capacity_head_m` (3.3),
-`groundwater_target_dt_s` (3600), `groundwater_min_dt_s` (60), `groundwater_courant` (0.25) and
+`groundwater_target_dt_s` (3600), `groundwater_min_dt_s` (60), `groundwater_courant` (0.25),
+`soil_lateral_conductivity_multiplier` and `regolith_lateral_conductivity_multiplier` (1; block
+"Lateral Conductivity Multipliers", D42:F44: factors on the soil-slot and deep-slot horizontal K,
+fitted by the HydroPol2D-Python layered recession calibration) and
 `feddes_h1_m`, `feddes_h2_m`, `feddes_h3_m`, `feddes_h3_low_m`, `feddes_h3_high_m`, `feddes_h4_m`.
 Environment variables `HYDROPOL_SUBSURFACE_SCHEME`, `HYDROPOL_ENABLE_FEDDES` and
 `HYDROPOL_<NAME>` override them (the Case Builder uses them).

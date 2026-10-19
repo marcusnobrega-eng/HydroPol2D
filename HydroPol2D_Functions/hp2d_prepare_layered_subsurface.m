@@ -62,7 +62,8 @@ P.soil_theta_r = cells(Soil_Properties.theta_r);
 P.soil_alpha_m_inverse = cells(Soil_Properties.alpha_vg);
 P.soil_n_vg = cells(Soil_Properties.n_vg);
 P.soil_kv_m_s = [cells(L.ksat_near_surface), cells(L.ksat_root_zone), cells(L.ksat_transmission)]/1000/3600;
-P.soil_lateral_anisotropy = cfg.soil_lateral_anisotropy;
+% Lateral-conductivity multipliers (recession calibration): soil slots and deep slots.
+P.soil_lateral_anisotropy = cfg.soil_lateral_anisotropy*cfg.soil_lateral_conductivity_multiplier;
 P.regolith_theta_s = raster_or('RegolithThetaS', cfg.regolith_theta_s);
 P.regolith_theta_r = raster_or('RegolithThetaR', cfg.regolith_theta_r);
 P.regolith_alpha_m_inverse = raster_or('RegolithAlphaVG', cfg.regolith_alpha_vg_m_inverse);
@@ -70,7 +71,8 @@ P.regolith_n_vg = raster_or('RegolithNVG', cfg.regolith_n_vg);
 P.regolith_kv_m_s = raster_or('RegolithKsatV', cfg.regolith_ksat_v_mm_h)/1000/3600;
 kh_fallback = cells(Soil_Properties.ksat_gw);
 if ~isempty(cfg.regolith_ksat_h_mm_h), kh_fallback(:) = cfg.regolith_ksat_h_mm_h; end
-P.regolith_kh_m_s = raster_or('RegolithKsatH', kh_fallback)/1000/3600;
+P.regolith_kh_m_s = raster_or('RegolithKsatH', kh_fallback)/1000/3600* ...
+    cfg.regolith_lateral_conductivity_multiplier;
 sy_fallback = nan(N, 1);
 if ~isempty(cfg.regolith_specific_yield), sy_fallback(:) = cfg.regolith_specific_yield; end
 P.regolith_specific_yield = raster_or('RegolithSpecificYield', sy_fallback);

@@ -20,6 +20,7 @@ variants = {'local', 'lateral', 'feddes', 'legacy', 'deep', 'deep_legacy', 'deep
 for k = 1:numel(variants)
     checks(end + 1, :) = {['V-tilted ' variants{k}], @() vtilted_check(variants{k})}; %#ok<AGROW>
 end
+checks(end + 1, :) = {'V-tilted lateral K multipliers', @() multiplier_check()};
 names = checks(:, 1);
 passed = false(numel(names), 1);
 detail = strings(numel(names), 1);
@@ -56,6 +57,18 @@ elseif strcmp(variant, 'deep_empty')
     assert(isempty(R.deep_initial_storage_m3) || all(R.deep_initial_storage_m3 == 0), ...
         'An empty start must have zero deep storage.');
 end
+end
+
+function out = multiplier_check()
+% Soil x2 and regolith x0.5 lateral-conductivity multipliers scale exactly those slots' Kh.
+base = run_layered_vtilted_case('lateral');
+scaled = run_layered_vtilted_case('lateral_scaled');
+assert(abs(scaled.volume_error_m3) < 1e-6, 'Volume error %.3e m3.', scaled.volume_error_m3);
+ratio = scaled.kh_m_s./base.kh_m_s;
+soil = ratio(:, 1:3); rock = ratio(:, 4:end);
+assert(all(abs(soil(isfinite(soil)) - 2) < 1e-12) && all(abs(rock(isfinite(rock)) - 0.5) < 1e-12), ...
+    'Kh multipliers were not applied to the soil and deep slots.');
+out = sprintf('soil Kh x2, deep Kh x0.5; volume error %.2e m3', scaled.volume_error_m3);
 end
 
 function text = describe(out)

@@ -3,14 +3,15 @@ function Result = run_layered_vtilted_case(variant)
 %   variant: 'local' (no lateral flow), 'lateral' (flag_baseflow = 1), 'feddes'
 %   (local + Feddes + ET off), 'legacy' (old groundwater scheme), or 'deep' /
 %   'deep_legacy' (deep aquifer on, one subbasin, started from a 0.5 mm/day baseflow),
-%   'deep_empty' (as 'deep', starting empty).
+%   'deep_empty' (as 'deep', starting empty), 'lateral_scaled' (as 'lateral' with soil and
+%   regolith lateral-conductivity multipliers 2 and 0.5).
 %   Copies Examples/VTilted_Excel to tempdir, enables
 %   infiltration, groundwater, capillary rise and the layered scheme in the copy's
 %   Flags sheet (double precision), runs HydroPol2D_V115.m without post-processing and
 %   returns the mass-balance diagnostics and the final layered state.
 arguments
     variant (1,:) char {mustBeMember(variant, {'local', 'lateral', 'feddes', 'legacy', ...
-        'deep', 'deep_legacy', 'deep_empty'})} = 'local'
+        'deep', 'deep_legacy', 'deep_empty', 'lateral_scaled'})} = 'local'
 end
 here = fileparts(mfilename('fullpath'));
 root = fullfile(here, '..', '..', '..');
@@ -30,6 +31,10 @@ GRIDobj2geotiff(D, dtb_file);
 % Numeric layered settings are General_Data keys (the Flags sheet reads only flag_* rows).
 keys = {'DTB_path', dtb_file; 'GW_table_path', ''; 'subsurface_soil_base_depth_m', 1.2};
 deep = startsWith(variant, 'deep');
+if strcmp(variant, 'lateral_scaled')
+    keys = [keys; {'soil_lateral_conductivity_multiplier', 2; ...
+        'regolith_lateral_conductivity_multiplier', 0.5}];
+end
 if deep
     % One deep-aquifer subbasin returning to every active cell, started at q0.
     B = D; B.Z(:) = 1;  % no NaN: bilinear resampling would spread it into the domain
@@ -58,7 +63,8 @@ C = readcell(workbook, 'Sheet', 'Flags');
 settings = {'flag_infiltration', 1; 'flag_groundwater_modeling', 1; 'flag_capillary_rise', 1; ...
     'flag_single', 0; 'flag_GPU', 0; ...
     'flag_layered_subsurface', double(~any(strcmp(variant, {'legacy', 'deep_legacy'}))); ...
-    'flag_baseflow', double(strcmp(variant, 'lateral')); 'flag_feddes', double(strcmp(variant, 'feddes')); ...
+    'flag_baseflow', double(any(strcmp(variant, {'lateral', 'lateral_scaled'}))); ...
+    'flag_feddes', double(strcmp(variant, 'feddes')); ...
     'flag_deep_aquifer', double(deep)};
 for i = 1:size(settings, 1)
     C = set_flag(C, settings{i, 1}, settings{i, 2});
@@ -81,6 +87,7 @@ Result.z0_m = double(gather(BC_States.z0));
 Result.n_slots = 0;
 if exist('Subsurface', 'var') && isstruct(Subsurface)
     Result.n_slots = Subsurface.n_slots;
+    Result.kh_m_s = double(gather(Subsurface.column.kh_m_s));
     Result.storage_m3 = Wshed_Properties.Resolution^2*sum(hp2d_column_storage_mm(Subsurface.column, ...
         double(gather(BC_States.h_t(:))), double(gather(Subsurface.water_mm))), 'omitnan')/1000;
 end
