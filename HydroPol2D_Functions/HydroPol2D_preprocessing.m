@@ -133,6 +133,8 @@ if use_inputpaths_bypass == 1
         InputPaths,'DeepAquiferSubbasins_path','');
     DeepAquiferChannelWeight_path = get_inputpaths_field( ...
         InputPaths,'DeepAquiferChannelWeight_path','');
+    DeepAquiferInitialState_path = get_inputpaths_field( ...
+        InputPaths,'DeepAquiferInitialState_path','');
 
 else
 
@@ -209,6 +211,7 @@ else
     RiverDepths_path = xlgetstr(GD,'RiverDepths_path',"");
     DeepAquiferSubbasins_path = xlgetstr_optional(GD,'DeepAquiferSubbasins_path',"");
     DeepAquiferChannelWeight_path = xlgetstr_optional(GD,'DeepAquiferChannelWeight_path',"");
+    DeepAquiferInitialState_path = xlgetstr_optional(GD,'DeepAquiferInitialState_path',"");
 
     DEM_path = resolve_excel_input_path(DEM_path,model_folder,runtime_model_root);
     LULC_path = resolve_excel_input_path(LULC_path,model_folder,runtime_model_root);
@@ -239,6 +242,8 @@ else
         DeepAquiferSubbasins_path,model_folder,runtime_model_root);
     DeepAquiferChannelWeight_path = resolve_excel_input_path( ...
         DeepAquiferChannelWeight_path,model_folder,runtime_model_root);
+    DeepAquiferInitialState_path = resolve_excel_input_path( ...
+        DeepAquiferInitialState_path,model_folder,runtime_model_root);
 
 end
 
@@ -481,23 +486,25 @@ end
 [LULC_raster, SOIL_raster, DTB_raster, LAI_raster, Albedo_raster, ImperviousFraction_raster, widths_raster, depths_raster] = ...
     align_all_to_dem(DEM_raster, LULC_raster, SOIL_raster, DTB_raster, LAI_raster, Albedo_raster, ImperviousFraction_raster, widths_raster, depths_raster);
 
+% Resample only rasters that are not already on the DEM grid: bilinear resampling onto
+% the same grid returns NaN in the last row and column (as in align_all_to_dem).
 if ~isempty(GW_table_raster)
-    GW_table_raster = resample(GW_table_raster, DEM_raster, 'bilinear');
+    GW_table_raster = resample_if_needed(GW_table_raster, DEM_raster, 'bilinear');
 end
 if ~isempty(GW_Dirichlet_Head_raster)
-    GW_Dirichlet_Head_raster = resample(GW_Dirichlet_Head_raster, DEM_raster, 'bilinear');
+    GW_Dirichlet_Head_raster = resample_if_needed(GW_Dirichlet_Head_raster, DEM_raster, 'bilinear');
 end
 if ~isempty(Initial_SWE_raster)
-    Initial_SWE_raster = resample(Initial_SWE_raster, DEM_raster, 'bilinear');
+    Initial_SWE_raster = resample_if_needed(Initial_SWE_raster, DEM_raster, 'bilinear');
 end
 if ~isempty(Initial_Snow_Depth_raster)
-    Initial_Snow_Depth_raster = resample(Initial_Snow_Depth_raster, DEM_raster, 'bilinear');
+    Initial_Snow_Depth_raster = resample_if_needed(Initial_Snow_Depth_raster, DEM_raster, 'bilinear');
 end
 if ~isempty(DeepAquiferSubbasins_raster)
-    DeepAquiferSubbasins_raster = resample(DeepAquiferSubbasins_raster, DEM_raster, 'nearest');
+    DeepAquiferSubbasins_raster = resample_if_needed(DeepAquiferSubbasins_raster, DEM_raster, 'nearest');
 end
 if ~isempty(DeepAquiferChannelWeight_raster)
-    DeepAquiferChannelWeight_raster = resample(DeepAquiferChannelWeight_raster, DEM_raster, 'bilinear');
+    DeepAquiferChannelWeight_raster = resample_if_needed(DeepAquiferChannelWeight_raster, DEM_raster, 'bilinear');
 end
 ParameterRasters = align_parameter_rasters(ParameterRasters, DEM_raster);
 
@@ -2233,7 +2240,20 @@ outflow_rate = struct('qout_left_t',spatial_domain,'qout_right_t',spatial_domain
 depths = struct('d_0',spatial_domain,'d_avg',spatial_domain,'d_tot',spatial_domain,'depth_wse',depth_wse); % struct
 velocities = struct('vel_left',spatial_domain,'vel_right',spatial_domain,'vel_up',spatial_domain,'vel_down',spatial_domain,'velocity_raster',spatial_domain,'vmax_final',spatial_domain); % struct
 
+% Riverbed and deep-aquifer settings were stored in Soil_Properties above; keep them
+% when the struct is rebuilt here (they were silently dropped before).
+Soil_Properties_early = struct();
+if exist('Soil_Properties', 'var') && isstruct(Soil_Properties)
+    Soil_Properties_early = Soil_Properties;
+end
 Soil_Properties = struct('ksat',spatial_domain,'n_vg',spatial_domain,'alpha_vg',spatial_domain,'theta_sat',spatial_domain,'theta_r',spatial_domain,'theta_i',spatial_domain,'Sy',spatial_domain,'ksat_gw',spatial_domain,'I_0',spatial_domain,'Soil_Depth',spatial_domain); % struct
+for early_field = {'riverbed_hydraulic_conductivity_m_s', 'cell_riverbed_area_m2', ...
+        'riverbed_thickness_m', 'deep_recharge_fraction', 'deep_aquifer_response_time_days'}
+    if isfield(Soil_Properties_early, early_field{1})
+        Soil_Properties.(early_field{1}) = Soil_Properties_early.(early_field{1});
+    end
+end
+clear Soil_Properties_early early_field
 LULC_Properties = struct('roughness',spatial_domain,'h_0',spatial_domain,'C_1',spatial_domain,'C_2',spatial_domain,'C_3',spatial_domain,'C_4',spatial_domain,'B_0',spatial_domain,'ADD',0,'root_depth_m',spatial_domain,'Kc',spatial_domain); % struct
 Soil_Properties.Ks_multiplier_near_surface = ones(size(spatial_domain));
 Soil_Properties.Ks_multiplier_root_zone = ones(size(spatial_domain));
@@ -3361,6 +3381,34 @@ if flags.flag_deep_aquifer == 1
         all(isfinite(BC_States.deep_aquifer_channel_weight(active_deep))), ...
         'Deep-aquifer channel weights must be finite and nonnegative.');
     initial_deep_path = string(getenv('HYDROPOL_DEEP_INITIAL_STATE_PATH'));
+    if strlength(initial_deep_path) == 0 && exist('DeepAquiferInitialState_path', 'var')
+        initial_deep_path = string(DeepAquiferInitialState_path);
+        initial_deep_path(ismissing(initial_deep_path)) = "";
+    end
+    % Starting state from a deep baseflow q0 (or the steady state f x mean recharge):
+    % S0 = q0 x subbasin area x tau. At most one of these and the JSON file.
+    if ~exist('deep_aquifer_initial_baseflow_mm_day', 'var') || ...
+            isempty(deep_aquifer_initial_baseflow_mm_day)
+        deep_aquifer_initial_baseflow_mm_day = NaN;
+    end
+    if ~exist('deep_aquifer_mean_recharge_mm_year', 'var') || ...
+            isempty(deep_aquifer_mean_recharge_mm_year)
+        deep_aquifer_mean_recharge_mm_year = NaN;
+    end
+    deep_aquifer_initial_baseflow_mm_day = double(deep_aquifer_initial_baseflow_mm_day);
+    deep_aquifer_mean_recharge_mm_year = double(deep_aquifer_mean_recharge_mm_year);
+    deep_start_given = isfinite(deep_aquifer_initial_baseflow_mm_day) || ...
+        isfinite(deep_aquifer_mean_recharge_mm_year);
+    assert(~(deep_start_given && strlength(initial_deep_path) > 0), ...
+        ['Give the deep-aquifer initial state once: DeepAquiferInitialState_path or a ', ...
+        'deep_aquifer_initial_* value, not both.']);
+    if deep_start_given
+        [BC_States.deep_aquifer_initial_storage_m3, ...
+            BC_States.deep_aquifer_initial_discharge_m3_s] = hp2d_deep_aquifer_initial_state( ...
+            BC_States.deep_aquifer_subbasin_id(active_deep), Wshed_Properties.cell_area, ...
+            deep_aquifer_response_time_days, deep_recharge_fraction, ...
+            deep_aquifer_initial_baseflow_mm_day, deep_aquifer_mean_recharge_mm_year);
+    end
     if strlength(initial_deep_path) > 0
         assert(isfile(initial_deep_path), ...
             'Deep-aquifer initial-state JSON does not exist: %s', initial_deep_path);
@@ -5576,7 +5624,14 @@ end
 function rasters = align_parameter_rasters(rasters, dem_raster)
     names = fieldnames(rasters);
     for i = 1:numel(names)
-        rasters.(names{i}) = resample(rasters.(names{i}), dem_raster, 'bilinear');
+        rasters.(names{i}) = resample_if_needed(rasters.(names{i}), dem_raster, 'bilinear');
+    end
+end
+
+function R = resample_if_needed(R, dem_raster, method)
+%RESAMPLE_IF_NEEDED Resample R onto the DEM grid unless it already has the DEM grid size.
+    if any(size(R.Z) ~= size(dem_raster.Z))
+        R = resample(R, dem_raster, method);
     end
 end
 
