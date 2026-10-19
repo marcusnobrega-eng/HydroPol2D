@@ -169,6 +169,10 @@ if use_inputdata_bypass == 1
     deep_recharge_fraction = get_optional_field(G,'deep_recharge_fraction',0.05);
     deep_aquifer_response_time_days = get_optional_field(G, ...
         'deep_aquifer_tau_days',get_optional_field(G,'deep_aquifer_response_time_days',180));
+    deep_aquifer_initial_baseflow_mm_day = get_optional_field(G, ...
+        'deep_aquifer_initial_baseflow_mm_day',NaN);
+    deep_aquifer_mean_recharge_mm_year = get_optional_field(G, ...
+        'deep_aquifer_mean_recharge_mm_year',NaN);
 
     % ---------------- Water Quality Inputs ----------------
     ADD    = require_field(G,'ADD');
@@ -543,6 +547,7 @@ layered_input_keys = {'subsurface_soil_base_depth_m','subsurface_depth_to_bedroc
     'regolith_alpha_vg_m_inverse','regolith_n_vg','regolith_ksat_v_mm_h','regolith_ksat_h_mm_h', ...
     'regolith_specific_yield','soil_lateral_anisotropy','subsurface_drainage_substeps', ...
     'capillary_field_capacity_head_m','groundwater_target_dt_s','groundwater_min_dt_s', ...
+    'groundwater_courant', ...
     'feddes_h1_m','feddes_h2_m','feddes_h3_m','feddes_h3_low_m','feddes_h3_high_m','feddes_h4_m'};
 for layered_key_index = 1:numel(layered_input_keys)
     layered_value = xlnum_optional(GD,layered_input_keys{layered_key_index},NaN);
@@ -575,6 +580,16 @@ outlet_type = single(flags.flag_outlet_type);
 
 slope_outlet   = xlnum(GD,'slope_outlet');
 n_outlets_data = xlnum_optional(GD,'n_outlets_data',1);
+
+% ---------------- Groundwater Control ----------------
+% Same keys and defaults as the bypass inputs above.
+River_K_coeff = xlnum_optional(GD,'River_K_coeff',nan);
+riverbed_thickness_m = xlnum_optional(GD,'riverbed_thickness_m',0.5);
+deep_recharge_fraction = xlnum_optional(GD,'deep_recharge_fraction',0.05);
+deep_aquifer_response_time_days = xlnum_optional(GD,'deep_aquifer_tau_days', ...
+    xlnum_optional(GD,'deep_aquifer_response_time_days',180));
+deep_aquifer_initial_baseflow_mm_day = xlnum_optional(GD,'deep_aquifer_initial_baseflow_mm_day',NaN);
+deep_aquifer_mean_recharge_mm_year = xlnum_optional(GD,'deep_aquifer_mean_recharge_mm_year',NaN);
 
 % ---------------- Maps and Plots Control ----------------
 running_control.record_time_maps             = xlnum(GD,'record_time_maps');

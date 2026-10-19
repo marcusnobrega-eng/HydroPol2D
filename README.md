@@ -308,6 +308,26 @@ scalar fills the rest. The column bottom is the DTB raster, then `subsurface_dep
 then `Soil_Depth` (with a warning). The standalone Voronoi/quadtree runner reads
 `config.layered_subsurface` (or the environment). Tests: `Validation/Groundwater/Layered`.
 
+### Deep-aquifer starting state
+
+With `flag_deep_aquifer = 1`, each subbasin of `DeepAquiferSubbasins_path` is a linear
+reservoir (outflow = storage / `deep_aquifer_tau_days`) that returns water to the cells of
+`DeepAquiferChannelWeight_path`. Its starting storage follows from a starting outflow:
+S0 = q0 x subbasin area x tau. Give one of these in the "Deep Aquifer Initial State" block of
+`General_Data` (D38:F40), as `InputData_Bypass.general` fields, or through
+`HYDROPOL_DEEP_INITIAL_BASEFLOW_MM_DAY` / `HYDROPOL_DEEP_MEAN_RECHARGE_MM_YEAR`:
+
+- `deep_aquifer_initial_baseflow_mm_day`: q0 on the start date, e.g. from a gauge with
+  HydroPol2D-Python `hydropol2d estimate-deep-baseflow`;
+- `deep_aquifer_mean_recharge_mm_year`: the long-term mean recharge R; the reservoirs start at
+  steady state, q0 = `deep_recharge_fraction` x R;
+- or `DeepAquiferInitialState_path` (T29; the Case Builder's calibrated JSON, also
+  `HYDROPOL_DEEP_INITIAL_STATE_PATH`).
+
+Empty: the reservoirs start empty. `deep_recharge_fraction` and `deep_aquifer_tau_days` are now
+read in Excel mode too. `Validation/Groundwater/run_groundwater_release_checks.m` runs every
+groundwater, layered, Feddes and deep-aquifer check, including full Excel-mode V-tilted runs.
+
 ---
 
 ##  Performance & Scaling

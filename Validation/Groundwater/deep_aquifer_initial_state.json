@@ -1,0 +1,44 @@
+{
+  "description": "Deep-aquifer starting state S0 = q0 x subbasin area x tau, shared by the Python and MATLAB tests. null = outside the domain.",
+  "subbasin_id": [
+    [
+      1,
+      1,
+      2
+    ],
+    [
+      2,
+      2,
+      null
+    ]
+  ],
+  "cell_area_m2": 25.0,
+  "response_time_days": 100.0,
+  "recharge_fraction": 0.05,
+  "cases": [
+    {
+      "name": "baseflow",
+      "initial_baseflow_mm_day": 0.5,
+      "expected_discharge_m3_s": [
+        2.8935185185185185e-07,
+        4.3402777777777775e-07
+      ],
+      "expected_storage_m3": [
+        2.5,
+        3.7499999999999996
+      ]
+    },
+    {
+      "name": "mean_recharge",
+      "mean_recharge_mm_year": 300.0,
+      "expected_discharge_m3_s": [
+        2.3766065860521712e-08,
+        3.564909879078257e-08
+      ],
+      "expected_storage_m3": [
+        0.2053388090349076,
+        0.3080082135523614
+      ]
+    }
+  ]
+}

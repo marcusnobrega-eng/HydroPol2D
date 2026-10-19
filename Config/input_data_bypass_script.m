@@ -507,6 +507,15 @@ if ~isempty(getenv('HYDROPOL_INDIA_CASE_ROOT'))
     if isfinite(deep_tau_days) && deep_tau_days > 0
         InputData_Bypass.general.deep_aquifer_response_time_days = deep_tau_days;
     end
+    % Deep-aquifer starting state: q0 (mm/day) or the steady state from the mean recharge.
+    deep_q0 = str2double(getenv('HYDROPOL_DEEP_INITIAL_BASEFLOW_MM_DAY'));
+    if isfinite(deep_q0) && deep_q0 >= 0
+        InputData_Bypass.general.deep_aquifer_initial_baseflow_mm_day = deep_q0;
+    end
+    deep_recharge_mm_year = str2double(getenv('HYDROPOL_DEEP_MEAN_RECHARGE_MM_YEAR'));
+    if isfinite(deep_recharge_mm_year) && deep_recharge_mm_year >= 0
+        InputData_Bypass.general.deep_aquifer_mean_recharge_mm_year = deep_recharge_mm_year;
+    end
     if strcmp(getenv('HYDROPOL_DISABLE_GW_2D'), '1')
         InputData_Bypass.flags.flag_groundwater_modeling = 0;
         InputData_Bypass.flags.flag_baseflow = 0;

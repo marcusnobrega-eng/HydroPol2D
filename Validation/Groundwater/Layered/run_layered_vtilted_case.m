@@ -1,12 +1,16 @@
 function Result = run_layered_vtilted_case(variant)
 %RUN_LAYERED_VTILTED_CASE Full-model run of the V-tilted example with the layered subsurface.
-%   variant: 'local' (no lateral flow), 'lateral' (flag_baseflow = 1) or 'feddes'
-%   (local + Feddes + ET off). Copies Examples/VTilted_Excel to tempdir, enables
+%   variant: 'local' (no lateral flow), 'lateral' (flag_baseflow = 1), 'feddes'
+%   (local + Feddes + ET off), 'legacy' (old groundwater scheme), or 'deep' /
+%   'deep_legacy' (deep aquifer on, one subbasin, started from a 0.5 mm/day baseflow),
+%   'deep_empty' (as 'deep', starting empty).
+%   Copies Examples/VTilted_Excel to tempdir, enables
 %   infiltration, groundwater, capillary rise and the layered scheme in the copy's
 %   Flags sheet (double precision), runs HydroPol2D_V115.m without post-processing and
 %   returns the mass-balance diagnostics and the final layered state.
 arguments
-    variant (1,:) char {mustBeMember(variant, {'local', 'lateral', 'feddes', 'legacy'})} = 'local'
+    variant (1,:) char {mustBeMember(variant, {'local', 'lateral', 'feddes', 'legacy', ...
+        'deep', 'deep_legacy', 'deep_empty'})} = 'local'
 end
 here = fileparts(mfilename('fullpath'));
 root = fullfile(here, '..', '..', '..');
@@ -25,6 +29,20 @@ D.Z(isfinite(D.Z)) = 6;
 GRIDobj2geotiff(D, dtb_file);
 % Numeric layered settings are General_Data keys (the Flags sheet reads only flag_* rows).
 keys = {'DTB_path', dtb_file; 'GW_table_path', ''; 'subsurface_soil_base_depth_m', 1.2};
+deep = startsWith(variant, 'deep');
+if deep
+    % One deep-aquifer subbasin returning to every active cell, started at q0.
+    B = D; B.Z(:) = 1;  % no NaN: bilinear resampling would spread it into the domain
+    basin_file = fullfile(work, 'Static', 'DeepAquiferSubbasins.tif');
+    weight_file = fullfile(work, 'Static', 'DeepAquiferChannelWeight.tif');
+    GRIDobj2geotiff(B, basin_file);
+    GRIDobj2geotiff(B, weight_file);
+    q0 = 0.5;
+    if strcmp(variant, 'deep_empty'), q0 = ''; end
+    keys = [keys; {'DeepAquiferSubbasins_path', basin_file; ...
+        'DeepAquiferChannelWeight_path', weight_file; ...
+        'deep_aquifer_initial_baseflow_mm_day', q0; 'deep_aquifer_tau_days', 100}];
+end
 for i = 1:size(keys, 1)
     [r, c] = find(strcmpi(string(G), keys{i, 1}), 1);
     if isempty(r)
@@ -38,8 +56,10 @@ G(cellfun(@(x) isa(x, 'missing'), G)) = {''};
 writecell(G, workbook, 'Sheet', 'General_Data');
 C = readcell(workbook, 'Sheet', 'Flags');
 settings = {'flag_infiltration', 1; 'flag_groundwater_modeling', 1; 'flag_capillary_rise', 1; ...
-    'flag_single', 0; 'flag_GPU', 0; 'flag_layered_subsurface', double(~strcmp(variant, 'legacy')); ...
-    'flag_baseflow', double(strcmp(variant, 'lateral')); 'flag_feddes', double(strcmp(variant, 'feddes'))};
+    'flag_single', 0; 'flag_GPU', 0; ...
+    'flag_layered_subsurface', double(~any(strcmp(variant, {'legacy', 'deep_legacy'}))); ...
+    'flag_baseflow', double(strcmp(variant, 'lateral')); 'flag_feddes', double(strcmp(variant, 'feddes')); ...
+    'flag_deep_aquifer', double(deep)};
 for i = 1:size(settings, 1)
     C = set_flag(C, settings{i, 1}, settings{i, 2});
 end
@@ -68,6 +88,16 @@ Result.total_recharge_m3 = GW_States.total_recharge_m3;
 Result.total_capillary_m3 = GW_States.total_capillary_m3;
 Result.total_exfiltration_m3 = GW_States.total_exfiltration_m3;
 Result.mass_balance_history = mass_balance_history;
+Result.deep_initial_storage_m3 = [];
+Result.deep_final_storage_m3 = [];
+if isfield(BC_States, 'deep_aquifer_initial_storage_m3')
+    Result.deep_initial_storage_m3 = BC_States.deep_aquifer_initial_storage_m3;
+    Result.deep_active_area_m2 = sum(isfinite(BC_States.deep_aquifer_subbasin_id(:)) & ...
+        BC_States.deep_aquifer_subbasin_id(:) > 0)*Wshed_Properties.cell_area;
+end
+if isfield(GW_States, 'deep_aquifer_storage_m3')
+    Result.deep_final_storage_m3 = GW_States.deep_aquifer_storage_m3;
+end
 save(result_file, 'Result');
 fprintf('Layered V-tilted (%s): %d slots, volume error %.3e m3, module errors %s m3\n', ...
     getenv('HYDROPOL_EXPORT_ROOT_DIR'), Result.n_slots, Result.volume_error_m3, ...
