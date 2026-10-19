@@ -49,7 +49,7 @@ P.soil_theta_r = state.theta_r(:);
 P.soil_alpha_m_inverse = state.alpha_vg_1_m(:);
 P.soil_n_vg = state.n_vg(:);
 P.soil_kv_m_s = [ks_near, ks_root, ks_trans];
-P.soil_lateral_anisotropy = cfg.soil_lateral_anisotropy;
+P.soil_lateral_anisotropy = cfg.soil_lateral_anisotropy*cfg.soil_lateral_conductivity_multiplier;
 P.regolith_theta_s = cell_value('regolith_theta_s', cfg.regolith_theta_s);
 P.regolith_theta_r = cell_value('regolith_theta_r', cfg.regolith_theta_r);
 P.regolith_alpha_m_inverse = cell_value('regolith_alpha_vg_m_inverse', cfg.regolith_alpha_vg_m_inverse);
@@ -63,7 +63,7 @@ if isfield(hydrology, 'regolith_ksat_h_mm_h') && ~isempty(hydrology.regolith_ksa
 else
     kh = kh_fallback;
 end
-P.regolith_kh_m_s = kh;
+P.regolith_kh_m_s = kh*cfg.regolith_lateral_conductivity_multiplier;
 sy_fallback = nan(N, 1);
 if ~isempty(cfg.regolith_specific_yield), sy_fallback(:) = cfg.regolith_specific_yield; end
 P.regolith_specific_yield = cell_value('regolith_specific_yield', sy_fallback);
