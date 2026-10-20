@@ -5,7 +5,8 @@ function S = hp2d_layered_vertical_step(column, S, P, dt_s)
 %   the step, before the pervious fraction).
 %   P (parameters): valid, pervious, root_depth_m, ksat_near_surface_mm_h, l_vg,
 %   ltop_m, dh_max_m, ksurf_weight, feddes ([] = off), drainage_substeps, and the flags
-%   infiltration, evapotranspiration, groundwater.
+%   infiltration, evapotranspiration, groundwater and implicit_water_table_flux (absent
+%   = true, as Python).
 %   Order (HydroPol2D-Python advance_layered_subsurface): infiltration into the soil
 %   slots; open-water evaporation on wet cells; soil ET (Feddes, or with Feddes off the
 %   rest of the demand from the saturated part of the root zone through the table);
@@ -76,7 +77,8 @@ S.recharge_mm = zeros_n;
 S.capillary_mm = zeros_n;
 if P.groundwater
     water = hp2d_drain_cascade(column, head, water, dt_s, P.drainage_substeps);
-    [water, recharge, capillary] = hp2d_water_table_flux(column, head, water, dt_s);
+    implicit = ~isfield(P, 'implicit_water_table_flux') || P.implicit_water_table_flux;
+    [water, recharge, capillary] = hp2d_water_table_flux(column, head, water, dt_s, [], implicit);
     recharge(~valid) = 0;
     capillary(~valid) = 0;
     S.recharge_mm = recharge;

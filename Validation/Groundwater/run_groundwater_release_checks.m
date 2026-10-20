@@ -1,9 +1,10 @@
 function Results = run_groundwater_release_checks()
 %RUN_GROUNDWATER_RELEASE_CHECKS Run every groundwater, layered, Feddes and deep-aquifer check.
 %   Returns a table (check, passed, detail, seconds) and prints it. Includes the
-%   Python -> MATLAB parity harnesses, the deep-aquifer checks and seven full-model
+%   Python -> MATLAB parity harnesses, the deep-aquifer checks and ten full-model
 %   Excel-mode V-tilted runs (about 1 min each). A full run must close the volume
-%   balance within 1e-6 m3; the deep runs must also start at S0 = q0 x area x tau.
+%   balance within 1e-6 m3; the deep runs must also start at S0 = q0 x area x tau; the
+%   run without DTB_path must take its column bottom from the SOIL sheet's 'DTB (m)'.
 
 here = fileparts(mfilename('fullpath'));
 root = fileparts(fileparts(here));
@@ -16,7 +17,8 @@ checks = {
     'Feddes legacy consistency', @() run_feddes_legacy_consistency()
     'layered mesh case', @() run_layered_mesh_case()
     };
-variants = {'local', 'lateral', 'feddes', 'legacy', 'deep', 'deep_legacy', 'deep_empty'};
+variants = {'local', 'lateral', 'feddes', 'legacy', 'deep', 'deep_legacy', 'deep_empty', ...
+    'no_dtb', 'explicit_flux', 'soil_rasters'};
 for k = 1:numel(variants)
     checks(end + 1, :) = {['V-tilted ' variants{k}], @() vtilted_check(variants{k})}; %#ok<AGROW>
 end
@@ -56,6 +58,26 @@ if any(strcmp(variant, {'deep', 'deep_legacy'}))
 elseif strcmp(variant, 'deep_empty')
     assert(isempty(R.deep_initial_storage_m3) || all(R.deep_initial_storage_m3 == 0), ...
         'An empty start must have zero deep storage.');
+elseif strcmp(variant, 'no_dtb')
+    base = R.column_base_depth_m(isfinite(R.column_base_depth_m));
+    assert(~isempty(base) && all(abs(base - 4.5) < 1e-12), ...
+        'Without DTB_path the column bottom must be the SOIL DTB (m), 4.5 m; got %s.', ...
+        mat2str(unique(base(:))', 4));
+    out = sprintf('%s; column bottom %.1f m from SOIL DTB (m)', out, base(1));
+elseif strcmp(variant, 'soil_rasters')
+    theta = R.slot_theta_s(:, 1:3); kv = R.slot_kv_m_s(:, 1);
+    theta = theta(isfinite(theta)); kv = kv(isfinite(kv) & kv > 0);
+    assert(~isempty(theta) && all(abs(theta - 0.41) < 1e-7), ...   % GeoTIFF float32
+        'ThetaS_path did not set the soil theta_s (got %s).', mat2str(unique(theta)', 4));
+    assert(~isempty(kv) && all(abs(kv - 25/3.6e6) < 1e-12), ...
+        'KsatNearSurface_path did not set the near-surface Ksat.');
+    out = sprintf('%s; soil theta_s 0.41 and near-surface Ksat 25 mm/h from rasters', out);
+elseif strcmp(variant, 'feddes')
+    assert(R.feddes_on, 'flag_feddes = 1 did not reach the model.');
+    out = sprintf('%s; Feddes on', out);
+elseif strcmp(variant, 'explicit_flux')
+    assert(~R.implicit_water_table_flux, 'flag_implicit_water_table_flux = 0 did not reach the model.');
+    out = sprintf('%s; explicit water-table flux', out);
 end
 end
 

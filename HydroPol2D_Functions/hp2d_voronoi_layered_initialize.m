@@ -95,6 +95,7 @@ L.n_cells = n;
 L.n_hru = h;
 L.n_slots = size(z_top, 2);
 L.drainage_substeps = cfg.subsurface_drainage_substeps;
+L.implicit_water_table_flux = cfg.implicit_water_table_flux;
 L.feddes = cfg.feddes;
 L.config = cfg;
 end

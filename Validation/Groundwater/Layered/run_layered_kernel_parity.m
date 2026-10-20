@@ -1,7 +1,9 @@
 function Summary = run_layered_kernel_parity(fixture_path)
 %RUN_LAYERED_KERNEL_PARITY Compare the MATLAB layered-subsurface kernels with Python.
 %   The fixture is written by HydroPol2D-Python tools/export_layered_fixtures.py
-%   (Python -> MATLAB parity). Every kernel output must match within 1e-10 relative.
+%   (Python -> MATLAB parity). Every kernel output must match within 1e-10 relative,
+%   except the implicit water-table flux (1e-8): MATLAB takes its derivatives by central
+%   differences where Python uses jax.jvp.
 arguments
     fixture_path (1,:) char = fullfile(fileparts(mfilename('fullpath')), 'layered_kernels.json')
 end
@@ -9,7 +11,8 @@ root = fullfile(fileparts(mfilename('fullpath')), '..', '..', '..');
 addpath(fullfile(root, 'HydroPol2D_Functions'));
 F = jsondecode(fileread(fixture_path));
 names = {}; errors = [];
-    function check(name, actual, expected)
+    function check(name, actual, expected, tolerance)
+        if nargin < 4, tolerance = 1e-10; end
         a = double(actual); e = double(expected);
         if ~isequal(size(a), size(e))
             error('HydroPol2D:LayeredParity', '%s: size %s vs %s', name, mat2str(size(a)), mat2str(size(e)));
@@ -21,7 +24,7 @@ names = {}; errors = [];
         err = max(diff(:))/scale;
         if isempty(err), err = 0; end
         names{end+1, 1} = name; errors(end+1, 1) = err; %#ok<AGROW>
-        if ~(err < 1e-10)
+        if ~(err < tolerance)
             error('HydroPol2D:LayeredParity', '%s differs from Python: %.3e', name, err);
         end
     end
@@ -73,9 +76,16 @@ for i = 1:numel(F.drain_cascade)
 end
 for i = 1:numel(F.water_table_flux)
     D = F.water_table_flux(i);
-    [w, recharge, capillary] = hp2d_water_table_flux(column, D.head_m, D.water_mm, D.dt_s);
+    [w, recharge, capillary] = hp2d_water_table_flux(column, D.head_m, D.water_mm, D.dt_s, [], false);
     check('flux.water', w, D.out_water_mm); check('flux.recharge', recharge, D.recharge_mm);
     check('flux.capillary', capillary, D.capillary_rise_mm);
+    if isfield(D, 'implicit_out_water_mm')
+        % Python's jax.jvp derivatives vs central differences here.
+        [w, recharge, capillary] = hp2d_water_table_flux(column, D.head_m, D.water_mm, D.dt_s, [], true);
+        check('flux_implicit.water', w, D.implicit_out_water_mm, 1e-8);
+        check('flux_implicit.recharge', recharge, D.implicit_recharge_mm, 1e-8);
+        check('flux_implicit.capillary', capillary, D.implicit_capillary_rise_mm, 1e-8);
+    end
 end
 S = F.initial_slot_water;
 check('initial_water', hp2d_initial_slot_water(column, S.head_m, S.soil_theta_initial), S.out_water_mm);

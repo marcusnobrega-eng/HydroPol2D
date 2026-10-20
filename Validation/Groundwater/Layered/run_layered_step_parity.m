@@ -3,7 +3,7 @@ function Summary = run_layered_step_parity(fixture_path)
 %   The fixture is written by HydroPol2D-Python tools/export_layered_step_fixture.py from
 %   core.layered_vertical.advance_layered_subsurface. Each step applies
 %   hp2d_layered_vertical_step, the water-table update and the exfiltration bookkeeping
-%   of Layered_Subsurface_Module, and must match Python within 1e-10 relative.
+%   of Layered_Subsurface_Module, and must match Python within 1e-8 relative.
 arguments
     fixture_path (1,:) char = fullfile(fileparts(mfilename('fullpath')), 'layered_steps.json')
 end
@@ -11,12 +11,15 @@ root = fullfile(fileparts(mfilename('fullpath')), '..', '..', '..');
 addpath(fullfile(root, 'HydroPol2D_Functions'));
 F = jsondecode(fileread(fixture_path));
 names = {}; errors = [];
+% 1e-8, not 1e-10: the implicit water-table flux takes its derivatives by central
+% differences here and by jax.jvp in Python.
+tolerance = 1e-8;
     function check(name, actual, expected)
         a = double(actual(:)); e = double(expected(:));
         scale = max(1, max(abs(e)));
         err = max(abs(a - e))/scale;
         names{end+1, 1} = name; errors(end+1, 1) = err; %#ok<AGROW>
-        if ~(err < 1e-10)
+        if ~(err < tolerance)
             error('HydroPol2D:LayeredStepParity', '%s differs from Python: %.3e', name, err);
         end
     end
@@ -31,7 +34,9 @@ for s = 1:numel(scenarios)
         'root_depth_m', Pj.root_depth_m, 'ksat_near_surface_mm_h', Pj.ksat_near_surface_mm_h, ...
         'l_vg', Pj.l_vg, 'ltop_m', Pj.ltop_m, 'dh_max_m', Pj.dh_max_m, ...
         'ksurf_weight', Pj.ksurf_weight, 'drainage_substeps', Pj.drainage_substeps, ...
-        'infiltration', true, 'evapotranspiration', true, 'groundwater', true);
+        'infiltration', true, 'evapotranspiration', true, 'groundwater', true, ...
+        'implicit_water_table_flux', ~isfield(Pj, 'implicit_water_table_flux') || ...
+        logical(Pj.implicit_water_table_flux));
     if isempty(C.feddes)
         P.feddes = [];
     else

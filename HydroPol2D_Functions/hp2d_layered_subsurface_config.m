@@ -9,6 +9,8 @@ function [cfg, flags] = hp2d_layered_subsurface_config(flags)
 %   the fallbacks: DTB raster / Soil_Depth, ksat_gw, and the retention-curve Sy.
 %   soil_ / regolith_lateral_conductivity_multiplier scale the lateral K of the soil slots
 %   (Ksat x anisotropy) and of the deep slots (rock Kh); the recession calibration fits them.
+%   flag_implicit_water_table_flux (Flags row, default 1; HYDROPOL_IMPLICIT_WATER_TABLE_FLUX
+%   0|1 wins) takes the Darcy flux at the water table implicitly (hp2d_water_table_flux).
 defaults = { ...
     'subsurface_soil_base_depth_m', 2.0; 'subsurface_depth_to_bedrock_m', []; ...
     'subsurface_max_depth_m', 50.0; 'subsurface_deep_first_thickness_m', 0.25; ...
@@ -54,9 +56,22 @@ feddes_text = strtrim(getenv('HYDROPOL_ENABLE_FEDDES'));
 if ~isempty(feddes_text)
     feddes_on = strcmp(feddes_text, '1');
 end
+implicit_on = true;
+if isfield(flags, 'flag_implicit_water_table_flux') && ~isempty(flags.flag_implicit_water_table_flux) ...
+        && isfinite(double(flags.flag_implicit_water_table_flux))
+    implicit_on = double(flags.flag_implicit_water_table_flux) ~= 0;
+end
+implicit_text = strtrim(getenv('HYDROPOL_IMPLICIT_WATER_TABLE_FLUX'));
+if ~isempty(implicit_text)
+    assert(any(strcmp(implicit_text, {'0', '1'})), 'HydroPol2D:Subsurface', ...
+        'HYDROPOL_IMPLICIT_WATER_TABLE_FLUX must be 0 or 1.');
+    implicit_on = strcmp(implicit_text, '1');
+end
 flags.flag_layered_subsurface = double(layered);
 flags.flag_feddes = double(feddes_on);
+flags.flag_implicit_water_table_flux = double(implicit_on);
 cfg.layered = layered;
+cfg.implicit_water_table_flux = implicit_on;
 
 if cfg.regolith_theta_r >= cfg.regolith_theta_s
     error('HydroPol2D:Subsurface', 'regolith_theta_r must be below regolith_theta_s.');

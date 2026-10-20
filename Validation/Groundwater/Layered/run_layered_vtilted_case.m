@@ -4,14 +4,18 @@ function Result = run_layered_vtilted_case(variant)
 %   (local + Feddes + ET off), 'legacy' (old groundwater scheme), or 'deep' /
 %   'deep_legacy' (deep aquifer on, one subbasin, started from a 0.5 mm/day baseflow),
 %   'deep_empty' (as 'deep', starting empty), 'lateral_scaled' (as 'lateral' with soil and
-%   regolith lateral-conductivity multipliers 2 and 0.5).
+%   regolith lateral-conductivity multipliers 2 and 0.5), 'no_dtb' (as 'local' with DTB_path
+%   empty and a 4.5 m 'DTB (m)' for every class in SOIL_parameters, the last fallback for
+%   the depth to bedrock), 'explicit_flux' (as 'local' with
+%   flag_implicit_water_table_flux = 0), or 'soil_rasters' (as 'local' with ThetaS_path =
+%   0.41 and KsatNearSurface_path = 25 mm/h maps over the SOIL class values).
 %   Copies Examples/VTilted_Excel to tempdir, enables
 %   infiltration, groundwater, capillary rise and the layered scheme in the copy's
 %   Flags sheet (double precision), runs HydroPol2D_V115.m without post-processing and
 %   returns the mass-balance diagnostics and the final layered state.
 arguments
     variant (1,:) char {mustBeMember(variant, {'local', 'lateral', 'feddes', 'legacy', ...
-        'deep', 'deep_legacy', 'deep_empty', 'lateral_scaled'})} = 'local'
+        'deep', 'deep_legacy', 'deep_empty', 'lateral_scaled', 'no_dtb', 'explicit_flux', 'soil_rasters'})} = 'local'
 end
 here = fileparts(mfilename('fullpath'));
 root = fullfile(here, '..', '..', '..');
@@ -21,7 +25,7 @@ copyfile(fullfile(root, 'Examples', 'VTilted_Excel'), work);
 workbook = fullfile(work, 'Input_Data_Sheets', 'General_Data.xlsx');
 % Groundwater runs need DTB_path in Excel mode: point it at a 6 m DTB raster in the
 % temporary copy (keys are added if a workbook lacks them).
-G = readcell(workbook, 'Sheet', 'General_Data');
+G = readcell(workbook, 'Sheet', 'General_Data', 'Range', 'A1:AZ400');
 % A 6 m depth to bedrock gives the column deep (rock) slots below a 1.2 m soil base.
 addpath(fullfile(root, 'third_party', 'topotoolbox_lite'));
 dtb_file = fullfile(work, 'Static', 'DTB_layered.tif');
@@ -31,6 +35,25 @@ GRIDobj2geotiff(D, dtb_file);
 % Numeric layered settings are General_Data keys (the Flags sheet reads only flag_* rows).
 keys = {'DTB_path', dtb_file; 'GW_table_path', ''; 'subsurface_soil_base_depth_m', 1.2};
 deep = startsWith(variant, 'deep');
+if strcmp(variant, 'no_dtb')
+    % No DTB raster and no subsurface_depth_to_bedrock_m: the SOIL sheet's 'DTB (m)'.
+    keys{1, 2} = '';
+    soil_book = fullfile(work, 'Input_Data_Sheets', 'SOIL_parameters.xlsx');
+    S = readcell(soil_book, 'Range', 'A1:Z200');
+    [hr, hc] = find(strcmpi(string(S), 'DTB (m)'), 1);
+    for r = hr + 1:size(S, 1)
+        if isnumeric(S{r, hc}) && isscalar(S{r, hc}), S{r, hc} = 4.5; end
+    end
+    S(cellfun(@(x) isa(x, 'missing'), S)) = {''};
+    writecell(S, soil_book, 'Range', 'A1');
+end
+if strcmp(variant, 'soil_rasters')
+    theta_file = fullfile(work, 'Static', 'ThetaS.tif');
+    ksat_file = fullfile(work, 'Static', 'KsatNearSurface.tif');
+    T = D; T.Z(isfinite(T.Z)) = 0.41; GRIDobj2geotiff(T, theta_file);
+    K = D; K.Z(isfinite(K.Z)) = 25; GRIDobj2geotiff(K, ksat_file);
+    keys = [keys; {'ThetaS_path', theta_file; 'KsatNearSurface_path', ksat_file}];
+end
 if strcmp(variant, 'lateral_scaled')
     keys = [keys; {'soil_lateral_conductivity_multiplier', 2; ...
         'regolith_lateral_conductivity_multiplier', 0.5}];
@@ -58,19 +81,23 @@ for i = 1:size(keys, 1)
     G{r, c + 1} = keys{i, 2};
 end
 G(cellfun(@(x) isa(x, 'missing'), G)) = {''};
-writecell(G, workbook, 'Sheet', 'General_Data');
-C = readcell(workbook, 'Sheet', 'Flags');
+writecell(G, workbook, 'Sheet', 'General_Data', 'Range', 'A1');
+% Read and write the sheet from A1: its data start at B2, and readcell's detected range
+% would shift every flag up and left on write-back, leaving the old last row behind
+% (which then overrode the new value, e.g. flag_feddes).
+C = readcell(workbook, 'Sheet', 'Flags', 'Range', 'A1:Z200');
 settings = {'flag_infiltration', 1; 'flag_groundwater_modeling', 1; 'flag_capillary_rise', 1; ...
     'flag_single', 0; 'flag_GPU', 0; ...
     'flag_layered_subsurface', double(~any(strcmp(variant, {'legacy', 'deep_legacy'}))); ...
     'flag_baseflow', double(any(strcmp(variant, {'lateral', 'lateral_scaled'}))); ...
     'flag_feddes', double(strcmp(variant, 'feddes')); ...
-    'flag_deep_aquifer', double(deep)};
+    'flag_deep_aquifer', double(deep); ...
+    'flag_implicit_water_table_flux', double(~strcmp(variant, 'explicit_flux'))};
 for i = 1:size(settings, 1)
     C = set_flag(C, settings{i, 1}, settings{i, 2});
 end
 C(cellfun(@(x) isa(x, 'missing'), C)) = {''};
-writecell(C, workbook, 'Sheet', 'Flags');
+writecell(C, workbook, 'Sheet', 'Flags', 'Range', 'A1');
 setenv('HYDROPOL_RUN_MODE', 'excel');
 setenv('HYDROPOL_INPUT_EXCEL_FILE', workbook);
 setenv('HYDROPOL_EXPORT_ROOT_DIR', fullfile(work, 'Outputs'));
@@ -88,6 +115,11 @@ Result.n_slots = 0;
 if exist('Subsurface', 'var') && isstruct(Subsurface)
     Result.n_slots = Subsurface.n_slots;
     Result.kh_m_s = double(gather(Subsurface.column.kh_m_s));
+    Result.column_base_depth_m = double(gather(Subsurface.column_base_depth_m));
+    Result.implicit_water_table_flux = Subsurface.implicit_water_table_flux;
+    Result.feddes_on = ~isempty(Subsurface.feddes);
+    Result.slot_theta_s = double(gather(Subsurface.column.theta_s));
+    Result.slot_kv_m_s = double(gather(Subsurface.column.kv_m_s));
     Result.storage_m3 = Wshed_Properties.Resolution^2*sum(hp2d_column_storage_mm(Subsurface.column, ...
         double(gather(BC_States.h_t(:))), double(gather(Subsurface.water_mm))), 'omitnan')/1000;
 end

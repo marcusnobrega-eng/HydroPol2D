@@ -1,7 +1,8 @@
 function [Subsurface, BC_States] = hp2d_prepare_layered_subsurface(cfg, Soil_Properties, LULC_Properties, BC_States, elevation, idx_nan, ParameterRasters, dtb_raster_depth_m, layer_theta)
 %HP2D_PREPARE_LAYERED_SUBSURFACE Build the layered column, bedrock and initial slot water.
 %   Column bottom (m below ground): the DTB raster where it is finite (dtb_raster_depth_m,
-%   [] if none), else cfg.subsurface_depth_to_bedrock_m, else Soil_Depth with a warning;
+%   [] if none), else cfg.subsurface_depth_to_bedrock_m, else Soil_Depth (the SOIL sheet's
+%   'DTB (m)' per class in Excel mode) with a warning;
 %   capped at cfg.subsurface_max_depth_m. Soil base: SoilBaseDepth raster, else the
 %   scalar. Rock parameters: Regolith* rasters where finite, else the scalars; Kh falls
 %   back to ksat_gw and Sy to the retention curve. Same precedence as HydroPol2D-Python.
@@ -39,7 +40,8 @@ elseif ~isempty(cfg.subsurface_depth_to_bedrock_m)
     dtb = cfg.subsurface_depth_to_bedrock_m + zeros(N, 1);
 else
     warning('HydroPol2D:Subsurface', ['Layered subsurface: no DTB raster or ', ...
-        'subsurface_depth_to_bedrock_m, so Soil_Depth is used as the depth to bedrock.']);
+        'subsurface_depth_to_bedrock_m, so Soil_Depth (the SOIL_parameters ''DTB (m)'' of ', ...
+        'each class in Excel mode) is used as the depth to bedrock.']);
     dtb = legacy_depth;
 end
 if isfield(ParameterRasters, 'SpecificYield') && ~isempty(ParameterRasters.SpecificYield)
@@ -133,6 +135,7 @@ Subsurface.valid = valid;
 Subsurface.config = cfg;
 Subsurface.feddes = cfg.feddes;
 Subsurface.drainage_substeps = cfg.subsurface_drainage_substeps;
+Subsurface.implicit_water_table_flux = cfg.implicit_water_table_flux;
 Subsurface.column_base_depth_m = reshape(base, ny, nx);
 Subsurface.soil_base_depth_m = reshape(soil_base, ny, nx);
 Subsurface.column_base_depth_m(idx_nan) = nan;

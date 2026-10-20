@@ -426,6 +426,16 @@ else
     end
     ParameterRasters = load_layered_subsurface_rasters(ParameterRasters, LayeredPaths, ...
         model_folder, runtime_model_root);
+    % Soil-property rasters (General_Data keys ThetaS_path ... SpecificYield_path): finite
+    % cells override the SOIL_parameters class values, as the Builder's maps do in bypass.
+    SoilParameterPaths = struct();
+    for soil_name = soil_parameter_raster_names()
+        soil_path = string(xlgetstr_optional(GD, [soil_name{1} '_path'], ""));
+        soil_path(ismissing(soil_path)) = "";
+        SoilParameterPaths.([soil_name{1} '_path']) = soil_path;
+    end
+    ParameterRasters = load_raster_set(ParameterRasters, SoilParameterPaths, ...
+        soil_parameter_raster_names(), model_folder, runtime_model_root);
 
 end
 
@@ -633,7 +643,11 @@ if use_inputpaths_bypass ~= 1
     RiverWidths_path = xlpath(GD,'RiverWidths_path', flags.flag_subgrid == 1 && flags.flag_river_rasters == 1);
     RiverDepths_path = xlpath(GD,'RiverDepths_path', flags.flag_subgrid == 1 && flags.flag_river_rasters == 1);
 
-    DTB_path = xlpath(GD,'DTB_path', flags.flag_baseflow == 1 || flags.flag_groundwater_modeling == 1);
+    % Layered subsurface: DTB_path is optional (then subsurface_depth_to_bedrock_m, else the
+    % SOIL_parameters 'DTB (m)' of each class); legacy groundwater still requires it.
+    layered_excel = (isfield(flags, 'flag_layered_subsurface') && double(flags.flag_layered_subsurface) == 1) || ...
+        strcmpi(strtrim(getenv('HYDROPOL_SUBSURFACE_SCHEME')), 'layered');
+    DTB_path = xlpath(GD,'DTB_path', (flags.flag_baseflow == 1 || flags.flag_groundwater_modeling == 1) && ~layered_excel);
 
     B1_path = xlpath(GD,'B1_path', flags.flag_waterquality == 1 && flags.flag_WQ_Rasters == 1);
     B2_path = xlpath(GD,'B2_path', flags.flag_waterquality == 1 && flags.flag_WQ_Rasters == 1);
@@ -3218,8 +3232,19 @@ try
 end
 
 if isempty(DTB_path)
-    % 1 m soil. (elevation./elevation gave NaN where the elevation is exactly 0.)
-    Soil_Properties.Soil_Depth = ones(size(elevation));
+    layered_depth = (isfield(flags, 'flag_layered_subsurface') && double(flags.flag_layered_subsurface) == 1) || ...
+        strcmpi(strtrim(getenv('HYDROPOL_SUBSURFACE_SCHEME')), 'layered');
+    class_depth = Soil_Properties.Soil_Depth;
+    if layered_depth && isequal(size(class_depth), size(elevation))
+        % Layered subsurface without a DTB raster: the SOIL_parameters 'DTB (m)' of each
+        % class is the depth to bedrock, unless subsurface_depth_to_bedrock_m is set (the
+        % same order as HydroPol2D-Python). Cells without a class value take 1 m.
+        Soil_Properties.Soil_Depth = double(class_depth);
+        Soil_Properties.Soil_Depth(~idx_nan & ~isfinite(Soil_Properties.Soil_Depth)) = 1;
+    else
+        % 1 m soil. (elevation./elevation gave NaN where the elevation is exactly 0.)
+        Soil_Properties.Soil_Depth = ones(size(elevation));
+    end
     Soil_Properties.Soil_Depth(idx_nan) = nan;
 end
 Soil_Depth_from_DTB = [];
@@ -5654,9 +5679,22 @@ function names = layered_subsurface_raster_names()
         'RegolithNVG', 'RegolithKsatV', 'RegolithKsatH', 'RegolithSpecificYield'};
 end
 
+function names = soil_parameter_raster_names()
+%SOIL_PARAMETER_RASTER_NAMES Soil-property maps that override the SOIL class values.
+    names = {'ThetaS', 'ThetaR', 'AlphaVG', 'NVG', 'KsatNearSurface', 'KsatRootZone', ...
+        'KsatTransmission', 'GroundwaterKsat', 'SpecificYield'};
+end
+
 function rasters = load_layered_subsurface_rasters(rasters, paths, workbook_path, model_root)
 %LOAD_LAYERED_SUBSURFACE_RASTERS Optional SoilBaseDepth and Regolith* rasters.
-    for name = layered_subsurface_raster_names()
+    rasters = load_raster_set(rasters, paths, layered_subsurface_raster_names(), ...
+        workbook_path, model_root);
+end
+
+function rasters = load_raster_set(rasters, paths, names, workbook_path, model_root)
+%LOAD_RASTER_SET Load the optional rasters <name>_path of paths into rasters.<name>.
+%   Empty paths are skipped; paths relative to the workbook are resolved first.
+    for name = names
         field = [name{1} '_path'];
         if ~isfield(paths, field) || isempty(paths.(field)) || any(ismissing(string(paths.(field))))
             continue
@@ -5670,6 +5708,8 @@ function rasters = load_layered_subsurface_rasters(rasters, paths, workbook_path
         end
         if isfile(path)
             rasters.(name{1}) = GRIDobj(char(path));
+        else
+            warning('HydroPol2D:Inputs', '%s = %s is not a file; it is ignored.', field, path);
         end
     end
 end

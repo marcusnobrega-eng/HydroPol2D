@@ -281,13 +281,17 @@ with a layered soil-over-regolith column, the same physics as HydroPol2D-Python
   slots (0.25 m, doubling, at most 4 m) down to the depth to bedrock, capped at 50 m;
 - one water table per cell splitting the slot it is in, with Noah-MP MMF rules (a rise
   fills theta_s - theta; a fall leaves field capacity), gravity drainage between slots, a
-  Darcy flux at the table (recharge or capillary rise), layered transmissivity for lateral
-  flow, and the existing deep linear reservoir below;
+  Darcy flux at the table (recharge, or capillary rise that refills only up to field
+  capacity), layered transmissivity for lateral flow, and the existing deep linear
+  reservoir below;
 - a rising water table no longer pushes soil water to the surface.
 
 `flag_feddes = 1` adds Feddes et al. (1978) root-water stress to ET in either scheme.
 Both default to 0 and are rows of the `Flags` sheet (column E, rows 38-39 in the distributed
-workbooks). The numeric settings are `General_Data` keys, in the blocks "Layered Subsurface"
+workbooks). `flag_implicit_water_table_flux` (row 40, default 1) takes the Darcy flux at the
+table implicitly (one linearised backward-Euler step per cell, as HydroPol2D-Python), which
+stays accurate at long steps over a shallow table; 0 is the explicit flux
+(`HYDROPOL_IMPLICIT_WATER_TABLE_FLUX` overrides it). The numeric settings are `General_Data` keys, in the blocks "Layered Subsurface"
 (D10:F28) and "Feddes Root-Water Stress" (D30:F36); in bypass mode they are fields of
 `InputData_Bypass.flags`. An empty value keeps the HydroPol2D-Python default or fallback: `subsurface_soil_base_depth_m` (2), `subsurface_depth_to_bedrock_m`,
 `subsurface_max_depth_m` (50), `subsurface_deep_first_thickness_m` (0.25), `subsurface_deep_growth_ratio` (2),
@@ -308,7 +312,14 @@ Optional rasters (`<Name>_path` keys in `General_Data`, T21:T28, or `InputPaths`
 `SoilBaseDepth`, `RegolithThetaS`, `RegolithThetaR`, `RegolithAlphaVG`, `RegolithNVG`,
 `RegolithKsatV`, `RegolithKsatH`, `RegolithSpecificYield`. Finite raster cells win; the
 scalar fills the rest. The column bottom is the DTB raster, then `subsurface_depth_to_bedrock_m`,
-then `Soil_Depth` (with a warning). The standalone Voronoi/quadtree runner reads
+then `Soil_Depth` (with a warning), which in Excel mode is the `DTB (m)` of each soil class in
+`SOIL_parameters.xlsx`; so `DTB_path` is optional in layered mode (legacy groundwater still
+requires it).
+
+Soil properties can also come from rasters in Excel mode (T30:T38, as the Case Builder's maps do
+in bypass mode): `ThetaS`, `ThetaR`, `AlphaVG`, `NVG`, `KsatNearSurface`, `KsatRootZone`,
+`KsatTransmission`, `GroundwaterKsat` and `SpecificYield` (legacy scheme only). Finite cells
+override the `SOIL_parameters` class values; nodata keeps them. The standalone Voronoi/quadtree runner reads
 `config.layered_subsurface` (or the environment). Tests: `Validation/Groundwater/Layered`.
 
 ### Deep-aquifer starting state

@@ -65,7 +65,8 @@ water(:, 1:3) = water3;
 soil_et = actual/1000;
 
 water = hp2d_drain_cascade(column, head_hru, water, dt_s, L.drainage_substeps);
-[water, recharge_mm, capillary_mm] = hp2d_water_table_flux(column, head_hru, water, dt_s);
+implicit = ~isfield(L, 'implicit_water_table_flux') || L.implicit_water_table_flux;
+[water, recharge_mm, capillary_mm] = hp2d_water_table_flux(column, head_hru, water, dt_s, [], implicit);
 recharge = recharge_mm/1000;
 capillary = capillary_mm/1000;
 deep_drainage = 0;
