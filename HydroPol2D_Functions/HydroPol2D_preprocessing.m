@@ -836,13 +836,33 @@ if flags.flag_obs_gauges == 1
                    'created in input_data_bypass_script.']);
         end
     else
-        Obs = read_block_table(GD, 'Gauge', {'Gauge','Easting (m)','Northing (m)','Label Name'});
+        Obs = read_block_table(GD, 'Gauge', {'Gauge','Easting (m)','Northing (m)','Label Name'}, ...
+            {'Cross-section width (cells)', 'Downstream direction'});
     end
 
     obs_gauges = Obs.("Gauge");
     gauges.num_obs_gauges = sum(~isnan(obs_gauges));
 
     Obs = Obs(1:gauges.num_obs_gauges,:);
+
+    % Discharge cross-section of each gauge (hp2d_gauge_cross_sections): width in cells
+    % (default 5, centred on the gauge cell) and downstream direction (auto, N, S, E, W).
+    gauges.section_width_cells = 5*ones(gauges.num_obs_gauges, 1);
+    gauges.section_direction = repmat({'auto'}, gauges.num_obs_gauges, 1);
+    if ismember('Cross-section width (cells)', Obs.Properties.VariableNames)
+        width_col = Obs.('Cross-section width (cells)');
+        if iscell(width_col)
+            width_col = cellfun(@(v) str2double(string(v)), width_col);
+        end
+        width_col = double(width_col);
+        given = isfinite(width_col);
+        gauges.section_width_cells(given) = width_col(given);
+    end
+    if ismember('Downstream direction', Obs.Properties.VariableNames)
+        dir_col = string(Obs.('Downstream direction'));
+        dir_col(ismissing(dir_col) | strlength(strtrim(dir_col)) == 0) = "auto";
+        gauges.section_direction = cellstr(dir_col);
+    end
 
     % -------------------------------------------------------------------------
     % Read observed gauge coordinates with flexible column-name handling
@@ -4641,7 +4661,8 @@ clear spatial_domain
 
 %%
 
-function T = read_block_table(GD, blockName, requiredHeaders)
+function T = read_block_table(GD, blockName, requiredHeaders, optionalHeaders)
+%READ_BLOCK_TABLE Rows under a labelled header row; optional columns are read when present.
 
     % Find the anchor cell without converting the entire worksheet
     [r0,c0] = find_cell(GD, blockName);
@@ -4674,7 +4695,9 @@ function T = read_block_table(GD, blockName, requiredHeaders)
     rr = hr + 1;
     while rr <= size(GD,1)
         firstCell = GD{rr,c0};
-        if (isstring(firstCell) || ischar(firstCell)) && strlength(strtrim(string(firstCell))) == 0
+        if isa(firstCell, 'missing')
+            break   % an empty spreadsheet cell (readcell returns <missing>) ends the table
+        elseif (isstring(firstCell) || ischar(firstCell)) && strlength(strtrim(string(firstCell))) == 0
             break
         elseif isempty(firstCell) || (isnumeric(firstCell) && isnan(firstCell))
             break
@@ -4686,6 +4709,19 @@ function T = read_block_table(GD, blockName, requiredHeaders)
 
     T = cell2table(data, 'VariableNames', matlab.lang.makeValidName(requiredHeaders));
     T.Properties.VariableNames = requiredHeaders;
+
+    % Optional columns anywhere in the header row (empty cells stay missing).
+    if nargin >= 4
+        headerRow = string(GD(hr, :));
+        headerRow(ismissing(headerRow)) = "";
+        for k = 1:numel(optionalHeaders)
+            col = find(strcmp(strtrim(headerRow), optionalHeaders{k}), 1, 'first');
+            if isempty(col) || height(T) == 0
+                continue
+            end
+            T.(optionalHeaders{k}) = GD(hr + (1:height(T)), col);
+        end
+    end
 end
 
 function [rr,cc] = find_cell(GD, key)

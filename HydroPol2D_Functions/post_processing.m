@@ -973,8 +973,26 @@ if flags.flag_obs_gauges == 1
         gather(gauges.wse_cell), ...
         gather(gauges.depth_cell), ...
         'VariableNames', {'Time [min] or Date', 'Flow Discharge (m3/s)', 'WSE (m)', 'Water Depth (m)'});
+    if isfield(gauges, 'section_discharge') && ~isempty(gauges.section_discharge)
+        % Signed discharge across each gauge's cross-section, positive downstream.
+        Rating_Curve_Specific_Cell.('Cross-section Discharge (m3/s)') = gauges.section_discharge;
+    end
 
     writetable(Rating_Curve_Specific_Cell, fullfile(Dirs.Tables, 'Rating_Curve_Gauges.csv'));
+    if isfield(gauges, 'sections') && ~isempty(gauges.sections)
+        % Which cells each cross-section uses, so the line can be checked on a map.
+        section_rows = {};
+        for i = 1:numel(gauges.sections)
+            sec = gauges.sections(i);
+            for j = 1:numel(sec.rows)
+                section_rows(end + 1, :) = {i, char(string(gauges.labels_observed_string(i))), sec.downstream, ...
+                    sec.width, sec.auto, sec.rows(j), sec.cols(j)}; %#ok<AGROW>
+            end
+        end
+        writetable(cell2table(section_rows, 'VariableNames', {'Gauge', 'Label', ...
+            'Downstream direction', 'Width (cells)', 'Direction from terrain', 'Grid row', 'Grid column'}), ...
+            fullfile(Dirs.Tables, 'Gauge_Cross_Sections.csv'));
+    end
 end
 
 %% Hydrographs – Specific Cell
@@ -1012,6 +1030,19 @@ if flags.flag_obs_gauges == 1
             set(gca, 'YColor', pallete.blue_colors(1,:));
             plot(gather(running_control.time_hydrograph), gather(gauges.hydrograph_cell(:,i)), ...
                 'LineWidth', 1.5, 'Color', pallete.blue_colors(2,:));
+            if isfield(gauges, 'section_discharge') && size(gauges.section_discharge, 2) >= i
+                % Discharge across the gauge cross-section (hp2d_gauge_section_discharge)
+                hold on
+                plot(gather(running_control.time_hydrograph), gauges.section_discharge(:,i), ...
+                    'LineWidth', 1.5, 'Color', pallete.blue_colors(1,:), 'LineStyle', '-.');
+                hold off
+                % Headroom so a steady peak does not sit on the frame.
+                q_all = double(gather([gauges.hydrograph_cell(:,i); gauges.section_discharge(:,i)]));
+                q_all = q_all(isfinite(q_all));
+                if ~isempty(q_all) && max(q_all) > min(min(q_all), 0)
+                    ylim([min(min(q_all), 0), 1.1*max(max(q_all), 0)]);
+                end
+            end
             ylabel('$Q~(\mathrm{m^3/s})$', 'Interpreter', 'latex');
 
             % Right axis: Depth

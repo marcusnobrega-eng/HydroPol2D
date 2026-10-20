@@ -1214,6 +1214,13 @@ if isfield(InputPaths,'Observed_Gauges_CSV') && isfile(InputPaths.Observed_Gauge
     Obs.("Easting (m)") = T_obs.Easting_m;
     Obs.("Northing (m)") = T_obs.Northing_m;
     Obs.("Label Name") = string(T_obs.Label_Name);
+    % Optional discharge cross-section per gauge (default 5 cells, auto direction).
+    if ismember('Cross_section_width_cells', T_obs.Properties.VariableNames)
+        Obs.("Cross-section width (cells)") = T_obs.Cross_section_width_cells;
+    end
+    if ismember('Downstream_direction', T_obs.Properties.VariableNames)
+        Obs.("Downstream direction") = string(T_obs.Downstream_direction);
+    end
 
 else
     Obs.("Gauge") = zeros(0,1);

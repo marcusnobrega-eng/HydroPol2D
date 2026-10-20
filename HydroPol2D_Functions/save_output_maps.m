@@ -442,6 +442,22 @@ if flags.flag_automatic_calibration ~= 1
                 gauges.hydrograph_cell(n_hydro_records,n_obs_gauges_ts) = 0;
             end
 
+            % Discharge across each gauge's cross-section (built once, on the first record).
+            if ~isfield(gauges,'sections') || isempty(gauges.sections)
+                section_width = 5*ones(n_obs_gauges_ts,1);
+                if isfield(gauges,'section_width_cells'), section_width = gauges.section_width_cells; end
+                section_direction = repmat({'auto'},n_obs_gauges_ts,1);
+                if isfield(gauges,'section_direction'), section_direction = gauges.section_direction; end
+                gauges.sections = hp2d_gauge_cross_sections(double(gather(gauges.northing_obs_gauges(:))), ...
+                    double(gather(gauges.easting_obs_gauges(:))), section_width, section_direction, ...
+                    double(gather(Elevation_Properties.elevation_cell)), ~gather(idx_nan));
+            end
+            if ~isfield(gauges,'section_discharge') || isempty(gauges.section_discharge)
+                gauges.section_discharge = zeros(n_hydro_records,n_obs_gauges_ts);
+            elseif size(gauges.section_discharge,1) < n_hydro_records
+                gauges.section_discharge(n_hydro_records,n_obs_gauges_ts) = 0;
+            end
+
             if flags.flag_waterquality == 1
                 if ~isfield(WQ_States,'pollutograph_cell') || isempty(WQ_States.pollutograph_cell)
                     if isfield(WQ_States,'P_conc') && isnumeric(WQ_States.P_conc)
@@ -551,6 +567,8 @@ if flags.flag_automatic_calibration ~= 1
                 gauges.depth_cell(1,i)     = depths.d_t(gauges.y_cell,gauges.x_cell)/1000;
                 gauges.hydrograph_cell(1,i)= CA_States.I_tot_end_cell(gauges.y_cell,gauges.x_cell)/(running_control.time_calculation_routing);
             end
+            gauges.section_discharge(1,:) = hp2d_gauge_section_discharge(gauges.sections, ...
+                gauge_section_outflows(flow_rate, flags), Wshed_Properties.Resolution^2)';
         end
 
     % ---------------------------------------------------------------------
@@ -655,6 +673,8 @@ if flags.flag_automatic_calibration ~= 1
                 gauges.depth_cell(t_store,i)      = depths.d_t(gauges.y_cell,gauges.x_cell)/1000;
                 gauges.hydrograph_cell(t_store,i) = CA_States.I_tot_end_cell(gauges.y_cell,gauges.x_cell)/(running_control.time_calculation_routing);
             end
+            gauges.section_discharge(t_store,:) = hp2d_gauge_section_discharge(gauges.sections, ...
+                gauge_section_outflows(flow_rate, flags), Wshed_Properties.Resolution^2)';
         end
 
         if flags.flag_waterquality == 1

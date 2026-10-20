@@ -8,14 +8,16 @@ function Result = run_layered_vtilted_case(variant)
 %   empty and a 4.5 m 'DTB (m)' for every class in SOIL_parameters, the last fallback for
 %   the depth to bedrock), 'explicit_flux' (as 'local' with
 %   flag_implicit_water_table_flux = 0), or 'soil_rasters' (as 'local' with ThetaS_path =
-%   0.41 and KsatNearSurface_path = 25 mm/h maps over the SOIL class values).
+%   0.41 and KsatNearSurface_path = 25 mm/h maps over the SOIL class values), or 'gauges'
+%   (surface only, with four gauges and their discharge cross-sections; see
+%   Validation/Gauges/run_gauge_cross_section_checks.m).
 %   Copies Examples/VTilted_Excel to tempdir, enables
 %   infiltration, groundwater, capillary rise and the layered scheme in the copy's
 %   Flags sheet (double precision), runs HydroPol2D_V115.m without post-processing and
 %   returns the mass-balance diagnostics and the final layered state.
 arguments
     variant (1,:) char {mustBeMember(variant, {'local', 'lateral', 'feddes', 'legacy', ...
-        'deep', 'deep_legacy', 'deep_empty', 'lateral_scaled', 'no_dtb', 'explicit_flux', 'soil_rasters'})} = 'local'
+        'deep', 'deep_legacy', 'deep_empty', 'lateral_scaled', 'no_dtb', 'explicit_flux', 'soil_rasters', 'gauges'})} = 'local'
 end
 here = fileparts(mfilename('fullpath'));
 root = fullfile(here, '..', '..', '..');
@@ -80,19 +82,41 @@ for i = 1:size(keys, 1)
     end
     G{r, c + 1} = keys{i, 2};
 end
+if strcmp(variant, 'gauges')
+    % Channel (column 21) flows south to the outlet (row 31). Cell centres in the DEM CRS:
+    % x = (col - 0.5)*20, y = 620 - (row - 0.5)*20.
+    % The old layout has the Design Storms block right of the gauge table, so the two
+    % optional columns go in free columns of the same rows (the reader finds them
+    % anywhere in the gauge header row).
+    [gr, gc] = find(strcmpi(string(G), 'Gauge'), 1);
+    table_rows = {'Gauge', 'Easting (m)', 'Northing (m)', 'Label Name';
+        1, 410, 310, 'mid valley, full width';
+        2, 410, 30, 'above the outlet, full width';
+        3, 410, 310, 'mid valley, channel only';
+        4, 410, 310, 'mid valley, even width'};
+    section_cols = {'Cross-section width (cells)', 'Downstream direction';
+        41, 'auto'; 41, 'auto'; 5, 'auto'; 4, 'S'};
+    G(gr:end, gc:gc + 3) = {''};   % the example's 351 old gauges below must go too
+    G(gr:gr + size(table_rows, 1) - 1, gc:gc + 3) = table_rows;
+    G(gr:gr + size(section_cols, 1) - 1, 44:45) = section_cols;
+end
 G(cellfun(@(x) isa(x, 'missing'), G)) = {''};
 writecell(G, workbook, 'Sheet', 'General_Data', 'Range', 'A1');
 % Read and write the sheet from A1: its data start at B2, and readcell's detected range
 % would shift every flag up and left on write-back, leaving the old last row behind
 % (which then overrode the new value, e.g. flag_feddes).
 C = readcell(workbook, 'Sheet', 'Flags', 'Range', 'A1:Z200');
-settings = {'flag_infiltration', 1; 'flag_groundwater_modeling', 1; 'flag_capillary_rise', 1; ...
-    'flag_single', 0; 'flag_GPU', 0; ...
-    'flag_layered_subsurface', double(~any(strcmp(variant, {'legacy', 'deep_legacy'}))); ...
+% The gauge run is surface-only: the case's rain would otherwise all infiltrate and the
+% outlet would carry nothing to compare the sections against.
+subsurface = double(~strcmp(variant, 'gauges'));
+settings = {'flag_infiltration', subsurface; 'flag_groundwater_modeling', subsurface; ...
+    'flag_capillary_rise', subsurface; 'flag_single', 0; 'flag_GPU', 0; ...
+    'flag_layered_subsurface', subsurface*double(~any(strcmp(variant, {'legacy', 'deep_legacy'}))); ...
     'flag_baseflow', double(any(strcmp(variant, {'lateral', 'lateral_scaled'}))); ...
     'flag_feddes', double(strcmp(variant, 'feddes')); ...
     'flag_deep_aquifer', double(deep); ...
-    'flag_implicit_water_table_flux', double(~strcmp(variant, 'explicit_flux'))};
+    'flag_implicit_water_table_flux', double(~strcmp(variant, 'explicit_flux')); ...
+    'flag_obs_gauges', double(strcmp(variant, 'gauges'))};
 for i = 1:size(settings, 1)
     C = set_flag(C, settings{i, 1}, settings{i, 2});
 end
@@ -123,18 +147,28 @@ if exist('Subsurface', 'var') && isstruct(Subsurface)
     Result.storage_m3 = Wshed_Properties.Resolution^2*sum(hp2d_column_storage_mm(Subsurface.column, ...
         double(gather(BC_States.h_t(:))), double(gather(Subsurface.water_mm))), 'omitnan')/1000;
 end
-Result.total_recharge_m3 = GW_States.total_recharge_m3;
-Result.total_capillary_m3 = GW_States.total_capillary_m3;
-Result.total_exfiltration_m3 = GW_States.total_exfiltration_m3;
+Result.total_recharge_m3 = 0;   % surface-only runs have no ledger
+if exist('GW_States', 'var') && isfield(GW_States, 'total_recharge_m3'), Result.total_recharge_m3 = GW_States.total_recharge_m3; end
+if exist('gauges', 'var') && isstruct(gauges) && isfield(gauges, 'section_discharge')
+    Result.gauge_sections = gauges.sections;
+    Result.gauge_section_discharge_m3_s = gauges.section_discharge;
+    Result.gauge_cell_outflow_m3_s = double(gather(gauges.hydrograph_cell));
+    Result.time_hydrograph_min = double(gather(running_control.time_hydrograph));
+    Result.outlet_hydrograph_m3_s = double(gather(outlet_states.outlet_hydrograph));
+end
+Result.total_capillary_m3 = 0;   % surface-only runs have no ledger
+if exist('GW_States', 'var') && isfield(GW_States, 'total_capillary_m3'), Result.total_capillary_m3 = GW_States.total_capillary_m3; end
+Result.total_exfiltration_m3 = 0;   % surface-only runs have no ledger
+if exist('GW_States', 'var') && isfield(GW_States, 'total_exfiltration_m3'), Result.total_exfiltration_m3 = GW_States.total_exfiltration_m3; end
 Result.mass_balance_history = mass_balance_history;
 Result.deep_initial_storage_m3 = [];
 Result.deep_final_storage_m3 = [];
-if isfield(BC_States, 'deep_aquifer_initial_storage_m3')
+if exist('BC_States', 'var') && isfield(BC_States, 'deep_aquifer_initial_storage_m3')
     Result.deep_initial_storage_m3 = BC_States.deep_aquifer_initial_storage_m3;
     Result.deep_active_area_m2 = sum(isfinite(BC_States.deep_aquifer_subbasin_id(:)) & ...
         BC_States.deep_aquifer_subbasin_id(:) > 0)*Wshed_Properties.cell_area;
 end
-if isfield(GW_States, 'deep_aquifer_storage_m3')
+if exist('GW_States', 'var') && isfield(GW_States, 'deep_aquifer_storage_m3')
     Result.deep_final_storage_m3 = GW_States.deep_aquifer_storage_m3;
 end
 save(result_file, 'Result');

@@ -342,6 +342,27 @@ Empty: the reservoirs start empty. `deep_recharge_fraction` and `deep_aquifer_ta
 read in Excel mode too. `Validation/Groundwater/run_groundwater_release_checks.m` runs every
 groundwater, layered, Feddes and deep-aquifer check, including full Excel-mode V-tilted runs.
 
+### Gauge discharge cross-sections
+
+With `flag_obs_gauges = 1`, each gauge records depth and water level at its own cell and
+discharge across a cross-section: a line of cells across the flow, centred on the gauge cell.
+Two optional columns of the `General_Data` gauge table set it (anywhere in the table's header
+row; bypass CSV: `Cross_section_width_cells`, `Downstream_direction`):
+
+- `Cross-section width (cells)`: empty is 5. An even width is raised by 1 so the gauge stays
+  in the middle. Cells outside the grid or the domain are dropped.
+- `Downstream direction`: `auto` (default; downhill from the mean terrain gradient over a
+  width x width window), or `N`, `S`, `E`, `W` where the terrain is flat. N/S gives an
+  east-west line, E/W a north-south one.
+
+The discharge is the signed sum over the line's downstream faces, the same rule as the
+HydroPol2D-Python routing gauges; D8 diagonals that cross the line count too. It handles both
+face conventions of the routing solvers: one-sided outflows (CA, D8 inertial) and signed face
+fluxes stored twice (D4 inertial, diffusive, kinematic, full momentum). Outputs: a dash-dot
+line on each gauge hydrograph, the column `Cross-section Discharge (m3/s)` in
+`Rating_Curve_Gauges.csv`, and `Gauge_Cross_Sections.csv` (grid row and column of each section cell). Tests:
+`Validation/Gauges/run_gauge_cross_section_checks.m`.
+
 ---
 
 ##  Performance & Scaling
