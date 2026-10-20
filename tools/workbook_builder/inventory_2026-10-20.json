@@ -1,0 +1,1199 @@
+{
+ "settings": {
+  "a": {
+   "cell": "AF6",
+   "value": 0.193,
+   "unit": null,
+   "note": "Configuration cell. a is the dimensionless return-period exponent in the local IDF relation. Use coefficients fitted for the study location.",
+   "reader": "[('xlnum', '')]"
+  },
+  "ADD": {
+   "cell": "M3",
+   "value": 10,
+   "unit": "Days",
+   "note": "Configuration cell. ADD is antecedent dry days. When no initial-buildup raster is used, it enters the exponential buildup initialization B0 = C1 [1 - exp(-C2 ADD)].",
+   "reader": "[('xlnum', '')]"
+  },
+  "Albedo_path": {
+   "cell": "T9",
+   "value": "/oak/stanford/groups/gorelick/HydroPol2D/Case_Studies/India_Full/Input_Rasters/Albedo.tif",
+   "unit": null,
+   "note": "Configuration cell. Albedo_path is an optional raster of surface albedo from 0 to 1. It is used only when spatial albedo is enabled for the energy-balance evapotranspiration calculation.",
+   "reader": "[('xlgetstr', '\"\"'), ('xlpath', 'flags.flag_spatial_albedo == 1')]"
+  },
+  "alfa_1": {
+   "cell": "J3",
+   "value": 0.1097,
+   "unit": null,
+   "note": "Configuration cell. alfa_1 is the coefficient in the derived channel-depth relation H = alfa_1 A^alfa_2, where A is contributing area in km2. It is used only when channel geometry is derived rather than supplied as rasters.",
+   "reader": "[('xlnum', '')]"
+  },
+  "alfa_2": {
+   "cell": "J4",
+   "value": 0.3856,
+   "unit": null,
+   "note": "Configuration cell. alfa_2 is the exponent in the derived channel-depth relation H = alfa_1 A^alfa_2. Use a value calibrated or justified for the target river network.",
+   "reader": "[('xlnum', '')]"
+  },
+  "alfa_max": {
+   "cell": "A8",
+   "value": 0.5,
+   "unit": null,
+   "note": "Configuration cell. alfa_max is the upper adaptive-timestep coefficient retained for compatible time-control configurations. Keep it positive and no smaller than alfa_min; current routing stability calculations use alfa_min for the conservative candidate step.",
+   "reader": "[('xlnum', '')]"
+  },
+  "alfa_min": {
+   "cell": "A7",
+   "value": 0.5,
+   "unit": null,
+   "note": "Configuration cell. alfa_min is the lower Courant safety coefficient used when HydroPol2D calculates a stable surface-routing timestep. Smaller values are more conservative and usually increase runtime.",
+   "reader": "[('xlnum', '')]"
+  },
+  "AlphaVG_path": {
+   "cell": "T32",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. AlphaVG_path is an optional GeoTIFF of the soil van Genuchten alpha in 1/m. It overrides the SOIL_parameters value of each class where finite (nodata keeps the class value).",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "b": {
+   "cell": "AF7",
+   "value": 7.662,
+   "unit": null,
+   "note": "Configuration cell. b is the duration offset in the local IDF relation, expressed in minutes when duration is entered in minutes.",
+   "reader": "[('xlnum', '')]"
+  },
+  "B1_path": {
+   "cell": "M7",
+   "value": null,
+   "unit": "raster path",
+   "note": "Configuration cell. B1_path is an optional GeoTIFF path for the spatial C1 buildup asymptote. It is read only when water quality and raster water-quality inputs are enabled; use values and units consistent with the LULC C1 parameter.",
+   "reader": "[('xlgetstr', '\"\"'), ('xlpath', 'flags.flag_waterquality == 1 &')]"
+  },
+  "B2_path": {
+   "cell": "M8",
+   "value": null,
+   "unit": "raster path",
+   "note": "Configuration cell. B2_path is an optional GeoTIFF path for the spatial C2 buildup-rate parameter. It is read only when water quality and raster water-quality inputs are enabled.",
+   "reader": "[('xlgetstr', '\"\"'), ('xlpath', 'flags.flag_waterquality == 1 &')]"
+  },
+  "beta_1": {
+   "cell": "J5",
+   "value": 2.2695,
+   "unit": null,
+   "note": "Configuration cell. beta_1 is the coefficient in the derived channel-width relation W = beta_1 A^beta_2, where A is contributing area in km2. It is bypassed by supplied river-width rasters.",
+   "reader": "[('xlnum', '')]"
+  },
+  "beta_2": {
+   "cell": "J6",
+   "value": 0.4942,
+   "unit": null,
+   "note": "Configuration cell. beta_2 is the exponent in the derived channel-width relation W = beta_1 A^beta_2. It controls how quickly generated channels widen downstream.",
+   "reader": "[('xlnum', '')]"
+  },
+  "Bmax": {
+   "cell": "M6",
+   "value": 100,
+   "unit": "g/m2",
+   "note": "Configuration cell. Bmax is the upper pollutant buildup bound in g/m2 used by the selected buildup/washoff formulation. It limits physically stored pollutant mass where that option is active.",
+   "reader": "[('xlnum', '')]"
+  },
+  "Bmin": {
+   "cell": "M5",
+   "value": 0.01,
+   "unit": "g/m2",
+   "note": "Configuration cell. Bmin is the lower pollutant buildup bound in g/m2 used by the selected buildup/washoff formulation. Use a nonnegative value no larger than Bmax.",
+   "reader": "[('xlnum', '')]"
+  },
+  "c": {
+   "cell": "AF8",
+   "value": 0.701,
+   "unit": null,
+   "note": "Configuration cell. c is the dimensionless duration exponent in the local IDF relation. It controls how intensity decays as storm duration increases.",
+   "reader": "[('xlnum', '')]"
+  },
+  "capillary_field_capacity_head_m": {
+   "cell": "D26",
+   "value": 3.3,
+   "unit": "m (sets Sy = theta_s - theta_fc)",
+   "note": "Configuration cell. capillary_field_capacity_head_m is the suction head in metres that defines field capacity: the water a layer keeps after the water table falls out of it. Specific yield = theta_s minus theta at this head, and capillary rise from the water table refills a layer only up to this water content. Default 3.3 m (about 33 kPa). Lower it to represent a capillary fringe above shallow water tables (specific yield falls with it).",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "date_begin": {
+   "cell": "A9",
+   "value": "2025-06-01T00:00:00",
+   "unit": null,
+   "note": "Configuration cell. date_begin is the simulation start datetime. Use the same time reference as rainfall, evapotranspiration, inflow, stage, and observation time series.",
+   "reader": "[('xldatetime', '')]"
+  },
+  "date_end": {
+   "cell": "A10",
+   "value": "=B9+MAX(AI4:AI555)/1440",
+   "unit": null,
+   "note": "Configuration cell. date_end is the simulation end datetime. It must be later than date_begin; forcing values outside this interval are not part of the run.",
+   "reader": "[('xldatetime', '')]"
+  },
+  "deep_aquifer_initial_baseflow_mm_day": {
+   "cell": "D39",
+   "value": null,
+   "unit": "mm/day; empty = start empty",
+   "note": "Configuration cell. deep_aquifer_initial_baseflow_mm_day is the deep-aquifer baseflow per unit area on the start date, in mm/day (option 1: from a gauge, e.g. hydropol2d estimate-deep-baseflow, which divides the deep part of the start-date baseflow by the drainage area). Each subbasin starts at storage S0 = q0 x subbasin area x deep_aquifer_tau_days. Leave empty to start empty. Set this or deep_aquifer_mean_recharge_mm_year, not both.",
+   "reader": "[('xlnum_optional', 'NaN')]"
+  },
+  "deep_aquifer_mean_recharge_mm_year": {
+   "cell": "D40",
+   "value": null,
+   "unit": "mm/year; steady state, q0 = f x R",
+   "note": "Configuration cell. deep_aquifer_mean_recharge_mm_year is the long-term mean recharge to the water table, in mm/year (option 2: no gauge needed). The deep aquifer starts at steady state: q0 = deep_recharge_fraction x this recharge, and S0 = q0 x subbasin area x deep_aquifer_tau_days. Set this or deep_aquifer_initial_baseflow_mm_day, not both.",
+   "reader": "[('xlnum_optional', 'NaN')]"
+  },
+  "deep_aquifer_response_time_days": {
+   "cell": null,
+   "reader": "[('xlnum_optional', '180')]"
+  },
+  "deep_recharge_fraction": {
+   "cell": "D7",
+   "value": 0.05,
+   "unit": null,
+   "note": "Configuration cell. deep_recharge_fraction is the share, in (0, 1], of water-table recharge sent to the deep aquifer: a slow linear reservoir per subbasin below the 2-D groundwater model. The rest recharges the shallow aquifer. Read only when flag_deep_aquifer = 1.",
+   "reader": "[('xlnum_optional', '0.05')]"
+  },
+  "DeepAquiferChannelWeight_path": {
+   "cell": "T20",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. DeepAquiferChannelWeight_path is a GeoTIFF of non-negative weights saying where each subbasin's deep-aquifer outflow returns to the surface, e.g. 1 on river cells and 0 elsewhere. Weights are normalized within each subbasin, which needs at least one positive weight. Required only when flag_deep_aquifer = 1.",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "DeepAquiferInitialState_path": {
+   "cell": "T29",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. DeepAquiferInitialState_path is an optional JSON file with the starting storage of each deep-aquifer subbasin (the Builder's DeepAquiferInitialState.json from the recession calibration). Use it instead of the two Deep Aquifer Initial State values, not together with them.",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "DeepAquiferSubbasins_path": {
+   "cell": "T19",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. DeepAquiferSubbasins_path is an integer GeoTIFF of subbasin IDs (1, 2, ...). Each ID is one deep-aquifer reservoir. Required only when flag_deep_aquifer = 1; every active cell needs a positive ID. A raster of all 1s gives one reservoir for the whole domain.",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "DEM_path": {
+   "cell": "T3",
+   "value": "/oak/stanford/groups/gorelick/HydroPol2D/Case_Studies/India_Full/Input_Rasters/DEM.tif",
+   "unit": "mandatory",
+   "note": "Configuration cell. DEM_path is the required path to the terrain elevation GeoTIFF, with elevations in metres. It defines the model domain, grid geometry, and topographic gradients.",
+   "reader": "[('xlgetstr', '\"\"')]"
+  },
+  "depth_wse": {
+   "cell": "G6",
+   "value": 0.05,
+   "unit": "m",
+   "note": "Configuration cell. depth_wse is the minimum water depth in metres used when water-surface-elevation maps are produced. It avoids reporting water-surface elevation where the cell is effectively dry.",
+   "reader": "[('xlnum', '')]"
+  },
+  "dt_design": {
+   "cell": "AF9",
+   "value": 15,
+   "unit": "minutes",
+   "note": "Configuration cell. dt_design is the time increment in minutes used to discretize the generated design hyetograph. It should be short enough to resolve the intended rainfall peak.",
+   "reader": "[('xlnum', '')]"
+  },
+  "DTB_path": {
+   "cell": "T13",
+   "value": "/oak/stanford/groups/gorelick/HydroPol2D/Case_Studies/India_Full/Input_Rasters/DTB.tif",
+   "unit": null,
+   "note": "Configuration cell. DTB_path is an optional DEPTH-TO-BEDROCK GeoTIFF in metres below the land surface. Legacy groundwater: it is the soil depth, and the aquifer lives inside it. Layered subsurface: it is the bottom of the whole column (soil plus weathered rock); the soil thickness is set separately by subsurface_soil_base_depth_m or SoilBaseDepth_path. Required for legacy groundwater; optional with flag_layered_subsurface = 1, where an empty DTB_path falls back to subsurface_depth_to_bedrock_m, then to the DTB (m) of each soil class in SOIL_parameters.xlsx.",
+   "reader": "[('xlgetstr', '\"\"'), ('xlpath', '(flags.flag_baseflow == 1 || f')]"
+  },
+  "feddes_h1_m": {
+   "cell": "D31",
+   "value": -0.1,
+   "unit": "m (anaerobiosis)",
+   "note": "Configuration cell. feddes_h1_m is the anaerobiosis head in metres (negative). Wetter than h1, roots take no water (no oxygen). Default -0.1 m.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "feddes_h2_m": {
+   "cell": "D32",
+   "value": -0.25,
+   "unit": "m",
+   "note": "Configuration cell. feddes_h2_m is the head in metres (negative) where uptake becomes optimal. Between h1 and h2 the stress factor rises from 0 to 1. Default -0.25 m.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "feddes_h3_high_m": {
+   "cell": "D35",
+   "value": null,
+   "unit": "m at >= 5 mm/d; empty = h3",
+   "note": "Configuration cell. feddes_h3_high_m is h3 at high transpiration demand (potential ET of 5 mm/d or more), in metres (negative); usually less negative than feddes_h3_low_m, so stress starts earlier on high-demand days. Leave it empty to use feddes_h3_m.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "feddes_h3_low_m": {
+   "cell": "D34",
+   "value": null,
+   "unit": "m at <= 1 mm/d; empty = h3",
+   "note": "Configuration cell. feddes_h3_low_m is h3 at low transpiration demand (potential ET of 1 mm/d or less), in metres (negative). With feddes_h3_high_m, h3 is interpolated by demand as in SWAP. Leave it empty to use feddes_h3_m.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "feddes_h3_m": {
+   "cell": "D33",
+   "value": -4.0,
+   "unit": "m",
+   "note": "Configuration cell. feddes_h3_m is the head in metres (negative) where water stress starts. Between h3 and h4 the factor falls from 1 to 0. Used when feddes_h3_low_m and feddes_h3_high_m are empty. Default -4 m.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "feddes_h4_m": {
+   "cell": "D36",
+   "value": -80.0,
+   "unit": "m (wilting)",
+   "note": "Configuration cell. feddes_h4_m is the wilting-point head in metres (negative). Drier than h4, roots take no water. Default -80 m (-0.8 MPa).",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "flag_wse": {
+   "cell": "G7",
+   "value": 0,
+   "unit": null,
+   "note": "Configuration cell. flag_wse controls water-surface-elevation map output: 0 disables it and 1 enables it. The map uses DEM elevation plus simulated water depth where depth exceeds depth_wse.",
+   "reader": "[('xlnum', '')]"
+  },
+  "groundwater_courant": {
+   "cell": "D6",
+   "value": 0.25,
+   "unit": null,
+   "note": "Configuration cell. groundwater_courant is the dimensionless safety factor used to limit the Boussinesq groundwater timestep. Use a value greater than zero and no greater than one; smaller values improve stability at the cost of more updates.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "groundwater_head_tolerance_m": {
+   "cell": null,
+   "reader": "[('xlnum_optional', '1e-3')]"
+  },
+  "groundwater_min_dt_s": {
+   "cell": "D28",
+   "value": 60,
+   "unit": "s",
+   "note": "Configuration cell. groundwater_min_dt_s is the shortest interval in seconds allowed between lateral groundwater updates, even when the stability limit asks for less. Default 60 s.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "groundwater_relative_tolerance": {
+   "cell": null,
+   "reader": "[('xlnum_optional', '1e-3')]"
+  },
+  "groundwater_target_dt_s": {
+   "cell": "D27",
+   "value": 3600,
+   "unit": "s (lateral update interval)",
+   "note": "Configuration cell. groundwater_target_dt_s is the interval in seconds between lateral groundwater updates in the layered scheme. A shorter interval is used when the stability limit requires it. Vertical soil fluxes still run every model timestep. Default 3600 s.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "GroundwaterKsat_path": {
+   "cell": "T37",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. GroundwaterKsat_path is an optional GeoTIFF of the aquifer horizontal conductivity kgsat in mm/h. It overrides the SOIL_parameters kgsat of each class where finite. Layered subsurface: it is the rock Kh fallback when regolith_ksat_h_mm_h and RegolithKsatH_path are empty.",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "GW_Dirichlet_Head_path": {
+   "cell": "T15",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. GW_Dirichlet_Head_path is an optional prescribed groundwater-head elevation GeoTIFF in metres. Finite raster cells define the groundwater Dirichlet boundary; no-data cells remain unconstrained.",
+   "reader": "[('xlgetstr', '\"\"')]"
+  },
+  "GW_table_path": {
+   "cell": "T14",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. GW_table_path is an optional initial groundwater-table elevation GeoTIFF in metres, using the same vertical datum as the DEM. It is read when groundwater or baseflow is enabled and is constrained below the land surface.",
+   "reader": "[('xlgetstr', '\"\"')]"
+  },
+  "ImperviousFraction_path": {
+   "cell": "T16",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. ImperviousFraction_path is an optional raster of fractional impervious cover from 0 to 1. It refines infiltration behavior within a cell; values outside this range are not physically meaningful.",
+   "reader": "[('xlgetstr', '\"\"')]"
+  },
+  "Initial_Buildup_path": {
+   "cell": "T7",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. Initial_Buildup_path is an optional pollutant-mass GeoTIFF in kg per cell. It is read only when flag_initial_buildup and the water-quality module are enabled.",
+   "reader": "[('xlgetstr', '\"\"'), ('xlpath', 'flags.flag_initial_buildup == ')]"
+  },
+  "Initial_Snow_Depth_path": {
+   "cell": "T18",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. Initial_Snow_Depth_path is an optional initial snow-depth GeoTIFF in mm. It is read only when snow modeling is enabled; when paired with SWE, the model checks their physical consistency and derives density.",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "Initial_Soil_Moisture_path": {
+   "cell": "T8",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. Initial_Soil_Moisture_path is an optional initial soil-water-storage GeoTIFF. Despite its legacy name, values are interpreted as storage above residual moisture in mm, not as volumetric water content; it is read with flag_warmup.",
+   "reader": "[('xlgetstr', '\"\"'), ('xlpath', 'flags.flag_warmup == 1')]"
+  },
+  "Initial_SWE_path": {
+   "cell": "T17",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. Initial_SWE_path is an optional initial snow-water-equivalent GeoTIFF in mm water equivalent. It is read only when snow modeling is enabled; negative values are invalid and no-data cells use the default zero-snow condition.",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "K": {
+   "cell": "AF5",
+   "value": 868.9,
+   "unit": null,
+   "note": "Configuration cell. K is the scale coefficient of the local IDF relation i = K RP^a / (b + duration)^c. Its units must be consistent with intensity in mm/h and duration in minutes.",
+   "reader": "[('xlnum', '')]"
+  },
+  "K_value": {
+   "cell": "Q5",
+   "value": 10,
+   "unit": "between 0 and 20",
+   "note": "Configuration cell. K_value is the smoothing strength passed to the constrained regularized stream-profile smoother. It is used only when DEM smoothing is enabled; larger values produce stronger profile regularization.",
+   "reader": "[('xlnum', '')]"
+  },
+  "KsatNearSurface_path": {
+   "cell": "T34",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. KsatNearSurface_path is an optional GeoTIFF of the saturated hydraulic conductivity of the near-surface soil layer in mm/h. It overrides ksat x Ks_multiplier_near_surface of each SOIL class where finite (nodata keeps the class value).",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "KsatRootZone_path": {
+   "cell": "T35",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. KsatRootZone_path is an optional GeoTIFF of the saturated hydraulic conductivity of the root-zone soil layer in mm/h. It overrides ksat x Ks_multiplier_root_zone of each SOIL class where finite (nodata keeps the class value).",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "KsatTransmission_path": {
+   "cell": "T36",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. KsatTransmission_path is an optional GeoTIFF of the saturated hydraulic conductivity of the transmission soil layer in mm/h. It overrides ksat x Ks_multiplier_transmission of each SOIL class where finite (nodata keeps the class value).",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "LAI_path": {
+   "cell": "T10",
+   "value": "/oak/stanford/groups/gorelick/HydroPol2D/Case_Studies/India_Full/Input_Rasters/LAI.tif",
+   "unit": null,
+   "note": "Configuration cell. LAI_path is an optional leaf-area-index raster in m2 leaf area per m2 ground area. It is used by canopy interception and vegetation-related evapotranspiration when the relevant flags are enabled.",
+   "reader": "[('xlgetstr', '\"\"'), ('xlpath', 'flags.flag_abstraction == 1')]"
+  },
+  "LULC_path": {
+   "cell": "T4",
+   "value": "/oak/stanford/groups/gorelick/HydroPol2D/Case_Studies/India_Full/Input_Rasters/LULC.tif",
+   "unit": "mandatory",
+   "note": "Configuration cell. LULC_path is the required categorical land-use/land-cover GeoTIFF. Raster class codes are matched to LULC_parameters.xlsx; unmapped codes receive the documented area-weighted fallback.",
+   "reader": "[('xlgetstr', '\"\"')]"
+  },
+  "Manning": {
+   "cell": "J7",
+   "value": 0.035,
+   "unit": "sm-1/3",
+   "note": "Configuration cell. Manning is the in-bank channel Manning roughness in s m^-1/3, applied on river cells. Land and overbank cells use the LULC_parameters.xlsx roughness.",
+   "reader": "[('xlnum', '')]"
+  },
+  "max_time_step": {
+   "cell": "A5",
+   "value": 30,
+   "unit": "sec",
+   "note": "Configuration cell. max_time_step is the largest allowable surface-routing timestep in seconds. It limits the timestep during slowly varying periods and should be greater than or equal to min_time_step.",
+   "reader": "[('xlnum', '')]"
+  },
+  "min_area": {
+   "cell": "Q3",
+   "value": 25,
+   "unit": "km2",
+   "note": "Configuration cell. min_area is the contributing-area threshold in km2 used to extract the modeled stream network and derive hydraulic geometry from flow accumulation.",
+   "reader": "[('xlnum', '')]"
+  },
+  "min_Bt": {
+   "cell": "M4",
+   "value": 0.01,
+   "unit": "g/m2",
+   "note": "Configuration cell. min_Bt is the minimum pollutant surface mass density in g/m2 retained by the water-quality washoff calculation. It prevents numerical treatment of negligible pollutant mass.",
+   "reader": "[('xlnum', '')]"
+  },
+  "min_time_step": {
+   "cell": "A4",
+   "value": 1,
+   "unit": "sec",
+   "note": "Configuration cell. min_time_step is the smallest allowable surface-routing timestep in seconds. Use a positive value small enough to resolve rapid wetting, shallow flow, and steep terrain.",
+   "reader": "[('xlnum', '')]"
+  },
+  "n_outlets_data": {
+   "cell": null,
+   "reader": "[('xlnum_optional', '1')]"
+  },
+  "NDVI_path": {
+   "cell": null,
+   "reader": "[('xlpath', 'flags.flag_NDVI == 1')]"
+  },
+  "NVG_path": {
+   "cell": "T33",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. NVG_path is an optional GeoTIFF of the soil van Genuchten n (greater than 1, dimensionless). It overrides the SOIL_parameters value of each class where finite (nodata keeps the class value).",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "Pol_min": {
+   "cell": "G5",
+   "value": 0,
+   "unit": "mg/L ",
+   "note": "Configuration cell. Pol_min is the minimum pollutant concentration in mg/L displayed in water-quality maps. It is a visualization threshold; values below it are hidden in plots but are not removed from the mass balance.",
+   "reader": "[('xlnum', '')]"
+  },
+  "Prescribed_Recharge_Timeseries_File": {
+   "cell": null,
+   "reader": "[('xlgetstr', '\"\"')]"
+  },
+  "Rainfall Duration": {
+   "cell": "AF4",
+   "value": "=2*60",
+   "unit": "minutes",
+   "note": "Configuration cell. Rainfall Duration is the total design-storm duration in minutes. It sets the length of the generated Alternated Blocks or Huff hyetograph.",
+   "reader": "[('xlnum', '')]"
+  },
+  "record_time_hydrographs": {
+   "cell": "G4",
+   "value": 15,
+   "unit": "min",
+   "note": "Configuration cell. record_time_hydrographs is the interval in minutes between saved outlet, inflow, and gauge hydrograph records. Choose an interval that resolves the expected hydrograph response.",
+   "reader": "[('xlnum', '')]"
+  },
+  "record_time_maps": {
+   "cell": "G3",
+   "value": 60,
+   "unit": "min",
+   "note": "Configuration cell. record_time_maps is the interval in minutes between saved spatial model maps. A shorter interval increases output detail and disk use without changing the simulation physics.",
+   "reader": "[('xlnum', '')]"
+  },
+  "record_time_spatial_ETP": {
+   "cell": "G10",
+   "value": 60,
+   "unit": null,
+   "note": "Configuration cell. record_time_spatial_ETP is the interval in minutes between saved spatial evaporation and transpiration products. Shorter intervals produce more detailed files and increase storage demand.",
+   "reader": "[('xlnum', '')]"
+  },
+  "record_time_spatial_rainfall": {
+   "cell": "G8",
+   "value": 60,
+   "unit": "min",
+   "note": "Configuration cell. record_time_spatial_rainfall is the interval in minutes used to save or aggregate spatial rainfall information. For raster rainfall, it should be compatible with the map-output interval.",
+   "reader": "[('xlnum', '')]"
+  },
+  "regolith_alpha_vg_m_inverse": {
+   "cell": "D19",
+   "value": 2.0,
+   "unit": "1/m",
+   "note": "Configuration cell. regolith_alpha_vg_m_inverse is the van Genuchten alpha of the rock layers, in 1/m. With regolith_n_vg it sets how much water the rock keeps after draining, and so its specific yield. RegolithAlphaVG_path overrides it cell by cell. Default 2.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "regolith_ksat_h_mm_h": {
+   "cell": "D22",
+   "value": null,
+   "unit": "mm/h; empty = ksat_gw",
+   "note": "Configuration cell. regolith_ksat_h_mm_h is the horizontal saturated hydraulic conductivity of the rock layers in mm/h, used for lateral groundwater flow. Leave it empty to use the groundwater Ksat (kgsat) of SOIL_parameters.xlsx. RegolithKsatH_path overrides it cell by cell.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "regolith_ksat_v_mm_h": {
+   "cell": "D21",
+   "value": 5.0,
+   "unit": "mm/h",
+   "note": "Configuration cell. regolith_ksat_v_mm_h is the vertical saturated hydraulic conductivity of the rock layers in mm/h. It limits drainage and recharge through the rock. RegolithKsatV_path overrides it cell by cell. Default 5 mm/h.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "regolith_lateral_conductivity_multiplier": {
+   "cell": "D44",
+   "value": 1.0,
+   "unit": "- (x rock Kh)",
+   "note": "Configuration cell. regolith_lateral_conductivity_multiplier scales the horizontal conductivity of the rock layers below the soil base (regolith_ksat_h_mm_h, RegolithKsatH_path or kgsat). Fitted by the layered groundwater recession calibration (low flows drain through the rock); 1 keeps the mapped values.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "regolith_n_vg": {
+   "cell": "D20",
+   "value": 1.5,
+   "unit": "-",
+   "note": "Configuration cell. regolith_n_vg is the van Genuchten n of the rock layers (dimensionless, greater than 1). RegolithNVG_path overrides it cell by cell. Default 1.5.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "regolith_specific_yield": {
+   "cell": "D23",
+   "value": null,
+   "unit": "-; empty = theta_s - theta_fc",
+   "note": "Configuration cell. regolith_specific_yield is the drainable porosity of the rock layers (dimensionless). Leave it empty to derive it from the van Genuchten values as theta_s minus the water content at field capacity. A value here or RegolithSpecificYield_path overrides that; it must not exceed theta_s minus theta_r.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "regolith_theta_r": {
+   "cell": "D18",
+   "value": 0.05,
+   "unit": "m3/m3",
+   "note": "Configuration cell. regolith_theta_r is the residual water content of the rock layers, in m3/m3, below regolith_theta_s. RegolithThetaR_path overrides it cell by cell. Default 0.05.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "regolith_theta_s": {
+   "cell": "D17",
+   "value": 0.35,
+   "unit": "m3/m3 (or RegolithThetaS_path)",
+   "note": "Configuration cell. regolith_theta_s is the saturated water content (porosity) of the rock layers below the soil base, in m3/m3. RegolithThetaS_path overrides it cell by cell. Default 0.35.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "RegolithAlphaVG_path": {
+   "cell": "T24",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. RegolithAlphaVG_path is an optional GeoTIFF of the rock-layer van Genuchten alpha in 1/m. It overrides regolith_alpha_vg_m_inverse where finite. Layered subsurface only.",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "RegolithKsatH_path": {
+   "cell": "T27",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. RegolithKsatH_path is an optional GeoTIFF of the rock-layer horizontal saturated conductivity in mm/h, used for lateral groundwater flow. It overrides regolith_ksat_h_mm_h where finite. Layered subsurface only. Global source: GLHYMPS 2.0 permeability.",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "RegolithKsatV_path": {
+   "cell": "T26",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. RegolithKsatV_path is an optional GeoTIFF of the rock-layer vertical saturated conductivity in mm/h. It overrides regolith_ksat_v_mm_h where finite. Layered subsurface only.",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "RegolithNVG_path": {
+   "cell": "T25",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. RegolithNVG_path is an optional GeoTIFF of the rock-layer van Genuchten n. It overrides regolith_n_vg where finite. Layered subsurface only.",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "RegolithSpecificYield_path": {
+   "cell": "T28",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. RegolithSpecificYield_path is an optional GeoTIFF of the rock-layer specific yield. It overrides the derived value (theta_s minus field capacity) where finite. Layered subsurface only.",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "RegolithThetaR_path": {
+   "cell": "T23",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. RegolithThetaR_path is an optional GeoTIFF of the rock-layer residual water content in m3/m3. It overrides regolith_theta_r where finite. Layered subsurface only.",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "RegolithThetaS_path": {
+   "cell": "T22",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. RegolithThetaS_path is an optional GeoTIFF of the rock-layer saturated water content in m3/m3. It overrides regolith_theta_s where finite. Layered subsurface only.",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "resolution_resample": {
+   "cell": "Q7",
+   "value": 250,
+   "unit": "m",
+   "note": "Configuration cell. resolution_resample is the working model-grid resolution in metres when raster resampling is enabled. All model inputs are aligned to this resolution during preprocessing.",
+   "reader": "[('xlnum', '')]"
+  },
+  "River_K_coeff": {
+   "cell": null,
+   "reader": "[('xlnum_optional', 'nan')]"
+  },
+  "riverbed_thickness_m": {
+   "cell": null,
+   "reader": "[('xlnum_optional', '0.5')]"
+  },
+  "RiverDepths_path": {
+   "cell": "T12",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. RiverDepths_path is an optional river-depth GeoTIFF in metres. It is paired with RiverWidths_path for the active embedded-channel model and must be positive where a channel is present.",
+   "reader": "[('xlgetstr', '\"\"'), ('xlpath', 'flags.flag_subgrid == 1 && fla')]"
+  },
+  "RiverWidths_path": {
+   "cell": "T11",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. RiverWidths_path is an optional river-width GeoTIFF in metres. It is required for the active Neal (2012) embedded-channel model when flag_subgrid and flag_river_rasters are enabled; valid embedded widths must remain smaller than the coarse-cell size.",
+   "reader": "[('xlgetstr', '\"\"'), ('xlpath', 'flags.flag_subgrid == 1 && fla')]"
+  },
+  "RP": {
+   "cell": "AF3",
+   "value": 100,
+   "unit": "years",
+   "note": "Configuration cell. RP is the design-storm return period in years. It is used by the selected IDF relation to calculate rainfall intensity.",
+   "reader": "[('xlnum', '')]"
+  },
+  "sl": {
+   "cell": "Q6",
+   "value": 0.0001,
+   "unit": "m/m",
+   "note": "Configuration cell. sl is the minimum imposed drainage gradient in m/m used by terrain conditioning when minimum-slope imposition is enabled.",
+   "reader": "[('xlnum', '')]"
+  },
+  "slope_DTM": {
+   "cell": "Q8",
+   "value": 5,
+   "unit": "%",
+   "note": "Configuration cell. slope_DTM is the slope threshold in percent used by the DTM filter. It is read only when the DTM filtering option is enabled.",
+   "reader": "[('xlnum', '')]"
+  },
+  "slope_outlet": {
+   "cell": "D3",
+   "value": 0.015,
+   "unit": "m/m",
+   "note": "Configuration cell. slope_outlet is the positive normal-flow energy slope in m/m applied at configured outlet cells. It should represent the downstream channel or terrain gradient beyond the modeled domain.",
+   "reader": "[('xlnum', '')]"
+  },
+  "soil_lateral_anisotropy": {
+   "cell": "D24",
+   "value": 1.0,
+   "unit": "Kh/Kv of the soil slots",
+   "note": "Configuration cell. soil_lateral_anisotropy is the horizontal-to-vertical conductivity ratio of the three soil layers: Kh = anisotropy x Ksat. 1 means isotropic. Default 1.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "soil_lateral_conductivity_multiplier": {
+   "cell": "D43",
+   "value": 1.0,
+   "unit": "- (x soil Ksat x anisotropy)",
+   "note": "Configuration cell. soil_lateral_conductivity_multiplier scales the horizontal conductivity of the three soil layers (soil Ksat x soil_lateral_anisotropy) for lateral groundwater flow. Vertical Ksat and infiltration do not change. Fitted by the layered groundwater recession calibration (high flows drain through the soil); 1 keeps the mapped values.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "SOIL_path": {
+   "cell": "T5",
+   "value": "/oak/stanford/groups/gorelick/HydroPol2D/Case_Studies/India_Full/Input_Rasters/SOIL.tif",
+   "unit": "mandatory",
+   "note": "Configuration cell. SOIL_path is the required categorical soil-class GeoTIFF. Raster class codes are matched to SOIL_parameters.xlsx; unmapped codes receive the documented area-weighted fallback.",
+   "reader": "[('xlgetstr', '\"\"')]"
+  },
+  "SoilBaseDepth_path": {
+   "cell": "T21",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. SoilBaseDepth_path is an optional GeoTIFF of SOIL THICKNESS in metres below ground (the soil base). It overrides subsurface_soil_base_depth_m where finite. Layered subsurface only. Global source: SoilGrids BDRICM.",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "SpecificYield_path": {
+   "cell": "T38",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. SpecificYield_path is an optional GeoTIFF of the aquifer specific yield Sy (dimensionless) for the legacy groundwater scheme. It overrides the SOIL_parameters Sy of each class where finite. Not used by the layered subsurface, where Sy comes from the retention curves (or regolith_specific_yield).",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "Subgrid_DEM_path": {
+   "cell": null,
+   "reader": "[('xlgetstr', '\"\"'), ('xlpath', 'flags.flag_subgrid == 1 && fla')]"
+  },
+  "subsurface_deep_first_thickness_m": {
+   "cell": "D14",
+   "value": 0.25,
+   "unit": "m",
+   "note": "Configuration cell. subsurface_deep_first_thickness_m is the thickness in metres of the first rock layer directly below the soil base. Each next layer is subsurface_deep_growth_ratio times thicker, up to subsurface_deep_max_thickness_m. Default 0.25 m.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "subsurface_deep_growth_ratio": {
+   "cell": "D15",
+   "value": 2.0,
+   "unit": "-",
+   "note": "Configuration cell. subsurface_deep_growth_ratio multiplies each rock layer's thickness to get the next one: 0.25, 0.5, 1, 2, 4, 4, ... m with the defaults. Use a value of at least 1. Default 2.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "subsurface_deep_max_thickness_m": {
+   "cell": "D16",
+   "value": 4.0,
+   "unit": "m",
+   "note": "Configuration cell. subsurface_deep_max_thickness_m is the largest rock-layer thickness in metres. Layers keep this thickness down to the column bottom. Default 4 m.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "subsurface_depth_to_bedrock_m": {
+   "cell": "D12",
+   "value": null,
+   "unit": "m; after DTB_path, before SOIL DTB (m)",
+   "note": "Configuration cell. subsurface_depth_to_bedrock_m is the DEPTH TO BEDROCK in metres below ground: the bottom of the whole modelled column, soil plus the weathered rock below it. It is deeper than (or equal to) the soil thickness. Priority: DTB_path raster, then this value, then the DTB (m) of each soil class in SOIL_parameters.xlsx, with a warning. Capped at subsurface_max_depth_m.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "subsurface_drainage_substeps": {
+   "cell": "D25",
+   "value": 1,
+   "unit": "-",
+   "note": "Configuration cell. subsurface_drainage_substeps is the number of sub-steps for gravity drainage between layers inside one model timestep. 1 is enough for most cases; raise it (2 to 10) for thin, highly conductive layers. Default 1.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "subsurface_max_depth_m": {
+   "cell": "D13",
+   "value": 50.0,
+   "unit": "m",
+   "note": "Configuration cell. subsurface_max_depth_m caps the modelled column in metres below ground: column bottom = min(depth to bedrock, this value). Default 50 m.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "subsurface_soil_base_depth_m": {
+   "cell": "D11",
+   "value": 2.0,
+   "unit": "m (or SoilBaseDepth_path)",
+   "note": "Configuration cell. subsurface_soil_base_depth_m is the SOIL THICKNESS in metres below ground: where the soil ends and weathered rock (regolith) begins. The three soil layers (near-surface, root zone, transmission) use SOIL_parameters.xlsx down to this depth. SoilBaseDepth_path overrides it cell by cell. It is capped at the depth to bedrock. Default 2.0 m.",
+   "reader": "[('xlnum_optional', 'NaN (layered config default)')]"
+  },
+  "tau": {
+   "cell": "Q4",
+   "value": 0.2,
+   "unit": "between 0 and 1",
+   "note": "Configuration cell. tau is the dimensionless regularization setting passed to the constrained regularized stream-profile smoother. It is used only when DEM smoothing is enabled.",
+   "reader": "[('xlnum', '')]"
+  },
+  "terrain_runtime": {
+   "cell": null,
+   "reader": "[('xlgetstr', '\"\"')]"
+  },
+  "ThetaR_path": {
+   "cell": "T31",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. ThetaR_path is an optional GeoTIFF of the soil residual water content theta_r in m3/m3. It overrides the SOIL_parameters value of each class where finite (nodata keeps the class value).",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "ThetaS_path": {
+   "cell": "T30",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. ThetaS_path is an optional GeoTIFF of the soil saturated water content theta_s in m3/m3. It overrides the SOIL_parameters value of each class where finite (nodata keeps the class value), for all soil layers.",
+   "reader": "[('xlgetstr_optional', '\"\"')]"
+  },
+  "time_save_ETP": {
+   "cell": "G9",
+   "value": 60,
+   "unit": "min",
+   "note": "Configuration cell. time_save_ETP is the interval in minutes used for evapotranspiration-product saving and related time-series bookkeeping. It affects output timing, not the evapotranspiration calculation itself.",
+   "reader": "[('xlnum', '')]"
+  },
+  "time_step_change": {
+   "cell": "A6",
+   "value": 0.001,
+   "unit": "sec",
+   "note": "Configuration cell. time_step_change is the positive time increment in seconds used for timestep-refresh bookkeeping and diagnostic alignment. It is not the groundwater update interval.",
+   "reader": "[('xlnum', '')]"
+  },
+  "time_step_model": {
+   "cell": "A3",
+   "value": 5,
+   "unit": "sec",
+   "note": "Configuration cell. time_step_model is the nominal surface-model timestep in seconds. It initializes the routing loop; adaptive timestepping may replace it with a stable value between min_time_step and max_time_step.",
+   "reader": "[('xlnum', '')]"
+  },
+  "W1_path": {
+   "cell": "M9",
+   "value": null,
+   "unit": "raster path",
+   "note": "Configuration cell. W1_path is an optional GeoTIFF path for the spatial C3 washoff coefficient. It is read only when water quality and raster water-quality inputs are enabled.",
+   "reader": "[('xlgetstr', '\"\"'), ('xlpath', 'flags.flag_waterquality == 1 &')]"
+  },
+  "W2_path": {
+   "cell": "M10",
+   "value": null,
+   "unit": "raster path",
+   "note": "Configuration cell. W2_path is an optional GeoTIFF path for the spatial C4 washoff exponent. It is read only when water quality and raster water-quality inputs are enabled.",
+   "reader": "[('xlgetstr', '\"\"'), ('xlpath', 'flags.flag_waterquality == 1 &')]"
+  },
+  "Warmup_Depth_path": {
+   "cell": "T6",
+   "value": null,
+   "unit": null,
+   "note": "Configuration cell. Warmup_Depth_path is an optional initial surface-water-depth GeoTIFF in metres. It is read only when flag_warmup is enabled and initializes surface storage before routing.",
+   "reader": "[('xlgetstr', '\"\"'), ('xlpath', 'flags.flag_warmup == 1')]"
+  }
+ },
+ "flags": {
+  "flag_rainfall": {
+   "cell": "B4",
+   "value": 1,
+   "note": "Enables rainfall forcing. Use this with one selected rainfall source: a lumped time series, gauge interpolation, a scheduled raster sequence, or a satellite product.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Boundary Condition Flags"
+  },
+  "flag_timestep": {
+   "cell": "E4",
+   "value": 0,
+   "note": "Selects the full timestep-stability treatment for supported routing solvers. Use the validated default unless testing a specific numerical formulation.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_GPU": {
+   "cell": "H4",
+   "value": 1,
+   "note": "Runs supported arrays and calculations on a compatible MATLAB GPU. Leave disabled when a compatible GPU is not available.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Performance Flags"
+  },
+  "flag_warmup": {
+   "cell": "K4",
+   "value": 0,
+   "note": "Initializes the simulation from the configured warm-up state rather than the standard initial-state rasters.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Initial Condition Flags"
+  },
+  "flag_resample": {
+   "cell": "N4",
+   "value": 1,
+   "note": "Resamples ancillary rasters to the DEM grid during preprocessing when their grid differs from the DEM.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "DEM Treatment Tools"
+  },
+  "flag_export_maps": {
+   "cell": "Q4",
+   "value": 1,
+   "note": "Exports scheduled spatial model outputs such as flood depth and related maps.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Extra Flags"
+  },
+  "flag_spatial_rainfall": {
+   "cell": "B5",
+   "value": 1,
+   "note": "Interpolates rainfall from the configured rainfall gauges to every model cell. Gauge coordinates and a common rainfall time series are required.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Boundary Condition Flags"
+  },
+  "flag_infiltration": {
+   "cell": "E5",
+   "value": 1,
+   "note": "Enables infiltration and the layered soil-water balance. Disabling it also disables evapotranspiration in the current model.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_single": {
+   "cell": "H5",
+   "value": 1,
+   "note": "Stores supported numerical arrays in single precision to reduce memory use. Keep disabled when maximum numerical precision is required.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Performance Flags"
+  },
+  "flag_initial_buildup": {
+   "cell": "K5",
+   "value": 0,
+   "note": "Initializes water-quality buildup using the configured antecedent dry-period and buildup settings.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Initial Condition Flags"
+  },
+  "flag_smoothening": {
+   "cell": "N5",
+   "value": 1,
+   "note": "Applies constrained stream-profile smoothing during DEM preprocessing. This option requires Optimization Toolbox.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "DEM Treatment Tools"
+  },
+  "flag_river_heigth_compensation": {
+   "cell": "Q5",
+   "value": 0,
+   "note": "Applies the legacy river-height compensation adjustment where the case configuration supports it.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Extra Flags"
+  },
+  "flag_ETP": {
+   "cell": "B6",
+   "value": 0,
+   "note": "Enables evapotranspiration. HydroPol2D uses the configured meteorological or map inputs to calculate evaporation and transpiration.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Boundary Condition Flags"
+  },
+  "flag_critical": {
+   "cell": "E6",
+   "value": 1,
+   "note": "Uses the critical-flow outlet treatment where the selected routing solver supports it. This is distinct from the normal-flow outlet selected with flag_outlet_type.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_trunk": {
+   "cell": "N6",
+   "value": 0,
+   "note": "Uses the trunk-stream processing option during terrain and drainage-network preparation.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "DEM Treatment Tools"
+  },
+  "flag_dashboard": {
+   "cell": "Q6",
+   "value": 1,
+   "note": "Creates the configured dashboard-oriented outputs during the simulation.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Extra Flags"
+  },
+  "flag_input_rainfall_map": {
+   "cell": "B7",
+   "value": 1,
+   "note": "Reads a time-indexed sequence of rainfall rasters from the Satellite or Radar Rainfall table in General_Data. Do not enable this together with another spatial-rainfall source.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Boundary Condition Flags"
+  },
+  "flag_D8": {
+   "cell": "E7",
+   "value": 0,
+   "note": "Enables D8 terrain-routing and drainage preprocessing where applicable. Local-inertial routing itself remains face based.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_fill_DEM": {
+   "cell": "N7",
+   "value": 0,
+   "note": "Fills terrain depressions before deriving drainage directions and flow accumulation.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "DEM Treatment Tools"
+  },
+  "flag_elapsed_time": {
+   "cell": "Q7",
+   "value": 0,
+   "note": "Prints or records elapsed computational time for the simulation.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Extra Flags"
+  },
+  "flag_rainfall_multiple_runs": {
+   "cell": "B8",
+   "value": 0,
+   "note": "Activates the legacy multiple-rainfall-run workflow. Leave disabled for one standard rainfall event.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Boundary Condition Flags"
+  },
+  "flag_CA": {
+   "cell": "E8",
+   "value": 0,
+   "note": "Selects the cellular-automata hydrodynamic routing option. Do not enable it together with local inertial or full momentum routing.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_smooth_cells": {
+   "cell": "N8",
+   "value": 0,
+   "note": "Applies the configured cell-level DEM smoothing treatment during preprocessing.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "DEM Treatment Tools"
+  },
+  "flag_obs_gauges": {
+   "cell": "Q8",
+   "value": 0,
+   "note": "Exports modeled values at the observation-gauge coordinates listed in General_Data.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Extra Flags"
+  },
+  "flag_data_source": {
+   "cell": "B9",
+   "value": 0,
+   "note": "Selects the legacy rainfall-data source pathway. Leave disabled unless a case was prepared specifically for that workflow.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Boundary Condition Flags"
+  },
+  "flag_inertial": {
+   "cell": "E9",
+   "value": 1,
+   "note": "Selects the local-inertial hydrodynamic solver. It is the required routing solver for the active Neal (2012) channel-subgrid extension.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_reduce_DEM": {
+   "cell": "N9",
+   "value": 0,
+   "note": "Applies the configured river-channel DEM reduction during preprocessing.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "DEM Treatment Tools"
+  },
+  "flag_export_groundwater_maps": {
+   "cell": "Q9",
+   "value": 0,
+   "note": "Exports scheduled groundwater water-table-depth rasters when groundwater modelling is enabled.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Extra Flags"
+  },
+  "flag_inflow": {
+   "cell": "B10",
+   "value": 0,
+   "note": "Applies one or more prescribed discharge hydrographs at the inlet coordinates defined in Inflow_Hydrograph.xlsx.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Boundary Condition Flags"
+  },
+  "flag_waterbalance": {
+   "cell": "E10",
+   "value": 0,
+   "note": "Writes water-balance diagnostics during the run. Enable this for validation and for routine model checks.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_satellite_rainfall": {
+   "cell": "B11",
+   "value": 0,
+   "note": "Activates the satellite-rainfall forcing workflow. It prepares an hourly spatial-rainfall schedule and enables rainfall automatically.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Boundary Condition Flags"
+  },
+  "flag_waterquality": {
+   "cell": "E11",
+   "value": 0,
+   "note": "Enables pollutant buildup, washoff, transport, and output calculations.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_alternated_blocks": {
+   "cell": "B12",
+   "value": 0,
+   "note": "Generates the configured alternating-block design storm instead of reading a rainfall time series.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Boundary Condition Flags"
+  },
+  "flag_reservoir": {
+   "cell": "E12",
+   "value": 0,
+   "note": "Enables the reservoir and control-structure module using the configured reservoir inputs.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_huff": {
+   "cell": "B13",
+   "value": 0,
+   "note": "Generates the configured Huff design storm instead of reading a rainfall time series.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Boundary Condition Flags"
+  },
+  "flag_wq_model": {
+   "cell": "E13",
+   "value": 0,
+   "note": "Selects the water-quality formulation. Value 0 uses the mass-based buildup/washoff mode; use other values only for supported legacy configurations.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_stage_hydrograph": {
+   "cell": "B14",
+   "value": 0,
+   "note": "Applies a prescribed water-level hydrograph at the configured stage-boundary location(s).\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Boundary Condition Flags"
+  },
+  "flag_groundwater_modeling": {
+   "cell": "E14",
+   "value": 1,
+   "note": "Enables the coupled layered-soil recharge and saturated groundwater module.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_input_ETP_map": {
+   "cell": "B15",
+   "value": 0,
+   "note": "Reads paired transpiration and evaporation raster schedules from General_Data. Both schedules must have the same time entries.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Boundary Condition Flags"
+  },
+  "flag_real_time_satellite_rainfall": {
+   "cell": "E15",
+   "value": 0,
+   "note": "Activates the real-time satellite rainfall workflow. This experimental option creates a short rolling spatial-rainfall schedule.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_dam_break": {
+   "cell": "E16",
+   "value": 0,
+   "note": "Activates the dam-break forcing workflow for cases configured with dam-break inputs.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_human_instability": {
+   "cell": "E17",
+   "value": 0,
+   "note": "Calculates depth-velocity human-instability indicators. Value 0 disables it; value 1 uses the basic classification and value 3 enables the extended classification.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_boundary": {
+   "cell": "E18",
+   "value": 1,
+   "note": "Activates the configured open/perimeter boundary treatment. Define the outlet mask and outlet slope carefully because this setting controls water removal at the domain edge.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_numerical_scheme": {
+   "cell": "E19",
+   "value": 3,
+   "note": "Chooses the local-inertial discretization: 1 = Bates, 2 = slope-upwind, 3 = slope-centered. The value is used only by routing options that call the inertial scheme.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_outlet_type": {
+   "cell": "E20",
+   "value": 2,
+   "note": "Chooses the outlet relation: 1 = normal-flow outlet using slope_outlet; 2 = critical-flow outlet. The selected outlet cells determine where this relation is applied.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_adaptive_timestepping": {
+   "cell": "E21",
+   "value": 1,
+   "note": "Updates the surface-routing timestep from the stability limits during the simulation. Keep enabled for most dynamic simulations.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_neglect_infiltration_river": {
+   "cell": "E22",
+   "value": 0,
+   "note": "Sets infiltration and initial abstraction to zero in identified river cells.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_neal_channel": {
+   "cell": "E23",
+   "value": 0,
+   "note": "Activates the Neal (2012) embedded rectangular channel and floodplain extension. It requires flag_inertial = 1, structured raster topology, and valid river-width and river-depth rasters.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_spatial_albedo": {
+   "cell": "E24",
+   "value": 1,
+   "note": "Uses the supplied albedo raster instead of the scalar default albedo.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_river_rasters": {
+   "cell": "E25",
+   "value": 0,
+   "note": "Uses supplied RiverWidths and RiverDepths rasters to define the channel geometry for the active subgrid model.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_baseflow": {
+   "cell": "E26",
+   "value": 0,
+   "note": "Enables the configured baseflow contribution where the selected hydrologic workflow supports it.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_kinematic": {
+   "cell": "E27",
+   "value": 0,
+   "note": "Selects the kinematic-wave routing alternative. Do not combine it with local inertial, full momentum, or cellular automata routing.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_diffusive": {
+   "cell": "E28",
+   "value": 0,
+   "note": "Selects the diffusive-wave routing alternative. Do not combine it with local inertial, full momentum, or cellular automata routing.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_DTM": {
+   "cell": "E29",
+   "value": 0,
+   "note": "Uses the DTM-processing pathway for terrain preparation when that workflow is required by the input data.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_abstraction": {
+   "cell": "E30",
+   "value": 0,
+   "note": "Enables canopy interception and initial abstraction processes.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_structured_lookup_subgrid": {
+   "cell": "E31",
+   "value": 0,
+   "note": "Enables the structured lookup-table subgrid formulation on the regular raster model. It uses level-dependent cell and face properties and cannot be combined with Neal or Voronoi subgrid.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_snow_modeling": {
+   "cell": "E32",
+   "value": 0,
+   "note": "Enables precipitation partition, snow storage, melt, sublimation, and compaction using the snow columns of LULC_parameters.xlsx.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_WQ_Rasters": {
+   "cell": "E33",
+   "value": 0,
+   "note": "Uses spatial water-quality coefficient rasters B1, B2, W1, and W2 instead of the land-cover table coefficients.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_capillary_rise": {
+   "cell": "E34",
+   "value": 1,
+   "note": "Enables capped upward flow from shallow groundwater to the transmission or root zone when storage deficits exist.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_voronoi_subgrid": {
+   "cell": "E35",
+   "value": 0,
+   "note": "Enables sub-grid face tables (stage versus flow area, wetted perimeter and conveyance) on the Voronoi mesh. Used only with flag_voronoi = 1; the table path is set in Voronoi_Settings.xlsx.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_voronoi": {
+   "cell": "E36",
+   "value": 0,
+   "note": "Runs the model on a prepared Voronoi (unstructured) mesh instead of the raster grid. Mesh options are read from Voronoi_Settings.xlsx.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_deep_aquifer": {
+   "cell": "E37",
+   "value": 0,
+   "note": "Enables the deep aquifer: deep_recharge_fraction of the water-table recharge goes to one linear reservoir per subbasin and returns to the surface after deep_aquifer_tau_days. Requires DeepAquiferSubbasins_path and DeepAquiferChannelWeight_path.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_layered_subsurface": {
+   "cell": "E38",
+   "value": 0,
+   "note": "Enables the layered subsurface: three soil layers over weathered-rock layers down to bedrock, one water table per cell (Miguez-Macho et al., 2007 rules). Settings are in the Layered Subsurface block of General_Data (D10:F28) and the optional rasters T21:T28. Requires flag_groundwater_modeling = 1.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_feddes": {
+   "cell": "E39",
+   "value": 0,
+   "note": "Enables Feddes root-water stress: transpiration from each soil layer is reduced by its suction head. Heads are in the Feddes block of General_Data (D30:F36). Works with the layered and the legacy soil schemes.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  },
+  "flag_implicit_water_table_flux": {
+   "cell": "E40",
+   "value": 1,
+   "note": "Solves the Darcy flux between the soil and the water table implicitly in the layered subsurface (one linearised backward-Euler step per cell): 1 (default) stays accurate at long time steps when the water table is shallow; 0 uses the explicit flux, which needs short steps there. Used only with flag_layered_subsurface = 1.\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option.",
+   "group": "Hydrologic-Hydrodynamic-WQ Flags"
+  }
+ }
+}

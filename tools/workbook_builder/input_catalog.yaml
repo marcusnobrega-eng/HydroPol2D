@@ -1,0 +1,1669 @@
+title: HydroPol2D input workbook
+developer: Marcus N. Gomes Jr., PhD
+excluded:
+  ro_person: human_risk.xlsx holds the human-instability parameters
+  weight_person: human_risk.xlsx
+  height_person: human_risk.xlsx
+  width1_person: human_risk.xlsx
+  width2_person: human_risk.xlsx
+  ro_water: human_risk.xlsx
+  flag_subgrid: derived from the three channel sub-grid switches
+  flag_overbanks: derived from flag_neal_channel
+  terrain_runtime: only in a code comment
+  NDVI_path: its reader line is commented out
+  deep_aquifer_response_time_days: alias of deep_aquifer_tau_days
+  River_K_coeff: read, then deactivated in input_data_script
+  time_save_ETP: read, then not used by a model run
+  flag_river_heigth_compensation: used only by old code a run does not call
+  flag_dam_break: used only by old main loops (ensemble, synthetic, workspace)
+  flag_data_source: used only by old code a run does not call
+reader_followups:
+- Read flag_* rows from every tab, not only the Flags sheet.
+- Accept the friendly tab names in read_config_cells (both copies).
+- Accept 'Satellite' as well as 'Sattelite' in the three map-list titles.
+- Drop flag_data_source, flag_dam_break and flag_river_heigth_compensation from requiredFlags (default
+  0).
+- Read time_save_ETP as optional, or not at all (it is unused).
+tabs:
+- name: Run control
+  purpose: Simulation period, time step, performance and what the model records.
+  blocks:
+  - title: Simulation period
+    inputs:
+    - key: date_begin
+      label: Start date and time
+      kind: date
+      unit: date
+      used_when: always
+      note: date_begin is the simulation start datetime. Use the same time reference as rainfall, evapotranspiration,
+        inflow, stage, and observation time series.
+      default: required
+    - key: date_end
+      label: End date and time
+      kind: date
+      unit: date
+      used_when: always
+      note: date_end is the simulation end datetime. It must be later than date_begin; forcing values
+        outside this interval are not part of the run.
+      default: required
+  - title: Surface time step
+    inputs:
+    - key: time_step_model
+      label: Initial time step
+      kind: number
+      unit: s
+      used_when: always
+      note: time_step_model is the nominal surface-model timestep in seconds. It initializes the routing
+        loop; adaptive timestepping may replace it with a stable value between min_time_step and max_time_step.
+      default: required
+    - key: min_time_step
+      label: Minimum time step
+      kind: number
+      unit: s
+      used_when: always
+      note: min_time_step is the smallest allowable surface-routing timestep in seconds. Use a positive
+        value small enough to resolve rapid wetting, shallow flow, and steep terrain.
+      default: required
+    - key: max_time_step
+      label: Maximum time step
+      kind: number
+      unit: s
+      used_when: always
+      note: max_time_step is the largest allowable surface-routing timestep in seconds. It limits the
+        timestep during slowly varying periods and should be greater than or equal to min_time_step.
+      default: required
+    - key: alfa_min
+      label: Courant factor, lower
+      kind: number
+      unit: '-'
+      used_when: always
+      note: alfa_min is the lower Courant safety coefficient used when HydroPol2D calculates a stable
+        surface-routing timestep. Smaller values are more conservative and usually increase runtime.
+      default: required
+    - key: flag_adaptive_timestepping
+      label: Adaptive time stepping
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Updates the surface-routing timestep from the stability limits during the simulation. Keep
+        enabled for most dynamic simulations.
+      default: required
+  - title: Computing
+    inputs:
+    - key: flag_GPU
+      label: Run on the GPU
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Runs supported arrays and calculations on a compatible MATLAB GPU. Leave disabled when a compatible
+        GPU is not available.
+      default: required
+    - key: flag_single
+      label: Single precision
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Stores supported numerical arrays in single precision to reduce memory use. Keep disabled
+        when maximum numerical precision is required.
+      default: required
+  - title: Recording intervals
+    inputs:
+    - key: record_time_maps
+      label: Save maps every
+      kind: number
+      unit: min
+      used_when: always
+      note: record_time_maps is the interval in minutes between saved spatial model maps. A shorter interval
+        increases output detail and disk use without changing the simulation physics.
+      default: required
+    - key: record_time_hydrographs
+      label: Save hydrographs every
+      kind: number
+      unit: min
+      used_when: always
+      note: record_time_hydrographs is the interval in minutes between saved outlet, inflow, and gauge
+        hydrograph records. Choose an interval that resolves the expected hydrograph response.
+      default: required
+    - key: record_time_spatial_rainfall
+      label: Save rainfall maps every
+      kind: number
+      unit: min
+      used_when: spatial rainfall on
+      note: record_time_spatial_rainfall is the interval in minutes used to save or aggregate spatial
+        rainfall information. For raster rainfall, it should be compatible with the map-output interval.
+      default: required
+    - key: record_time_spatial_ETP
+      label: Save ET maps every
+      kind: number
+      unit: min
+      used_when: ET on
+      note: record_time_spatial_ETP is the interval in minutes between saved spatial evaporation and transpiration
+        products. Shorter intervals produce more detailed files and increase storage demand.
+      default: required
+  - title: Outputs and display
+    inputs:
+    - key: flag_export_maps
+      label: Export maps
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Exports scheduled spatial model outputs such as flood depth and related maps.
+      default: required
+    - key: flag_export_groundwater_maps
+      label: Export groundwater maps
+      kind: switch
+      unit: 0 / 1
+      used_when: groundwater on
+      note: Exports scheduled groundwater water-table-depth rasters when groundwater modelling is enabled.
+      default: 0
+    - key: flag_wse
+      label: Water-surface elevation maps
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: 'flag_wse controls water-surface-elevation map output: 0 disables it and 1 enables it. The
+        map uses DEM elevation plus simulated water depth where depth exceeds depth_wse.'
+      default: required
+    - key: depth_wse
+      label: Minimum depth for those maps
+      kind: number
+      unit: m
+      used_when: water-surface maps on
+      note: depth_wse is the minimum water depth in metres used when water-surface-elevation maps are
+        produced. It avoids reporting water-surface elevation where the cell is effectively dry.
+      default: required
+    - key: flag_waterbalance
+      label: Water-balance report
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Writes water-balance diagnostics during the run. Enable this for validation and for routine
+        model checks.
+      default: required
+    - key: flag_dashboard
+      label: Live dashboard
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Creates the configured dashboard-oriented outputs during the simulation.
+      default: required
+    - key: flag_elapsed_time
+      label: Show elapsed time
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Prints or records elapsed computational time for the simulation.
+      default: required
+  - title: Warm start
+    inputs:
+    - key: flag_warmup
+      label: Start from a warm-up state
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Initializes the simulation from the configured warm-up state rather than the standard initial-state
+        rasters.
+      default: required
+  - title: Advanced (keep the defaults unless you know why)
+    inputs:
+    - key: alfa_max
+      label: Courant factor, upper
+      kind: number
+      unit: '-'
+      used_when: always
+      note: alfa_max is the upper adaptive-timestep coefficient retained for compatible time-control configurations.
+        Keep it positive and no smaller than alfa_min; current routing stability calculations use alfa_min
+        for the conservative candidate step.
+      default: required
+    - key: time_step_change
+      label: Time-step refresh increment
+      kind: number
+      unit: s
+      used_when: always
+      note: time_step_change is the positive time increment in seconds used for timestep-refresh bookkeeping
+        and diagnostic alignment. It is not the groundwater update interval.
+      default: required
+    - key: flag_timestep
+      label: Full time-step stability check
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Selects the full timestep-stability treatment for supported routing solvers. Use the validated
+        default unless testing a specific numerical formulation.
+      default: required
+    style: advanced
+- name: Input maps
+  purpose: Paths to the GeoTIFF maps. Leave optional maps empty to use the class tables or scalars.
+  blocks:
+  - title: Required maps
+    inputs:
+    - key: DEM_path
+      label: Terrain elevation (DEM)
+      kind: path
+      unit: m
+      used_when: always
+      note: DEM_path is the required path to the terrain elevation GeoTIFF, with elevations in metres.
+        It defines the model domain, grid geometry, and topographic gradients.
+      default: required
+    - key: LULC_path
+      label: Land use / land cover classes
+      kind: path
+      unit: class
+      used_when: always
+      note: LULC_path is the required categorical land-use/land-cover GeoTIFF. Raster class codes are
+        matched to LULC_parameters.xlsx; unmapped codes receive the documented area-weighted fallback.
+      default: required
+    - key: SOIL_path
+      label: Soil classes
+      kind: path
+      unit: class
+      used_when: always
+      note: SOIL_path is the required categorical soil-class GeoTIFF. Raster class codes are matched to
+        SOIL_parameters.xlsx; unmapped codes receive the documented area-weighted fallback.
+      default: required
+  - title: Land surface
+    inputs:
+    - key: Albedo_path
+      label: Albedo
+      kind: path
+      unit: 0 to 1
+      used_when: spatial albedo on
+      note: Albedo_path is an optional raster of surface albedo from 0 to 1. It is used only when spatial
+        albedo is enabled for the energy-balance evapotranspiration calculation.
+      default: ''
+    - key: LAI_path
+      label: Leaf area index
+      kind: path
+      unit: m2/m2
+      used_when: abstraction on
+      note: LAI_path is an optional leaf-area-index raster in m2 leaf area per m2 ground area. It is used
+        by canopy interception and vegetation-related evapotranspiration when the relevant flags are enabled.
+      default: ''
+    - key: ImperviousFraction_path
+      label: Impervious fraction
+      kind: path
+      unit: 0 to 1
+      used_when: optional
+      note: ImperviousFraction_path is an optional raster of fractional impervious cover from 0 to 1.
+        It refines infiltration behavior within a cell; values outside this range are not physically meaningful.
+      default: ''
+  - title: Rivers and terrain
+    inputs:
+    - key: RiverWidths_path
+      label: River width
+      kind: path
+      unit: m
+      used_when: channel sub-grid with river maps
+      note: RiverWidths_path is an optional river-width GeoTIFF in metres. It is required for the active
+        Neal (2012) embedded-channel model when flag_subgrid and flag_river_rasters are enabled; valid
+        embedded widths must remain smaller than the coarse-cell size.
+      default: ''
+    - key: RiverDepths_path
+      label: River depth
+      kind: path
+      unit: m
+      used_when: channel sub-grid with river maps
+      note: RiverDepths_path is an optional river-depth GeoTIFF in metres. It is paired with RiverWidths_path
+        for the active embedded-channel model and must be positive where a channel is present.
+      default: ''
+  - title: Initial states
+    inputs:
+    - key: Warmup_Depth_path
+      label: Initial surface water depth
+      kind: path
+      unit: m
+      used_when: warm start on
+      note: Warmup_Depth_path is an optional initial surface-water-depth GeoTIFF in metres. It is read
+        only when flag_warmup is enabled and initializes surface storage before routing.
+      default: ''
+    - key: Initial_Soil_Moisture_path
+      label: Initial soil water
+      kind: path
+      unit: see note
+      used_when: warm start on
+      note: Initial_Soil_Moisture_path is an optional initial soil-water-storage GeoTIFF. Despite its
+        legacy name, values are interpreted as storage above residual moisture in mm, not as volumetric
+        water content; it is read with flag_warmup.
+      default: ''
+    - key: GW_table_path
+      label: Initial water-table elevation
+      kind: path
+      unit: m
+      used_when: groundwater on
+      note: GW_table_path is an optional initial groundwater-table elevation GeoTIFF in metres, using
+        the same vertical datum as the DEM. It is read when groundwater or baseflow is enabled and is
+        constrained below the land surface.
+      default: ''
+    - key: Initial_SWE_path
+      label: Initial snow water equivalent
+      kind: path
+      unit: mm
+      used_when: snow on
+      note: Initial_SWE_path is an optional initial snow-water-equivalent GeoTIFF in mm water equivalent.
+        It is read only when snow modeling is enabled; negative values are invalid and no-data cells use
+        the default zero-snow condition.
+      default: ''
+    - key: Initial_Snow_Depth_path
+      label: Initial snow depth
+      kind: path
+      unit: mm
+      used_when: snow on
+      note: Initial_Snow_Depth_path is an optional initial snow-depth GeoTIFF in mm. It is read only when
+        snow modeling is enabled; when paired with SWE, the model checks their physical consistency and
+        derives density.
+      default: ''
+  - title: Soil-property maps (override the SOIL classes)
+    inputs:
+    - key: ThetaS_path
+      label: Soil theta_s
+      kind: path
+      unit: m3/m3
+      used_when: optional
+      note: ThetaS_path is an optional GeoTIFF of the soil saturated water content theta_s in m3/m3. It
+        overrides the SOIL_parameters value of each class where finite (nodata keeps the class value),
+        for all soil layers.
+      default: ''
+    - key: ThetaR_path
+      label: Soil theta_r
+      kind: path
+      unit: m3/m3
+      used_when: optional
+      note: ThetaR_path is an optional GeoTIFF of the soil residual water content theta_r in m3/m3. It
+        overrides the SOIL_parameters value of each class where finite (nodata keeps the class value).
+      default: ''
+    - key: AlphaVG_path
+      label: Soil van Genuchten alpha
+      kind: path
+      unit: 1/m
+      used_when: optional
+      note: AlphaVG_path is an optional GeoTIFF of the soil van Genuchten alpha in 1/m. It overrides the
+        SOIL_parameters value of each class where finite (nodata keeps the class value).
+      default: ''
+    - key: NVG_path
+      label: Soil van Genuchten n
+      kind: path
+      unit: '-'
+      used_when: optional
+      note: NVG_path is an optional GeoTIFF of the soil van Genuchten n (greater than 1, dimensionless).
+        It overrides the SOIL_parameters value of each class where finite (nodata keeps the class value).
+      default: ''
+    - key: KsatNearSurface_path
+      label: Ksat, near-surface layer
+      kind: path
+      unit: mm/h
+      used_when: optional
+      note: KsatNearSurface_path is an optional GeoTIFF of the saturated hydraulic conductivity of the
+        near-surface soil layer in mm/h. It overrides ksat x Ks_multiplier_near_surface of each SOIL class
+        where finite (nodata keeps the class value).
+      default: ''
+    - key: KsatRootZone_path
+      label: Ksat, root-zone layer
+      kind: path
+      unit: mm/h
+      used_when: optional
+      note: KsatRootZone_path is an optional GeoTIFF of the saturated hydraulic conductivity of the root-zone
+        soil layer in mm/h. It overrides ksat x Ks_multiplier_root_zone of each SOIL class where finite
+        (nodata keeps the class value).
+      default: ''
+    - key: KsatTransmission_path
+      label: Ksat, transmission layer
+      kind: path
+      unit: mm/h
+      used_when: optional
+      note: KsatTransmission_path is an optional GeoTIFF of the saturated hydraulic conductivity of the
+        transmission soil layer in mm/h. It overrides ksat x Ks_multiplier_transmission of each SOIL class
+        where finite (nodata keeps the class value).
+      default: ''
+    - key: GroundwaterKsat_path
+      label: Aquifer Ksat (kgsat)
+      kind: path
+      unit: mm/h
+      used_when: optional
+      note: 'GroundwaterKsat_path is an optional GeoTIFF of the aquifer horizontal conductivity kgsat
+        in mm/h. It overrides the SOIL_parameters kgsat of each class where finite. Layered subsurface:
+        it is the rock Kh fallback when regolith_ksat_h_mm_h and RegolithKsatH_path are empty.'
+      default: ''
+    - key: SpecificYield_path
+      label: Aquifer specific yield
+      kind: path
+      unit: '-'
+      used_when: legacy groundwater
+      note: SpecificYield_path is an optional GeoTIFF of the aquifer specific yield Sy (dimensionless)
+        for the legacy groundwater scheme. It overrides the SOIL_parameters Sy of each class where finite.
+        Not used by the layered subsurface, where Sy comes from the retention curves (or regolith_specific_yield).
+      default: ''
+  - title: Water-quality maps
+    inputs:
+    - key: Initial_Buildup_path
+      label: Initial pollutant mass
+      kind: path
+      unit: kg/cell
+      used_when: initial build-up on
+      note: Initial_Buildup_path is an optional pollutant-mass GeoTIFF in kg per cell. It is read only
+        when flag_initial_buildup and the water-quality module are enabled.
+      default: ''
+    - key: B1_path
+      label: Build-up asymptote C1
+      kind: path
+      unit: see note
+      used_when: water quality with maps
+      note: B1_path is an optional GeoTIFF path for the spatial C1 buildup asymptote. It is read only
+        when water quality and raster water-quality inputs are enabled; use values and units consistent
+        with the LULC C1 parameter.
+      default: ''
+    - key: B2_path
+      label: Build-up rate C2
+      kind: path
+      unit: see note
+      used_when: water quality with maps
+      note: B2_path is an optional GeoTIFF path for the spatial C2 buildup-rate parameter. It is read
+        only when water quality and raster water-quality inputs are enabled.
+      default: ''
+    - key: W1_path
+      label: Wash-off coefficient C3
+      kind: path
+      unit: see note
+      used_when: water quality with maps
+      note: W1_path is an optional GeoTIFF path for the spatial C3 washoff coefficient. It is read only
+        when water quality and raster water-quality inputs are enabled.
+      default: ''
+    - key: W2_path
+      label: Wash-off exponent C4
+      kind: path
+      unit: see note
+      used_when: water quality with maps
+      note: W2_path is an optional GeoTIFF path for the spatial C4 washoff exponent. It is read only when
+        water quality and raster water-quality inputs are enabled.
+      default: ''
+  wide_value: true
+- name: Soil and groundwater
+  purpose: Infiltration, evapotranspiration, groundwater, the layered subsurface and the deep aquifer.
+    Each map sits under the value it overrides.
+  blocks:
+  - title: Infiltration and evapotranspiration
+    inputs:
+    - key: flag_infiltration
+      label: Infiltration
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Enables infiltration and the layered soil-water balance. Disabling it also disables evapotranspiration
+        in the current model.
+      default: required
+    - key: flag_ETP
+      label: Evapotranspiration
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Enables evapotranspiration. HydroPol2D uses the configured meteorological or map inputs to
+        calculate evaporation and transpiration.
+      default: required
+    - key: flag_abstraction
+      label: Canopy interception
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Enables canopy interception and initial abstraction processes.
+      default: required
+    - key: flag_capillary_rise
+      label: Capillary rise
+      kind: switch
+      unit: 0 / 1
+      used_when: groundwater on
+      note: Enables capped upward flow from shallow groundwater to the transmission or root zone when
+        storage deficits exist.
+      default: 1
+    - key: flag_snow_modeling
+      label: Snow
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Enables precipitation partition, snow storage, melt, sublimation, and compaction using the
+        snow columns of LULC_parameters.xlsx.
+      default: required
+    - key: flag_spatial_albedo
+      label: Albedo from a map
+      kind: switch
+      unit: 0 / 1
+      used_when: snow or ET on
+      note: Uses the supplied albedo raster instead of the scalar default albedo.
+      default: required
+    - key: flag_neglect_infiltration_river
+      label: No infiltration in river cells
+      kind: switch
+      unit: 0 / 1
+      used_when: infiltration on
+      note: Sets infiltration and initial abstraction to zero in identified river cells.
+      default: required
+  - title: Groundwater
+    inputs:
+    - key: flag_groundwater_modeling
+      label: Groundwater
+      kind: switch
+      unit: 0 / 1
+      used_when: switch for this block
+      note: Enables the coupled layered-soil recharge and saturated groundwater module.
+      default: required
+    - key: flag_baseflow
+      label: Lateral groundwater flow
+      kind: switch
+      unit: 0 / 1
+      used_when: groundwater on
+      note: Enables the configured baseflow contribution where the selected hydrologic workflow supports
+        it.
+      default: required
+    - key: DTB_path
+      label: Depth to bedrock map
+      kind: path
+      unit: m
+      used_when: 'legacy: required; layered: optional'
+      note: 'DTB_path is an optional DEPTH-TO-BEDROCK GeoTIFF in metres below the land surface. Legacy
+        groundwater: it is the soil depth, and the aquifer lives inside it. Layered subsurface: it is
+        the bottom of the whole column (soil plus weathered rock); the soil thickness is set separately
+        by subsurface_soil_base_depth_m or SoilBaseDepth_path. Required for legacy groundwater; optional
+        with flag_layered_subsurface = 1, where an empty DTB_path falls back to subsurface_depth_to_bedrock_m,
+        then to the DTB (m) of each soil class in SOIL_parameters.xlsx.'
+      default: ''
+    - key: GW_Dirichlet_Head_path
+      label: Fixed groundwater head map
+      kind: path
+      unit: m
+      used_when: groundwater on
+      note: GW_Dirichlet_Head_path is an optional prescribed groundwater-head elevation GeoTIFF in metres.
+        Finite raster cells define the groundwater Dirichlet boundary; no-data cells remain unconstrained.
+      default: ''
+    - key: flag_prescribed_recharge
+      label: Prescribed recharge series
+      kind: switch
+      unit: 0 / 1
+      used_when: groundwater on
+      note: Replaces the computed recharge to the water table with the series in Prescribed_Recharge_Timeseries_File
+        (Input maps tab). Default 0.
+      default: 0
+    - key: Prescribed_Recharge_Timeseries_File
+      label: Prescribed recharge file
+      kind: path
+      unit: file
+      used_when: prescribed recharge on
+      note: Prescribed_Recharge_Timeseries_File is an optional file with a recharge time series that replaces
+        the computed recharge to the water table. It is read only when flag_prescribed_recharge = 1.
+      default: ''
+    - key: groundwater_courant
+      label: Groundwater Courant factor
+      kind: number
+      unit: '-'
+      used_when: lateral flow on
+      note: groundwater_courant is the dimensionless safety factor used to limit the Boussinesq groundwater
+        timestep. Use a value greater than zero and no greater than one; smaller values improve stability
+        at the cost of more updates.
+      default: 0.25
+    - key: groundwater_relative_tolerance
+      label: Lateral clock relative tolerance
+      kind: number
+      unit: '-'
+      used_when: lateral flow on
+      note: groundwater_relative_tolerance is the relative change of groundwater storage that triggers
+        the next lateral groundwater update (the lateral clock). Smaller values update more often and
+        cost more. Default 0.001.
+      default: 0.001
+    - key: groundwater_head_tolerance_m
+      label: Lateral clock head tolerance
+      kind: number
+      unit: m
+      used_when: lateral flow on
+      note: groundwater_head_tolerance_m is the water-table change in metres that triggers the next lateral
+        groundwater update (the lateral clock). Smaller values update more often and cost more. Default
+        0.001 m.
+      default: 0.001
+    - key: riverbed_thickness_m
+      label: Riverbed thickness
+      kind: number
+      unit: m
+      used_when: groundwater on
+      note: 'riverbed_thickness_m is the riverbed thickness in metres used in the river-aquifer exchange:
+        conductance = riverbed Ksat x riverbed area / thickness. Default 0.5 m.'
+      default: 0.5
+    switch: flag_groundwater_modeling
+  - title: 'Layered subsurface: column'
+    inputs:
+    - key: flag_layered_subsurface
+      label: Layered subsurface
+      kind: switch
+      unit: 0 / 1
+      used_when: switch for these blocks
+      note: 'Enables the layered subsurface: three soil layers over weathered-rock layers down to bedrock,
+        one water table per cell (Miguez-Macho et al., 2007 rules). Settings are in the Layered Subsurface
+        block of General_Data (D10:F28) and the optional rasters T21:T28. Requires flag_groundwater_modeling
+        = 1.'
+      default: 0
+    - key: subsurface_soil_base_depth_m
+      label: Soil thickness
+      kind: number
+      unit: m
+      used_when: layered on
+      note: 'subsurface_soil_base_depth_m is the SOIL THICKNESS in metres below ground: where the soil
+        ends and weathered rock (regolith) begins. The three soil layers (near-surface, root zone, transmission)
+        use SOIL_parameters.xlsx down to this depth. SoilBaseDepth_path overrides it cell by cell. It
+        is capped at the depth to bedrock. Default 2.0 m.'
+      default: 2.0
+    - key: SoilBaseDepth_path
+      label: Soil thickness map
+      kind: path
+      unit: m
+      used_when: layered on (wins where it has data)
+      note: 'SoilBaseDepth_path is an optional GeoTIFF of SOIL THICKNESS in metres below ground (the soil
+        base). It overrides subsurface_soil_base_depth_m where finite. Layered subsurface only. Global
+        source: SoilGrids BDRICM.'
+      default: ''
+    - key: subsurface_depth_to_bedrock_m
+      label: Depth to bedrock
+      kind: number
+      unit: m
+      used_when: layered, where the DTB map is empty
+      note: 'subsurface_depth_to_bedrock_m is the DEPTH TO BEDROCK in metres below ground: the bottom
+        of the whole modelled column, soil plus the weathered rock below it. It is deeper than (or equal
+        to) the soil thickness. Priority: DTB_path raster, then this value, then the DTB (m) of each soil
+        class in SOIL_parameters.xlsx, with a warning. Capped at subsurface_max_depth_m.'
+      default: ''
+    - key: subsurface_max_depth_m
+      label: Deepest column
+      kind: number
+      unit: m
+      used_when: layered on
+      note: 'subsurface_max_depth_m caps the modelled column in metres below ground: column bottom = min(depth
+        to bedrock, this value). Default 50 m.'
+      default: 50.0
+    - key: subsurface_deep_first_thickness_m
+      label: First rock layer thickness
+      kind: number
+      unit: m
+      used_when: layered on
+      note: subsurface_deep_first_thickness_m is the thickness in metres of the first rock layer directly
+        below the soil base. Each next layer is subsurface_deep_growth_ratio times thicker, up to subsurface_deep_max_thickness_m.
+        Default 0.25 m.
+      default: 0.25
+    - key: subsurface_deep_growth_ratio
+      label: Rock layer growth ratio
+      kind: number
+      unit: '-'
+      used_when: layered on
+      note: 'subsurface_deep_growth_ratio multiplies each rock layer''s thickness to get the next one:
+        0.25, 0.5, 1, 2, 4, 4, ... m with the defaults. Use a value of at least 1. Default 2.'
+      default: 2.0
+    - key: subsurface_deep_max_thickness_m
+      label: Thickest rock layer
+      kind: number
+      unit: m
+      used_when: layered on
+      note: subsurface_deep_max_thickness_m is the largest rock-layer thickness in metres. Layers keep
+        this thickness down to the column bottom. Default 4 m.
+      default: 4.0
+    switch: flag_layered_subsurface
+  - title: 'Layered subsurface: rock properties'
+    inputs:
+    - key: regolith_theta_s
+      label: Rock theta_s
+      kind: number
+      unit: m3/m3
+      used_when: layered on
+      note: regolith_theta_s is the saturated water content (porosity) of the rock layers below the soil
+        base, in m3/m3. RegolithThetaS_path overrides it cell by cell. Default 0.35.
+      default: 0.35
+    - key: RegolithThetaS_path
+      label: Rock theta_s map
+      kind: path
+      unit: m3/m3
+      used_when: layered on (wins where it has data)
+      note: RegolithThetaS_path is an optional GeoTIFF of the rock-layer saturated water content in m3/m3.
+        It overrides regolith_theta_s where finite. Layered subsurface only.
+      default: ''
+    - key: regolith_theta_r
+      label: Rock theta_r
+      kind: number
+      unit: m3/m3
+      used_when: layered on
+      note: regolith_theta_r is the residual water content of the rock layers, in m3/m3, below regolith_theta_s.
+        RegolithThetaR_path overrides it cell by cell. Default 0.05.
+      default: 0.05
+    - key: RegolithThetaR_path
+      label: Rock theta_r map
+      kind: path
+      unit: m3/m3
+      used_when: layered on (wins where it has data)
+      note: RegolithThetaR_path is an optional GeoTIFF of the rock-layer residual water content in m3/m3.
+        It overrides regolith_theta_r where finite. Layered subsurface only.
+      default: ''
+    - key: regolith_alpha_vg_m_inverse
+      label: Rock van Genuchten alpha
+      kind: number
+      unit: 1/m
+      used_when: layered on
+      note: regolith_alpha_vg_m_inverse is the van Genuchten alpha of the rock layers, in 1/m. With regolith_n_vg
+        it sets how much water the rock keeps after draining, and so its specific yield. RegolithAlphaVG_path
+        overrides it cell by cell. Default 2.
+      default: 2.0
+    - key: RegolithAlphaVG_path
+      label: Rock van Genuchten alpha map
+      kind: path
+      unit: 1/m
+      used_when: layered on (wins where it has data)
+      note: RegolithAlphaVG_path is an optional GeoTIFF of the rock-layer van Genuchten alpha in 1/m.
+        It overrides regolith_alpha_vg_m_inverse where finite. Layered subsurface only.
+      default: ''
+    - key: regolith_n_vg
+      label: Rock van Genuchten n
+      kind: number
+      unit: '-'
+      used_when: layered on
+      note: regolith_n_vg is the van Genuchten n of the rock layers (dimensionless, greater than 1). RegolithNVG_path
+        overrides it cell by cell. Default 1.5.
+      default: 1.5
+    - key: RegolithNVG_path
+      label: Rock van Genuchten n map
+      kind: path
+      unit: '-'
+      used_when: layered on (wins where it has data)
+      note: RegolithNVG_path is an optional GeoTIFF of the rock-layer van Genuchten n. It overrides regolith_n_vg
+        where finite. Layered subsurface only.
+      default: ''
+    - key: regolith_ksat_v_mm_h
+      label: Rock vertical Ksat
+      kind: number
+      unit: mm/h
+      used_when: layered on
+      note: regolith_ksat_v_mm_h is the vertical saturated hydraulic conductivity of the rock layers in
+        mm/h. It limits drainage and recharge through the rock. RegolithKsatV_path overrides it cell by
+        cell. Default 5 mm/h.
+      default: 5.0
+    - key: RegolithKsatV_path
+      label: Rock vertical Ksat map
+      kind: path
+      unit: mm/h
+      used_when: layered on (wins where it has data)
+      note: RegolithKsatV_path is an optional GeoTIFF of the rock-layer vertical saturated conductivity
+        in mm/h. It overrides regolith_ksat_v_mm_h where finite. Layered subsurface only.
+      default: ''
+    - key: regolith_ksat_h_mm_h
+      label: Rock horizontal Ksat
+      kind: number
+      unit: mm/h
+      used_when: 'layered on (empty: kgsat)'
+      note: regolith_ksat_h_mm_h is the horizontal saturated hydraulic conductivity of the rock layers
+        in mm/h, used for lateral groundwater flow. Leave it empty to use the groundwater Ksat (kgsat)
+        of SOIL_parameters.xlsx. RegolithKsatH_path overrides it cell by cell.
+      default: ''
+    - key: RegolithKsatH_path
+      label: Rock horizontal Ksat map
+      kind: path
+      unit: mm/h
+      used_when: layered on (wins where it has data)
+      note: 'RegolithKsatH_path is an optional GeoTIFF of the rock-layer horizontal saturated conductivity
+        in mm/h, used for lateral groundwater flow. It overrides regolith_ksat_h_mm_h where finite. Layered
+        subsurface only. Global source: GLHYMPS 2.0 permeability.'
+      default: ''
+    - key: regolith_specific_yield
+      label: Rock specific yield
+      kind: number
+      unit: '-'
+      used_when: 'layered on (empty: from curve)'
+      note: regolith_specific_yield is the drainable porosity of the rock layers (dimensionless). Leave
+        it empty to derive it from the van Genuchten values as theta_s minus the water content at field
+        capacity. A value here or RegolithSpecificYield_path overrides that; it must not exceed theta_s
+        minus theta_r.
+      default: ''
+    - key: RegolithSpecificYield_path
+      label: Rock specific yield map
+      kind: path
+      unit: '-'
+      used_when: layered on (wins where it has data)
+      note: RegolithSpecificYield_path is an optional GeoTIFF of the rock-layer specific yield. It overrides
+        the derived value (theta_s minus field capacity) where finite. Layered subsurface only.
+      default: ''
+    controlled_by: flag_layered_subsurface
+  - title: 'Layered subsurface: soil and numerics'
+    inputs:
+    - key: soil_lateral_anisotropy
+      label: Soil Kh / Kv
+      kind: number
+      unit: '-'
+      used_when: layered on
+      note: 'soil_lateral_anisotropy is the horizontal-to-vertical conductivity ratio of the three soil
+        layers: Kh = anisotropy x Ksat. 1 means isotropic. Default 1.'
+      default: 1.0
+    - key: capillary_field_capacity_head_m
+      label: Field-capacity suction
+      kind: number
+      unit: m
+      used_when: layered on
+      note: 'capillary_field_capacity_head_m is the suction head in metres that defines field capacity:
+        the water a layer keeps after the water table falls out of it. Specific yield = theta_s minus
+        theta at this head, and capillary rise from the water table refills a layer only up to this water
+        content. Default 3.3 m (about 33 kPa). Lower it to represent a capillary fringe above shallow
+        water tables (specific yield falls with it).'
+      default: 3.3
+    - key: subsurface_drainage_substeps
+      label: Drainage sub-steps
+      kind: number
+      unit: '-'
+      used_when: layered on
+      note: subsurface_drainage_substeps is the number of sub-steps for gravity drainage between layers
+        inside one model timestep. 1 is enough for most cases; raise it (2 to 10) for thin, highly conductive
+        layers. Default 1.
+      default: 1
+    - key: groundwater_target_dt_s
+      label: Lateral update interval
+      kind: number
+      unit: s
+      used_when: layered on
+      note: groundwater_target_dt_s is the interval in seconds between lateral groundwater updates in
+        the layered scheme. A shorter interval is used when the stability limit requires it. Vertical
+        soil fluxes still run every model timestep. Default 3600 s.
+      default: 3600
+    - key: groundwater_min_dt_s
+      label: Shortest lateral interval
+      kind: number
+      unit: s
+      used_when: layered on
+      note: groundwater_min_dt_s is the shortest interval in seconds allowed between lateral groundwater
+        updates, even when the stability limit asks for less. Default 60 s.
+      default: 60
+    - key: flag_implicit_water_table_flux
+      label: Implicit water-table flux
+      kind: switch
+      unit: 0 / 1
+      used_when: layered on
+      note: 'Solves the Darcy flux between the soil and the water table implicitly in the layered subsurface
+        (one linearised backward-Euler step per cell): 1 (default) stays accurate at long time steps when
+        the water table is shallow; 0 uses the explicit flux, which needs short steps there. Used only
+        with flag_layered_subsurface = 1.'
+      default: 1
+    controlled_by: flag_layered_subsurface
+  - title: Lateral conductivity multipliers
+    inputs:
+    - key: soil_lateral_conductivity_multiplier
+      label: Soil Kh multiplier
+      kind: number
+      unit: '-'
+      used_when: layered on
+      note: soil_lateral_conductivity_multiplier scales the horizontal conductivity of the three soil
+        layers (soil Ksat x soil_lateral_anisotropy) for lateral groundwater flow. Vertical Ksat and infiltration
+        do not change. Fitted by the layered groundwater recession calibration (high flows drain through
+        the soil); 1 keeps the mapped values.
+      default: 1.0
+    - key: regolith_lateral_conductivity_multiplier
+      label: Rock Kh multiplier
+      kind: number
+      unit: '-'
+      used_when: layered on
+      note: regolith_lateral_conductivity_multiplier scales the horizontal conductivity of the rock layers
+        below the soil base (regolith_ksat_h_mm_h, RegolithKsatH_path or kgsat). Fitted by the layered
+        groundwater recession calibration (low flows drain through the rock); 1 keeps the mapped values.
+      default: 1.0
+    controlled_by: flag_layered_subsurface
+  - title: Feddes root-water stress
+    inputs:
+    - key: flag_feddes
+      label: Feddes stress
+      kind: switch
+      unit: 0 / 1
+      used_when: switch for this block
+      note: 'Enables Feddes root-water stress: transpiration from each soil layer is reduced by its suction
+        head. Heads are in the Feddes block of General_Data (D30:F36). Works with the layered and the
+        legacy soil schemes.'
+      default: 0
+    - key: feddes_h1_m
+      label: h1, anaerobiosis
+      kind: number
+      unit: m
+      used_when: Feddes on
+      note: feddes_h1_m is the anaerobiosis head in metres (negative). Wetter than h1, roots take no water
+        (no oxygen). Default -0.1 m.
+      default: -0.1
+    - key: feddes_h2_m
+      label: h2, optimal from
+      kind: number
+      unit: m
+      used_when: Feddes on
+      note: feddes_h2_m is the head in metres (negative) where uptake becomes optimal. Between h1 and
+        h2 the stress factor rises from 0 to 1. Default -0.25 m.
+      default: -0.25
+    - key: feddes_h3_m
+      label: h3, stress from
+      kind: number
+      unit: m
+      used_when: Feddes on
+      note: feddes_h3_m is the head in metres (negative) where water stress starts. Between h3 and h4
+        the factor falls from 1 to 0. Used when feddes_h3_low_m and feddes_h3_high_m are empty. Default
+        -4 m.
+      default: -4.0
+    - key: feddes_h3_low_m
+      label: h3 at low demand
+      kind: number
+      unit: m
+      used_when: 'Feddes on (empty: h3)'
+      note: feddes_h3_low_m is h3 at low transpiration demand (potential ET of 1 mm/d or less), in metres
+        (negative). With feddes_h3_high_m, h3 is interpolated by demand as in SWAP. Leave it empty to
+        use feddes_h3_m.
+      default: ''
+    - key: feddes_h3_high_m
+      label: h3 at high demand
+      kind: number
+      unit: m
+      used_when: 'Feddes on (empty: h3)'
+      note: feddes_h3_high_m is h3 at high transpiration demand (potential ET of 5 mm/d or more), in metres
+        (negative); usually less negative than feddes_h3_low_m, so stress starts earlier on high-demand
+        days. Leave it empty to use feddes_h3_m.
+      default: ''
+    - key: feddes_h4_m
+      label: h4, wilting point
+      kind: number
+      unit: m
+      used_when: Feddes on
+      note: feddes_h4_m is the wilting-point head in metres (negative). Drier than h4, roots take no water.
+        Default -80 m (-0.8 MPa).
+      default: -80.0
+    switch: flag_feddes
+  - title: Deep aquifer
+    inputs:
+    - key: flag_deep_aquifer
+      label: Deep aquifer
+      kind: switch
+      unit: 0 / 1
+      used_when: switch for this block
+      note: 'Enables the deep aquifer: deep_recharge_fraction of the water-table recharge goes to one
+        linear reservoir per subbasin and returns to the surface after deep_aquifer_tau_days. Requires
+        DeepAquiferSubbasins_path and DeepAquiferChannelWeight_path.'
+      default: 0
+    - key: DeepAquiferSubbasins_path
+      label: Deep-aquifer subbasins map
+      kind: path
+      unit: ID
+      used_when: 'deep aquifer on: required'
+      note: DeepAquiferSubbasins_path is an integer GeoTIFF of subbasin IDs (1, 2, ...). Each ID is one
+        deep-aquifer reservoir. Required only when flag_deep_aquifer = 1; every active cell needs a positive
+        ID. A raster of all 1s gives one reservoir for the whole domain.
+      default: ''
+    - key: DeepAquiferChannelWeight_path
+      label: Deep-aquifer return weights map
+      kind: path
+      unit: '-'
+      used_when: 'deep aquifer on: required'
+      note: DeepAquiferChannelWeight_path is a GeoTIFF of non-negative weights saying where each subbasin's
+        deep-aquifer outflow returns to the surface, e.g. 1 on river cells and 0 elsewhere. Weights are
+        normalized within each subbasin, which needs at least one positive weight. Required only when
+        flag_deep_aquifer = 1.
+      default: ''
+    - key: deep_recharge_fraction
+      label: Share of recharge to the deep aquifer
+      kind: number
+      unit: '-'
+      used_when: deep aquifer on
+      note: 'deep_recharge_fraction is the share, in (0, 1], of water-table recharge sent to the deep
+        aquifer: a slow linear reservoir per subbasin below the 2-D groundwater model. The rest recharges
+        the shallow aquifer. Read only when flag_deep_aquifer = 1.'
+      default: 0.05
+    - key: deep_aquifer_tau_days
+      label: Response time
+      kind: number
+      unit: days
+      used_when: deep aquifer on
+      note: deep_aquifer_tau_days is the deep-aquifer response time in days. Each subbasin reservoir drains
+        as outflow = storage / tau, and the outflow returns to the surface at the cells weighted by DeepAquiferChannelWeight_path.
+        Read only when flag_deep_aquifer = 1.
+      default: 180
+    switch: flag_deep_aquifer
+  - title: 'Deep aquifer: starting storage (give one, or none to start empty)'
+    inputs:
+    - key: deep_aquifer_initial_baseflow_mm_day
+      label: Starting deep baseflow (from a gauge)
+      kind: number
+      unit: mm/day
+      used_when: option 1
+      note: 'deep_aquifer_initial_baseflow_mm_day is the deep-aquifer baseflow per unit area on the start
+        date, in mm/day (option 1: from a gauge, e.g. hydropol2d estimate-deep-baseflow, which divides
+        the deep part of the start-date baseflow by the drainage area). Each subbasin starts at storage
+        S0 = q0 x subbasin area x deep_aquifer_tau_days. Leave empty to start empty. Set this or deep_aquifer_mean_recharge_mm_year,
+        not both.'
+      default: ''
+    - key: deep_aquifer_mean_recharge_mm_year
+      label: Long-term mean recharge (no gauge)
+      kind: number
+      unit: mm/year
+      used_when: 'option 2: steady state'
+      note: 'deep_aquifer_mean_recharge_mm_year is the long-term mean recharge to the water table, in
+        mm/year (option 2: no gauge needed). The deep aquifer starts at steady state: q0 = deep_recharge_fraction
+        x this recharge, and S0 = q0 x subbasin area x deep_aquifer_tau_days. Set this or deep_aquifer_initial_baseflow_mm_day,
+        not both.'
+      default: ''
+    - key: DeepAquiferInitialState_path
+      label: Calibrated starting storage (JSON)
+      kind: path
+      unit: file
+      used_when: 'option 3: from the Builder'
+      note: DeepAquiferInitialState_path is an optional JSON file with the starting storage of each deep-aquifer
+        subbasin (the Builder's DeepAquiferInitialState.json from the recession calibration). Use it instead
+        of the two Deep Aquifer Initial State values, not together with them.
+      default: ''
+    controlled_by: flag_deep_aquifer
+  wide_value: true
+- name: Surface flow
+  purpose: Routing scheme, outlets, river channels, terrain treatment and structures.
+  blocks:
+  - title: Routing scheme
+    inputs:
+    - key: flag_inertial
+      label: Local-inertial routing
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Selects the local-inertial hydrodynamic solver. It is the required routing solver for the
+        active Neal (2012) channel-subgrid extension.
+      default: required
+    - key: flag_numerical_scheme
+      label: Inertial discretization
+      kind: choice
+      unit: 1 / 2 / 3
+      used_when: inertial on
+      note: 'Chooses the local-inertial discretization: 1 = Bates, 2 = slope-upwind, 3 = slope-centered.
+        The value is used only by routing options that call the inertial scheme.'
+      options:
+      - 1
+      - 2
+      - 3
+      default: required
+    - key: flag_CA
+      label: Cellular-automata routing
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Selects the cellular-automata hydrodynamic routing option. Do not enable it together with
+        local inertial or full momentum routing.
+      default: required
+    - key: flag_kinematic
+      label: Kinematic wave
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Selects the kinematic-wave routing alternative. Do not combine it with local inertial, full
+        momentum, or cellular automata routing.
+      default: required
+    - key: flag_diffusive
+      label: Diffusive wave
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Selects the diffusive-wave routing alternative. Do not combine it with local inertial, full
+        momentum, or cellular automata routing.
+      default: required
+    - key: flag_D8
+      label: D8 flow directions
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Enables D8 terrain-routing and drainage preprocessing where applicable. Local-inertial routing
+        itself remains face based.
+      default: required
+  - title: Outlets and boundaries
+    inputs:
+    - key: flag_boundary
+      label: Open boundary treatment
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Activates the configured open/perimeter boundary treatment. Define the outlet mask and outlet
+        slope carefully because this setting controls water removal at the domain edge.
+      default: required
+    - key: flag_outlet_type
+      label: Outlet relation
+      kind: choice
+      unit: 1 / 2
+      used_when: always
+      note: 'Chooses the outlet relation: 1 = normal-flow outlet using slope_outlet; 2 = critical-flow
+        outlet. The selected outlet cells determine where this relation is applied.'
+      options:
+      - 1
+      - 2
+      default: required
+    - key: flag_critical
+      label: Critical-flow outlet
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Uses the critical-flow outlet treatment where the selected routing solver supports it. This
+        is distinct from the normal-flow outlet selected with flag_outlet_type.
+      default: required
+    - key: slope_outlet
+      label: Outlet energy slope
+      kind: number
+      unit: m/m
+      used_when: normal-flow outlet
+      note: slope_outlet is the positive normal-flow energy slope in m/m applied at configured outlet
+        cells. It should represent the downstream channel or terrain gradient beyond the modeled domain.
+      default: required
+    - key: n_outlets_data
+      label: Number of outlet cells
+      kind: number
+      unit: '-'
+      used_when: always
+      note: n_outlets_data is the number of domain-edge cells used as outlets (rounded, at least 1). Outlets
+        grow from the lowest perimeter cell unless an outlet-cell CSV is supplied. Default 1.
+      default: 1
+  - title: River channel (sub-grid)
+    inputs:
+    - key: flag_neal_channel
+      label: Neal (2012) channel sub-grid
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Activates the Neal (2012) embedded rectangular channel and floodplain extension. It requires
+        flag_inertial = 1, structured raster topology, and valid river-width and river-depth rasters.
+      default: required
+    - key: flag_river_rasters
+      label: River width and depth from maps
+      kind: switch
+      unit: 0 / 1
+      used_when: channel sub-grid on
+      note: Uses supplied RiverWidths and RiverDepths rasters to define the channel geometry for the active
+        subgrid model.
+      default: required
+    - key: Manning
+      label: Channel Manning n
+      kind: number
+      unit: s m^-1/3
+      used_when: always
+      note: Manning is the in-bank channel Manning roughness in s m^-1/3, applied on river cells. Land
+        and overbank cells use the LULC_parameters.xlsx roughness.
+      default: required
+    - key: alfa_1
+      label: Depth law coefficient
+      kind: number
+      unit: '-'
+      used_when: channel from drainage area
+      note: alfa_1 is the coefficient in the derived channel-depth relation H = alfa_1 A^alfa_2, where
+        A is contributing area in km2. It is used only when channel geometry is derived rather than supplied
+        as rasters.
+      default: required
+    - key: alfa_2
+      label: Depth law exponent
+      kind: number
+      unit: '-'
+      used_when: channel from drainage area
+      note: alfa_2 is the exponent in the derived channel-depth relation H = alfa_1 A^alfa_2. Use a value
+        calibrated or justified for the target river network.
+      default: required
+    - key: beta_1
+      label: Width law coefficient
+      kind: number
+      unit: '-'
+      used_when: channel from drainage area
+      note: beta_1 is the coefficient in the derived channel-width relation W = beta_1 A^beta_2, where
+        A is contributing area in km2. It is bypassed by supplied river-width rasters.
+      default: required
+    - key: beta_2
+      label: Width law exponent
+      kind: number
+      unit: '-'
+      used_when: channel from drainage area
+      note: beta_2 is the exponent in the derived channel-width relation W = beta_1 A^beta_2. It controls
+        how quickly generated channels widen downstream.
+      default: required
+  - title: Terrain treatment
+    inputs:
+    - key: flag_resample
+      label: Resample the grid
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Resamples ancillary rasters to the DEM grid during preprocessing when their grid differs from
+        the DEM.
+      default: required
+    - key: resolution_resample
+      label: Model resolution
+      kind: number
+      unit: m
+      used_when: resample on
+      note: resolution_resample is the working model-grid resolution in metres when raster resampling
+        is enabled. All model inputs are aligned to this resolution during preprocessing.
+      default: required
+    - key: flag_fill_DEM
+      label: Fill sinks
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Fills terrain depressions before deriving drainage directions and flow accumulation.
+      default: required
+    - key: flag_smoothening
+      label: Smooth river profiles
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Applies constrained stream-profile smoothing during DEM preprocessing. This option requires
+        Optimization Toolbox.
+      default: required
+    - key: min_area
+      label: Stream threshold area
+      kind: number
+      unit: km2
+      used_when: smoothing on
+      note: min_area is the contributing-area threshold in km2 used to extract the modeled stream network
+        and derive hydraulic geometry from flow accumulation.
+      default: required
+    - key: K_value
+      label: Smoothing strength
+      kind: number
+      unit: 0 to 20
+      used_when: smoothing on
+      note: K_value is the smoothing strength passed to the constrained regularized stream-profile smoother.
+        It is used only when DEM smoothing is enabled; larger values produce stronger profile regularization.
+      default: required
+    - key: tau
+      label: Smoothing regularization
+      kind: number
+      unit: 0 to 1
+      used_when: smoothing on
+      note: tau is the dimensionless regularization setting passed to the constrained regularized stream-profile
+        smoother. It is used only when DEM smoothing is enabled.
+      default: required
+    - key: sl
+      label: Minimum imposed slope
+      kind: number
+      unit: m/m
+      used_when: smoothing on
+      note: sl is the minimum imposed drainage gradient in m/m used by terrain conditioning when minimum-slope
+        imposition is enabled.
+      default: required
+    - key: flag_smooth_cells
+      label: Smooth cells
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Applies the configured cell-level DEM smoothing treatment during preprocessing.
+      default: required
+    - key: flag_trunk
+      label: Trunk streams only
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Uses the trunk-stream processing option during terrain and drainage-network preparation.
+      default: required
+    - key: flag_reduce_DEM
+      label: Reduce the DEM
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Applies the configured river-channel DEM reduction during preprocessing.
+      default: required
+    - key: flag_DTM
+      label: DTM filter
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Uses the DTM-processing pathway for terrain preparation when that workflow is required by
+        the input data.
+      default: required
+    - key: slope_DTM
+      label: DTM filter slope
+      kind: number
+      unit: '%'
+      used_when: DTM filter on
+      note: slope_DTM is the slope threshold in percent used by the DTM filter. It is read only when the
+        DTM filtering option is enabled.
+      default: required
+  - title: Unstructured mesh
+    inputs:
+    - key: flag_voronoi
+      label: Voronoi mesh
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Runs the model on a prepared Voronoi (unstructured) mesh instead of the raster grid. Mesh
+        options are read from Voronoi_Settings.xlsx.
+      default: 0
+    - key: flag_voronoi_subgrid
+      label: Voronoi sub-grid tables
+      kind: switch
+      unit: 0 / 1
+      used_when: Voronoi on
+      note: Enables sub-grid face tables (stage versus flow area, wetted perimeter and conveyance) on
+        the Voronoi mesh. Used only with flag_voronoi = 1; the table path is set in Voronoi_Settings.xlsx.
+      default: required
+  - title: Inflows and structures
+    inputs:
+    - key: flag_inflow
+      label: Inflow hydrographs
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Applies one or more prescribed discharge hydrographs at the inlet coordinates defined in Inflow_Hydrograph.xlsx.
+      default: required
+    - key: flag_stage_hydrograph
+      label: Stage hydrographs
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Applies a prescribed water-level hydrograph at the configured stage-boundary location(s).
+      default: required
+    - key: flag_reservoir
+      label: Reservoirs
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Enables the reservoir and control-structure module using the configured reservoir inputs.
+      default: required
+  - title: 'Paused (keep at 0: setting 1 stops the run)'
+    inputs:
+    - key: flag_structured_lookup_subgrid
+      label: Lookup-table sub-grid (paused)
+      kind: switch
+      unit: 0 / 1
+      used_when: paused
+      note: Enables the structured lookup-table subgrid formulation on the regular raster model. It uses
+        level-dependent cell and face properties and cannot be combined with Neal or Voronoi subgrid.
+      default: 0
+    - key: Subgrid_DEM_path
+      label: High-resolution DEM for that sub-grid (paused)
+      kind: path
+      unit: m
+      used_when: paused
+      note: Subgrid_DEM_path is an optional high-resolution DEM GeoTIFF in metres for the lookup-table
+        sub-grid. It is read only when the lookup sub-grid is on without overbank mode.
+      default: ''
+    style: paused
+- name: Rain and ET
+  purpose: Where rainfall and evapotranspiration come from, and the lists of map files.
+  blocks:
+  - title: Rainfall source
+    inputs:
+    - key: flag_rainfall
+      label: Rainfall
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: 'Enables rainfall forcing. Use this with one selected rainfall source: a lumped time series,
+        gauge interpolation, a scheduled raster sequence, or a satellite product.'
+      default: required
+    - key: flag_spatial_rainfall
+      label: Spatially varied rainfall
+      kind: switch
+      unit: 0 / 1
+      used_when: rainfall on
+      note: Interpolates rainfall from the configured rainfall gauges to every model cell. Gauge coordinates
+        and a common rainfall time series are required.
+      default: required
+    - key: flag_input_rainfall_map
+      label: Rainfall from the map list below
+      kind: switch
+      unit: 0 / 1
+      used_when: rainfall on
+      note: Reads a time-indexed sequence of rainfall rasters from the Satellite or Radar Rainfall table
+        in General_Data. Do not enable this together with another spatial-rainfall source.
+      default: required
+    - key: flag_satellite_rainfall
+      label: Satellite rainfall
+      kind: switch
+      unit: 0 / 1
+      used_when: rainfall on
+      note: Activates the satellite-rainfall forcing workflow. It prepares an hourly spatial-rainfall
+        schedule and enables rainfall automatically.
+      default: required
+    - key: flag_real_time_satellite_rainfall
+      label: Real-time satellite rainfall
+      kind: switch
+      unit: 0 / 1
+      used_when: rainfall on
+      note: Activates the real-time satellite rainfall workflow. This experimental option creates a short
+        rolling spatial-rainfall schedule.
+      default: required
+  - title: Evapotranspiration source
+    inputs:
+    - key: flag_input_ETP_map
+      label: ET from the map lists below
+      kind: switch
+      unit: 0 / 1
+      used_when: ET on
+      note: Reads paired transpiration and evaporation raster schedules from General_Data. Both schedules
+        must have the same time entries.
+      default: required
+  - title: Advanced (keep the defaults unless you know why)
+    inputs:
+    - key: flag_rainfall_multiple_runs
+      label: Multiple rainfall runs (legacy workflow)
+      kind: switch
+      unit: 0 / 1
+      used_when: rainfall on
+      note: Activates the legacy multiple-rainfall-run workflow. Leave disabled for one standard rainfall
+        event.
+      default: required
+    style: advanced
+  wide_value: true
+  lists:
+  - title: Rainfall maps
+    anchor: Sattelite or Radar Rainfall
+    columns:
+    - Time [min]
+    - Raster Directory with values in mm/h
+    note: 'One row per rainfall map: minutes since the start date and the GeoTIFF path (mm/h). Read when
+      flag_input_rainfall_map or a satellite rainfall switch is 1.'
+  - title: Transpiration maps
+    anchor: Sattelite transpiration
+    columns:
+    - Time [day]
+    - Raster Directory with values in mm/day
+    note: 'One row per transpiration map: days since the start date and the GeoTIFF path (mm/day). Read
+      when flag_input_ETP_map = 1; same times as the evaporation list.'
+  - title: Evaporation maps
+    anchor: Sattelite Evaporation
+    columns:
+    - Time [day]
+    - Raster Directory with values in mm/day
+    note: 'One row per evaporation map: days since the start date and the GeoTIFF path (mm/day). Read
+      when flag_input_ETP_map = 1; same times as the transpiration list.'
+- name: Design storm
+  purpose: Synthetic storms from a local IDF relation i = K RP^a / (b + duration)^c.
+  blocks:
+  - title: Hyetograph
+    inputs:
+    - key: flag_alternated_blocks
+      label: Alternated blocks
+      kind: switch
+      unit: 0 / 1
+      used_when: design storm
+      note: Generates the configured alternating-block design storm instead of reading a rainfall time
+        series.
+      default: required
+    - key: flag_huff
+      label: Huff curves
+      kind: switch
+      unit: 0 / 1
+      used_when: design storm
+      note: Generates the configured Huff design storm instead of reading a rainfall time series.
+      default: required
+    - key: RP
+      label: Return period
+      kind: number
+      unit: years
+      used_when: design storm
+      note: RP is the design-storm return period in years. It is used by the selected IDF relation to
+        calculate rainfall intensity.
+      default: required
+    - key: Rainfall Duration
+      label: Storm duration
+      kind: number
+      unit: min
+      used_when: design storm
+      note: Rainfall Duration is the total design-storm duration in minutes. It sets the length of the
+        generated Alternated Blocks or Huff hyetograph.
+      default: required
+    - key: dt_design
+      label: Hyetograph time step
+      kind: number
+      unit: min
+      used_when: design storm
+      note: dt_design is the time increment in minutes used to discretize the generated design hyetograph.
+        It should be short enough to resolve the intended rainfall peak.
+      default: required
+  - title: IDF relation
+    inputs:
+    - key: K
+      label: IDF scale K
+      kind: number
+      unit: see note
+      used_when: design storm
+      note: K is the scale coefficient of the local IDF relation i = K RP^a / (b + duration)^c. Its units
+        must be consistent with intensity in mm/h and duration in minutes.
+      default: required
+    - key: a
+      label: IDF return-period exponent a
+      kind: number
+      unit: '-'
+      used_when: design storm
+      note: a is the dimensionless return-period exponent in the local IDF relation. Use coefficients
+        fitted for the study location.
+      default: required
+    - key: b
+      label: IDF duration offset b
+      kind: number
+      unit: min
+      used_when: design storm
+      note: b is the duration offset in the local IDF relation, expressed in minutes when duration is
+        entered in minutes.
+      default: required
+    - key: c
+      label: IDF duration exponent c
+      kind: number
+      unit: '-'
+      used_when: design storm
+      note: c is the dimensionless duration exponent in the local IDF relation. It controls how intensity
+        decays as storm duration increases.
+      default: required
+- name: Water quality
+  purpose: Pollutant build-up and wash-off.
+  blocks:
+  - title: Water quality
+    inputs:
+    - key: flag_waterquality
+      label: Water quality
+      kind: switch
+      unit: 0 / 1
+      used_when: switch for this block
+      note: Enables pollutant buildup, washoff, transport, and output calculations.
+      default: required
+    - key: flag_WQ_Rasters
+      label: Parameters from maps
+      kind: switch
+      unit: 0 / 1
+      used_when: water quality on
+      note: Uses spatial water-quality coefficient rasters B1, B2, W1, and W2 instead of the land-cover
+        table coefficients.
+      default: required
+    - key: flag_initial_buildup
+      label: Initial build-up from a map
+      kind: switch
+      unit: 0 / 1
+      used_when: water quality on
+      note: Initializes water-quality buildup using the configured antecedent dry-period and buildup settings.
+      default: required
+    - key: ADD
+      label: Antecedent dry days
+      kind: number
+      unit: days
+      used_when: water quality on
+      note: ADD is antecedent dry days. When no initial-buildup raster is used, it enters the exponential
+        buildup initialization B0 = C1 [1 - exp(-C2 ADD)].
+      default: required
+    - key: min_Bt
+      label: Minimum surface mass
+      kind: number
+      unit: g/m2
+      used_when: water quality on
+      note: min_Bt is the minimum pollutant surface mass density in g/m2 retained by the water-quality
+        washoff calculation. It prevents numerical treatment of negligible pollutant mass.
+      default: required
+    - key: Bmin
+      label: Build-up lower bound
+      kind: number
+      unit: g/m2
+      used_when: water quality on
+      note: Bmin is the lower pollutant buildup bound in g/m2 used by the selected buildup/washoff formulation.
+        Use a nonnegative value no larger than Bmax.
+      default: required
+    - key: Bmax
+      label: Build-up upper bound
+      kind: number
+      unit: g/m2
+      used_when: water quality on
+      note: Bmax is the upper pollutant buildup bound in g/m2 used by the selected buildup/washoff formulation.
+        It limits physically stored pollutant mass where that option is active.
+      default: required
+    - key: Pol_min
+      label: Map display threshold
+      kind: number
+      unit: mg/L
+      used_when: water quality on
+      note: Pol_min is the minimum pollutant concentration in mg/L displayed in water-quality maps. It
+        is a visualization threshold; values below it are hidden in plots but are not removed from the
+        mass balance.
+      default: required
+    switch: flag_waterquality
+  - title: Advanced (keep the defaults unless you know why)
+    inputs:
+    - key: flag_wq_model
+      label: Formulation (0 = mass-based build-up / wash-off)
+      kind: number
+      unit: 0 / ...
+      used_when: water quality on
+      note: Selects the water-quality formulation. Value 0 uses the mass-based buildup/washoff mode; use
+        other values only for supported legacy configurations.
+      default: required
+    controlled_by: flag_waterquality
+    style: advanced
+- name: Risk and gauges
+  purpose: Human-instability risk and observation points.
+  blocks:
+  - title: Human instability
+    inputs:
+    - key: flag_human_instability
+      label: Human-instability risk
+      kind: choice
+      unit: 0 / 1 / 3
+      used_when: always
+      note: Calculates depth-velocity human-instability indicators. Value 0 disables it; value 1 uses
+        the basic classification and value 3 enables the extended classification.
+      options:
+      - 0
+      - 1
+      - 3
+      default: required
+  - title: Observation points
+    inputs:
+    - key: flag_obs_gauges
+      label: Record at the gauges below
+      kind: switch
+      unit: 0 / 1
+      used_when: always
+      note: Exports modeled values at the observation-gauge coordinates listed in General_Data.
+      default: required
+  lists:
+  - title: Gauges
+    anchor: Gauge
+    columns:
+    - Gauge
+    - Easting (m)
+    - Northing (m)
+    - Label Name
+    optional_columns:
+    - name: Cross-section width (cells)
+      default: 5
+      note: 'Discharge cross-section: number of cells in a line across the flow, centred on the gauge
+        cell. Odd numbers keep the gauge in the middle (an even one is raised by 1). Empty: 5. Depth and
+        water level stay at the gauge cell.'
+    - name: Downstream direction
+      default: auto
+      options: auto,N,S,E,W
+      note: 'Which way the water leaves the section. auto: downhill from the terrain around the gauge.
+        N or S gives an east-west line; E or W a north-south line. Set it where the terrain is flat. Empty:
+        auto.'
+    header_is_anchor: true
+    note: 'One row per observation point: a number, its coordinates in the DEM''s projection (m) and a
+      label. Read when flag_obs_gauges = 1. The discharge is summed across a cross-section centred on
+      the gauge (last two columns).'
