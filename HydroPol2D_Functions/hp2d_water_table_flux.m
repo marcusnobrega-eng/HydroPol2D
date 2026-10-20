@@ -2,8 +2,12 @@ function [water_mm, recharge_mm, capillary_mm] = hp2d_water_table_flux(column, h
 %HP2D_WATER_TABLE_FLUX Darcy flux between the lowest unsaturated part and the water table.
 %   q = K(theta)*(psi/dz + 1), positive downward, with dz = max(unsat/2, 1 mm) of that
 %   slot and psi = 0 at the table. Downward flow is recharge, limited by the slot's
-%   water; upward flow is capillary rise, limited by its free space and the drainable
-%   water below. The caller applies recharge - capillary with hp2d_water_table_update.
+%   water; upward flow is capillary rise, limited by the drainable water below and by
+%   the slot's deficit below theta_retained (field capacity, or the rock Sy). A falling
+%   table leaves theta_retained behind, so capillary rise refills only what roots took
+%   below it (HBV-style, Lindstrom et al. 1997); filling above it circulated water
+%   between the flux and the table moves. The caller applies recharge - capillary with
+%   hp2d_water_table_update.
 if nargin < 5 || isempty(l_vg), l_vg = 0.5; end
 water_in = water_mm;
 unsat = hp2d_unsaturated_thickness(column, head_m);
@@ -14,9 +18,9 @@ psi = hp2d_matric_head_from_theta(theta, column.theta_r, column.theta_s, ...
 conductivity = column.kv_m_s.*hp2d_relative_conductivity(column, theta, l_vg);
 distance = max(0.5*unsat, 1e-3);
 depth_mm = conductivity.*(psi./distance + 1)*dt_s*1000;
-space = max(column.theta_s - theta, 0).*unsat*1000;
+deficit = max(column.theta_retained - theta, 0).*unsat*1000;
 down = min(max(depth_mm, 0), water_mm).*lowest;
-up = min(max(-depth_mm, 0), space).*lowest;
+up = min(max(-depth_mm, 0), deficit).*lowest;
 available = hp2d_drainable_storage_mm(column, head_m);
 up_total = sum(up, 2);
 scale = ones(size(up_total), 'like', up_total);
