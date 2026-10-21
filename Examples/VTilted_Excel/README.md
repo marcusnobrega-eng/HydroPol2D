@@ -14,8 +14,11 @@ forcing, outlet, solver settings, and prepared Voronoi mesh:
   boundary edges;
 - outlet slope: **0.004 m/m**.
 
-`Input_Data_Sheets/General_Data.xlsx` remains the main simulation workbook.
-The `flag_voronoi` field in its `Flags` worksheet selects the mesh:
+`Input_Data_Sheets/HydroPol2D_Inputs.xlsx` is the case workbook: every setting, the
+soil and land-use classes, the mesh settings and the rain series on one file.
+`General_Data.xlsx` with its companion workbooks is the same case in the older layout;
+the validation checks run both. The `flag_voronoi` switch (Surface flow tab; `Flags`
+sheet in the older layout) selects the mesh:
 
 | `flag_voronoi` | Mesh path |
 |---|---|
@@ -40,9 +43,9 @@ The launcher reads `flag_voronoi` and writes results to
 `Examples/VTilted_Excel/Outputs/voronoi`. The output directory is ignored by Git.
 
 The distributed workbook defaults to the regular grid. To run the prepared
-Voronoi mesh, find `flag_voronoi` in the `Flags` worksheet and change its value
+Voronoi mesh, find `flag_voronoi` on the Surface flow tab and change its value
 from `0` to `1`. Change it back to `0` for the raster grid. Do not create a
-second `General_Data.xlsx` file.
+second workbook.
 
 ## Run with MATLAB configuration code
 

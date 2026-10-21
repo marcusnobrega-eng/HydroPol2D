@@ -485,7 +485,7 @@ end
 % ==========================================================
 % FLAGS (name-based read from 'Flags' sheet)
 % ==========================================================
-FlagsGrid = readcell(model_folder,'Sheet','Flags');
+FlagsGrid = hp2d_read_flags_grid(model_folder, GD);   % Flags sheet, or the settings tabs
 
 flags = read_flags_sheet(FlagsGrid);
 if ~isfield(flags,'flag_voronoi')
@@ -508,22 +508,30 @@ Voronoi_Parameters = HydroPol2D_Voronoi_Options(flags.flag_voronoi, Voronoi_Inpu
 
 requiredFlags = { ...
     'flag_rainfall','flag_spatial_rainfall','flag_ETP','flag_input_rainfall_map', ...
-    'flag_rainfall_multiple_runs','flag_data_source','flag_inflow','flag_satellite_rainfall', ...
+    'flag_rainfall_multiple_runs','flag_inflow','flag_satellite_rainfall', ...
     'flag_alternated_blocks','flag_huff','flag_stage_hydrograph','flag_input_ETP_map', ...
     'flag_timestep','flag_infiltration','flag_critical','flag_D8','flag_CA','flag_inertial', ...
     'flag_waterbalance','flag_waterquality','flag_reservoir','flag_wq_model','flag_groundwater_modeling', ...
-    'flag_real_time_satellite_rainfall','flag_dam_break','flag_human_instability','flag_boundary', ...
+    'flag_real_time_satellite_rainfall','flag_human_instability','flag_boundary', ...
     'flag_numerical_scheme','flag_outlet_type','flag_adaptive_timestepping','flag_neglect_infiltration_river', ...
-    'flag_subgrid','flag_spatial_albedo','flag_river_rasters','flag_baseflow','flag_kinematic','flag_diffusive', ...
-    'flag_DTM','flag_abstraction','flag_overbanks','flag_snow_modeling','flag_WQ_Rasters', ...
+    'flag_spatial_albedo','flag_river_rasters','flag_baseflow','flag_kinematic','flag_diffusive', ...
+    'flag_DTM','flag_abstraction','flag_snow_modeling','flag_WQ_Rasters', ...
     'flag_GPU','flag_single','flag_warmup','flag_initial_buildup', ...
     'flag_resample','flag_smoothening','flag_trunk','flag_fill_DEM','flag_smooth_cells','flag_reduce_DEM', ...
-    'flag_export_maps','flag_river_heigth_compensation','flag_dashboard','flag_elapsed_time','flag_obs_gauges' ...
+    'flag_export_maps','flag_dashboard','flag_elapsed_time','flag_obs_gauges' ...
 };
 
 missing = requiredFlags(~isfield(flags, requiredFlags));
 if ~isempty(missing)
     error("Missing flags in Flags sheet: %s", strjoin(missing, ", "));
+end
+% Retired switches (no reader left) default to 0. flag_subgrid and flag_overbanks follow
+% from the channel sub-grid switches, which the single case workbook holds instead.
+for retired = {'flag_data_source', 'flag_dam_break', 'flag_river_heigth_compensation'}
+    if ~isfield(flags, retired{1}), flags.(retired{1}) = 0; end
+end
+if ~isfield(flags, 'flag_subgrid') || ~isfield(flags, 'flag_overbanks')
+    flags = HydroPol2D_Normalize_Subgrid_Flags(flags);
 end
 if ~isfield(flags,'flag_export_groundwater_maps')
     flags.flag_export_groundwater_maps = 0;
@@ -599,7 +607,7 @@ Pol_min                                      = xlnum(GD,'Pol_min');
 depth_wse                                    = xlnum(GD,'depth_wse');
 flags.flag_wse                               = xlnum(GD,'flag_wse');
 running_control.record_time_spatial_rainfall = xlnum(GD,'record_time_spatial_rainfall');
-time_save_ETP                                = xlnum(GD,'time_save_ETP');
+time_save_ETP                                = xlnum_optional(GD,'time_save_ETP',1440); % unused
 running_control.record_time_spatial_etp      = xlnum(GD,'record_time_spatial_ETP');
 
 Krs_ETP = 0.13; % Defaults
@@ -643,7 +651,7 @@ runtime = hydropol2d_add_runtime_paths(runtime_model_root); %#ok<NASGU>
 
 % Human Instability
 if flags.flag_human_instability == 1
-    human_table = readtable('human_risk.xlsx');
+    human_table = hp2d_read_case_table(model_folder, 'Human instability', 'human_risk.xlsx');
     Human_Instability.mu = table2array(human_table(3,2)); % friction coefficient
     Human_Instability.Cd = table2array(human_table(4,2));
     Human_Instability.ro_person = table2array(human_table(5,2)); % kg/m3
@@ -654,7 +662,7 @@ if flags.flag_human_instability == 1
     Human_Instability.ro_water = table2array(human_table(1,2)); % kg/m3
     Human_Instability.gravity = table2array(human_table(2,2)); % m/s2
 elseif flags.flag_human_instability == 3
-    human_table = readtable('human_risk.xlsx');
+    human_table = hp2d_read_case_table(model_folder, 'Human instability', 'human_risk.xlsx');
     Human_Instability.ro_water = table2array(human_table(1,10)); % kg/m3
     Human_Instability.gravity = table2array(human_table(2,10)); % m/s2
     Human_Instability.mu = table2array(human_table(3,10)); % friction coefficient
@@ -897,14 +905,14 @@ end
 %%%%%%%%%%%%%% LULC DATA %%%%%%%%%%%%%%%%%%%
 % The formatted LULC workbook reserves row 1 for its title and starts the
 % machine-readable class table at row 2.
-input_table = readtable('LULC_parameters.xlsx', 'Range', 'A2', ...
+input_table = hp2d_read_case_table(model_folder, 'Land use classes', 'LULC_parameters.xlsx', 'Range', 'A2', ...
     'VariableNamingRule', 'preserve');
 LULC_input_table = input_table;
 [LULC_name, lulc_parameters, n_lulc, imp_index, LULC_index, LULC_parameter_names] = ...
     unpack_class_table(LULC_input_table,'LULC');
 
 %%%%%%%%%%%%%% SOIL DATA %%%%%%%%%%%%%%%%%%%
-input_table = readtable('SOIL_parameters.xlsx');
+input_table = hp2d_read_case_table(model_folder, 'Soil classes', 'SOIL_parameters.xlsx');
 [SOIL_name, soil_parameters, n_soil, ~, SOIL_index] = unpack_class_table(input_table,'SOIL');
 
 if flags.flag_snow_modeling == 1
@@ -919,7 +927,7 @@ end
 % Rainfall
 if flags.flag_rainfall == 1 && flags.flag_alternated_blocks ~= 1 && flags.flag_huff ~= 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_spatial_rainfall ~= 1 && flags.flag_real_time_satellite_rainfall ~= 1 && flags.flag_satellite_rainfall ~= 1
     if flags.flag_rainfall_multiple_runs == 0
-        input_table = readtable('Rainfall_Intensity_Data.xlsx');
+        input_table = hp2d_read_case_table(model_folder, 'Rain series', 'Rainfall_Intensity_Data.xlsx');
         input_data = table2array(input_table);
         Rainfall_Parameters.intensity_rainfall = input_data(:,2); % mm/h
         Rainfall_Parameters.n_obs_rainfall = sum(Rainfall_Parameters.intensity_rainfall >= 0);
@@ -981,7 +989,7 @@ if flags.flag_inflow == 1 && flags.flag_stage_hydrograph == 1
     error('There is no way to enter both boundary conditions (inflow and stage-hydrograph). Choose one or none of them.')
 end
 if flags.flag_inflow == 1
-input_table = readtable('Inflow_Hydrograph.xlsx');
+input_table = hp2d_read_case_table(model_folder, 'Inflow hydrographs', 'Inflow_Hydrograph.xlsx');
 input_table_labels = input_table(1:2,:); %#ok<NASGU>
 input_table_values = input_table(3:end,:);
 input_table_values = convertvars(input_table_values, 1:size(input_table_values,2), 'string');
@@ -1069,7 +1077,7 @@ end
 
 %%% ---- Stage Hydrograph ---- %%%
 if flags.flag_stage_hydrograph == 1
-input_table = readtable('Stage_Hydrograph.xlsx');
+input_table = hp2d_read_case_table(model_folder, 'Stage hydrographs', 'Stage_Hydrograph.xlsx');
 input_table_labels = input_table(1:2,:); %#ok<NASGU>
 input_table_values = input_table(3:end,:);
 input_table_values = convertvars(input_table_values, 1:size(input_table_values,2), 'string');
@@ -1171,7 +1179,7 @@ clear input_data input_table
 
 % Reservoir Data
 if flags.flag_reservoir == 1
-    input_table = readtable('BC_Control_structure.xlsx');
+    input_table = hp2d_read_case_table(model_folder, 'Control structures', 'BC_Control_structure.xlsx');
     Reservoir_Data.index = table2array(input_table(:,1));
     Reservoir_Data.x_us = table2array(input_table(:,2));
     Reservoir_Data.y_us = table2array(input_table(:,3));
@@ -1857,54 +1865,8 @@ function out = xlstr_optional(GD, key, defaultValue)
 end
 
 function GD = read_config_cells(workbookPath)
-    publicSheets = { ...
-        'Run_Control', ...
-        'Static_Maps', ...
-        'Hydrology_Groundwater', ...
-        'Hydrodynamics_Boundaries', ...
-        'Water_Quality', ...
-        'Human_Risk', ...
-        'Observation_Points', ...
-        'Spatial_Forcing', ...
-        'Design_Storm', ...
-        'General_Data' ...
-    };
-
-    try
-        available = sheetnames(workbookPath);
-    catch
-        available = {'General_Data'};
-    end
-    available = cellstr(string(available));
-
-    parts = {};
-    maxCols = 0;
-    for i = 1:numel(publicSheets)
-        sheetName = publicSheets{i};
-        if ~any(strcmpi(available, sheetName))
-            continue
-        end
-        C = readcell(workbookPath, 'Sheet', sheetName);
-        if isempty(C)
-            continue
-        end
-        parts{end+1} = C; %#ok<AGROW>
-        maxCols = max(maxCols, size(C,2));
-    end
-
-    if isempty(parts)
-        GD = readcell(workbookPath,'Sheet','General_Data');
-        return
-    end
-
-    GD = {};
-    for i = 1:numel(parts)
-        C = parts{i};
-        if size(C,2) < maxCols
-            C(:,end+1:maxCols) = {[]};
-        end
-        GD = [GD; C; cell(2,maxCols)]; %#ok<AGROW>
-    end
+%READ_CONFIG_CELLS Settings tabs stacked into one searchable grid (hp2d_read_settings_grid).
+    GD = hp2d_read_settings_grid(workbookPath);
 end
 
 function t = xldatetime(GD, key)
@@ -2035,12 +1997,25 @@ function T = xlblock_2col(GD, headerText, col1Header, col2Header)
         end
     end
 
-    [r0,~] = find(strcmpi(strtrim(S), headerText), 1, 'first');
+    titles = unique([string(headerText), replace(string(headerText), "Sattelite", "Satellite")]);
+    [r0,c0] = find(ismember(lower(strtrim(S)), lower(titles)), 1, 'first');
     if isempty(r0), error("General_Data: header '%s' not found.", headerText); end
 
+    % Search the headers only under the list's own title: from the start of the title's
+    % run of filled cells to just before the next title in that row. In General_Data the
+    % rain, transpiration and evaporation lists sit side by side on one header row, and a
+    % search of the whole row gave the transpiration list the rain list's 'Time [min]'
+    % column and the evaporation list the transpiration paths.
+    filled = strlength(strtrim(S(r0,:))) > 0;
+    cs = c0;
+    while cs > 1 && filled(cs-1), cs = cs - 1; end
+    ce = c0;
+    while ce < numel(filled) && filled(ce+1), ce = ce + 1; end
+    nxt = find(filled(ce+1:end), 1, 'first');
+    if isempty(nxt), ce = numel(filled); else, ce = ce + nxt - 1; end
     rh = r0 + 1;
-    c1 = find(strcmpi(strtrim(S(rh,:)), col1Header), 1, 'first');
-    c2 = find(strcmpi(strtrim(S(rh,:)), col2Header), 1, 'first');
+    c1 = cs - 1 + find(strcmpi(strtrim(S(rh,cs:ce)), col1Header), 1, 'first');
+    c2 = cs - 1 + find(strcmpi(strtrim(S(rh,cs:ce)), col2Header), 1, 'first');
     if isempty(c1) || isempty(c2)
         error("General_Data: could not find column headers '%s' and '%s' under '%s'.", col1Header, col2Header, headerText);
     end
@@ -2054,8 +2029,8 @@ function T = xlblock_2col(GD, headerText, col1Header, col2Header)
         vtime = GD{r,c1};
         vpath = GD{r,c2};
 
-        if isempty(vtime) || (isstring(vtime) && strlength(vtime)==0)
-            break
+        if isempty(vtime) || isa(vtime, 'missing') || ((isstring(vtime) || ischar(vtime)) && strlength(strtrim(string(vtime)))==0)
+            break   % the first empty row ends the list (a list below it is another block)
         end
 
         times(end+1,1) = double(vtime); %#ok<AGROW>

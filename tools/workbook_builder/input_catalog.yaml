@@ -17,13 +17,7 @@ excluded:
   flag_river_heigth_compensation: used only by old code a run does not call
   flag_dam_break: used only by old main loops (ensemble, synthetic, workspace)
   flag_data_source: used only by old code a run does not call
-reader_followups:
-- Read flag_* rows from every tab, not only the Flags sheet.
-- Accept the friendly tab names in read_config_cells (both copies).
-- Accept 'Satellite' as well as 'Sattelite' in the three map-list titles.
-- Drop flag_data_source, flag_dam_break and flag_river_heigth_compensation from requiredFlags (default
-  0).
-- Read time_save_ETP as optional, or not at all (it is unused).
+reader_followups: []
 tabs:
 - name: Run control
   purpose: Simulation period, time step, performance and what the model records.
@@ -1438,21 +1432,21 @@ tabs:
   wide_value: true
   lists:
   - title: Rainfall maps
-    anchor: Sattelite or Radar Rainfall
+    anchor: Satellite or Radar Rainfall
     columns:
     - Time [min]
     - Raster Directory with values in mm/h
     note: 'One row per rainfall map: minutes since the start date and the GeoTIFF path (mm/h). Read when
       flag_input_rainfall_map or a satellite rainfall switch is 1.'
   - title: Transpiration maps
-    anchor: Sattelite transpiration
+    anchor: Satellite transpiration
     columns:
     - Time [day]
     - Raster Directory with values in mm/day
     note: 'One row per transpiration map: days since the start date and the GeoTIFF path (mm/day). Read
       when flag_input_ETP_map = 1; same times as the evaporation list.'
   - title: Evaporation maps
-    anchor: Sattelite Evaporation
+    anchor: Satellite Evaporation
     columns:
     - Time [day]
     - Raster Directory with values in mm/day
@@ -1667,3 +1661,168 @@ tabs:
     note: 'One row per observation point: a number, its coordinates in the DEM''s projection (m) and a
       label. Read when flag_obs_gauges = 1. The discharge is summed across a cross-section centred on
       the gauge (last two columns).'
+tables:
+- name: Soil classes
+  kind: class
+  files:
+  - SOIL_parameters.xlsx
+  header_rows:
+  - 2
+  purpose: 'One row per soil class of the SOIL map: infiltration, van Genuchten and groundwater parameters.'
+  note: 'Soil class table (was SOIL_parameters.xlsx). Keep the rows and the column order: the model reads
+    the columns by position. Add a class as a new row.'
+- name: Land use classes
+  kind: class
+  files:
+  - LULC_parameters.xlsx
+  header_rows:
+  - 2
+  purpose: 'One row per land-use class of the LULC map: roughness, losses, build-up and wash-off, roots,
+    crop and snow parameters.'
+  note: 'Land-use class table (was LULC_parameters.xlsx). Keep the rows and the column order: the model
+    reads it from row 2 by position.'
+- name: Human instability
+  kind: class
+  files:
+  - human_risk.xlsx
+  - Human_risk.xlsx
+  - Outdated/Human_risk.xlsx
+  - Outdated/human_risk.xlsx
+  header_rows:
+  - 2
+  purpose: Body and water parameters of the three human-instability methods.
+  note: 'Human-instability parameters (was human_risk.xlsx). Read when flag_human_instability = 1 (method
+    1) or 3 (method 3). Keep every cell in place: the model reads the values by position.'
+- name: Mesh
+  kind: class
+  files:
+  - Voronoi_Settings.xlsx
+  header_rows:
+  - 4
+  purpose: Voronoi and quadtree mesh settings.
+  note: Mesh settings (was Voronoi_Settings.xlsx). Read when flag_voronoi = 1. Each value sits right of
+    its Parameter name.
+- name: Control structures
+  kind: class
+  files:
+  - BC_Control_structure.xlsx
+  - BC_Control_Structure.xlsx
+  header_rows:
+  - 2
+  - 3
+  template_rows: 3
+  purpose: 'Internal boundary conditions: one row per reservoir or structure with its two outflow laws.'
+  note: Control structures (was BC_Control_structure.xlsx). Read when flag_reservoir = 1. Outflow Q =
+    k1 (h - h01)^k2 to cell (xd1, yd1) and Q = k3 (h - h02)^k4 to cell (xd2, yd2); coordinates in the
+    DEM projection (m).
+  column_notes:
+    Index: Structure number.
+    x(m): Easting of the structure cell (m, DEM projection).
+    y(m): Northing of the structure cell (m).
+    k1: Coefficient of the first outflow law.
+    h01 [m]: Threshold depth of the first law (m).
+    k2: Exponent of the first law.
+    xd1(m): Easting of the cell receiving the first outflow (m).
+    yd1(m): Northing of that cell (m).
+    k3: Coefficient of the second outflow law.
+    h02 [m]: Threshold depth of the second law (m).
+    k4: Exponent of the second law.
+    xd2(m): Easting of the cell receiving the second outflow (m).
+    yd2(m): Northing of that cell (m).
+- name: Rain series
+  kind: series
+  files:
+  - Rainfall_Intensity_Data.xlsx
+  header_rows:
+  - 2
+  template_rows: 2
+  read_when:
+    'on':
+    - flag_rainfall
+    'off':
+    - flag_alternated_blocks
+    - flag_huff
+    - flag_input_rainfall_map
+    - flag_spatial_rainfall
+    - flag_real_time_satellite_rainfall
+    - flag_satellite_rainfall
+    - flag_rainfall_multiple_runs
+  purpose: 'One rain gauge: rainfall intensity over time.'
+  note: Rain series (was Rainfall_Intensity_Data.xlsx). Read when rainfall is on and no design storm,
+    map, satellite or spatial rainfall is chosen.
+  column_notes:
+    Time(min): Minutes from the start of the run, one row per step. The step is the difference of the
+      first two rows.
+    Rainfall Intensity: Rainfall intensity over the step (mm/h).
+- name: Rain gauges
+  kind: series
+  files:
+  - Rainfall_Spatial_Input.xlsx
+  header_rows:
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  template_rows: 7
+  read_when:
+    'on':
+    - flag_rainfall
+    - flag_spatial_rainfall
+    'off':
+    - flag_real_time_satellite_rainfall
+    - flag_satellite_rainfall
+    - flag_input_rainfall_map
+  purpose: Several rain gauges, interpolated over the domain.
+  note: 'Spatial rain gauges (was Rainfall_Spatial_Input.xlsx). Read when flag_spatial_rainfall = 1 and
+    no rainfall maps are given. One column per gauge: its index, name and coordinates (m, DEM projection),
+    then its intensity (mm/h) at each time (min) of column B.'
+- name: Climate stations
+  kind: series
+  files:
+  - ETP_input_data.xlsx
+  header_rows:
+  - 2
+  - 3
+  template_rows: 3
+  read_when:
+    'on':
+    - flag_ETP
+    'off':
+    - flag_input_ETP_map
+  purpose: Daily weather at one or more stations, for the reference evapotranspiration.
+  note: Climate stations (was ETP_input_data.xlsx). Read when flag_ETP = 1 and no ET maps are given. Row
+    2 names each station block (index, easting and northing in m); row 3 heads its columns; one row per
+    day from row 4.
+- name: Inflow hydrographs
+  kind: series
+  files:
+  - Inflow_Hydrograph.xlsx
+  header_rows:
+  - 2
+  - 3
+  template_rows: 3
+  read_when:
+    'on':
+    - flag_inflow
+    'off': []
+  purpose: Inflow hydrographs entering the domain, up to 50 gauges.
+  note: 'Inflow hydrographs (was Inflow_Hydrograph.xlsx). Read when flag_inflow = 1. Five columns per
+    gauge, 50 blocks: time (min), flow (m3/s), and the easting and northing (m) of each cell the flow
+    enters, one cell per row. Keep all 50 blocks, even empty.'
+- name: Stage hydrographs
+  kind: series
+  files:
+  - Stage_Hydrograph.xlsx
+  header_rows:
+  - 2
+  - 3
+  template_rows: 3
+  read_when:
+    'on':
+    - flag_stage_hydrograph
+    'off': []
+  purpose: Water depths imposed at boundary cells, up to 50 gauges.
+  note: 'Stage hydrographs (was Stage_Hydrograph.xlsx). Read when flag_stage_hydrograph = 1. Five columns
+    per gauge, 50 blocks: time (min), depth (m), and the easting and northing (m) of each cell, one per
+    row. Keep all 50 blocks, even empty.'

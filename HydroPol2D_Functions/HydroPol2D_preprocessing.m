@@ -143,7 +143,7 @@ else
     % ------------------------------------------------------------
     GD = read_config_cells(model_folder);
 
-    FlagsCell = readcell(model_folder,'Sheet','Flags');
+    FlagsCell = hp2d_read_flags_grid(model_folder, GD);   % Flags sheet, or the settings tabs
     flags = read_flags_table(FlagsCell);
 
     hydropol2d_tools = runtime.functions_root;
@@ -1070,7 +1070,7 @@ if flags.flag_rainfall == 0 % No rainfall
     Wshed_Properties.rainfall_matrix = flags.flag_rainfall*zeros(size(dem));
 elseif flags.flag_rainfall == 1 && flags.flag_spatial_rainfall == 1 && flags.flag_real_time_satellite_rainfall ~= 1 && flags.flag_satellite_rainfall ~= 1 && flags.flag_input_rainfall_map ~= 1
     % Spatial Rainfall Case
-    input_table = readtable('Rainfall_Spatial_Input.xlsx');
+    input_table = hp2d_read_case_table(model_folder, 'Rain gauges', 'Rainfall_Spatial_Input.xlsx');
     % Observations
     n_obs = sum((table2array(input_table(:,2))>=0)); % Number of observations
     n_max_raingauges =  sum(~isnan((table2array(input_table(3,3:end)))));
@@ -1238,6 +1238,10 @@ elseif flags.flag_input_ETP_map == 0
 
             input_table = readtable(ETP_input_spreadsheet);
         end
+
+    elseif hp2d_workbook_has_sheet(model_folder, 'Climate stations')
+
+        input_table = hp2d_read_case_table(model_folder, 'Climate stations', '');
 
     else
 
@@ -5544,58 +5548,8 @@ function x = xlnum(GD, key)
 end
 
 function GD = read_config_cells(workbookPath)
-%READ_CONFIG_CELLS Read public configuration sheets into one searchable grid.
-% HydroPol2D looks up inputs by label rather than fixed cell address. This
-% lets the workbook be organized into human-readable sheets while preserving
-% backward compatibility with older workbooks that only have General_Data.
-    publicSheets = { ...
-        'Run_Control', ...
-        'Static_Maps', ...
-        'Hydrology_Groundwater', ...
-        'Hydrodynamics_Boundaries', ...
-        'Water_Quality', ...
-        'Human_Risk', ...
-        'Observation_Points', ...
-        'Spatial_Forcing', ...
-        'Design_Storm', ...
-        'General_Data' ...
-    };
-
-    try
-        available = sheetnames(workbookPath);
-    catch
-        available = {'General_Data'};
-    end
-    available = cellstr(string(available));
-
-    parts = {};
-    maxCols = 0;
-    for i = 1:numel(publicSheets)
-        sheetName = publicSheets{i};
-        if ~any(strcmpi(available, sheetName))
-            continue
-        end
-        C = readcell(workbookPath, 'Sheet', sheetName);
-        if isempty(C)
-            continue
-        end
-        parts{end+1} = C; %#ok<AGROW>
-        maxCols = max(maxCols, size(C,2));
-    end
-
-    if isempty(parts)
-        GD = readcell(workbookPath,'Sheet','General_Data');
-        return
-    end
-
-    GD = {};
-    for i = 1:numel(parts)
-        C = parts{i};
-        if size(C,2) < maxCols
-            C(:,end+1:maxCols) = {[]};
-        end
-        GD = [GD; C; cell(2,maxCols)]; %#ok<AGROW>
-    end
+%READ_CONFIG_CELLS Settings tabs stacked into one searchable grid (hp2d_read_settings_grid).
+    GD = hp2d_read_settings_grid(workbookPath);
 end
 
 function S = cast_struct_numeric_to_single(S)

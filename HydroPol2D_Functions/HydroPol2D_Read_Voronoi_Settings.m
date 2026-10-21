@@ -6,6 +6,12 @@ arguments
     legacy_general cell = {}
 end
 
+% The single case workbook keeps these settings on its Mesh tab.
+if hp2d_workbook_has_sheet(input_excel_file, 'Mesh')
+    source_file = input_excel_file;
+    settings = readcell(input_excel_file, 'Sheet', 'Mesh');
+    return
+end
 source_file = fullfile(fileparts(input_excel_file), 'Voronoi_Settings.xlsx');
 if isfile(source_file)
     settings = readcell(source_file, 'Sheet', 'Voronoi_Settings');
@@ -16,7 +22,7 @@ end
 % of General_Data.xlsx.
 source_file = input_excel_file;
 if isempty(legacy_general)
-    legacy_general = readcell(input_excel_file, 'Sheet', 'General_Data');
+    legacy_general = hp2d_read_settings_grid(input_excel_file);
 end
 settings = legacy_general;
 end

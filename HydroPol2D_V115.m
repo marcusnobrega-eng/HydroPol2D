@@ -96,8 +96,12 @@ end
 % Only used when run_mode = 'excel'
 % ========================================================================
 
-% Main HydroPol2D Excel input file
-input_excel_file = fullfile(model_root, 'Input_Data_Sheets', 'General_Data.xlsx');
+% Main HydroPol2D Excel input file: the single case workbook (HydroPol2D_Inputs.xlsx) when
+% the folder has one, else the older General_Data.xlsx with its companion workbooks.
+input_excel_file = fullfile(model_root, 'Input_Data_Sheets', 'HydroPol2D_Inputs.xlsx');
+if ~isfile(input_excel_file)
+    input_excel_file = fullfile(model_root, 'Input_Data_Sheets', 'General_Data.xlsx');
+end
 input_excel_override = strtrim(getenv('HYDROPOL_INPUT_EXCEL_FILE'));
 if ~isempty(input_excel_override)
     input_excel_file = input_excel_override;
@@ -392,9 +396,9 @@ end
 % -------------------------------------------------------------------------
 if strcmpi(run_mode,'excel')
 
-    fprintf('Reading "General_Data" sheet from input Excel file...\n');
-    generalDataSheet = readcell(input_excel_file, 'Sheet', 'General_Data');
-    fprintf('General_Data loaded successfully.\n\n');
+    fprintf('Reading the settings from the input Excel file...\n');
+    generalDataSheet = hp2d_read_settings_grid(input_excel_file);   % General_Data, or the case workbook's settings tabs
+    fprintf('Settings loaded successfully.\n\n');
 
     model_folder = input_excel_file;
     GD = generalDataSheet;

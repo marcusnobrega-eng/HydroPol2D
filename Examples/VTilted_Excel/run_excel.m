@@ -1,12 +1,17 @@
 example_root = fileparts(mfilename('fullpath'));
 model_root = fileparts(fileparts(example_root));
-workbook = fullfile(example_root,'Input_Data_Sheets','General_Data.xlsx');
-
-flag_data = readcell(workbook,'Sheet','Flags');
+% The single case workbook; General_Data.xlsx and its companion workbooks are the older
+% layout of the same case.
+workbook = fullfile(example_root,'Input_Data_Sheets','HydroPol2D_Inputs.xlsx');
+if ~isfile(workbook)
+    workbook = fullfile(example_root,'Input_Data_Sheets','General_Data.xlsx');
+end
+addpath(fullfile(model_root,'HydroPol2D_Functions'));
+flag_data = hp2d_read_flags_grid(workbook);   % Flags sheet, or the settings tabs
 [flag_row,flag_col] = find(strcmpi(string(flag_data),'flag_voronoi'),1);
 if isempty(flag_row) || flag_col >= size(flag_data,2)
     error('HydroPol2D:MissingVoronoiFlag', ...
-        'The Flags sheet must contain flag_voronoi and its value to the right.');
+        'The workbook must contain flag_voronoi and its value to the right.');
 end
 flag_value = flag_data{flag_row,flag_col + 1};
 if isnumeric(flag_value)

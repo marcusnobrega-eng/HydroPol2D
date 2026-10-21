@@ -9,7 +9,7 @@ import sys
 
 import yaml
 
-from catalog_layout import EXCLUDED, READER_FOLLOWUPS, TABS
+from catalog_layout import TABLE_TABS, EXCLUDED, READER_FOLLOWUPS, TABS
 
 FLAG_TAIL = "\n\nSet 0 to disable and 1 to enable unless the flag description specifies another numeric option."
 NEW_NOTES = {
@@ -75,6 +75,7 @@ def main(inventory_path, out_path):
         "excluded": EXCLUDED,
         "reader_followups": READER_FOLLOWUPS,
         "tabs": tabs,
+        "tables": TABLE_TABS,
     }
     with open(out_path, "w") as fh:
         yaml.safe_dump(catalog, fh, sort_keys=False, allow_unicode=True, width=100)

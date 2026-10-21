@@ -21,7 +21,8 @@ if strcmpi(run_mode,'bypass')
         selection.output_controls=InputData_Bypass.VoronoiOutput;
     end
 else
-    flag_cells = readcell(input_excel_file,'Sheet','Flags');
+    general = hp2d_read_settings_grid(input_excel_file);
+    flag_cells = hp2d_read_flags_grid(input_excel_file, general);   % Flags sheet, or the settings tabs
     [found_voronoi,value_voronoi]=cell_right_found(flag_cells,'flag_voronoi',0);
     [found_voronoi_subgrid,value_voronoi_subgrid]=cell_right_found( ...
         flag_cells,'flag_voronoi_subgrid',0);
@@ -33,7 +34,6 @@ else
     end
     flags=HydroPol2D_Normalize_Subgrid_Flags(raw_flags);
     selection.enabled = logical(flags.flag_voronoi);
-    general = readcell(input_excel_file,'Sheet','General_Data');
     settings = HydroPol2D_Read_Voronoi_Settings(input_excel_file,general);
     selection.case_file=char(string(cell_right(settings,'Voronoi case file','')));
     selection.options=struct( ...

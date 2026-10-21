@@ -5,11 +5,17 @@ same script rebuilds the main workbook and each example. Every input sits in one
 one block (setting, key, value, unit, default, used when) with a hover note on its value
 cell; a block starts with its switch, and its rows grey out while the switch is 0.
 
+The class tables and time series get one tab each, copied cell for cell from the old
+separate workbooks next to SOURCE (or from SOURCE's own tabs when it is already a single
+case workbook), so the model's readtable calls see the same tables. A series the case's
+switches do not read keeps only its header rows, as a template.
+
 Usage: python build_input_workbook.py input_catalog.yaml SOURCE.xlsx OUTPUT.xlsx
 """
 import datetime as dt
 import sys
 import textwrap
+from pathlib import Path
 
 import openpyxl
 import yaml
@@ -69,17 +75,21 @@ def source_values(path):
         # Optional columns may sit anywhere in the header row (or be absent: their default).
         for row in ws.iter_rows(max_row=50, max_col=60):
             for c in row:
-                if c.value == anchor:
+                if c.value in (anchor, anchor.replace("Satellite", "Sattelite")):   # old spelling
                     header_row = c.row if header_is_anchor else c.row + 1
+                    # The list's own columns: first match at or right of its title (lists
+                    # side by side share a header row).
                     cols = []
                     for name in columns:
-                        hit = [x.column for x in ws[header_row] if x.value == name]
+                        hit = [x.column for x in ws[header_row] if x.value == name and x.column >= c.column] or \
+                              [x.column for x in ws[header_row] if x.value == name]
                         cols.append(hit[0] if hit else None)
                     if None in cols:
                         continue
                     extra = []
                     for spec in optional:
-                        hit = [x.column for x in ws[header_row] if x.value == spec["name"]]
+                        hit = [x.column for x in ws[header_row] if x.value == spec["name"] and x.column >= c.column] or \
+                              [x.column for x in ws[header_row] if x.value == spec["name"]]
                         extra.append((hit[0] if hit else None, spec["default"]))
                     out, r = [], header_row + 1
                     while ws.cell(r, cols[0]).value not in (None, ""):
@@ -288,6 +298,121 @@ def build_tab(wb, tab, values, read_list, developer):
     return ws
 
 
+# ------------------------------------------------------------ class tables and series
+REPO_SHEETS = Path(__file__).resolve().parents[2] / "Input_Data_Sheets"
+TAB_COLORS = {"settings": TEAL, "class": GREEN_EDGE, "series": "5F5E5A"}
+
+
+def as_switch(value):
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+def table_plan(spec, source_path, values):
+    """Where a table tab comes from and how much of it to copy."""
+    source_path = Path(source_path)
+    origin, where = None, None
+    try:
+        names = openpyxl.load_workbook(source_path, read_only=True).sheetnames
+    except Exception:
+        names = []
+    if spec["name"] in names:
+        origin, where = "case tab", (source_path, spec["name"])
+    else:
+        for rel in spec["files"]:
+            if (source_path.parent / rel).is_file():
+                origin, where = "case file", (source_path.parent / rel, None)
+                break
+        else:
+            for rel in spec["files"]:
+                if (REPO_SHEETS / rel).is_file():
+                    origin, where = "default", (REPO_SHEETS / rel, None)
+                    break
+    rule = spec.get("read_when")
+    read = rule is None or (all(as_switch(values.get(f)) == 1 for f in rule["on"]) and
+                            not any(as_switch(values.get(f)) == 1 for f in rule["off"]))
+    # A default series belongs to another case: keep only its headers.
+    full = origin is not None and (origin != "default" or "template_rows" not in spec) and \
+        (spec["kind"] != "series" or read)
+    if origin is None:
+        status = "no source found: empty tab"
+    elif full:
+        status = {"case tab": "carried over", "case file": f"from {where[0].name}",
+                  "default": "repository defaults"}[origin]
+    else:
+        status = "template (header rows only): " + ("its switches are off" if not read else "no case data")
+    return {"origin": origin, "where": where, "full": full, "read": read, "status": status}
+
+
+def build_table_tab(wb, spec, plan, values):
+    ws = wb.create_sheet(spec["name"])
+    ws.sheet_properties.tabColor = TAB_COLORS[spec["kind"]]
+    ws.sheet_view.showGridLines = False
+    if plan["origin"] is None:
+        return ws
+    path, sheet = plan["where"]
+    big = path.stat().st_size > 2e6
+    src_wb = openpyxl.load_workbook(path, data_only=True, read_only=big)
+    src = src_wb[sheet] if sheet else src_wb.worksheets[0]
+    last_row = None if plan["full"] else spec.get("template_rows", 3)
+    header_rows = set(spec.get("header_rows", []))
+    notes = spec.get("column_notes", {})
+    max_col, title_cell = 0, None
+    for row in src.iter_rows(max_row=last_row):
+        for c in row:
+            if c.value is None:
+                continue
+            d = ws.cell(c.row, c.column, c.value)   # same row and column: readtable sees the same table
+            max_col = max(max_col, c.column)
+            if c.number_format and c.number_format != "General":
+                d.number_format = c.number_format
+            if c.row == 1 and title_cell is None:
+                title_cell = d
+                d.font = font(16, True, "FFFFFF")
+            elif c.row in header_rows:
+                d.font = font(10, True, "444441")
+                d.alignment = Alignment(vertical="center", wrap_text=True)
+            else:
+                d.font = font(10)
+            comment = None if big else c.comment
+            if comment is not None:
+                add_note(d, comment.text.strip())
+            elif c.row in header_rows and isinstance(c.value, str) and c.value.strip() in notes:
+                add_note(d, notes[c.value.strip()])
+    if not big:
+        for rng in src.merged_cells.ranges:
+            if last_row is None or rng.max_row <= last_row:
+                ws.merge_cells(str(rng))
+    # Mesh from the repository defaults: take the case's values from General_Data.
+    if spec["name"] == "Mesh" and plan["origin"] == "default":
+        for r in range(1, ws.max_row + 1):
+            label = ws.cell(r, 2).value
+            if isinstance(label, str) and label.strip() in values and values[label.strip()] is not None:
+                ws.cell(r, 3).value = values[label.strip()]
+    max_col = max(max_col, 1)
+    for col in range(1, max_col + 1):   # bands inside the table's own columns only
+        ws.cell(1, col).fill = fill(TEAL_DARK)
+        for r in header_rows:
+            if last_row is None or r <= last_row:
+                ws.cell(r, col).fill = fill(HEADER_FILL)
+                ws.cell(r, col).border = Border(bottom=side("888780"))
+    ws.row_dimensions[1].height = 30
+    if title_cell is not None:
+        title_cell.alignment = Alignment(vertical="center")
+        note = spec["note"] + "\n\nThis tab: " + plan["status"] + "."
+        add_note(title_cell, note)
+    for col in range(1, min(max_col, 60) + 1):
+        letter = get_column_letter(col)
+        width = src.column_dimensions[letter].width if not big and letter in src.column_dimensions else None
+        head = max((len(str(ws.cell(r, col).value or "")) for r in header_rows), default=0)
+        ws.column_dimensions[letter].width = min(max(width or 0, head + 2, 10), 42)
+    if header_rows:
+        ws.freeze_panes = ws.cell(max(header_rows) + 1, 1)
+    return ws
+
+
 def start_tab(wb, catalog, built):
     ws = wb.active
     ws.title = "Start here"
@@ -353,18 +478,15 @@ def start_tab(wb, catalog, built):
         p.font, p.alignment = font(11), Alignment(wrap_text=True, vertical="center")
         row += 1
     row += 1
-    heading("Other input files")
-    others = [
-        ("SOIL_parameters.xlsx", "Soil class table. Keep its column order: the model reads the columns by position."),
-        ("LULC_parameters.xlsx", "Land-use class table. Keep its column order, as above."),
-        ("human_risk.xlsx", "Human-instability parameters (people and water)."),
-        ("Hydrograph workbooks", "Inflow and stage hydrographs, when those switches are on."),
-    ]
-    for name, text in others:
-        ws.cell(row, 2, name).font = font(11, True)
-        ws.cell(row, 2).alignment = Alignment(indent=1)
-        c = ws.cell(row, 3, text)
-        c.font, c.alignment = font(11), Alignment(wrap_text=True, vertical="center")
+    heading("Tables and series")
+    for spec in catalog.get("tables", []):
+        c = ws.cell(row, 2, spec["name"])
+        c.hyperlink = f"#'{spec['name']}'!A1"
+        c.font = Font(name=FONT, size=11, bold=True, color=TEAL, underline="single")
+        c.alignment = Alignment(indent=1)
+        status = (built or {}).get(spec["name"], {}).get("status", "")
+        p = ws.cell(row, 3, spec["purpose"] + (f"  ({status})" if status else ""))
+        p.font, p.alignment = font(11), Alignment(wrap_text=True, vertical="center")
         row += 1
     row += 1
     ws.cell(row, 2, f"Built {dt.date.today().isoformat()} from input_catalog.yaml "
@@ -374,10 +496,14 @@ def start_tab(wb, catalog, built):
 def main(catalog_path, source_path, out_path):
     catalog = yaml.safe_load(open(catalog_path))
     values, read_list = source_values(source_path)
+    plans = {spec["name"]: table_plan(spec, source_path, values) for spec in catalog.get("tables", [])}
     wb = openpyxl.Workbook()
-    start_tab(wb, catalog, None)
+    start_tab(wb, catalog, plans)
     for tab in catalog["tabs"]:
-        build_tab(wb, tab, values, read_list, catalog["developer"])
+        build_tab(wb, tab, values, read_list, catalog["developer"]).sheet_properties.tabColor = TAB_COLORS["settings"]
+    for spec in catalog.get("tables", []):
+        build_table_tab(wb, spec, plans[spec["name"]], values)
+        print(f"  {spec['name']}: {plans[spec['name']]['status']}")
     wb.properties.creator = catalog["developer"]
     wb.properties.title = catalog["title"]
     wb.properties.subject = "HydroPol2D model inputs"

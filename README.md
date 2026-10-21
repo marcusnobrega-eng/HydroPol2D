@@ -211,7 +211,35 @@ HydroPol2D requires the following input data files and parameters, which must be
 
 All rasters must be aligned spatially (same extent, resolution, and coordinate reference, preferably EPSG:3857) or with an Equal Area projection.
 
-###  Parameter Tables (Excel Sheets)
+###  The case workbook (Excel)
+
+A case is one workbook, `Input_Data_Sheets/HydroPol2D_Inputs.xlsx`, which
+`HydroPol2D_V115.m` reads by default (`HYDROPOL_INPUT_EXCEL_FILE` points elsewhere). Its
+tabs, left to right:
+
+| Tabs | Content |
+|---|---|
+| Start here | how to fill it, the colour legend, links to every tab |
+| Run control, Input maps, Soil and groundwater, Surface flow, Rain and ET, Design storm, Water quality, Risk and gauges | every setting, one row each (name, key, value, unit, default, when it is used), with a note on each value; a block greys out while its switch is 0 |
+| Soil classes, Land use classes, Human instability, Mesh, Control structures | the class tables |
+| Rain series, Rain gauges, Climate stations, Inflow hydrographs, Stage hydrographs | the time series |
+
+The class-table and series tabs keep the cell layout of the workbooks they replace
+(`SOIL_parameters.xlsx`, `LULC_parameters.xlsx`, `human_risk.xlsx`,
+`Voronoi_Settings.xlsx`, `BC_Control_structure.xlsx`, `Rainfall_Intensity_Data.xlsx`,
+`Rainfall_Spatial_Input.xlsx`, `ETP_input_data.xlsx`, `Inflow_Hydrograph.xlsx`,
+`Stage_Hydrograph.xlsx`): the model reads some of them by position, so keep rows and
+columns where they are. A sheet holds up to 1,048,576 rows (two years of 1-min data).
+
+Older cases still run unchanged: `General_Data.xlsx` with its `Flags` sheet and the
+separate workbooks. Each reader takes the tab from the case workbook when it has it, and
+the old workbook otherwise. `tools/workbook_builder/build_input_workbook.py` converts an
+old case (`python build_input_workbook.py input_catalog.yaml General_Data.xlsx
+HydroPol2D_Inputs.xlsx`). A series the case's switches do not read is kept as a
+header-only template. Check: `Validation/Workbook/run_single_workbook_checks.m` (the
+V-tilted case gives identical results from either layout).
+
+###  Parameter Tables
 - **LULC Parameter Table:** Each land use class must include:
   - Manning's `n` roughness coefficient
   - Initial-abstraction `h0` and initial surface-water depth `d0` in mm
@@ -223,7 +251,7 @@ All rasters must be aligned spatially (same extent, resolution, and coordinate r
 
 The generic LULC table is a documented starting parameterization, not a substitute for local calibration. See [LULC default parameter basis](Input_Data_Sheets/LULC_Defaults.md) for the source basis and the scope of each field.
 
-For the Neal (2012) channel-subgrid formulation, the LULC `n` column is the spatial floodplain roughness. Set the single in-bank/channel coefficient separately in `General_Data.xlsx` as `Manning`, or in script mode as `InputData_Bypass.general.Manning`. Observation-gauge data only define output locations and never alter either roughness field.
+For the Neal (2012) channel-subgrid formulation, the LULC `n` column is the spatial floodplain roughness. Set the single in-bank/channel coefficient separately in the case workbook (or `General_Data.xlsx`) as `Manning`, or in script mode as `InputData_Bypass.general.Manning`. Observation-gauge data only define output locations and never alter either roughness field.
 
 - **Soil Parameter Table:** Each soil class must include:
   - Vertical Saturated hydraulic conductivity $K_{\mathrm{sat}}$
