@@ -201,29 +201,32 @@ end
 
 function [near,root,trans,recharge] = drain_layers(state,dt_s)
 near=state.near_storage_m; root=state.root_storage_m; trans=state.transmission_storage_m;
-near_drain=drainage(near,state.near_capacity_m,state.near_thickness_m,state.ksat_m_s,state.theta_r,state.theta_sat,state.n_vg,dt_s);
+near_drain=drainage(near,state.near_capacity_m,state.near_thickness_m,state.pervious_fraction,state.ksat_m_s,state.theta_r,state.theta_sat,state.n_vg,dt_s);
 [near,root,moved]=move_down(near,root,state.root_capacity_m,near_drain,state.root_capacity_m>0);
 remaining=max(near_drain-moved,0);
 [near,trans,moved]=move_down(near,trans,state.transmission_capacity_m,remaining,state.root_capacity_m<=0 & state.transmission_capacity_m>0);
 near_to_gw=min(max(remaining-moved,0),near).*(state.root_capacity_m<=0 & state.transmission_capacity_m<=0);
 near=near-near_to_gw;
-root_drain=drainage(root,state.root_capacity_m,state.root_thickness_m,state.ksat_m_s,state.theta_r,state.theta_sat,state.n_vg,dt_s);
+root_drain=drainage(root,state.root_capacity_m,state.root_thickness_m,state.pervious_fraction,state.ksat_m_s,state.theta_r,state.theta_sat,state.n_vg,dt_s);
 [root,trans,moved]=move_down(root,trans,state.transmission_capacity_m,root_drain,state.transmission_capacity_m>0);
 root_to_gw=min(max(root_drain-moved,0),root).*(state.root_capacity_m>0 & state.transmission_capacity_m<=0);
 root=root-root_to_gw;
-trans_drain=drainage(trans,state.transmission_capacity_m,state.transmission_thickness_m,state.ksat_m_s,state.theta_r,state.theta_sat,state.n_vg,dt_s);
+trans_drain=drainage(trans,state.transmission_capacity_m,state.transmission_thickness_m,state.pervious_fraction,state.ksat_m_s,state.theta_r,state.theta_sat,state.n_vg,dt_s);
 trans_drain=min(trans_drain,trans); trans=trans-trans_drain;
 recharge=near_to_gw+root_to_gw+trans_drain;
 end
 
-function amount = drainage(storage,capacity,thickness,ksat,theta_r,theta_s,n_vg,dt_s)
-theta=theta_r+storage./max(thickness,eps);
+function amount = drainage(storage,capacity,thickness,pervious,ksat,theta_r,theta_s,n_vg,dt_s)
+% Drainage over the HRU: the water sits in the pervious part, which drains at
+% K(theta) (2026-10-26; before, theta used the whole thickness and Ks the whole HRU).
+pervious=min(max(pervious,0),1);
+theta=theta_r+storage./max(pervious.*thickness,eps);
 theta=min(max(theta,theta_r),theta_s);
 se=min(max((theta-theta_r)./max(theta_s-theta_r,eps),1e-6),1);
 m=1-1./n_vg; term=min(max(1-se.^(1./m),0),1);
 kr=se.^0.5.*(1-term.^m).^2;
-amount=min(max(ksat.*kr.*dt_s,0),storage);
-amount(capacity<=0 | thickness<=0)=0;
+amount=min(max(pervious.*ksat.*kr.*dt_s,0),storage);
+amount(capacity<=0 | thickness<=0 | pervious<=0)=0;
 end
 
 function [upper,lower,moved] = move_down(upper,lower,lower_capacity,demand,route)

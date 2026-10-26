@@ -12,7 +12,7 @@ recharge_depth_mm = zero_matrix;
 % layer exists.
 near_drain_mm = local_drainage_depth( ...
     layers.near_surface_storage_mm, layers.near_surface_capacity_mm, ...
-    layers.near_surface_thickness_m, layers.ksat_near_surface, ...
+    layers.near_surface_thickness_m, layers.pervious_fraction, layers.ksat_near_surface, ...
     layers.theta_r_near_surface, layers.theta_sat_near_surface, ...
     layers.n_vg_near_surface, dt_s);
 
@@ -36,7 +36,7 @@ recharge_depth_mm = recharge_depth_mm + near_to_gw;
 % Root-zone drainage goes to the transmission zone when present.
 root_drain_mm = local_drainage_depth( ...
     layers.root_zone_storage_mm, layers.root_zone_capacity_mm, ...
-    layers.root_zone_thickness_m, layers.ksat_root_zone, ...
+    layers.root_zone_thickness_m, layers.pervious_fraction, layers.ksat_root_zone, ...
     layers.theta_r_root_zone, layers.theta_sat_root_zone, ...
     layers.n_vg_root_zone, dt_s);
 
@@ -54,7 +54,7 @@ recharge_depth_mm = recharge_depth_mm + root_to_gw;
 % Transmission-zone drainage is recharge to groundwater.
 trans_drain_mm = local_drainage_depth( ...
     layers.transmission_storage_mm, layers.transmission_capacity_mm, ...
-    layers.transmission_thickness_m, layers.ksat_transmission, ...
+    layers.transmission_thickness_m, layers.pervious_fraction, layers.ksat_transmission, ...
     layers.theta_r_transmission, layers.theta_sat_transmission, ...
     layers.n_vg_transmission, dt_s);
 
@@ -72,20 +72,24 @@ Soil_Properties.Layers = layers;
 Soil_Properties = sync_layered_soil_storage(Soil_Properties, idx_nan);
 end
 
-function drainage_mm = local_drainage_depth(storage_mm, capacity_mm, thickness_m, ksat_mm_h, theta_r, theta_s, n_vg, dt_s)
+function drainage_mm = local_drainage_depth(storage_mm, capacity_mm, thickness_m, pervious, ksat_mm_h, theta_r, theta_s, n_vg, dt_s)
+% Free drainage of one layer, in mm over the whole cell. The water sits in the
+% pervious part: theta = theta_r + S / (f_p thickness), and the cell drains
+% f_p K(theta) dt (2026-10-26; before, a half-impervious cell drained ~400x too slowly).
 
 storage_mm = max(storage_mm, 0);
 capacity_mm = max(capacity_mm, 0);
 thickness_m = max(thickness_m, 0);
+pervious = min(max(pervious, 0), 1);
 
 drainage_mm = zeros(size(storage_mm), 'like', storage_mm);
-idx = capacity_mm > 0 & thickness_m > 0 & storage_mm > 0;
+idx = capacity_mm > 0 & thickness_m > 0 & storage_mm > 0 & pervious > 0;
 if ~any(idx(:))
     return
 end
 
 m_vg = 1 - 1 ./ n_vg;
-theta = theta_r + storage_mm ./ max(thickness_m .* 1000, eps);
+theta = theta_r + storage_mm ./ max(pervious .* thickness_m .* 1000, eps);
 theta = max(theta, theta_r);
 theta = min(theta, theta_s);
 
@@ -98,7 +102,8 @@ Kr = Se .^ 0.5 .* (1 - term .^ m_vg) .^ 2;
 Kr = min(max(Kr, 0), 1);
 
 K_m_s = ksat_mm_h ./ 1000 ./ 3600 .* Kr;
-drainage_mm(idx) = K_m_s(idx) .* dt_s .* 1000;
+drainage_mm = pervious .* K_m_s .* dt_s .* 1000;
+drainage_mm(~idx) = 0;
 drainage_mm = min(max(drainage_mm, 0), storage_mm);
 end
 

@@ -64,11 +64,39 @@ Soil_Clamp.Layers.transmission_storage_mm = 100;
 clamp_pass = abs(excess_mm - 40) < 1e-10 && ...
     abs(Soil_Clamp.I_t - Soil_Clamp.Layers.total_vadose_capacity_mm) < 1e-10;
 
+% A half-impervious cell: theta_i is the water content of the pervious part, so the
+% near-surface store starts at f_p (theta_i - theta_r) thickness = 0.5*0.15*0.10 m.
+[Soil_Half, ~] = base_profile(0.60, 0.30, 0.5);
+Soil_Half.theta_i = 0.25;
+Soil_Half = initialize_layered_soil_storage(Soil_Half, idx_nan);
+half_initial_mm = Soil_Half.Layers.near_surface_storage_mm;
+pervious_initial_pass = abs(half_initial_mm - 7.5) < 1e-10;
+
+% At the same theta, the half-impervious cell drains half the depth of a fully
+% pervious one over the cell: f_p K(theta) dt.
+[Soil_Full, ~] = base_profile(0.60, 0.30, 1.0);
+Soil_Full.theta_i = 0.25;
+Soil_Full = initialize_layered_soil_storage(Soil_Full, idx_nan);
+Soil_Full.Layers.root_zone_storage_mm = 0;
+Soil_Full.Layers.transmission_storage_mm = 0;
+Soil_Half.Layers.root_zone_storage_mm = 0;
+Soil_Half.Layers.transmission_storage_mm = 0;
+full_initial_mm = Soil_Full.Layers.near_surface_storage_mm;
+[~, Soil_Full] = simulate_layered_groundwater_recharge(Soil_Full, 60, idx_nan, zeros(1,1));
+[~, Soil_Half] = simulate_layered_groundwater_recharge(Soil_Half, 60, idx_nan, zeros(1,1));
+full_drained_mm = full_initial_mm - Soil_Full.Layers.near_surface_storage_mm;
+half_drained_mm = half_initial_mm - Soil_Half.Layers.near_surface_storage_mm;
+drainage_ratio = half_drained_mm / full_drained_mm;
+pervious_drainage_pass = full_drained_mm > 0 && abs(drainage_ratio - 0.5) < 1e-10;
+
 case_id = ["top_down_infiltration"; "root_access_et"; "shallow_root_fallback"; ...
-    "layer_percolation_recharge"; "capacity_clamp"];
-metric_value = [accepted_mm; actual_et_mm; actual_shallow_et_mm; recharged_mm; excess_mm];
-threshold = [1e-10; 1e-10; 1e-10; 1e-8; 1e-10];
-passed = [topdown_pass; et_pass; shallow_root_pass; percolation_pass; clamp_pass];
+    "layer_percolation_recharge"; "capacity_clamp"; ...
+    "pervious_part_initial_storage"; "pervious_part_drainage"];
+metric_value = [accepted_mm; actual_et_mm; actual_shallow_et_mm; recharged_mm; excess_mm; ...
+    half_initial_mm; drainage_ratio];
+threshold = [1e-10; 1e-10; 1e-10; 1e-8; 1e-10; 1e-10; 1e-10];
+passed = [topdown_pass; et_pass; shallow_root_pass; percolation_pass; clamp_pass; ...
+    pervious_initial_pass; pervious_drainage_pass];
 
 Diagnostics = table(case_id, metric_value, threshold, passed);
 writetable(Diagnostics, fullfile(out_dir, 'Layered_Dynamics_Diagnostics.csv'));
@@ -86,7 +114,10 @@ writetable(PassFail, fullfile(out_dir, 'Layered_Dynamics_Pass_Fail.csv'));
 disp(Diagnostics);
 disp(PassFail);
 
-function [Soil_Properties, LULC_Properties] = base_profile(soil_depth_m, root_depth_m)
+function [Soil_Properties, LULC_Properties] = base_profile(soil_depth_m, root_depth_m, pervious_fraction)
+if nargin < 3
+    pervious_fraction = 1;
+end
 
 Soil_Properties = struct();
 Soil_Properties.Soil_Depth = soil_depth_m;
@@ -106,6 +137,7 @@ Soil_Properties.I_0 = 0;
 LULC_Properties = struct();
 LULC_Properties.root_depth_m = root_depth_m;
 LULC_Properties.idx_imp = false(1,1);
+LULC_Properties.frac_perv = pervious_fraction;
 
 elevation = 100;
 BC_States = struct();
