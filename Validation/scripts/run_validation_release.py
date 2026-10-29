@@ -53,6 +53,7 @@ CHECKS = (
     Check("Neal (2012) composite steady channel", "Validation/Subgrid/Neal2012_CompositeChannel_100cms/run_neal_composite_channel_100cms.m", "Validation/Subgrid/Neal2012_CompositeChannel_100cms/Outputs/Validation/Pass_Fail.csv", "full"),
     Check("Neal (2012) composite Nash hydrograph", "Validation/Subgrid/Neal2012_CompositeChannel_100cms/run_neal_composite_channel_nash100.m", "Validation/Subgrid/Neal2012_CompositeChannel_100cms/Outputs/Validation/NashTransient/Pass_Fail.csv", "full"),
     Check("Neal (2012) staged overbank channel", "Validation/Subgrid/Neal2012_StagedOverbank_100m/run_neal_staged_overbank_100m.m", "Validation/Subgrid/Neal2012_StagedOverbank_100m/Outputs/Validation/Pass_Fail.csv", "full"),
+    Check("Neal channel CFL time step", "Validation/Subgrid/Neal_CFL_Timestep/run_neal_cfl_timestep_check.m", "Validation/Subgrid/Neal_CFL_Timestep/Outputs/Validation/Pass_Fail.csv", "fast"),
     Check("Neal (2012) two-dimensional junction", "Validation/Subgrid/Neal2012_2D_CrossJunction/run_neal_2d_cross_junction_validation.m", "Validation/Subgrid/Neal2012_2D_CrossJunction/Outputs/Validation/Pass_Fail.csv", "full"),
 )
 

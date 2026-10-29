@@ -318,6 +318,25 @@ if running_control.delta_time_save > 0 || k == 1
     end
 
     %% --------------------------------------------------------------------
+    % Neal channel-subgrid CFL
+    % The Neal solver returns no face depth (Hf = 0), so the rules above see
+    % still water and allow the maximum step. Limit the step with the channel
+    % and floodplain velocities and the depth above the channel bed.
+    % ---------------------------------------------------------------------
+    use_neal_timestep = isfield(flags, 'flag_subgrid') && isfield(flags, 'flag_overbanks') && ...
+        flags.flag_subgrid == 1 && flags.flag_overbanks == 1 && ...
+        flags.flag_CA ~= 1 && flags.flag_diffusive ~= 1 && ...
+        flags.flag_kinematic ~= 1 && flags.flag_full_momentum ~= 1 && ...
+        exist('Qc', 'var') && ndims(Qc) == 3;
+    if use_neal_timestep
+        Courant_Parameters.dt_neal = hp2d_neal_stable_timestep( ...
+            depths.d_t / 1000, Qc, Qf, Wshed_Properties.River_Width, ...
+            Wshed_Properties.River_Depth, Wshed_Properties.Resolution, ...
+            Courant_Parameters.alfa_min, running_control.max_time_step, idx_nan);
+        new_timestep = min(new_timestep, Courant_Parameters.dt_neal);
+    end
+
+    %% --------------------------------------------------------------------
     % Water quality restriction
     % ---------------------------------------------------------------------
     if flags.flag_waterquality == 1
