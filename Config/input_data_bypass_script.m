@@ -1134,6 +1134,9 @@ InputData_Bypass.Stage = Stage;
 % IMPORTANT:
 % All coordinate fields must use the SAME projected CRS and units as the
 % DEM.
+% Each release Q = k*(h - h0)^b leaves the structure cell and enters the
+% destination cell. A destination of (0, 0) sends it out of the model
+% (booked as outlet flow); NaN switches that outlet off.
 % ========================================================================
 
 Reservoir_Data = struct();

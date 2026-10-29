@@ -42,31 +42,19 @@ Vol_Flux = dt * ( ...
     [zeros(ny,1,'like',outflow_rate(:,:,1)) , outflow_rate(:,1:nx-1,1)] - outflow_rate(:,:,1) ...
     - outflow_rate(:,:,2) + [outflow_rate(2:end,:,2); zeros(1,nx,'like',outflow_rate(:,:,2))] );
 
+% Reservoir releases from the storage after the face fluxes, with the sill
+% measured above the channel bed. Each release leaves its source and enters
+% its destination, or leaves the model (hp2d_reservoir_releases).
+reservoir_external_m3 = zeros(size(d_tot), 'like', d_tot);
 if flag_reservoir == 1
-    for ii = 1:length(reservoir_y)
-        if ~isnan(yds1(ii))
-            dtsup = depth_cell(reservoir_y(ii),reservoir_x(ii));
-            dt_h = time_step / 60;
-
-            available_volume = 1000 * max(dtsup - h1(ii), 0) / dt_h;
-            dh = min(k1(ii) * (max(dtsup - h1(ii),0))^k2(ii) / cell_area * 1000 * 3600, available_volume) * dt_h;
-
-            Vol_Flux(reservoir_y(ii),reservoir_x(ii)) = Vol_Flux(reservoir_y(ii),reservoir_x(ii)) + dh / 1000 * cell_area;
-            dtsup = dtsup - dh / 1000;
-            d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;
-        else
-            dh = 0;
-        end
-
-        if ~isnan(yds2(ii))
-            d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;
-            available_volume = 1000 * max(dtsup - h2(ii), 0) / dt_h;
-            dh = min(k3(ii) * (max(dtsup - h2(ii),0))^k4(ii) / cell_area * 1000 * 3600, available_volume) * dt_h;
-
-            Vol_Flux(reservoir_y(ii),reservoir_x(ii)) = Vol_Flux(reservoir_y(ii),reservoir_x(ii)) + dh / 1000 * cell_area;
-            d_tot(yds2(ii),xds2(ii)) = d_tot(yds2(ii),xds2(ii)) + dh;
-        end
-    end
+    V_faces = max(V_before + Vol_Flux, 0);
+    V_faces(idx_nan) = 0;
+    geometry = struct('type', 'neal', 'River_Width', River_Width, ...
+        'River_Depth', River_Depth, 'Resolution', Resolution);
+    [reservoir_exchange_m3, reservoir_external_m3] = hp2d_reservoir_releases( ...
+        V_faces, reservoir_x, reservoir_y, k1, h1, k2, k3, h2, k4, ...
+        yds1, xds1, yds2, xds2, dt, geometry);
+    Vol_Flux = Vol_Flux + reservoir_exchange_m3;
 end
 
 V_after_faces = max(V_before + Vol_Flux, 0);
@@ -124,6 +112,11 @@ if ~isempty(row_outlet)
     h_after_faces = hp2d_neal_depth_from_volume(V_after_faces, River_Width, River_Depth, Resolution);
     C_a = hp2d_neal_cell_area(h_after_faces, River_Width, River_Depth, Resolution);
 end
+
+% Reservoir releases that leave the model are booked as outlet flow at
+% their source cell (already removed from the storage above).
+outlet_flow = hp2d_reservoir_book_external(outlet_flow, reservoir_external_m3, cell_area, dt);
+outflow(:,:,3) = outlet_flow;
 
 d_t = 1000 .* h_after_faces;
 d_t(idx_nan) = NaN;

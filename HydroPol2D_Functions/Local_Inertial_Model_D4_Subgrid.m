@@ -104,10 +104,20 @@ Qsouth = Q_face(:, :, 2);
 
 Vol_Flux = dt .* (Qwest - Qeast + Qnorth - Qsouth);
 
+reservoir_external_m3 = zeros(ny, nx, 'like', eta_n);
 if flag_reservoir == 1
-    Vol_Flux = apply_reservoir_volume_exchange(Vol_Flux, eta_t, zmin_cell, ...
-        reservoir_x, reservoir_y, k1, h1, k2, k3, h2, k4, yds1, xds1, ...
-        yds2, xds2, dt / 60, cell_area);
+    % Releases from the storage after the face fluxes, with the depth and the
+    % volume above the sill read from the source cell's SFINCS tables
+    % (hp2d_reservoir_releases).
+    V_after_faces = max(V_t + Vol_Flux, 0);
+    V_after_faces(inactive) = 0;
+    geometry = struct('type', 'handles', ...
+        'depth', @(v, idx) sfincs_cell_depth(SubgridTables, v, idx), ...
+        'volume', @(h, idx) sfincs_cell_volume(SubgridTables, h, idx));
+    [reservoir_exchange_m3, reservoir_external_m3] = hp2d_reservoir_releases( ...
+        V_after_faces, reservoir_x, reservoir_y, k1, h1, k2, k3, h2, k4, ...
+        yds1, xds1, yds2, xds2, dt, geometry);
+    Vol_Flux = Vol_Flux + reservoir_exchange_m3;
 end
 
 eta_before_continuity = eta_t;
@@ -129,7 +139,7 @@ end
 
 qG_prev = qG_candidate;
 outflow(:, :, 1:2) = qG_prev(:, :, 1:2) ./ Resolution .* 1000 .* 3600;
-outlet_flow = outlet_flow_sub;
+outlet_flow = hp2d_reservoir_book_external(outlet_flow_sub, reservoir_external_m3, Resolution^2, dt);
 outflow(:, :, 3) = outlet_flow;
 outflow(:, :, 4) = double(kfuv_new(:, :, 1));
 outflow(:, :, 5) = double(kfuv_new(:, :, 2));
@@ -236,23 +246,27 @@ qnew(mask) = qnew(mask) .* wiggle_threshold ./ ...
     (wiggle_factor .* mdrv(mask) + wiggle_threshold);
 end
 
-function Vol_Flux = apply_reservoir_volume_exchange(Vol_Flux, eta, zmin, ...
-    reservoir_x, reservoir_y, k1, h1, k2, k3, h2, k4, yds1, xds1, yds2, xds2, ...
-    time_step, cell_area)
-for ii = 1:length(reservoir_y)
-    dtsup = max(eta(reservoir_y(ii), reservoir_x(ii)) - zmin(reservoir_y(ii), reservoir_x(ii)), 0);
-    dt_h = time_step / 60;
-    if ~isnan(yds1(ii))
-        dh = k1(ii) * max(dtsup - h1(ii), 0)^k2(ii) / cell_area * 1000 * 3600 * dt_h;
-        Vol_Flux(reservoir_y(ii), reservoir_x(ii)) = ...
-            Vol_Flux(reservoir_y(ii), reservoir_x(ii)) - dh / 1000 * cell_area;
-        Vol_Flux(yds1(ii), xds1(ii)) = Vol_Flux(yds1(ii), xds1(ii)) + dh / 1000 * cell_area;
-    end
-    if ~isnan(yds2(ii))
-        dh = k3(ii) * max(dtsup - h2(ii), 0)^k4(ii) / cell_area * 1000 * 3600 * dt_h;
-        Vol_Flux(reservoir_y(ii), reservoir_x(ii)) = ...
-            Vol_Flux(reservoir_y(ii), reservoir_x(ii)) - dh / 1000 * cell_area;
-        Vol_Flux(yds2(ii), xds2(ii)) = Vol_Flux(yds2(ii), xds2(ii)) + dh / 1000 * cell_area;
+function h = sfincs_cell_depth(S, V, idx)
+% Depth above the cell's lowest point for storage V [m].
+T = sfincs_cell_tables(S, idx);
+h = max(hp2d_sfincs_zs_from_cell_volume(T, V) - T.z_zmin, 0);
+end
+
+function V = sfincs_cell_volume(S, h, idx)
+% Storage of one cell at depth h above its lowest point [m3].
+T = sfincs_cell_tables(S, idx);
+V = hp2d_sfincs_cell_volume_from_zs(T, T.z_zmin + h);
+end
+
+function T = sfincs_cell_tables(S, idx)
+% The SFINCS tables of one cell, as 1 x 1 (x levels) arrays.
+[r, c] = ind2sub(size(S.z_zmin), idx);
+T = S;
+names = fieldnames(S);
+for f = 1:numel(names)
+    v = S.(names{f});
+    if isnumeric(v) && ~isscalar(v) && size(v, 1) == size(S.z_zmin, 1) && size(v, 2) == size(S.z_zmin, 2)
+        T.(names{f}) = v(r, c, :);
     end
 end
 end

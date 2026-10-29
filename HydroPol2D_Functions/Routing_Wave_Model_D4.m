@@ -71,7 +71,15 @@ for isub = 1:n_sub
         - outflow_rate(:,:,2) + [outflow_rate(2:end,:,2); zeros(1,nx,'like',z)] );
 
     if flag_reservoir == 1
-        [Vol_Flux,d_work] = apply_reservoir_fluxes(Vol_Flux,d_work,C_a,time_step_sub,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2);
+        % Releases from the depth after the face fluxes; a release that
+        % leaves the model is booked with the outlet volume.
+        V_after_faces = max(d_work ./ 1000 .* C_a + Vol_Flux, 0);
+        V_after_faces(idx_nan) = 0;
+        [reservoir_exchange_m3, reservoir_external_m3] = hp2d_reservoir_releases( ...
+            V_after_faces, reservoir_x, reservoir_y, k1, h1, k2, k3, h2, k4, ...
+            yds1, xds1, yds2, xds2, dt_sub, struct('type', 'area', 'area', C_a));
+        Vol_Flux = Vol_Flux + reservoir_exchange_m3;
+        outlet_volume_total = outlet_volume_total + reservoir_external_m3;
     end
 
     d_work = d_work + 1000 .* safe_divide(Vol_Flux,C_a);
@@ -308,34 +316,6 @@ if ny > 1
     Qy = qy(2:end,:) .* dx;
     outgoing(2:end,:) = outgoing(2:end,:) + max(Qy,0) .* dt;
     outgoing(1:end-1,:) = outgoing(1:end-1,:) + max(-Qy,0) .* dt;
-end
-end
-
-function [Vol_Flux,d_tot] = apply_reservoir_fluxes(Vol_Flux,d_tot,C_a,time_step,reservoir_x,reservoir_y,k1,h1,k2,k3,h2,k4,yds1,xds1,yds2,xds2)
-dt_h = time_step / 60;
-for ii = 1:length(reservoir_y)
-    if ~isnan(yds1(ii))
-        area_res = C_a(reservoir_y(ii),reservoir_x(ii));
-        dtsup = d_tot(reservoir_y(ii),reservoir_x(ii)) / 1000;
-        available_mm_h = 1000 * max(dtsup - h1(ii),0) / max(dt_h,eps);
-        q_mm_h = k1(ii) * max(dtsup - h1(ii),0)^k2(ii) / area_res * 1000 * 3600;
-        dh = min(q_mm_h,available_mm_h) * dt_h;
-        Vol_Flux(reservoir_y(ii),reservoir_x(ii)) = Vol_Flux(reservoir_y(ii),reservoir_x(ii)) + dh / 1000 * area_res;
-        dtsup = dtsup - dh / 1000;
-        d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;
-    else
-        dh = 0; %#ok<NASGU>
-        dtsup = d_tot(reservoir_y(ii),reservoir_x(ii)) / 1000;
-    end
-
-    if ~isnan(yds2(ii))
-        area_res = C_a(reservoir_y(ii),reservoir_x(ii));
-        available_mm_h = 1000 * max(dtsup - h2(ii),0) / max(dt_h,eps);
-        q_mm_h = k3(ii) * max(dtsup - h2(ii),0)^k4(ii) / area_res * 1000 * 3600;
-        dh = min(q_mm_h,available_mm_h) * dt_h;
-        Vol_Flux(reservoir_y(ii),reservoir_x(ii)) = Vol_Flux(reservoir_y(ii),reservoir_x(ii)) + dh / 1000 * area_res;
-        d_tot(yds2(ii),xds2(ii)) = d_tot(yds2(ii),xds2(ii)) + dh;
-    end
 end
 end
 

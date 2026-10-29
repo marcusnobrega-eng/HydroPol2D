@@ -314,32 +314,17 @@ Vol_Flux = dt * ( ...
     - outflow_rate(:,:,2) + [outflow_rate(2:end,:,2); zeros(1,nx,'like',outflow_rate(:,:,2))] );
 
 %% Reservoir Boundary Condition
+% Releases from the depth after the face fluxes. Each release leaves its
+% source and enters its destination, or leaves the model
+% (hp2d_reservoir_releases).
+reservoir_external_m3 = zeros(size(d_tot), 'like', d_tot);
 if flag_reservoir == 1
-    for ii = 1:length(reservoir_y)
-        if ~isnan(yds1(ii))
-            dtsup = d_tot(reservoir_y(ii),reservoir_x(ii))./1000;
-            dt_h = time_step/60;
-
-            available_volume = 1000*(max(dtsup - h1(ii),0))/dt_h;
-            dh = min(k1(ii)*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h;
-
-            Vol_Flux(reservoir_y(ii),reservoir_x(ii)) = Vol_Flux(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
-            dtsup = dtsup - dh/1000;
-            d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;
-        else
-            dh = 0;
-        end
-
-        if ~isnan(yds2(ii))
-            d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;
-
-            available_volume = 1000*(max(dtsup - h2(ii),0))/dt_h;
-            dh = min(k3(ii)*(max(dtsup - h2(ii),0))^k4(ii)/cell_area*1000*3600,available_volume)*dt_h;
-
-            Vol_Flux(reservoir_y(ii),reservoir_x(ii)) = Vol_Flux(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
-            d_tot(yds2(ii),xds2(ii)) = d_tot(yds2(ii),xds2(ii)) + dh;
-        end
-    end
+    V_after_faces = max(d_tot ./ 1000 .* C_a + Vol_Flux, 0);
+    V_after_faces(idx_nan) = 0;
+    [reservoir_exchange_m3, reservoir_external_m3] = hp2d_reservoir_releases( ...
+        V_after_faces, reservoir_x, reservoir_y, k1, h1, k2, k3, h2, k4, ...
+        yds1, xds1, yds2, xds2, dt, struct('type', 'area', 'area', C_a));
+    Vol_Flux = Vol_Flux + reservoir_exchange_m3;
 end
 
 %% Output Fluxes
@@ -495,6 +480,11 @@ if ~isempty(row_outlet)
     d_t(outlet_sub) = d_t(outlet_sub) - q_out * (time_step/60);
     end
 end
+
+% Reservoir releases that leave the model are booked as outlet flow at
+% their source cell (already removed from the depth above).
+outlet_flow = hp2d_reservoir_book_external(outlet_flow, reservoir_external_m3, cell_area, dt);
+outflow(:,:,3) = outlet_flow;
 
 %% Mass Balance Check
 if flag_subgrid == 1 && flag_overbanks == 1

@@ -1015,6 +1015,14 @@ if flags.flag_reservoir == 1
     Reservoir_Data.x_ds2_index = round((-GIS_data.xulcorner + Reservoir_Data.x_ds2)/Wshed_Properties.Resolution);
     Reservoir_Data.y_ds1_index = round((GIS_data.yulcorner - Reservoir_Data.y_ds1)/Wshed_Properties.Resolution);
     Reservoir_Data.y_ds2_index = round((GIS_data.yulcorner - Reservoir_Data.y_ds2)/Wshed_Properties.Resolution);
+    % A destination of (0, 0) sends the release out of the model: index 0 in
+    % both directions (hp2d_reservoir_releases). NaN switches the outlet off.
+    external_1 = Reservoir_Data.x_ds1 == 0 & Reservoir_Data.y_ds1 == 0;
+    external_2 = Reservoir_Data.x_ds2 == 0 & Reservoir_Data.y_ds2 == 0;
+    Reservoir_Data.x_ds1_index(external_1) = 0;
+    Reservoir_Data.y_ds1_index(external_1) = 0;
+    Reservoir_Data.x_ds2_index(external_2) = 0;
+    Reservoir_Data.y_ds2_index(external_2) = 0;
 else
     Reservoir_Data.index = [];
     Reservoir_Data.x_index = [];

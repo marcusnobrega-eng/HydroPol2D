@@ -135,36 +135,25 @@ qout = I./(time_step*60)/(cell_area)*1000*3600; % mm/hr
 
 % Reservoir Boundary Condition - We are assuming that all flow drains
 % towards the spillway
-if flag_reservoir == 1   
-	for ii = 1:length(reservoir_y)
-        if ~isnan(yds1(ii))
-            dtsup = d_tot(reservoir_y(ii),reservoir_x(ii))./1000; % % Water depth in the cell that has the boundary condition (m)
-            dt_h = (time_step)/60; % timestep in hours
-            % ---- First Boundary Condition ----- %
-            available_volume = 1000*(max(dtsup - h1(ii),0))/dt_h; %  mm/h
-            dh = min(k1(ii)*(max(dtsup - h1(ii),0))^k2(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
-            I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
-            dtsup = dtsup - dh/1000;
-        else
-            dh = 0;
-        end
-        if ~isnan(yds2(ii))
-            % Refreshing downstream cell
-            d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;
-            % ---- Second Boundary Condition ----- %
-            available_volume = 1000*(max(dtsup - h2(ii),0))/dt_h; %  mm/h
-            dh = min(k3(ii)*(max(dtsup - h2(ii),0))^k4(ii)/cell_area*1000*3600,available_volume)*dt_h; % mm
-            I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) = I_tot_end_cell(reservoir_y(ii),reservoir_x(ii)) + dh/1000*cell_area;
-            % Refreshing downstream cell
-            d_tot(yds2(ii),xds2(ii)) = d_tot(yds2(ii),xds2(ii)) + dh;
-        end
-	end
+reservoir_external_m3 = zeros(size(d_tot));
+if flag_reservoir == 1
+    % Releases from the depth left after this step's outflows. The source
+    % loses the release with its outflow volume; the destination gains it,
+    % or it leaves the model (hp2d_reservoir_releases).
+    V_after_outflow = max(d_tot ./ 1000 .* cell_area - I_tot_end_cell, 0);
+    V_after_outflow(idx_nan) = 0;
+    [reservoir_exchange_m3, reservoir_external_m3] = hp2d_reservoir_releases( ...
+        V_after_outflow, reservoir_x, reservoir_y, k1, h1, k2, k3, h2, k4, ...
+        yds1, xds1, yds2, xds2, time_step * 60, struct('type', 'area', 'area', cell_area));
+    I_tot_end_cell = I_tot_end_cell + max(-reservoir_exchange_m3, 0);
+    d_tot = d_tot + 1000 * max(reservoir_exchange_m3, 0) ./ cell_area;
 end
     qout_left = qout(:,:,1);
     qout_right = qout(:,:,2);
     qout_up = qout(:,:,3);
     qout_down = qout(:,:,4);
     outlet_flow = qout(:,:,5);
+    outlet_flow = hp2d_reservoir_book_external(outlet_flow, reservoir_external_m3, cell_area, time_step * 60);
 
 %% ---------------% Final depth at the cell % ---------------%
 d_t = d_tot - I_tot_end_cell/cell_area*1000; % final depth in mm;

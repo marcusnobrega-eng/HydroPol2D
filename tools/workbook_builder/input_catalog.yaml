@@ -1714,7 +1714,9 @@ tables:
   purpose: 'Internal boundary conditions: one row per reservoir or structure with its two outflow laws.'
   note: Control structures (was BC_Control_structure.xlsx). Read when flag_reservoir = 1. Outflow Q =
     k1 (h - h01)^k2 to cell (xd1, yd1) and Q = k3 (h - h02)^k4 to cell (xd2, yd2); coordinates in the
-    DEM projection (m).
+    DEM projection (m). Each release leaves the structure cell and is capped at the water above its
+    threshold. A destination of (0, 0) sends the release out of the model (booked as outlet flow); an
+    empty destination switches that outlet off.
   column_notes:
     Index: Structure number.
     x(m): Easting of the structure cell (m, DEM projection).
@@ -1722,12 +1724,12 @@ tables:
     k1: Coefficient of the first outflow law.
     h01 [m]: Threshold depth of the first law (m).
     k2: Exponent of the first law.
-    xd1(m): Easting of the cell receiving the first outflow (m).
+    xd1(m): Easting of the cell receiving the first outflow (m); 0 with yd1 = 0 sends it out of the model.
     yd1(m): Northing of that cell (m).
     k3: Coefficient of the second outflow law.
     h02 [m]: Threshold depth of the second law (m).
     k4: Exponent of the second law.
-    xd2(m): Easting of the cell receiving the second outflow (m).
+    xd2(m): Easting of the cell receiving the second outflow (m); 0 with yd2 = 0 sends it out of the model.
     yd2(m): Northing of that cell (m).
 - name: Rain series
   kind: series

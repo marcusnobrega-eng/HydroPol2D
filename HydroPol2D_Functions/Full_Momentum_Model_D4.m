@@ -472,34 +472,17 @@ end
 d_t(~active) = NaN;
 d_t(active) = max(d_t(active), 0);
 
+reservoir_external_m3 = zeros(size(d_tot), 'like', d_tot);
 if flag_reservoir == 1
-    for ii = 1:length(reservoir_y)
-        if ~isnan(yds1(ii))
-            dtsup = d_tot(reservoir_y(ii),reservoir_x(ii))./1000;
-            dt_h = time_step/60;
-
-            available_volume = 1000*(max(dtsup - h1(ii),0))/dt_h;
-            area_res = C_a(reservoir_y(ii), reservoir_x(ii));
-            dh = min(k1(ii)*(max(dtsup - h1(ii),0))^k2(ii)/area_res*1000*3600,available_volume)*dt_h;
-
-            Vol_Flux(reservoir_y(ii),reservoir_x(ii)) = Vol_Flux(reservoir_y(ii),reservoir_x(ii)) + dh/1000*area_res;
-            dtsup = dtsup - dh/1000;
-            d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;
-        else
-            dh = 0;
-        end
-
-        if ~isnan(yds2(ii))
-            d_tot(yds1(ii),xds1(ii)) = d_tot(yds1(ii),xds1(ii)) + dh;
-
-            available_volume = 1000*(max(dtsup - h2(ii),0))/dt_h;
-            area_res = C_a(reservoir_y(ii), reservoir_x(ii));
-            dh = min(k3(ii)*(max(dtsup - h2(ii),0))^k4(ii)/area_res*1000*3600,available_volume)*dt_h;
-
-            Vol_Flux(reservoir_y(ii),reservoir_x(ii)) = Vol_Flux(reservoir_y(ii),reservoir_x(ii)) + dh/1000*area_res;
-            d_tot(yds2(ii),xds2(ii)) = d_tot(yds2(ii),xds2(ii)) + dh;
-        end
-    end
+    % Releases from the depth after the face fluxes. Each release leaves its
+    % source and enters its destination, or leaves the model
+    % (hp2d_reservoir_releases).
+    V_after_faces = max(d_tot ./ 1000 .* C_a + Vol_Flux, 0);
+    V_after_faces(~active) = 0;
+    [reservoir_exchange_m3, reservoir_external_m3] = hp2d_reservoir_releases( ...
+        V_after_faces, reservoir_x, reservoir_y, k1, h1, k2, k3, h2, k4, ...
+        yds1, xds1, yds2, xds2, dt, struct('type', 'area', 'area', C_a));
+    Vol_Flux = Vol_Flux + reservoir_exchange_m3;
 
     d_t = d_tot + 1000 * Vol_Flux ./ C_a;
     d_t(~active) = NaN;
@@ -696,6 +679,10 @@ if use_lookup_subgrid
     d_t(~active) = NaN;
     d_t(active) = max(d_t(active), 0);
 end
+
+% Reservoir releases that leave the model are booked as outlet flow at
+% their source cell (already removed from the depth above).
+outlet_flow = hp2d_reservoir_book_external(outlet_flow, reservoir_external_m3, cell_area, dt);
 
 % Final dry cleanup after outlet.
 h_final = max(d_t/1000, 0);
