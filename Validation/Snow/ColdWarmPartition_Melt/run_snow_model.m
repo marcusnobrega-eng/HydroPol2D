@@ -3,7 +3,8 @@
 % This validation suite validates the active per-LULC snow pathway. It tests
 % precipitation partitioning, storage bookkeeping, raster initial states,
 % time-step scaling, class-code fallback, and the Snow_Module coupling on a
-% small V-tilted grid. It does not claim field-scale snow calibration.
+% small V-tilted grid, with and without a canopy. It does not claim
+% field-scale snow calibration.
 
 clear; clc;
 
@@ -51,6 +52,14 @@ PassFail = [PassFail; pass_row(TimeDiag, passed)]; %#ok<AGROW>
 Diagnostics = [Diagnostics; VTiltedDiag]; %#ok<AGROW>
 MassBalance = [MassBalance; VTiltedMass]; %#ok<AGROW>
 PassFail = [PassFail; pass_row(VTiltedDiag, passed)]; %#ok<AGROW>
+
+% 4b. The same grid under a canopy (LAI 3): the snow split comes before the
+% canopy, so snowfall goes to the snowpack and only rain is intercepted (as
+% in HydroPol2D-Python).
+[CanopyDiag, CanopyMass, passed] = test_snow_under_canopy(SnowConfig);
+Diagnostics = [Diagnostics; CanopyDiag]; %#ok<AGROW>
+MassBalance = [MassBalance; CanopyMass]; %#ok<AGROW>
+PassFail = [PassFail; pass_row(CanopyDiag, passed)]; %#ok<AGROW>
 
 % 5. Read the public Excel table and compare it with the equivalent bypass
 % table. This confirms that the two supported configuration surfaces map to
@@ -193,16 +202,24 @@ LULC = [1 1 2; 1 2 2; 1 1 2];
 valid = true(size(LULC));
 [Snow_Properties, ~] = hp2d_initialize_snow_state(Config, LULC, valid, [], [], 400);
 
-flags = struct('flag_snow_modeling', 1); %#ok<NASGU>
+% Snow_Module, then interception_module (no canopy), as Hydrological_Model
+% calls them: the snow split comes first, and the rain reaches the surface
+% through interception_module.
+flags = struct('flag_snow_modeling', 1, 'flag_subgrid', 0, 'flag_overbanks', 0, ...
+    'flag_ETP', 0, 'flag_abstraction', 0); %#ok<NASGU>
 time_step = 15; %#ok<NASGU>
 Wshed_Properties = struct('pixel_latitude', 39 * ones(size(LULC))); %#ok<NASGU>
 DEM_raster = struct('cellsize', 20, 'Z', zeros(size(LULC))); %#ok<NASGU>
+elevation = zeros(size(LULC)); %#ok<NASGU>
+idx_nan = false(size(LULC)); %#ok<NASGU>
+Hydro_States = struct(); %#ok<NASGU>
 errors = zeros(3,1); %#ok<NASGU>
 depths = struct('d_t', zeros(size(LULC)), 'd_p', zeros(size(LULC))); %#ok<NASGU>
 BC_States = struct(); %#ok<NASGU>
 max_Hsnow = []; %#ok<NASGU>
 day_of_year = 30; %#ok<NASGU>
 module_file = fullfile(fileparts(which('Snow_Module')), 'Snow_Module.m');
+interception_file = fullfile(fileparts(which('interception_module')), 'interception_module.m');
 
 forcing = table([15; 30; 45; 60], [-5; 0; 3; 5], [-8; -2; 0; 2], ...
     [8; 8; 0; 0], [2; 2; 2; 2], ...
@@ -215,11 +232,12 @@ Series = table();
 for i = 1:height(forcing)
     k = i; %#ok<NASGU>
     depths.d_p = depths.d_t;
-    BC_States.Eff_Rainfall = forcing.precip_mm(i) * ones(size(LULC));
+    BC_States.delta_p_agg = forcing.precip_mm(i) * ones(size(LULC));
     BC_States.Average_Daily_Temperature = forcing.t_air_c(i) * ones(size(LULC));
     BC_States.min_temp = forcing.t_min_c(i) * ones(size(LULC));
     BC_States.wind = forcing.wind_m_s(i) * ones(size(LULC));
     run(module_file);
+    run(interception_file);
     cumulative_precip_mm = cumulative_precip_mm + forcing.precip_mm(i);
     cumulative_sublimation_mm = cumulative_sublimation_mm + mean(Snow_Properties.E_s, 'all');
     snow_mean_mm = mean(Snow_Properties.SWE_t, 'all');
@@ -247,6 +265,69 @@ Ledger = ledger_row("VAL-SNOW-001D", cumulative_precip_mm * 9 * 400 / 1000, ...
     sum(Series.mean_melt_mm) * 9 * 400 / 1000, cumulative_sublimation_mm * 9 * 400 / 1000, ...
     (Series.mean_swe_mm(end) + Series.mean_surface_water_mm(end)) * 9 * 400 / 1000, ...
     mass_residual_mm * 9 * 400 / 1000);
+end
+
+function [Diag, Ledger, passed] = test_snow_under_canopy(Config)
+LULC = [1 1 2; 1 2 2; 1 1 2];
+valid = true(size(LULC));
+[Snow_Properties, ~] = hp2d_initialize_snow_state(Config, LULC, valid, [], [], 400);
+
+% Snow_Module, then interception_module with the canopy on and no canopy
+% evaporation, as Hydrological_Model calls them.
+flags = struct('flag_snow_modeling', 1, 'flag_subgrid', 0, 'flag_overbanks', 0, ...
+    'flag_ETP', 0, 'flag_abstraction', 1); %#ok<NASGU>
+time_step = 15; %#ok<NASGU>
+Wshed_Properties = struct('pixel_latitude', 39 * ones(size(LULC))); %#ok<NASGU>
+DEM_raster = struct('cellsize', 20, 'Z', zeros(size(LULC))); %#ok<NASGU>
+elevation = zeros(size(LULC)); %#ok<NASGU>
+idx_nan = false(size(LULC)); %#ok<NASGU>
+zero_matrix = zeros(size(LULC)); %#ok<NASGU>
+LAI_raster = struct('Z', 3 * ones(size(LULC))); %#ok<NASGU>
+Hydro_States = struct('S', zeros(size(LULC))); %#ok<NASGU>
+errors = zeros(3,1); %#ok<NASGU>
+depths = struct('d_t', zeros(size(LULC)), 'd_p', zeros(size(LULC))); %#ok<NASGU>
+BC_States = struct(); %#ok<NASGU>
+max_Hsnow = []; %#ok<NASGU>
+day_of_year = 30; %#ok<NASGU>
+module_file = fullfile(fileparts(which('Snow_Module')), 'Snow_Module.m');
+interception_file = fullfile(fileparts(which('interception_module')), 'interception_module.m');
+
+% 8 mm in a cold step (all snow in both classes), then 8 mm in a warm step
+% (all rain).
+precip_mm = 8;
+t_air_c = [-5, 5];
+t_min_c = [-8, 2];
+canopy_mm = zeros(1, 2);
+swe_mm = zeros(1, 2);
+snowfall_mm = 0; rainfall_mm = 0; melt_mm = 0; sublimation_mm = 0; canopy_evaporation_mm = 0;
+for i = 1:2
+    k = i; %#ok<NASGU>
+    depths.d_p = depths.d_t;
+    BC_States.delta_p_agg = precip_mm * ones(size(LULC));
+    BC_States.Average_Daily_Temperature = t_air_c(i) * ones(size(LULC));
+    BC_States.min_temp = t_min_c(i) * ones(size(LULC));
+    BC_States.wind = 2 * ones(size(LULC));
+    run(module_file);
+    run(interception_file);
+    canopy_mm(i) = mean(Hydro_States.S, 'all');
+    swe_mm(i) = mean(Snow_Properties.SWE_t, 'all');
+    snowfall_mm = snowfall_mm + mean(Snow_Properties.P_snow, 'all');
+    rainfall_mm = rainfall_mm + mean(Snow_Properties.P_rain, 'all');
+    melt_mm = melt_mm + mean(Snow_Properties.M_snow, 'all');
+    sublimation_mm = sublimation_mm + mean(Snow_Properties.E_s, 'all');
+    canopy_evaporation_mm = canopy_evaporation_mm + mean(Hydro_States.E_int, 'all');
+end
+
+surface_mm = mean(depths.d_t, 'all');
+residual_mm = 2 * precip_mm - swe_mm(2) - canopy_mm(2) - surface_mm - ...
+    sublimation_mm - canopy_evaporation_mm;
+% While it snows the canopy stays empty; the rain that follows fills it.
+passed = canopy_mm(1) == 0 && swe_mm(1) > 0 && canopy_mm(2) > 0 && abs(residual_mm) < 1e-10;
+Diag = diagnostic_row("VAL-SNOW-001G", "Snow under a canopy", ...
+    canopy_mm(1), residual_mm * 9 * 400 / 1000, 0, 0, passed, ...
+    "Under LAI 3, snowfall goes to the snowpack and only the rain that follows is intercepted.");
+Ledger = ledger_row("VAL-SNOW-001G", 2 * precip_mm, snowfall_mm, rainfall_mm, melt_mm, ...
+    sublimation_mm, swe_mm(2) + canopy_mm(2) + surface_mm, residual_mm);
 end
 
 function [Diag, Ledger, passed] = test_excel_bypass_equivalence(ExcelConfig, BypassConfig)

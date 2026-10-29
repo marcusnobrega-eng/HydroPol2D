@@ -29,11 +29,13 @@ elseif use_lookup_subgrid_volume
     C_a(idx_nan) = NaN;
 end
 
-% Interception Module
-interception_module
-
-% Snow Module
+% Snow Module: splits the precipitation into rain and snowfall before the
+% canopy. Snowfall goes to the snowpack and melt to the surface; only the
+% rain reaches the canopy (as in HydroPol2D-Python).
 Snow_Module
+
+% Interception Module: intercepts the rain and adds the throughfall to the surface
+interception_module
 
 if isfield(flags, 'flag_layered_subsurface') && flags.flag_layered_subsurface == 1
     % Layered soil-over-regolith column: infiltration, ET (Feddes), drainage, the

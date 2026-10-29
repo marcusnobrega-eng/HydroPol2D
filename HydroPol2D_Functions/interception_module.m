@@ -14,7 +14,9 @@
 %               subgrid modeling (flag_subgrid), overbanks (flag_overbanks),
 %               ETP (flag_ETP), and abstraction (flag_abstraction).
 %      • BC_States: Structure containing boundary condition states including
-%                   aggregated rainfall (delta_p_agg).
+%                   the liquid precipitation (Liquid_Precipitation) that
+%                   Snow_Module leaves for the canopy: the rain part with
+%                   snow modeling on, all of delta_p_agg otherwise.
 %      • Wshed_Properties: Watershed properties, including spatial resolution.
 %      • C_a: Cell area used for conversion in subgrid calculations.
 %      • Hydro_States: Structure holding hydrological states such as interception 
@@ -32,6 +34,7 @@
 %      • Hydro_States.E_int: Canopy evaporation (mm).
 %      • Hydro_States.St_F: Fraction of storage released as throughfall (mm).
 %      • BC_States.Eff_Rainfall: Effective rainfall on the grid that can be infiltrated (mm).
+%      • depths.d_t: Surface depth with the effective rainfall added (mm).
 %      • errors(1): Interception mass balance error [m³] computed as error*DEM_raster.cellsize^2.
 %
 %  ➤ Notes:
@@ -46,9 +49,9 @@
 
 
 if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
-    P_interception = BC_States.delta_p_agg .* Wshed_Properties.Resolution^2 ./ C_a; % mm
+    P_interception = BC_States.Liquid_Precipitation .* Wshed_Properties.Resolution^2 ./ C_a; % mm
 else
-    P_interception = BC_States.delta_p_agg; % mm
+    P_interception = BC_States.Liquid_Precipitation; % mm
 end
 
 
@@ -57,7 +60,7 @@ if flags.flag_ETP == 1 && flags.flag_abstraction == 1
 elseif flags.flag_ETP == 0 && flags.flag_abstraction == 1
     [Hydro_States.S, Hydro_States.T, Hydro_States.E_int, Hydro_States.St_F, error] = interceptionModel(P_interception, zeros(size(elevation,1),size(elevation,2)), LAI_raster.Z, Hydro_States.S, 0.2, zero_matrix);
 else
-    Hydro_States.T = BC_States.delta_p_agg; % [mm]
+    Hydro_States.T = BC_States.Liquid_Precipitation; % [mm]
     if k == 1
         Hydro_States.S = zeros(size(elevation,1),size(elevation,2));
         Hydro_States.E_int = zeros(size(elevation,1),size(elevation,2));
@@ -71,6 +74,7 @@ BC_States.Eff_Rainfall = Hydro_States.T + Hydro_States.St_F;
 BC_States.Eff_Rainfall(idx_nan) = nan;
 
 errors(1) = error*DEM_raster.cellsize^2; % Interception mass balance error [m3]
-% 
-% % Depth mass balance
-% depths.d_t = depths.d_p + BC_States.Eff_Rainfall; % mm
+
+% Depth mass balance: the throughfall reaches the surface (Snow_Module has
+% already added the melt)
+depths.d_t = depths.d_t + BC_States.Eff_Rainfall; % mm

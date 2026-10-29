@@ -15,6 +15,7 @@ dynamics; it is not a field-calibration study.
 | `VAL-SNOW-001D` | Controlled V-tilted snow/runoff coupling | Closed liquid-water and snow-storage ledger on a two-LULC grid |
 | `VAL-SNOW-001E` | Input-surface equivalence | Identical parameter arrays from Excel and bypass configuration |
 | `VAL-SNOW-001F` | Normal HydroPol2D V-tilted event | Regular preprocessing, meteorological forcing, snow routing, and event mass ledger |
+| `VAL-SNOW-001G` | Snow under a canopy (LAI 3) | The canopy stays empty while it snows and fills with the rain that follows; closed ledger |
 
 ## Run
 
@@ -41,6 +42,9 @@ timeseries, figures, and ledger below `FullModelRuns/VAL-SNOW-001F/`.
 - Snow routing needs air temperature, minimum temperature, and wind. The active
   implementation obtains those variables through the internal meteorological
   forcing pathway.
+- The rain/snow split comes before the canopy: `Snow_Module` runs before
+  `interception_module`, so only rain is intercepted, snowfall goes to the
+  snowpack, and melt reaches the surface directly (as in HydroPol2D-Python).
 
 Acceptance requires finite states, nonnegative SWE/depth, bounded density, and
 mass residuals below the stated test thresholds.

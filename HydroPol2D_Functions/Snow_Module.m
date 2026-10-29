@@ -1,5 +1,9 @@
 % Snow accumulation, melt, and sublimation.
-% This script is called from Hydrological_Model and shares its workspace.
+% This script is called from Hydrological_Model, before interception_module,
+% and shares its workspace. It splits the gross precipitation
+% (BC_States.delta_p_agg) into snowfall and rain: the melt goes to the
+% surface here, and the rain (BC_States.Liquid_Precipitation) goes on to the
+% canopy. Without snow modeling all precipitation is liquid.
 
 if flags.flag_snow_modeling == 1
     required_fields = {'SWE_t','H_snow_t','rho_snow','alpha','epsilon','C_e', ...
@@ -10,7 +14,7 @@ if flags.flag_snow_modeling == 1
     end
 
     dt_s = time_step * 60;
-    forcing_fields = {'Eff_Rainfall','Average_Daily_Temperature','min_temp','wind'};
+    forcing_fields = {'delta_p_agg','Average_Daily_Temperature','min_temp','wind'};
     missing_forcing = forcing_fields(~isfield(BC_States, forcing_fields));
     if ~isempty(missing_forcing)
         error(['Snow modeling requires internal meteorological forcing. Missing BC_States fields: %s. ', ...
@@ -25,7 +29,7 @@ if flags.flag_snow_modeling == 1
         error(['Snow modeling received incomplete internal meteorological forcing. ', ...
             'Check the ETP_input_data.xlsx time coverage and station values.']);
     end
-    P = BC_States.Eff_Rainfall;
+    P = BC_States.delta_p_agg;
     lat = Wshed_Properties.pixel_latitude;
     T_air = BC_States.Average_Daily_Temperature;
     wind = BC_States.wind;
@@ -50,10 +54,12 @@ if flags.flag_snow_modeling == 1
     end
     max_Hsnow = max(max_Hsnow, Snow_Properties.H_snow_t);
 
-    % Only rainfall and melt reach the surface-water store in this step.
-    depths.d_t = depths.d_p + Snow_Properties.M_snow + Snow_Properties.P_rain;
+    % Melt leaves the snowpack on the ground, so it skips the canopy; the
+    % rain goes on to interception_module, which adds its throughfall.
+    depths.d_t = depths.d_p + Snow_Properties.M_snow;
+    BC_States.Liquid_Precipitation = Snow_Properties.P_rain;
 else
-    depths.d_t = depths.d_t + BC_States.Eff_Rainfall;
+    BC_States.Liquid_Precipitation = BC_States.delta_p_agg;
     if k == 1
         Snow_Properties.E_s = 0 * depths.d_p;
         Snow_Properties.SWE_t = 0 * depths.d_p;
