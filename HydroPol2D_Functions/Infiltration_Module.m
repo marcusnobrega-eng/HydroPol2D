@@ -464,6 +464,13 @@ if has_layered_soil
     % Infiltrated depth per coarse cell [mm]
     inf_volume_cell = Hydro_States.f * dt_h;
 
+    % A supply-limited cell takes the available depth itself: the round trip
+    % depth -> rate -> depth is not exact in floating point, and the film left
+    % behind would mark the cell wet and switch its soil ET off (as in
+    % HydroPol2D-Python).
+    idx_supply_limited = Hydro_States.f > 0 & Hydro_States.f >= Hydro_States.i_a;
+    inf_volume_cell(idx_supply_limited) = max(eff_depth(idx_supply_limited), 0);
+
     if has_layered_soil
         [Soil_Properties, inf_volume_cell] = add_layered_infiltration( ...
             Soil_Properties, inf_volume_cell, idx_nan);

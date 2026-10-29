@@ -42,11 +42,13 @@ if isfield(flags, 'flag_layered_subsurface') && flags.flag_layered_subsurface ==
     % water-table flux, the MMF table update, river exchange and lateral flow.
     Layered_Subsurface_Module
 else
-    % Evaporation / Evapotranspiration Module
-    Evaporation_Evapotranspiration_Module
-
     % Infiltration Module
     Infiltration_Module
+
+    % Evaporation / Evapotranspiration Module: after infiltration, so a cell
+    % is wet only if water is left on the surface (as in HydroPol2D-Python and
+    % the layered path). Open water evaporates; soil ET runs on dry cells.
+    Evaporation_Evapotranspiration_Module
 
     % Recharge and Groundwater Module
     Groundwater_Module
