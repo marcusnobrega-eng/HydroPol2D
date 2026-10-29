@@ -124,8 +124,12 @@ threshold_boundary_error_count = boundary_error_count(P);
 nan_count = sum(~isfinite(model_class), 'all');
 rmse = sqrt(mean(class_error(:).^2));
 max_error = max(abs(class_error(:)));
+% On 40 degrees (steeper than atand(mu)) a dry cell is stable and 5 cm of
+% still water slides.
+steep_class = Human_risk(3, [0, 0], [0, 0.05], P.ro_water, P.gravity, P.mu, P.Cd, 40, ...
+    P.mass_kg, P.height_m, P.body_width_m, P.body_depth_m);
 passed = classification_accuracy_pct == 100 && threshold_boundary_error_count == 0 && ...
-    nan_count == 0 && rmse == 0 && max_error == 0;
+    nan_count == 0 && rmse == 0 && max_error == 0 && isequal(steep_class, [0, 1]);
 
 Grid = table(H(:), V(:), expected_class(:), model_class(:), class_error(:), ...
     class_label(expected_class(:)), class_label(model_class(:)), ...
@@ -215,10 +219,12 @@ Y_gs = Y_gs1 + Y_gs2;
 T = mu * (Wn - Bn - L);
 M = Drag .* (h ./ 2) + (Wp .* (7 / 12) .* y .* cosd(slope)) + ...
     (Bn .* ((X_gs ./ cosd(slope)) + (Y_gs .* sind(slope)))) + ...
-    L .* ((X_gs ./ cosd(slope)) + ((h ./ 2) .* tan(slope)));
+    L .* ((X_gs ./ cosd(slope)) + ((h ./ 2) .* tand(slope)));
 
-slide = double(Drag + Wp > T) * 1;
-topple = double(M > Wn .* ((((5 / 6) * d) ./ cosd(slope)) + (((7 / 12) * y) ./ sind(slope)))) * 2;
+% A dry cell is stable: no one stands in the water.
+wet = h > 0;
+slide = double(wet & (Drag + Wp > T)) * 1;
+topple = double(wet & (M > Wn .* ((((5 / 6) * d) ./ cosd(slope)) + (((7 / 12) * y) ./ sind(slope))))) * 2;
 drowning = double(h > ((13 / 16) * y)) * 3;
 map = max(max(slide, topple), drowning);
 end

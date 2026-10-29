@@ -36,14 +36,19 @@ function [map] = human_risk(flag,v,h,ro,g,mu,cd,slope,m,y,w,d)
         % Friccion available
         T = mu*(Wn-Bn-L);
 
-        % Momemtum acting
-        M = Drag.*(h./2) + (Wp.*(7/12).*y.*cosd(slope)) + (Bn.*((X_gs./cosd(slope)) + (Y_gs.*sind(slope)))) + L.*((X_gs./cosd(slope)) + ((h./2).*tan(slope)));
+        % Momemtum acting (the slope is in degrees, so the lift lever arm uses tand)
+        M = Drag.*(h./2) + (Wp.*(7/12).*y.*cosd(slope)) + (Bn.*((X_gs./cosd(slope)) + (Y_gs.*sind(slope)))) + L.*((X_gs./cosd(slope)) + ((h./2).*tand(slope)));
+
+        % A dry cell holds no one in the water, so it is stable, as in the
+        % risk index (mode 1). Without this, the person's own weight makes
+        % every dry cell steeper than atand(mu) (31 degrees for mu = 0.6) slide.
+        wet = h > 0;
 
         % Slipping stability
-        slide = double(Drag + Wp > T)*1;
+        slide = double(wet & (Drag + Wp > T))*1;
 
         % Toppling stability
-        topple = double(M > Wn.*((((5/6)*d)./cosd(slope)) + (((7/12)*y)./sind(slope))))*2;
+        topple = double(wet & (M > Wn.*((((5/6)*d)./cosd(slope)) + (((7/12)*y)./sind(slope)))))*2;
 
         % Drawing risk
         drawing = double(h > ((13/16)*y))*3;
