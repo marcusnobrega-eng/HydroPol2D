@@ -1279,7 +1279,8 @@ if flags.flag_ETP == 1
     Maps.Hydro.ETP_save=Maps.Hydro.ETP_save(:,:,1:saver_count);
 end
 if flags.flag_groundwater_modeling == 1 && isfield(Maps.Hydro,'GWdepth_save')
-    Maps.Hydro.GWdepth_save = Maps.Hydro.GWdepth_save(:,:,1:saver_count);
+    % Preallocated only with flag_baseflow = 1; otherwise it holds the maps written.
+    Maps.Hydro.GWdepth_save = Maps.Hydro.GWdepth_save(:,:,1:min(saver_count, size(Maps.Hydro.GWdepth_save,3)));
 end
 if isfield(Maps.Hydro,'DeepVadose_save') && size(Maps.Hydro.DeepVadose_save,3) >= saver_count
     Maps.Hydro.DeepVadose_save = Maps.Hydro.DeepVadose_save(:,:,1:saver_count);
