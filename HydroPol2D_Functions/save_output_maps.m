@@ -42,13 +42,19 @@ if flags.flag_automatic_calibration ~= 1
         % -----------------------------------------------------------------
         % Core hydro maps
         % -----------------------------------------------------------------
+        map_depth_mm = depths.d_t;
         if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
             Maps.Hydro.d(:,:,1) = hp2d_neal_surface_depth(depths.d_t, Wshed_Properties.River_Depth);
+        elseif isfield(flags, 'flag_d8_local_inertial') && flags.flag_d8_local_inertial == 1
+            % D8: water above the terrain, and the channel depth on river cells.
+            [map_depth_mm, Maps.Hydro.d8_channel_depth(:,:,1)] = ...
+                hp2d_d8_surface_depth(D8_Properties, depths.d_t);
+            Maps.Hydro.d(:,:,1) = map_depth_mm;
         else
             Maps.Hydro.d(:,:,1) = depths.d_t;
         end
         [velocity_snapshot, hazard_snapshot] = snisb_velocity_hazard_snapshot( ...
-            velocities.velocity_raster, depths.d_t, idx_nan);
+            velocities.velocity_raster, map_depth_mm, idx_nan);
         Maps.Hydro.velocity(:,:,1) = velocity_snapshot;
         Maps.Hydro.hazard_dv(:,:,1) = hazard_snapshot;
 
@@ -171,13 +177,19 @@ if flags.flag_automatic_calibration ~= 1
         % -----------------------------------------------------------------
         % Core hydro maps
         % -----------------------------------------------------------------
+        map_depth_mm = depths.d_t;
         if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
             Maps.Hydro.d(:,:,saver_count) = hp2d_neal_surface_depth(depths.d_t, Wshed_Properties.River_Depth);
+        elseif isfield(flags, 'flag_d8_local_inertial') && flags.flag_d8_local_inertial == 1
+            % D8: water above the terrain, and the channel depth on river cells.
+            [map_depth_mm, Maps.Hydro.d8_channel_depth(:,:,saver_count)] = ...
+                hp2d_d8_surface_depth(D8_Properties, depths.d_t);
+            Maps.Hydro.d(:,:,saver_count) = map_depth_mm;
         else
             Maps.Hydro.d(:,:,saver_count) = depths.d_t;
         end
         [velocity_snapshot, hazard_snapshot] = snisb_velocity_hazard_snapshot( ...
-            velocities.velocity_raster, depths.d_t, idx_nan);
+            velocities.velocity_raster, map_depth_mm, idx_nan);
         Maps.Hydro.velocity(:,:,saver_count) = velocity_snapshot;
         Maps.Hydro.hazard_dv(:,:,saver_count) = hazard_snapshot;
 

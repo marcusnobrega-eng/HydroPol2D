@@ -373,5 +373,39 @@ else
     running_control.time_calculation_routing = time_step * 60; % sec
 end
 
+%% ------------------------------------------------------------------------
+% D8 local-inertial links: link-length CFL and link velocities
+% The link CFL (hp2d_d8_stable_timestep, alfa_min * L / sqrt(g h)) limits
+% every step, as in HydroPol2D-Python, also between the refreshes above; it
+% is snapped to time_step_increments like the other rules. The velocity
+% raster takes the fastest D8 link at each cell where it exceeds the D4
+% floodplain velocity.
+% -------------------------------------------------------------------------
+use_d8_timestep = isfield(flags, 'flag_d8_local_inertial') && ...
+    flags.flag_d8_local_inertial == 1 && exist('D8_Properties', 'var') && exist('D8_States', 'var');
+if use_d8_timestep
+    d8_volume_m3 = double(gather(depths.d_t(:))) / 1000 * Wshed_Properties.cell_area;
+    d8_volume_m3(~isfinite(d8_volume_m3)) = 0;
+    Courant_Parameters.dt_d8 = hp2d_d8_stable_timestep(d8_volume_m3, D8_Properties, ...
+        double(gather(Courant_Parameters.alfa_min)), running_control.max_time_step);
+    d8_dt = max(running_control.time_step_increments * ...
+        floor(Courant_Parameters.dt_d8 / running_control.time_step_increments), ...
+        running_control.min_time_step);
+    running_control.time_calculation_routing = min(running_control.time_calculation_routing, ...
+        min(d8_dt, running_control.max_time_step));
+    time_step = running_control.time_calculation_routing / 60;
+
+    % The D4 velocities are recomputed only at a refresh; keep them apart.
+    if running_control.delta_time_save > 0 || k == 1 || ~isfield(velocities, 'd4_velocity_raster')
+        velocities.d4_velocity_raster = velocities.velocity_raster;
+        velocities.d4_max_velocity = velocities.max_velocity;
+    end
+    d8_speed = hp2d_d8_cell_velocity(d8_volume_m3, D8_States.discharge_m3_s, D8_Properties);
+    d8_speed(idx_nan) = 0;
+    velocities.velocity_raster = max(velocities.d4_velocity_raster, d8_speed);
+    velocities.max_velocity = max(velocities.d4_max_velocity, max(d8_speed(:)));
+    clear d8_volume_m3 d8_dt d8_speed
+end
+
 % Store current max velocity for next call
 velocities.max_velocity_previous = velocities.max_velocity;

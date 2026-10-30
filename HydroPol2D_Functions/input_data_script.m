@@ -1251,6 +1251,37 @@ clear input_table
 end
 
 %% ========================================================================
+% D8 LOCAL-INERTIAL ROUTING (optional, default off)
+% ========================================================================
+% flag_d8_local_inertial = 1 routes with the Wflow-style D8 scheme of
+% HydroPol2D-Python (D8_Local_Inertial_Model). flag_d8_full_domain = 0 keeps
+% a D8 river graph inside a D4 floodplain; 1 puts every cell on the D8
+% graph. Bypass general fields: d8_min_depth_m (dry-link depth, default
+% 1 mm), d8_hydraulic_table_path (netCDF tables from HydroPol2D-Python;
+% empty builds prismatic tables from the river width and depth) and
+% d8_max_stage_above_bed_m (top of the prismatic tables, default 100 m).
+% The retired flag_D8 stays refused.
+if ~isfield(flags, 'flag_d8_local_inertial')
+    flags.flag_d8_local_inertial = 0;
+end
+if ~isfield(flags, 'flag_d8_full_domain')
+    flags.flag_d8_full_domain = 0;
+end
+D8_Parameters = struct('min_depth_m', 1e-3, 'table_path', '', 'max_stage_above_bed_m', 100);
+if use_inputdata_bypass == 1
+    D8_Parameters.min_depth_m = get_optional_field(G, 'd8_min_depth_m', 1e-3);
+    D8_Parameters.table_path = char(string(get_optional_field(G, 'd8_hydraulic_table_path', '')));
+    D8_Parameters.max_stage_above_bed_m = get_optional_field(G, 'd8_max_stage_above_bed_m', 100);
+end
+% River cells and their geometry, kept here: preprocessing later overwrites
+% the GIS_data power-law coefficients when it builds synthetic gauges.
+D8_Parameters.min_area_km2 = GIS_data.min_area(1);
+D8_Parameters.width_coefficient = GIS_data.beta_1(1);
+D8_Parameters.width_exponent = GIS_data.beta_2(1);
+D8_Parameters.depth_coefficient = GIS_data.alfa_1(1);
+D8_Parameters.depth_exponent = GIS_data.alfa_2(1);
+
+%% ========================================================================
 % FORCING SCHEDULE SUMMARY
 % ========================================================================
 % These printouts are intentionally lightweight. They make it easier to

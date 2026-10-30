@@ -29,6 +29,20 @@ elseif use_lookup_subgrid_volume
     C_a(idx_nan) = NaN;
 end
 
+% D8 local-inertial routing: the water in a river channel, up to its
+% bankfull volume, neither infiltrates nor evaporates; the vertical modules
+% see only the water above it (as in HydroPol2D-Python). It is set aside
+% here and returned to the cell below.
+use_d8_channel_storage = isfield(flags, 'flag_d8_local_inertial') && ...
+    flags.flag_d8_local_inertial == 1 && exist('D8_Properties', 'var');
+if use_d8_channel_storage
+    d8_channel_mm = 1000 .* min(max(depths.d_t, 0) ./ 1000 .* Wshed_Properties.cell_area, ...
+        D8_Properties.bankfull_volume_m3) ./ Wshed_Properties.cell_area;
+    d8_channel_mm(~isfinite(d8_channel_mm)) = 0;
+    d8_channel_mm = cast(d8_channel_mm, 'like', depths.d_t);
+    depths.d_t = depths.d_t - d8_channel_mm;
+end
+
 % Snow Module: splits the precipitation into rain and snowfall before the
 % canopy. Snowfall goes to the snowpack and melt to the surface; only the
 % rain reaches the canopy (as in HydroPol2D-Python).
@@ -98,6 +112,10 @@ else
 end
 
 depths.d_t(depths.d_t < 0) = 0;
+
+if use_d8_channel_storage
+    depths.d_t = depths.d_t + d8_channel_mm;
+end
 
 if use_neal_subgrid_volume
     neal_volume_t = max(depths.d_t, 0) ./ 1000 .* Wshed_Properties.cell_area;

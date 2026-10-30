@@ -42,6 +42,41 @@ if sum(active) > 1
     error('HydroPol2D:ConflictingRoutingSolvers', ...
         'Select exactly one routing solver; active flags: %s.', strjoin(names(active), ', '));
 end
+
+% D8 local-inertial routing (D8_Local_Inertial_Model) is a local-inertial
+% option. Like HydroPol2D-Python it runs with rainfall and the outlets; the
+% modules below have no D8 coupling yet and are refused rather than run
+% without it.
+if flag_value(flags, 'flag_d8_local_inertial') == 1
+    if flag_value(flags, 'flag_inertial') ~= 1
+        error('HydroPol2D:D8RequiresLocalInertial', ...
+            'flag_d8_local_inertial = 1 requires flag_inertial = 1.');
+    end
+    if flag_value(flags, 'flag_numerical_scheme') > 1
+        error('HydroPol2D:D8RequiresBates', ...
+            'flag_d8_local_inertial = 1 requires flag_numerical_scheme = 1 (Bates).');
+    end
+    unsupported = {'flag_subgrid', 'flag_waterquality', 'flag_human_instability', ...
+        'flag_snow_modeling', 'flag_inflow', 'flag_stage_hydrograph', 'flag_obs_gauges', ...
+        'flag_river_groundwater_exchange', 'flag_reduce_DEM', 'flag_urban_drainage', ...
+        'flag_detention_ponds'};
+    enabled = false(size(unsupported));
+    for k = 1:numel(unsupported)
+        enabled(k) = flag_value(flags, unsupported{k}) ~= 0;
+    end
+    if any(enabled)
+        error('HydroPol2D:D8UnsupportedModule', ...
+            'flag_d8_local_inertial = 1 does not support: %s.', strjoin(unsupported(enabled), ', '));
+    end
+end
+end
+
+function value = flag_value(flags, name)
+if isfield(flags, name)
+    value = gather_scalar(flags.(name));
+else
+    value = 0;
+end
 end
 
 function value = gather_scalar(value)

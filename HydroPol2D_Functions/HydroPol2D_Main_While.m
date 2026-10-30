@@ -86,6 +86,15 @@ end
 if ~isfield(flags, 'flag_urban_drainage') || isempty(flags.flag_urban_drainage)
     flags.flag_urban_drainage = 0;
 end
+
+% D8 local-inertial routing (D8_Local_Inertial_Model; hp2d_d8_setup builds
+% D8_Properties and D8_States in preprocessing).
+use_d8_local_inertial = isfield(flags, 'flag_d8_local_inertial') && ...
+    flags.flag_d8_local_inertial == 1;
+if use_d8_local_inertial && (~exist('D8_Properties', 'var') || ~exist('D8_States', 'var'))
+    error('HydroPol2D:D8NotPrepared', ...
+        'flag_d8_local_inertial = 1, but preprocessing did not build D8_Properties.');
+end
 if isfield(flags, 'flag_subgrid') && flags.flag_subgrid == 1
     if flags.flag_overbanks == 1
         if flags.flag_inertial ~= 1 || flags.flag_full_momentum == 1 || ...
@@ -537,6 +546,9 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         if exist('Subsurface', 'var') && isstruct(Subsurface)
             Subsurface_water_before_step = Subsurface.water_mm;
         end
+        if use_d8_local_inertial
+            D8_States_before_step = D8_States;
+        end
         % -------------- Hydrological Model --------------- %
         Hydrological_Model; % Runs the interception + infiltration + GW routing model
 
@@ -677,7 +689,20 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 else
                     % -------------------- Local Inertial Formulation ----------------%
 
-                    if flags.flag_subgrid == 1 && flags.flag_overbanks ~= 1
+                    if use_d8_local_inertial
+                        % Wflow-style D8 links (river graph in a D4
+                        % floodplain, or the full domain), as in
+                        % HydroPol2D-Python.
+                        [depths.d_t, outlet_states.outlet_flow, outflow_bates, Hf, ...
+                            flow_rate.qout_left_t, flow_rate.qout_right_t, ...
+                            flow_rate.qout_up_t, flow_rate.qout_down_t, D8_States] = ...
+                            D8_Local_Inertial_Model(depths.d_tot, outflow_prev, D8_Properties, ...
+                            D8_States, time_step, idx_nan, flags.flag_critical, ...
+                            flags.flag_reservoir, Reservoir_Data);
+                        CA_States.I_tot_end_cell = abs(sum(outflow_bates, 3)) * time_step / 60 ...
+                            / 1000 * Wshed_Properties.cell_area; % [m3]
+
+                    elseif flags.flag_subgrid == 1 && flags.flag_overbanks ~= 1
                         % New standalone paper-style shared-face subgrid solver
                         [flow_rate.qout_left_t,flow_rate.qout_right_t,flow_rate.qout_up_t,flow_rate.qout_down_t, ...
                             outlet_states.outlet_flow,depths.d_t,CA_States.I_tot_end_cell,outflow_bates,Hf, ...
@@ -1199,6 +1224,10 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             Subsurface.water_mm = Subsurface_water_before_step;
             Soil_Properties = hp2d_sync_layered_soil(Soil_Properties, Subsurface, BC_States.h_t, idx_nan);
         end
+        % The D8 link discharges are part of the step state as well.
+        if use_d8_local_inertial && exist('D8_States_before_step', 'var')
+            D8_States = D8_States_before_step;
+        end
 
         %% ------------------------------------------------------------
         % Roll back full-momentum conservative memory after rejected step
@@ -1255,6 +1284,9 @@ end
 
 % Saving the last modeled data
 Maps.Hydro.d=Maps.Hydro.d(:,:,1:saver_count);
+if isfield(Maps.Hydro, 'd8_channel_depth')
+    Maps.Hydro.d8_channel_depth = Maps.Hydro.d8_channel_depth(:,:,1:saver_count);
+end
 if flags.flag_infiltration == 1
     Maps.Hydro.I_t=Maps.Hydro.I_t(:,:,1:saver_count);
 end

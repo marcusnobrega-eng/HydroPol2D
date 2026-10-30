@@ -3907,6 +3907,53 @@ if flags.flag_detention_ponds == 1
     clear pond_depth_field
 end
 
+%% D8 Local-Inertial Routing Graph (flag_d8_local_inertial)
+% The D8 graph, river geometry, hydraulic tables and outlets of the
+% Wflow-style D8 scheme (hp2d_d8_setup). The scheme's own river cells,
+% widths and bank depths replace the D4 river rasters derived above.
+if isfield(flags, 'flag_d8_local_inertial') && flags.flag_d8_local_inertial == 1
+    d8_options = struct();
+    d8_options.full_domain = flags.flag_d8_full_domain;
+    d8_options.min_depth_m = D8_Parameters.min_depth_m;
+    d8_options.max_stage_above_bed_m = D8_Parameters.max_stage_above_bed_m;
+    d8_options.table_path = D8_Parameters.table_path;
+    d8_options.min_area_km2 = D8_Parameters.min_area_km2;
+    d8_options.width_coefficient = D8_Parameters.width_coefficient;
+    d8_options.width_exponent = D8_Parameters.width_exponent;
+    d8_options.depth_coefficient = D8_Parameters.depth_coefficient;
+    d8_options.depth_exponent = D8_Parameters.depth_exponent;
+    d8_options.channel_manning_n = double(LULC_Parameters.River_Manning);
+    d8_options.river_width = [];
+    d8_options.river_depth = [];
+    if flags.flag_river_rasters == 1 && ~isempty(widths_raster) && ~isempty(depths_raster)
+        d8_options.river_width = double(widths_raster.Z);
+        d8_options.river_depth = double(depths_raster.Z);
+    end
+    d8_options.outlet_mask = logical(outlet_index);
+    d8_options.outlet_slope = slope_outlet;
+    d8_options.outlet_type = outlet_type;
+    d8_elevation = double(Elevation_Properties.elevation_cell);
+    d8_elevation(idx_nan) = NaN;
+    D8_Properties = hp2d_d8_setup(d8_elevation, double(LULC_Properties.roughness), ...
+        Wshed_Properties.Resolution, d8_options);
+    D8_States = struct('discharge_m3_s', zeros(numel(D8_Properties.Links.source), 1), ...
+        'cumulative_cardinal_transfer_m3', 0, 'cumulative_diagonal_transfer_m3', 0, ...
+        'last_outlet_m3_s', 0);
+    Wshed_Properties.River_Width = D8_Properties.river_width;
+    Wshed_Properties.River_Depth = D8_Properties.river_depth;
+    Wshed_Properties.idx_rivers = D8_Properties.stream;
+    idx_rivers = D8_Properties.stream;
+    if D8_Properties.full_domain
+        d8_mode_label = 'full domain';
+    else
+        d8_mode_label = 'river graph in a D4 floodplain';
+    end
+    fprintf('D8 local-inertial routing (%s): %d links (%d diagonal), %d river cells, %d outlet(s).\n', ...
+        d8_mode_label, numel(D8_Properties.Links.source), nnz(D8_Properties.Links.diagonal), ...
+        nnz(D8_Properties.stream), numel(D8_Properties.Outlets.cell));
+    clear d8_options d8_elevation d8_mode_label
+end
+
 %% Converting Arrays to Single Precision
 if flags.flag_single == 1
 
@@ -4416,7 +4463,7 @@ end
 %% Clearing Variables
 
 % clearvars  -except register saver_memory_maps idx_rivers rainfall_spatial_aggregation model_folder Input_Rainfall Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters GIS_data Inflow_Parameters ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties terrain_runtime idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx	ny	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	theta_r_fulldomain	theta_sat	theta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person
-clearvars  -except Drainage_States Detention_Ponds Subsurface Subsurface_Config run_start_datetime hydropol2d_tools temp_dir folderName_2 folderName run_start_str results_dir use_inputpaths_bypass use_inputdata_bypass SubgridTables extra_parameters_ETP export_root_dir enable_logging input_excel_file input_sheets_folder add_input_sheets_to_path clean_output_folder run_postprocessing Paths InputPaths ValidationCase Cases RunSummary SummaryRow icase case_id case_dir case_root static_dir full_root summary_dir config_dir output_root input_data_bypass_script_path DEM_raster_high_resolution LAI_raster NDVI_raster DTB_raster Albedo_raster C_a input_evaporation input_transpiration Stage_Parameters Qc Qf Qci Qfi register saver_memory_maps extra_parameters Lateral_Groundwater_Flux idx_rivers min_soil_moisture rainfall_spatial_aggregation  model_folder Input_Rainfall Input_Evaporation Input_Transpiration Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters Spatial_ETP_Parameters GIS_data Inflow_Parameters Snow_Properties ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Subgrid_Properties Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties terrain_runtime idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  delta_e_agg delta_tr_agg	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx	ny	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	theta_r_fulldomain	theta_sat	theta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person outflow_bates
+clearvars  -except Drainage_States Detention_Ponds D8_Properties D8_States Subsurface Subsurface_Config run_start_datetime hydropol2d_tools temp_dir folderName_2 folderName run_start_str results_dir use_inputpaths_bypass use_inputdata_bypass SubgridTables extra_parameters_ETP export_root_dir enable_logging input_excel_file input_sheets_folder add_input_sheets_to_path clean_output_folder run_postprocessing Paths InputPaths ValidationCase Cases RunSummary SummaryRow icase case_id case_dir case_root static_dir full_root summary_dir config_dir output_root input_data_bypass_script_path DEM_raster_high_resolution LAI_raster NDVI_raster DTB_raster Albedo_raster C_a input_evaporation input_transpiration Stage_Parameters Qc Qf Qci Qfi register saver_memory_maps extra_parameters Lateral_Groundwater_Flux idx_rivers min_soil_moisture rainfall_spatial_aggregation  model_folder Input_Rainfall Input_Evaporation Input_Transpiration Reservoir_Data wse_slope_zeros Distance_Matrix depths Maps Spatial_Rainfall_Parameters Spatial_ETP_Parameters GIS_data Inflow_Parameters Snow_Properties ETP_Parameters Rainfall_Parameters CA_States BC_States Wshed_Properties Wshed_Properties Human_Instability gauges Hydro_States recording_parameters Courant_Parameters running_control Subgrid_Properties Elevation_Properties inflow_volume idx_outlet outflow_volume outlet_runoff_volume I_t num_obs_gauges drainage_area northing_obs_gauges easting_obs_gauges depths time_record_hydrograph last_record_hydrograph initial_mass delta_p WQ_States routing_time flags LULC_Properties Soil_Properties terrain_runtime idx_lulc idx_imp idx_soil d steps 	alfa_albedo_input 	alfa_max 	alfa_min 	alfa_save 	avgtemp_stations 	B_t   	C  	Cd 	cell_area 	climatologic_spatial_duration 	col_outlet 	coordinate_x 	coordinate_y 	coordinates_stations d_t  d_p 	date_begin  date_end	delta_p_agg  delta_e_agg delta_tr_agg	DEM_etp 	DEM_raster 	depth_tolerance 	elevation    	ETP 	ETP_save 	factor_cells		flow_tolerance	flows_cells	G_stations	gravity	I_tot_end_cell	idx_nan	idx_nan_5	inflow	inflow_cells	k	k_out	Krs	ksat_fulldomain	last_record_maps	lat	mass_lost	mass_outlet	running_control.max_time_step	maxtemp_stations	min_time_step	mintemp_stations	mu	Inflow_Parameters.n_stream_gauges	nx	ny	Out_Conc	outlet_index	outlet_index_fulldomain	outlet_type	P_conc	psi_fulldomain	rainfall_matrix	rainfall_matrix_full_domain	Resolution	ro_water	roughness	roughness_fulldomain	row_outlet	slope_alfa	slope_outlet	spatial_domain	t	t_previous	theta_r_fulldomain	theta_sat	theta_sat_fulldomain	time_calculation_routing	time_change_matrices	time_change_records	time_deltap	time_ETP	time_records	time_save_previous	time_step	time_step_change	time_step_increments	time_step_model	time_step_save	tmin_wq	Tot_Washed	Tr	u2_stations	ur_stations	v_threshold	vel_down	vel_left	vel_right	vel_up	vol_outlet	weight_person	width1_person	width2_person outflow_bates
 
 
 %% Converting Arrays to GPU Arrays, if required

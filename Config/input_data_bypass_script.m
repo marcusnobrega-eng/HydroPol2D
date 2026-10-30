@@ -235,6 +235,10 @@ InputData_Bypass.general.Manning = 0.035;
 InputData_Bypass.general.riverbed_thickness_m = 0.5;
 InputData_Bypass.general.deep_recharge_fraction = 0.05;
 InputData_Bypass.general.deep_aquifer_response_time_days = 180;
+% D8 local-inertial routing (used only when flag_d8_local_inertial = 1)
+InputData_Bypass.general.d8_min_depth_m = 1e-3;          % [m] links shallower than this carry no flow
+InputData_Bypass.general.d8_hydraulic_table_path = '';   % netCDF tables from HydroPol2D-Python; '' = prismatic
+InputData_Bypass.general.d8_max_stage_above_bed_m = 100; % [m] top of the prismatic tables
 
 % Optional river parameter
 % InputData_Bypass.general.River_K_coeff = NaN;
@@ -337,6 +341,14 @@ InputData_Bypass.flags.flag_voronoi                      = 0; % 0=raster D4, 1=V
 InputData_Bypass.flags.flag_CA                           = 0;
 InputData_Bypass.flags.flag_inertial                     = 1;
 InputData_Bypass.flags.flag_full_momentum                = 0;
+% D8 local-inertial routing (Wflow-style D8 links, as in HydroPol2D-Python).
+% Needs flag_inertial = 1 and flag_numerical_scheme = 1. flag_d8_full_domain:
+% 0 = D8 river graph inside a D4 floodplain, 1 = every cell on the D8 graph.
+% River cells: min_area; width beta_1*A^beta_2 and bank depth alfa_1*A^alfa_2
+% (A in km2); channel n: Manning. Settings: general.d8_min_depth_m,
+% general.d8_hydraulic_table_path, general.d8_max_stage_above_bed_m.
+InputData_Bypass.flags.flag_d8_local_inertial            = 0;
+InputData_Bypass.flags.flag_d8_full_domain               = 0;
 InputData_Bypass.flags.flag_waterbalance                 = 0;
 InputData_Bypass.flags.flag_waterquality                 = 0;
 InputData_Bypass.flags.flag_reservoir                    = 0;
