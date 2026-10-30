@@ -29,6 +29,11 @@ for k = 1:size(modules,1)
         continue
     end
     field = modules{k,3};
+    if strcmp(modules{k,1}, 'flag_human_instability') && double(module_flags.(modules{k,1})) == 3
+        refused{end+1} = ['human risk mode 3 (flag_human_instability = 3): meshes run ' ...
+            'the risk index only (mode 1)']; %#ok<AGROW>
+        continue
+    end
     if ~isempty(field) && isfield(case_config, field) && ~isempty(case_config.(field))
         continue
     end

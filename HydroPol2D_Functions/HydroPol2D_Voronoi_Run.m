@@ -102,6 +102,11 @@ if use_subgrid
         subgrid_tables.validation.subgrid_cells, mesh.n_cells);
     config.subgrid_tables = subgrid_tables;
 end
+% ---- the grid's optional modules on the mesh ----------------------------
+module_overlap_file = '';
+if isfield(forcing,'overlap_file'), module_overlap_file = forcing.overlap_file; end
+modules = hp2d_voronoi_modules_initialize(mesh, mesh_file, config, module_overlap_file, ...
+    mesh.channel.n_nodes > 0, use_subgrid);
 
 n_output_slots = ceil(config.duration_s / config.output_interval_s) + 1;
 output_count = 1;
@@ -118,6 +123,8 @@ cumulative_groundwater_seepage = cell(n_output_slots,1); hydrology_outputs = cel
 surface_source_rates = cell(n_output_slots,1); cumulative_surface_source = zeros(n,1);
 cumulative_surface_sources = cell(n_output_slots,1); potential_et_rates = cell(n_output_slots,1);
 outlet_discharges = zeros(n_output_slots,1);
+module_records = cell(n_output_slots,1);
+if modules.active, module_records{1} = module_record(modules, surface_volume); end
 [gauge_names,gauge_cells,gauge_edges,gauge_signs] = gauge_configuration(config,mesh);
 gauge_discharges = {}; gauge_depths = {}; gauge_wse = {}; diagnostics = struct([]);
 cached_et=[]; cached_open_water_et=[]; next_meteorology_update=0;
@@ -368,6 +375,11 @@ while t < config.duration_s-time_tolerance
         transition_diag = struct('max_velocity_m_s', 0, 'mass_change_m3', 0);
         channel_boundary_diag = struct('net_inflow_volume_m3', 0, 'max_discharge_m3_s', 0);
     end
+    module_diag = struct('reservoir_outflow_m3', 0, 'pollutant_export_kg', 0);
+    if modules.active
+        [surface_volume, modules, module_diag] = hp2d_voronoi_modules_step( ...
+            mesh, modules, surface_volume, edge_q, dt);
+    end
     t = t + dt;
     if abs(t-next_output)<=time_tolerance, t=next_output; end
     step = step + 1;
@@ -377,7 +389,8 @@ while t < config.duration_s-time_tolerance
     boundary_volume = surface_boundary_diag.net_inflow_volume_m3 + channel_boundary_diag.net_inflow_volume_m3;
     expected = initial_mass + sum(source_volume) + sum(groundwater_source_volume) + boundary_volume ...
         + groundwater_diag.fixed_head_exchange_m3 ...
-        - hydrology_diag.actual_et_volume_m3 - hydrology_diag.deep_drainage_volume_m3;
+        - hydrology_diag.actual_et_volume_m3 - hydrology_diag.deep_drainage_volume_m3 ...
+        - module_diag.reservoir_outflow_m3;
     diagnostics(step).time_s = t;
     diagnostics(step).dt_s = dt;
     diagnostics(step).mass_m3 = mass;
@@ -401,6 +414,10 @@ while t < config.duration_s-time_tolerance
     diagnostics(step).hydrology_mass_residual_m3 = hydrology_diag.mass_residual_m3;
     diagnostics(step).surface_channel_exchange_m3 = surface_channel_exchange;
     diagnostics(step).boundary_net_inflow_volume_m3 = boundary_volume;
+    if modules.active
+        diagnostics(step).reservoir_outflow_volume_m3 = module_diag.reservoir_outflow_m3;
+        diagnostics(step).pollutant_export_kg = module_diag.pollutant_export_kg;
+    end
     running_min_dt = min(running_min_dt,stability_dt);
     if isfinite(config.progress_interval_s) && t + time_tolerance >= next_progress
         live_depth = surface_volume ./ mesh.surface_area(:);
@@ -462,6 +479,7 @@ while t < config.duration_s-time_tolerance
         if hydrology.enabled, hydrology_outputs{output_count,1}=aggregate_hydrology(hydrology); end
         [gauge_discharges{output_count,1},gauge_depths{output_count,1},gauge_wse{output_count,1}] = ...
             gauge_values(gauge_cells,gauge_edges,gauge_signs,edge_q,mesh,surface_volume);
+        if modules.active, module_records{output_count,1} = module_record(modules, surface_volume); end
         next_output = next_output + config.output_interval_s;
     end
 end
@@ -533,11 +551,56 @@ results.channel_discharge_m3_s = link_q;
 results.channel_transition_discharge_m3_s = transition_q;
 results.channel_boundary_discharge_m3_s = channel_boundary_q;
 results.diagnostics = diagnostics;
+results.modules = pack_module_outputs(modules, module_records(1:output_count));
 results.map_time_s = selected_output_times(results.time_s,config.raster_output_interval_s);
 results.map_variables = config.map_variables;
 if isfield(forcing,'overlap_file'), results.overlap_file=forcing.overlap_file; else, results.overlap_file=''; end
 if ~isempty(config.output_netcdf)
     HydroPol2D_Write_Voronoi_Output(config.output_netcdf, mesh, results, config.overwrite_output);
+end
+end
+
+function record = module_record(modules, surface_volume)
+% The module values one output time keeps (mesh_modules.module_record).
+record = struct();
+if ~isempty(modules.reservoirs)
+    R = modules.reservoirs;
+    record.reservoir_discharge_m3_s = R.discharge_m3_s;
+    record.cumulative_reservoir_outflow_m3 = R.cumulative_outflow_m3;
+    record.reservoir_storage_m3 = sum(surface_volume(unique(R.source)));
+end
+if ~isempty(modules.water_quality)
+    W = modules.water_quality;
+    record.pollutant_mass_kg = W.mass_kg;
+    record.total_pollutant_mass_kg = sum(W.mass_kg);
+    record.cumulative_pollutant_export_kg = W.cumulative_export_kg;
+    record.outlet_pollutant_concentration_mg_l = W.outlet_concentration_mg_l;
+    concentration = zeros(size(surface_volume));
+    wet = surface_volume > 1e-12;
+    concentration(wet) = W.mass_kg(wet) * 1000 ./ surface_volume(wet);
+    record.pollutant_concentration_mg_l = concentration;
+end
+if ~isempty(modules.human_risk)
+    record.human_risk_index = modules.human_risk.risk;
+    record.maximum_human_risk_index = modules.human_risk.max_risk;
+end
+end
+
+function out = pack_module_outputs(modules, records)
+% Module histories, one column per output time.
+out = struct();
+if ~modules.active, return; end
+names = fieldnames(records{1});
+for k = 1:numel(names)
+    values = cellfun(@(record) record.(names{k}), records, 'UniformOutput', false);
+    out.(names{k}) = cat(2, values{:});
+end
+if ~isempty(modules.human_risk)
+    % the running maximum of every step, as on the grid
+    out.maximum_human_risk_index = modules.human_risk.max_risk;
+end
+if ~isempty(modules.reservoirs)
+    out.reservoir_source_cell = modules.reservoirs.source;
 end
 end
 
