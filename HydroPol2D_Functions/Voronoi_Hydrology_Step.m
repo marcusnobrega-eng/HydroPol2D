@@ -213,30 +213,31 @@ end
 
 function [near,root,trans,recharge] = drain_layers(state,dt_s)
 near=state.near_storage_m; root=state.root_storage_m; trans=state.transmission_storage_m;
-near_drain=drainage(near,state.near_capacity_m,state.near_thickness_m,state.pervious_fraction,state.ksat_m_s,state.theta_r,state.theta_sat,state.n_vg,dt_s);
+near_drain=drainage(near,state.near_capacity_m,state.near_thickness_m,state.pervious_fraction,state.ksat_m_s,state.theta_r,state.theta_sat,state.n_vg,state.l_vg,dt_s);
 [near,root,moved]=move_down(near,root,state.root_capacity_m,near_drain,state.root_capacity_m>0);
 remaining=max(near_drain-moved,0);
 [near,trans,moved]=move_down(near,trans,state.transmission_capacity_m,remaining,state.root_capacity_m<=0 & state.transmission_capacity_m>0);
 near_to_gw=min(max(remaining-moved,0),near).*(state.root_capacity_m<=0 & state.transmission_capacity_m<=0);
 near=near-near_to_gw;
-root_drain=drainage(root,state.root_capacity_m,state.root_thickness_m,state.pervious_fraction,state.ksat_m_s,state.theta_r,state.theta_sat,state.n_vg,dt_s);
+root_drain=drainage(root,state.root_capacity_m,state.root_thickness_m,state.pervious_fraction,state.ksat_root_m_s,state.theta_r,state.theta_sat,state.n_vg,state.l_vg,dt_s);
 [root,trans,moved]=move_down(root,trans,state.transmission_capacity_m,root_drain,state.transmission_capacity_m>0);
 root_to_gw=min(max(root_drain-moved,0),root).*(state.root_capacity_m>0 & state.transmission_capacity_m<=0);
 root=root-root_to_gw;
-trans_drain=drainage(trans,state.transmission_capacity_m,state.transmission_thickness_m,state.pervious_fraction,state.ksat_m_s,state.theta_r,state.theta_sat,state.n_vg,dt_s);
+trans_drain=drainage(trans,state.transmission_capacity_m,state.transmission_thickness_m,state.pervious_fraction,state.ksat_transmission_m_s,state.theta_r,state.theta_sat,state.n_vg,state.l_vg,dt_s);
 trans_drain=min(trans_drain,trans); trans=trans-trans_drain;
 recharge=near_to_gw+root_to_gw+trans_drain;
 end
 
-function amount = drainage(storage,capacity,thickness,pervious,ksat,theta_r,theta_s,n_vg,dt_s)
+function amount = drainage(storage,capacity,thickness,pervious,ksat,theta_r,theta_s,n_vg,l_vg,dt_s)
 % Drainage over the HRU: the water sits in the pervious part, which drains at
 % K(theta) (2026-10-26; before, theta used the whole thickness and Ks the whole HRU).
+% Mualem's pore-connectivity l is the soil's l_vg (it was fixed at 0.5).
 pervious=min(max(pervious,0),1);
 theta=theta_r+storage./max(pervious.*thickness,eps);
 theta=min(max(theta,theta_r),theta_s);
 se=min(max((theta-theta_r)./max(theta_s-theta_r,eps),1e-6),1);
 m=1-1./n_vg; term=min(max(1-se.^(1./m),0),1);
-kr=se.^0.5.*(1-term.^m).^2;
+kr=min(max(se.^l_vg.*(1-term.^m).^2,0),1);
 amount=min(max(pervious.*ksat.*kr.*dt_s,0),storage);
 amount(capacity<=0 | thickness<=0 | pervious<=0)=0;
 end
@@ -255,7 +256,7 @@ rooted_capacity=state.root_capacity_m;
 rooted_capacity(~use_root)=state.near_capacity_m(~use_root).*(state.root_depth_m(~use_root)>0);
 rooted_storage=state.root_storage_m;
 rooted_storage(~use_root)=state.near_storage_m(~use_root);
-capillary=hp2d_vg_mualem_capillary_transfer(state.ksat_m_s,state.alpha_vg_1_m, ...
+capillary=hp2d_vg_mualem_capillary_transfer(state.ksat_root_m_s,state.alpha_vg_1_m, ...
     state.n_vg,state.l_vg,gap,state.capillary_field_capacity_head_m, ...
     rooted_capacity,rooted_storage,remaining,dt_s);
 state.root_storage_m=state.root_storage_m+capillary.*use_root;

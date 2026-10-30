@@ -39,7 +39,11 @@ assert(all(state.theta_sat(:) > state.theta_r(:)), ...
 state.alpha_vg_1_m = field(hydrology, 'alpha_vg_1_m', 3.6, n, h, eps, inf);
 state.n_vg = field(hydrology, 'n_vg', 1.56, n, h, 1 + eps, inf);
 state.l_vg = field(hydrology, 'l_vg', 0.5, n, h, -inf, inf);
-state.ksat_m_s = field(hydrology, 'ksat_m_s', 1e-6, n, h, 0, inf);
+state.ksat_m_s = field(hydrology, 'ksat_m_s', 1e-6, n, h, 0, inf);   % near surface
+% Root-zone and transmission Ksat drain those layers (and feed capillary rise
+% from the root zone), as in HydroPol2D-Python; they default to ksat_m_s.
+state.ksat_root_m_s = field(hydrology, 'ksat_root_m_s', state.ksat_m_s, n, h, 0, inf);
+state.ksat_transmission_m_s = field(hydrology, 'ksat_transmission_m_s', state.ksat_m_s, n, h, 0, inf);
 state.surface_layer_depth_m = field(hydrology, 'surface_layer_depth_m', 0.10, n, h, eps, inf);
 state.infiltration_head_cap_m = field(hydrology, 'infiltration_head_cap_m', 1, n, h, 0, inf);
 state.surface_conductivity_weight = field(hydrology, 'surface_conductivity_weight', 0.5, n, h, 0, 1);
