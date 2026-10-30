@@ -449,6 +449,25 @@ if use_inputdata_bypass == 1
         Reservoir_Data = normalize_reservoir_data(InputData_Bypass.Reservoir_Data);
     end
 
+    % ---------------- Urban Drainage ----------------
+    % One GeoPackage (nodes, pipes, inlets, outfalls) serves this code and
+    % HydroPol2D-Python. A relative network_path is taken from the folder of
+    % the bypass script.
+    flags = hp2d_urban_drainage_flags(flags, true);
+    if flags.flag_urban_drainage == 1
+        if ~isfield(InputData_Bypass,'Urban_Drainage') || ~isstruct(InputData_Bypass.Urban_Drainage)
+            error('Bypass mode requires InputData_Bypass.Urban_Drainage when flag_urban_drainage = 1.');
+        end
+        Urban_Drainage_Input = InputData_Bypass.Urban_Drainage;
+        if isfield(Urban_Drainage_Input,'network_path')
+            network_path = char(Urban_Drainage_Input.network_path);
+            if ~(startsWith(network_path, {'/', '\\'}) || ~isempty(regexp(network_path, '^[A-Za-z]:', 'once')))
+                Urban_Drainage_Input.network_path = fullfile(fileparts(input_data_bypass_script_path), network_path);
+            end
+            clear network_path
+        end
+    end
+
     % ---------------- Observed Gauges ----------------
     if flags.flag_obs_gauges == 1
         if ~isfield(InputData_Bypass,'Obs')
@@ -545,6 +564,7 @@ end
 if ~isfield(flags,'flag_prescribed_recharge')
     flags.flag_prescribed_recharge = 0;
 end
+flags = hp2d_urban_drainage_flags(flags, false);   % bypass mode only
 
 % Error tolerances control the lateral groundwater clock; fixed intervals are
 % no longer model inputs.

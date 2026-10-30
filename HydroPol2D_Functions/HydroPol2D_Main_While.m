@@ -83,6 +83,9 @@ end
 if ~isfield(flags, 'flag_overbanks') || isempty(flags.flag_overbanks)
     flags.flag_overbanks = 0;
 end
+if ~isfield(flags, 'flag_urban_drainage') || isempty(flags.flag_urban_drainage)
+    flags.flag_urban_drainage = 0;
+end
 if isfield(flags, 'flag_subgrid') && flags.flag_subgrid == 1
     if flags.flag_overbanks == 1
         if flags.flag_inertial ~= 1 || flags.flag_full_momentum == 1 || ...
@@ -309,6 +312,10 @@ if isfield(flags, 'flag_deep_aquifer') && flags.flag_deep_aquifer == 1 && ...
         isfield(BC_States, 'deep_aquifer_initial_storage_m3')
     S_GW = S_GW + sum(BC_States.deep_aquifer_initial_storage_m3(:), 'omitnan');
 end
+if isfield(flags, 'flag_urban_drainage') && flags.flag_urban_drainage == 1
+    % Water in the drainage nodes and pipes is storage (counted with the surface).
+    S_p = S_p + sum(Drainage_States.State.node_volume_m3);
+end
 S_prev = S_c + S_p + S_UZ + S_GW + S_SWE;
 
 % Optional non-intrusive, event-scale water-balance ledger. It is disabled
@@ -504,6 +511,9 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             GW_States_before_step = GW_States;
         end
         head_before_step = BC_States.h_t;
+        if flags.flag_urban_drainage == 1
+            Drainage_States_before_step = Drainage_States;
+        end
         if exist('Subsurface', 'var') && isstruct(Subsurface)
             Subsurface_water_before_step = Subsurface.water_mm;
         end
@@ -749,6 +759,15 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             % handled internally by the hydraulic solver.
         end
 
+        % Urban drainage: inlet exchange, pipe flow and outfalls over this step,
+        % after the surface routing (as in HydroPol2D-Python). Outfall water is
+        % booked as outlet flow.
+        if flags.flag_urban_drainage == 1
+            [depths.d_t, outlet_states.outlet_flow, Drainage_States] = hp2d_urban_drainage_couple( ...
+                depths.d_t, outlet_states.outlet_flow, Drainage_States, time_step * 60, ...
+                Wshed_Properties.cell_area);
+        end
+
         % Water Balance Error
         water_balance_error_volume = abs(sum(sum(depths.d_t(depths.d_t<0))))*Wshed_Properties.Resolution^2*0.001; % m3
         water_balance_error_mm = water_balance_error_volume/Wshed_Properties.drainage_area*1000; % mm
@@ -789,10 +808,16 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             else
                 ledger_gw_states = struct();
             end
+            if flags.flag_urban_drainage == 1
+                ledger_drainage = Drainage_States;
+            else
+                ledger_drainage = [];
+            end
             [system_mass_ledger, system_step_residual_m3] = hp2d_update_system_mass_ledger( ...
                 system_mass_ledger, flags, BC_States, Hydro_States, Snow_Properties, ...
                 Soil_Properties, ledger_gw_states, depths, outlet_states, ...
-                Wshed_Properties, Elevation_Properties, time_step, C_a, SubgridTables);
+                Wshed_Properties, Elevation_Properties, time_step, C_a, SubgridTables, ...
+                ledger_drainage);
         end
 
         %% Refreshing Time-step
@@ -1086,6 +1111,9 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
 
 
     catch ME % In case an error occurs in the model
+        if strcmp(ME.identifier, 'HydroPol2D:UrbanDrainage')
+            rethrow(ME);  % a drainage stability or sub-step failure stops the run
+        end
         disp(ME.message)
         ME.stack.file
         ME.stack.line
@@ -1126,6 +1154,9 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         if exist('head_before_step', 'var')
             BC_States.h_t = head_before_step;
             BC_States.h_0 = head_before_step;
+        end
+        if exist('Drainage_States_before_step', 'var')
+            Drainage_States = Drainage_States_before_step;
         end
         if exist('Subsurface_water_before_step', 'var') && exist('Subsurface', 'var') && isstruct(Subsurface)
             Subsurface.water_mm = Subsurface_water_before_step;
@@ -1215,6 +1246,22 @@ map_checkpoint_tmp = [map_checkpoint '.tmp.mat'];
 save(map_checkpoint_tmp, 'Maps', '-v7.3');
 movefile(map_checkpoint_tmp, map_checkpoint, 'f');
 
+
+%% Urban drainage records and summaries
+if flags.flag_urban_drainage == 1
+    if isfield(Paths, 'Tables')
+        drainage_output_folder = Paths.Tables;
+    else
+        drainage_output_folder = Paths.Results;
+    end
+    hp2d_urban_drainage_write_outputs(Drainage_States, drainage_output_folder);
+    fprintf(['Urban drainage: outfall outflow %.3f m3, outfall inflow %.3f m3, ' ...
+        'storage %.3f m3, %d substeps in %d surface steps (at most %d).\n'], ...
+        Drainage_States.State.cumulative_outfall_outflow_m3, ...
+        Drainage_States.State.cumulative_outfall_inflow_m3, ...
+        sum(Drainage_States.State.node_volume_m3), Drainage_States.State.total_substeps, ...
+        Drainage_States.State.surface_steps, Drainage_States.State.max_substeps);
+end
 
 %% Returning Variables to CPU
 if flags.flag_GPU == 1

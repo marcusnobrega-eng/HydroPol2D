@@ -478,6 +478,9 @@ if flags.flag_automatic_calibration ~= 1
         end
         outlet_states.outlet_hydrograph(1,1) = nansum(nansum(outlet_states.outlet_flow .* outlet_area_reporting)) / 1000 / 3600; % m3/s
         running_control.time_hydrograph(1,1) = running_control.time_calculation_routing(k,1) / 60;
+        if isfield(flags,'flag_urban_drainage') && flags.flag_urban_drainage == 1
+            Drainage_States = hp2d_urban_drainage_record(Drainage_States, 1, running_control.time_hydrograph(1,1));
+        end
         outlet_states.depth_outlet(1,1) = mean(depths.d_t(idx_outlet));
 
         % Current forcing diagnostics saved at hydrograph resolution
@@ -585,6 +588,9 @@ if flags.flag_automatic_calibration ~= 1
         end
         outlet_states.outlet_hydrograph(t_store,1) = nansum(nansum(outlet_states.outlet_flow .* outlet_area_reporting))/1000/3600; % m3/s
         running_control.time_hydrograph(t_store,1) = t;
+        if isfield(flags,'flag_urban_drainage') && flags.flag_urban_drainage == 1
+            Drainage_States = hp2d_urban_drainage_record(Drainage_States, t_store, t);
+        end
         outlet_states.depth_outlet(t_store,1) = mean(depths.d_t(idx_outlet));
 
         % Current forcing diagnostics saved at hydrograph resolution

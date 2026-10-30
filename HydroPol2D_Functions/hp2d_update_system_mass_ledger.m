@@ -1,12 +1,16 @@
 function [ledger, step_residual_m3] = hp2d_update_system_mass_ledger( ...
     ledger, flags, BC_States, Hydro_States, Snow_Properties, Soil_Properties, GW_States, ...
     depths, outlet_states, Wshed_Properties, Elevation_Properties, time_step, ...
-    C_a, SubgridTables)
+    C_a, SubgridTables, Drainage_States)
 %HP2D_UPDATE_SYSTEM_MASS_LEDGER Non-intrusive event water-balance ledger.
 %
 % The legacy mass_balance_check script is a progress-report diagnostic. This
 % helper is deliberately separate: it evaluates the same water stores and
 % fluxes at every accepted model step, without changing any model state.
+%
+% Drainage_States (optional, flag_urban_drainage): water in the drainage
+% nodes and pipes is storage, and water entering through a fixed-stage
+% outfall is boundary inflow. Outfall outflow is already in the outlet flow.
 
 coarse_cell_area = ones(size(Elevation_Properties.elevation_cell), 'like', depths.d_t) ...
     .* Wshed_Properties.cell_area;
@@ -73,6 +77,22 @@ end
 snow_storage_m3 = nansum(nansum(coarse_cell_area .* Snow_Properties.SWE_t ./ 1000));
 storage_m3 = canopy_storage_m3 + surface_storage_m3 + soil_storage_m3 + ...
     groundwater_storage_m3 + snow_storage_m3;
+drainage_inflow_m3 = 0;
+if nargin >= 15 && isstruct(Drainage_States) && isfield(Drainage_States, 'State')
+    drainage_storage_m3 = sum(Drainage_States.State.node_volume_m3);
+    storage_m3 = storage_m3 + drainage_storage_m3;
+    drainage_inflow_m3 = Drainage_States.step_inflow_m3;
+    inflow_m3 = inflow_m3 + drainage_inflow_m3;
+    ledger.drainage_storage_m3 = drainage_storage_m3;
+    if ~isfield(ledger, 'cumulative_drainage_outfall_inflow_m3')
+        ledger.cumulative_drainage_outfall_inflow_m3 = 0;
+        ledger.cumulative_drainage_outfall_outflow_m3 = 0;
+    end
+    ledger.cumulative_drainage_outfall_inflow_m3 = ...
+        ledger.cumulative_drainage_outfall_inflow_m3 + drainage_inflow_m3;
+    ledger.cumulative_drainage_outfall_outflow_m3 = ...
+        ledger.cumulative_drainage_outfall_outflow_m3 + Drainage_States.step_outflow_m3;
+end
 
 net_flux_m3 = rain_m3 + inflow_m3 + stage_m3 + prescribed_recharge_m3 ...
     - canopy_evap_m3 - etr_m3 - open_water_evap_m3 - outlet_m3 - snow_sublimation_m3;

@@ -35,6 +35,12 @@ end
 if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
     inflow_bc_vol = nansum(nansum(BC_States.inflow .* coarse_cell_area ./ 1000));
 end
+drainage_on = isfield(flags, 'flag_urban_drainage') && flags.flag_urban_drainage == 1 && ...
+    exist('Drainage_States', 'var') && isstruct(Drainage_States);
+if drainage_on
+    % Fixed-stage outfall water entering the drainage network this step.
+    inflow_bc_vol = inflow_bc_vol + Drainage_States.step_inflow_m3;
+end
 inflow_vol = rain_vol + inflow_bc_vol + inflow_stage + gw_prescribed_vol;
 BC_States.inflow_volume = inflow_vol + BC_States.inflow_volume; % m3
 
@@ -84,6 +90,10 @@ if isfield(flags, 'flag_deep_aquifer') && flags.flag_deep_aquifer == 1 && exist(
     S_GW = S_GW + sum(GW_States.deep_aquifer_storage_m3(:), 'omitnan');
 end
 S_SWE = nansum(nansum(coarse_cell_area.*Snow_Properties.SWE_t/1000)); % Snow water equivalent storge
+if drainage_on
+    % Water in the drainage nodes and pipes counts with the overland storage.
+    S_p = S_p + sum(Drainage_States.State.node_volume_m3);
+end
 
 [dS, fluxes, S_prev, error] = system_mass_balance(P, Qin, E_int, ETR, E_ow, Qout, E_s, S_c, S_p, S_UZ, S_GW, S_SWE, S_prev);
 volume_error = error;
@@ -133,6 +143,10 @@ end
 if isfield(flags, 'flag_deep_aquifer') && flags.flag_deep_aquifer == 1 && exist('GW_States', 'var') && ...
         isstruct(GW_States) && isfield(GW_States, 'deep_aquifer_storage_m3')
     current_storage = current_storage + sum(GW_States.deep_aquifer_storage_m3(:), 'omitnan');
+end
+
+if drainage_on
+    current_storage = current_storage + sum(Drainage_States.State.node_volume_m3);
 end
 
 loss_volume = inf_volume;
