@@ -84,6 +84,8 @@ CHECKS = (
     Check("Neal (2012) staged overbank channel", "Validation/Subgrid/Neal2012_StagedOverbank_100m/run_neal_staged_overbank_100m.m", "Validation/Subgrid/Neal2012_StagedOverbank_100m/Outputs/Validation/Pass_Fail.csv", "full"),
     Check("Neal channel CFL time step", "Validation/Subgrid/Neal_CFL_Timestep/run_neal_cfl_timestep_check.m", "Validation/Subgrid/Neal_CFL_Timestep/Outputs/Validation/Pass_Fail.csv", "fast"),
     Check("Neal (2012) two-dimensional junction", "Validation/Subgrid/Neal2012_2D_CrossJunction/run_neal_2d_cross_junction_validation.m", "Validation/Subgrid/Neal2012_2D_CrossJunction/Outputs/Validation/Pass_Fail.csv", "full"),
+    Check("D8 local-inertial kernels vs Python", "Validation/D8LocalInertial/VTilted_PythonParity/run_d8_local_inertial_check.m", "Validation/D8LocalInertial/VTilted_PythonParity/Outputs/Validation/Pass_Fail.csv", "fast"),
+    Check("D8 local-inertial full model", "Validation/D8LocalInertial/VTilted_PythonParity/run_d8_full_model_check.m", "Validation/D8LocalInertial/VTilted_PythonParity/Outputs/Validation/FullModel/Pass_Fail.csv", "full"),
 )
 
 
