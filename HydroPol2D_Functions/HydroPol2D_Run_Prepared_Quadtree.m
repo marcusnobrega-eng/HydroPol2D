@@ -66,6 +66,9 @@ hru_dtb=hrus.dtb; missing_dtb=~isfinite(hru_dtb);
 cell_dtb=repmat(dtb,1,size(hru_dtb,2)); hru_dtb(missing_dtb)=cell_dtb(missing_dtb);
 hru_dtb=max(hru_dtb,0.1);
 root_depth=parameter_lookup_required(land_cover_parameters,hrus.lulc,'root_depth_m');
+% Soil ET demand = reference ET x the class crop coefficient (1 when the
+% land-cover table has none), as HydroPol2D-Python's soil_et_coefficient.
+crop_coefficient=parameter_lookup(land_cover_parameters,hrus.lulc,'crop_coefficient',1);
 tr=parameter_lookup_required(soil_parameters,hrus.soil,'theta_r');
 ts=parameter_lookup_required(soil_parameters,hrus.soil,'theta_s');
 alpha_vg=parameter_lookup_required(soil_parameters,hrus.soil,'alpha_vg_m_inverse');
@@ -84,6 +87,7 @@ hydrology=struct( ...
     'hru_fraction',hrus.fraction, ...
     'pervious_fraction',min(max(1-hrus.impervious,0),1), ...
     'lai',lai.*double(flags.canopy_interception), ...
+    'crop_coefficient',crop_coefficient, ...
     'soil_depth_m',hru_dtb,'root_depth_m',min(hru_dtb,root_depth), ...
     'theta_r',tr,'theta_sat',ts, ...
     'alpha_vg_1_m',alpha_vg,'n_vg',n_vg, ...
@@ -116,6 +120,14 @@ if layered_cfg.layered
 end
 
 simulation=config_json.simulation;
+% Routing scheme, critical-flow switch and wet/dry depth from the case, as
+% HydroPol2D-Python reads them (defaults: local inertial, on, 1 mm).
+routing_solver='local_inertial';
+if isfield(flags,'routing') && ~isempty(flags.routing), routing_solver=char(string(flags.routing)); end
+critical_flow=true;
+if isfield(flags,'critical_flow'), critical_flow=logical(flags.critical_flow); end
+dry_tolerance_m=1e-3;
+if isfield(config_json.parameters,'min_depth_m'), dry_tolerance_m=double(config_json.parameters.min_depth_m); end
 outputs=struct('profile','standard','map_interval_minutes',60, ...
     'diagnostic_interval_minutes',10,'map_variables',{{'surface_depth','surface_velocity'}});
 if isfield(config_json,'outputs')
@@ -139,11 +151,12 @@ end
 solver_config=struct( ...
     'duration_s',double(simulation.duration_seconds), ...
     'output_interval_s',map_interval_s,'raster_output_interval_s',map_interval_s, ...
-    'routing_solver','local_inertial','surface_roughness',roughness, ...
+    'routing_solver',routing_solver,'surface_roughness',roughness, ...
     'courant',double(config_json.parameters.routing_courant), ...
     'min_dt_s',double(simulation.minimum_timestep_s), ...
     'timestep_floor_action','clamp', ...
-    'max_dt_s',double(simulation.maximum_timestep_s),'critical_flow',true, ...
+    'max_dt_s',double(simulation.maximum_timestep_s),'critical_flow',critical_flow, ...
+    'dry_tolerance_m',dry_tolerance_m, ...
     'hydrology_enabled',logical(flags.canopy_interception || flags.infiltration || flags.internal_etp), ...
     'hydrology',hydrology,'groundwater_enabled',logical(flags.groundwater), ...
     'river_groundwater_exchange',logical(flags.river_groundwater_exchange), ...
@@ -173,11 +186,14 @@ rainfall_files=dir(fullfile(forcing_root,'Rainfall','*.tif'));
 [~,order]=sort({rainfall_files.name}); rainfall_files=rainfall_files(order);
 assert(~isempty(rainfall_files),'HydroPol2D:MissingRainfall','No prepared rainfall maps were found.');
 projected=projcrs(mesh.crs_wkt);
-[mesh_latitude,mesh_longitude]=projinv(projected,mesh.cell_x,mesh.cell_y);
+% Rain is sampled at every land-use raster cell and averaged over each mesh
+% cell with the overlap weights, as HydroPol2D-Python samples its HRU pieces.
+[raster_x,raster_y]=hp2d_overlap_raster_centres(mapping);
+[raster_latitude,raster_longitude]=projinv(projected,raster_x,raster_y);
 forcing=struct();
-forcing.surface_source_m_s=@(time_s,state,current_mesh) rainfall_at( ...
+forcing.surface_source_m_s=@(time_s,state,current_mesh) hp2d_quadtree_rainfall_rate( ...
     time_s,rainfall_files,forcing_root,double(config_json.forcing.rainfall_interval_minutes)*60, ...
-    mesh_latitude,mesh_longitude);
+    raster_latitude,raster_longitude,mapping,valid_raw);
 if flags.internal_etp
     etp_path=fullfile(forcing_root,'Evapotranspiration','ETP_input_data.xlsx');
     if exist(etp_path,'file')==2
@@ -344,11 +360,12 @@ raw=flipud(array).'; raw=raw(:);
 end
 
 function value=parameter_lookup(records,code,field_name,fallback)
+% A class without the field (or with it empty) keeps the fallback.
 value=repmat(double(fallback),size(code));
 for k=1:numel(records)
+    if ~isfield(records(k),field_name) || isempty(records(k).(field_name)), continue; end
     selected=code==double(records(k).index);
-    raw=records(k).(field_name);
-    value(selected)=double(raw);
+    value(selected)=double(records(k).(field_name));
 end
 end
 
@@ -364,19 +381,6 @@ end
 assert(all(isfinite(value)), ...
     'HydroPol2D:MissingPhysicsV2Class', ...
     'HydroPol2D has no %s value for one or more mapped classes.',field_name);
-end
-
-function rate=rainfall_at(time_s,files,forcing_root,interval_s,latitude,longitude)
-index=min(numel(files),max(1,floor(time_s/interval_s)+1));
-path=fullfile(forcing_root,'Rainfall',files(index).name);
-[raw,reference]=readgeoraster(path,'OutputType','double');
-for missing=double(georasterinfo(path).MissingDataIndicator(:))'
-    raw(raw==missing)=NaN;
-end
-[column,row]=geographicToIntrinsic(reference,latitude,longitude);
-sampled=interp2(raw,column,row,'nearest',0);
-sampled(~isfinite(sampled))=0;
-rate=max(sampled(:),0)./1000/3600;
 end
 
 function data=read_etp_workbook(path,mesh,reference_et_krs,reference_crop_albedo)
