@@ -2,7 +2,12 @@ function selection = HydroPol2D_Voronoi_Selection(run_mode,input_excel_file,bypa
 %HYDROPOL2D_VORONOI_SELECTION Read the compact raster/Voronoi switch.
 
 selection = struct('enabled',false,'case_file','','options',struct(), ...
-    'output_controls',struct(),'subgrid_choice_explicit',false);
+    'output_controls',struct(),'subgrid_choice_explicit',false,'module_flags',struct());
+% Module switches a mesh run must refuse unless the prepared case carries them
+% (hp2d_refuse_mesh_modules).
+module_flag_names = {'flag_snow_modeling','flag_reservoir','flag_waterquality', ...
+    'flag_human_instability','flag_deep_aquifer','flag_dam_break', ...
+    'flag_detention_ponds','flag_urban_drainage','flag_green_infrastructure'};
 if strcmpi(run_mode,'bypass')
     run(bypass_script);
     assert(exist('InputData_Bypass','var')==1 && isstruct(InputData_Bypass), ...
@@ -11,6 +16,11 @@ if strcmpi(run_mode,'bypass')
     selection.subgrid_choice_explicit=isfield(flags,'flag_voronoi_subgrid');
     flags=HydroPol2D_Normalize_Subgrid_Flags(flags);
     if isfield(flags,'flag_voronoi'), selection.enabled=logical(flags.flag_voronoi); end
+    for k=1:numel(module_flag_names)
+        if isfield(flags,module_flag_names{k})
+            selection.module_flags.(module_flag_names{k})=flags.(module_flag_names{k});
+        end
+    end
     if isfield(InputData_Bypass,'Voronoi')
         selection.options=InputData_Bypass.Voronoi;
         if isfield(InputData_Bypass.Voronoi,'case_file')
@@ -34,6 +44,10 @@ else
     end
     flags=HydroPol2D_Normalize_Subgrid_Flags(raw_flags);
     selection.enabled = logical(flags.flag_voronoi);
+    for k=1:numel(module_flag_names)
+        [found_module,value_module]=cell_right_found(flag_cells,module_flag_names{k},0);
+        if found_module, selection.module_flags.(module_flag_names{k})=value_module; end
+    end
     settings = HydroPol2D_Read_Voronoi_Settings(input_excel_file,general);
     selection.case_file=char(string(cell_right(settings,'Voronoi case file','')));
     selection.options=struct( ...

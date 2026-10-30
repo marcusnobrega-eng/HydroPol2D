@@ -5,6 +5,18 @@ arguments
     case_root (1,:) char
 end
 config_json=jsondecode(fileread(fullfile(case_root,'hydropol_config.json')));
+% Builder switches for modules this runner does not run stop the run.
+builder_modules={'snow','flag_snow_modeling';'reservoirs','flag_reservoir'; ...
+    'water_quality','flag_waterquality';'human_risk','flag_human_instability'; ...
+    'deep_aquifer','flag_deep_aquifer';'detention_ponds','flag_detention_ponds'; ...
+    'urban_drainage','flag_urban_drainage';'green_infrastructure','flag_green_infrastructure'};
+module_flags=struct();
+for k=1:size(builder_modules,1)
+    if isfield(config_json.flags,builder_modules{k,1})
+        module_flags.(builder_modules{k,2})=double(config_json.flags.(builder_modules{k,1}));
+    end
+end
+hp2d_refuse_mesh_modules(module_flags,struct(),'This quadtree case (hydropol_config.json)');
 run_progress_path=strtrim(getenv('HYDROPOL_PROGRESS_FILE'));
 run_metrics_path=strtrim(getenv('HYDROPOL_METRICS_FILE'));
 hp2d_write_run_monitor(run_progress_path,run_metrics_path, ...
