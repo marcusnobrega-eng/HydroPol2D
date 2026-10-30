@@ -1754,7 +1754,7 @@ tables:
     map, satellite or spatial rainfall is chosen.
   column_notes:
     Time(min): Minutes from the start of the run, one row per step. The step is the difference of the
-      first two rows.
+      first two rows. Each time starts an interval; the last value lasts one more step.
     Rainfall Intensity: Rainfall intensity over the step (mm/h).
 - name: Rain gauges
   kind: series

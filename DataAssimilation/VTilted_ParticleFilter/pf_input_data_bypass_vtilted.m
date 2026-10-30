@@ -69,8 +69,9 @@ if rain_duration_min >= duration_min
     rainfall_time = [0; duration_min];
     rainfall_intensity = [rain_mm_h; rain_mm_h];
 else
+    % Each time starts an interval: rain from 0 to rain_duration_min, then none.
     rainfall_time = [0; rain_duration_min; duration_min];
-    rainfall_intensity = [rain_mm_h; rain_mm_h; 0];
+    rainfall_intensity = [rain_mm_h; 0; 0];
 end
 InputData_Bypass.Rainfall_Parameters = struct( ...
     'time_rainfall', rainfall_time, ...

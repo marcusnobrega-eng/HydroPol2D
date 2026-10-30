@@ -363,6 +363,9 @@ if use_inputdata_bypass == 1
         Rainfall_Parameters.time_step_rainfall = Design_Storm_Parameters.time_step;
         Rainfall_Parameters.rainfall_duration = Rainfall_Parameters.time_rainfall(end);
         running_control.routing_time = max(running_control.routing_time, Rainfall_Parameters.rainfall_duration);
+        % The blocks end at dt, 2 dt, ..., D. Each rainfall time starts its
+        % interval (update_spatial_BC), so block k is stamped (k - 1) dt.
+        Rainfall_Parameters.time_rainfall = Rainfall_Parameters.time_rainfall - Rainfall_Parameters.time_step_rainfall;
 
     elseif flags.flag_huff == 1 && flags.flag_input_rainfall_map ~= 1 && ...
             flags.flag_spatial_rainfall ~= 1 && flags.flag_real_time_satellite_rainfall ~= 1 && ...
@@ -378,6 +381,9 @@ if use_inputdata_bypass == 1
         Rainfall_Parameters.time_step_rainfall = Design_Storm_Parameters.time_step;
         Rainfall_Parameters.rainfall_duration = Rainfall_Parameters.time_rainfall(end);
         running_control.routing_time = max(running_control.routing_time, Rainfall_Parameters.rainfall_duration);
+        % The blocks end at dt, 2 dt, ..., D. Each rainfall time starts its
+        % interval (update_spatial_BC), so block k is stamped (k - 1) dt.
+        Rainfall_Parameters.time_rainfall = Rainfall_Parameters.time_rainfall - Rainfall_Parameters.time_step_rainfall;
     end
 
     % ---------------- Inflow Hydrograph ----------------
@@ -964,7 +970,9 @@ if flags.flag_rainfall == 1 && flags.flag_alternated_blocks ~= 1 && flags.flag_h
         date_begin = Rainfall_Parameters.time_rainfall(1);
         date_end = Rainfall_Parameters.time_rainfall(end);
         Rainfall_Parameters.time_rainfall = minutes(Rainfall_Parameters.time_rainfall(:)-Rainfall_Parameters.time_rainfall(1));
-        running_control.routing_time = (Rainfall_Parameters.n_obs_rainfall-1)*Rainfall_Parameters.time_step_rainfall;
+        % Each row is the rate from its time to the next, so the run covers
+        % every row.
+        running_control.routing_time = Rainfall_Parameters.n_obs_rainfall*Rainfall_Parameters.time_step_rainfall;
     end
 elseif flags.flag_alternated_blocks == 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_spatial_rainfall ~= 1 && flags.flag_real_time_satellite_rainfall ~= 1 && flags.flag_satellite_rainfall ~= 1
     [Rainfall_Parameters.time_rainfall,Rainfall_Parameters.intensity_rainfall,~,idf] = ...
@@ -974,6 +982,9 @@ elseif flags.flag_alternated_blocks == 1 && flags.flag_input_rainfall_map ~= 1 &
     Rainfall_Parameters.time_step_rainfall = Design_Storm_Parameters.time_step; % min
     Rainfall_Parameters.rainfall_duration = Rainfall_Parameters.time_rainfall(end); % min
     running_control.routing_time = max(running_control.routing_time,Rainfall_Parameters.rainfall_duration);
+    % The blocks end at dt, 2 dt, ..., D. Each rainfall time starts its
+    % interval (update_spatial_BC), so block k is stamped (k - 1) dt.
+    Rainfall_Parameters.time_rainfall = Rainfall_Parameters.time_rainfall - Rainfall_Parameters.time_step_rainfall;
 elseif flags.flag_huff == 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_spatial_rainfall ~= 1 && flags.flag_real_time_satellite_rainfall ~= 1 && flags.flag_satellite_rainfall ~= 1
     [Rainfall_Parameters.time_rainfall,Rainfall_Parameters.intensity_rainfall,~] = ...
         Huff_Curves(Design_Storm_Parameters.Rainfall_Duration(end), Design_Storm_Parameters.time_step, Design_Storm_Parameters.K,Design_Storm_Parameters.a,Design_Storm_Parameters.b,Design_Storm_Parameters.c,Design_Storm_Parameters.RP,1,Paths.FigPDF);
@@ -982,6 +993,9 @@ elseif flags.flag_huff == 1 && flags.flag_input_rainfall_map ~= 1 && flags.flag_
     Rainfall_Parameters.time_step_rainfall = Design_Storm_Parameters.time_step; % min
     Rainfall_Parameters.rainfall_duration = Rainfall_Parameters.time_rainfall(end); % min
     running_control.routing_time = max(running_control.routing_time,Rainfall_Parameters.rainfall_duration);
+    % The blocks end at dt, 2 dt, ..., D. Each rainfall time starts its
+    % interval (update_spatial_BC), so block k is stamped (k - 1) dt.
+    Rainfall_Parameters.time_rainfall = Rainfall_Parameters.time_rainfall - Rainfall_Parameters.time_step_rainfall;
 end
 
 %%% ---- Inflow Hydrograph ---- %%%

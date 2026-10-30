@@ -10,9 +10,13 @@
 %
 %  Interpretation of forcing times
 %  ---------------------------------------------------------------------
-%  For all time series used here, time(i) is interpreted as the END of the
-%  forcing interval i. Therefore, the value at index i is assumed valid
-%  from the previous forcing time up to time(i).
+%  For all rate series used here, time(i) is the START of forcing interval
+%  i: the value at index i holds from time(i) up to time(i+1). The last value
+%  holds for one more interval (the spacing of the last two times), and then
+%  the rate is zero. Before the first time the rate is zero. This is the
+%  convention of HydroPol2D-Python (forcing/gridded.py, series_end_s).
+%  The stage hydrograph and the ETP station records already hold each value
+%  from its own time.
 %
 %  Optimization strategy used here
 %  ---------------------------------------------------------------------
@@ -308,7 +312,7 @@ gridSize = BC_States.gridSize;
 %         end
 %     else
 %         % fallback for zero-duration step
-%         BC_States.cursor_stage = localAdvanceEndStampedCursor( ...
+%         BC_States.cursor_stage = localAdvanceStartStampedCursor( ...
 %             Stage_Parameters.time_stage, ...
 %             t, ...
 %             BC_States.cursor_stage);
@@ -544,7 +548,7 @@ if flags.flag_spatial_rainfall ~= 1 && ...
         recording_parameters.last_record_maps_rainfall = ...
             recording_parameters.actual_record_state_rainfall;
 
-        Input_Rainfall.cursor_rain = localAdvanceEndStampedCursor( ...
+        Input_Rainfall.cursor_rain = localAdvanceStartStampedCursor( ...
             Input_Rainfall.time, ...
             t, ...
             Input_Rainfall.cursor_rain);
@@ -1106,20 +1110,21 @@ function M = localAccumMap(X, w)
 M = X * w;
 end
 
-function cursor = localAdvanceEndStampedCursor(times, t_now, cursor)
-% Move cursor forward for end-stamped piecewise-constant forcing.
+function cursor = localAdvanceStartStampedCursor(times, t_now, cursor)
+% Move cursor forward for start-stamped piecewise-constant forcing.
 %
 % Interpretation:
-%   times(i) is the END of interval i.
+%   times(i) is the START of interval i; interval i ends at times(i+1).
 %
 % Example:
-%   times = [30 60 90]
+%   times = [0 30 60]
 %   then:
-%       interval 1 ends at 30
-%       interval 2 ends at 60
-%       interval 3 ends at 90
+%       interval 1 is [0, 30)
+%       interval 2 is [30, 60)
+%       interval 3 is [60, 90)
 %
 % If current model time t_now is within interval i, this function returns i.
+% Before times(1) it returns 1.
 %
 % This is cheap because model time only moves forward.
 
@@ -1137,15 +1142,31 @@ end
 
 cursor = min(max(1, cursor), n);
 
-while cursor < n && t_now > times(cursor)
+while cursor < n && t_now >= times(cursor + 1)
     cursor = cursor + 1;
 end
 end
 
+function [t_start, t_end] = localForcingInterval(times, i)
+% Bounds of start-stamped forcing interval i. The last interval lasts the
+% spacing of the last two times; a series with one time is a constant rate
+% that never ends (series_end_s in HydroPol2D-Python).
+
+n = numel(times);
+t_start = times(i);
+if i < n
+    t_end = times(i + 1);
+elseif n >= 2
+    t_end = times(n) + (times(n) - times(n - 1));
+else
+    t_end = inf;
+end
+end
+
 function [avg_rate, cursor] = localAverageRateOverStep(times, values, t0, t1, cursor)
-% Exact time-averaged rate over [t0,t1] for an end-stamped piecewise-constant series.
+% Exact time-averaged rate over [t0,t1] for a start-stamped piecewise-constant series.
 %
-% times(i) = END of interval i
+% times(i) = START of interval i
 % values(i) = constant value during interval i
 %
 % Returns avg_rate over [t0,t1].
@@ -1167,20 +1188,14 @@ dt_total = t1 - t0;
 accum = 0;
 
 % move cursor close to t0
-cursor = localAdvanceEndStampedCursor(times, t0, cursor);
+cursor = localAdvanceStartStampedCursor(times, t0, cursor);
 if isempty(cursor)
     cursor = 1;
 end
 
-dt_force = localEstimateConstantDt(times);
 
 for i = cursor:n
-    if i == 1
-        t_start_i = times(1) - dt_force;
-    else
-        t_start_i = times(i-1);
-    end
-    t_end_i = times(i);
+    [t_start_i, t_end_i] = localForcingInterval(times, i);
 
     overlap = max(0, min(t1, t_end_i) - max(t0, t_start_i));
 
@@ -1198,9 +1213,9 @@ avg_rate = accum / dt_total;
 end
 
 function [avg_state, cursor] = localAverageStateOverStep(times, values, t0, t1, cursor)
-% Exact time-averaged state over [t0,t1] for an end-stamped piecewise-constant series.
+% Exact time-averaged state over [t0,t1] for a start-stamped piecewise-constant series.
 %
-% times(i) = END of interval i
+% times(i) = START of interval i
 % values(i) = constant value during interval i
 %
 % Returns average state over [t0,t1].
@@ -1221,20 +1236,14 @@ end
 dt_total = t1 - t0;
 accum = 0;
 
-cursor = localAdvanceEndStampedCursor(times, t0, cursor);
+cursor = localAdvanceStartStampedCursor(times, t0, cursor);
 if isempty(cursor)
     cursor = 1;
 end
 
-dt_force = localEstimateConstantDt(times);
 
 for i = cursor:n
-    if i == 1
-        t_start_i = times(1) - dt_force;
-    else
-        t_start_i = times(i-1);
-    end
-    t_end_i = times(i);
+    [t_start_i, t_end_i] = localForcingInterval(times, i);
 
     overlap = max(0, min(t1, t_end_i) - max(t0, t_start_i));
 
@@ -1249,21 +1258,6 @@ for i = cursor:n
 end
 
 avg_state = accum / dt_total;
-end
-
-function dt_force = localEstimateConstantDt(times)
-% Estimate constant forcing dt from end-stamped time vector.
-times = double(times(:));
-
-if numel(times) >= 2
-    dt_force = times(2) - times(1);
-else
-    dt_force = 0;
-end
-
-if ~isfinite(dt_force) || dt_force <= 0
-    dt_force = 0;
-end
 end
 
 function [input_et_Z, Input_ET] = localGetInputETMapCached( ...
@@ -1315,25 +1309,13 @@ end
 dt_total = t1 - t0;
 
 % Move cursor to active interval
-cursor = localAdvanceEndStampedCursor(times, t0, cursor);
+cursor = localAdvanceStartStampedCursor(times, t0, cursor);
 if isempty(cursor)
     cursor = 1;
 end
 
-% Use precomputed forcing dt if available
-if isfield(Input_Rainfall,'dt_force') && ~isempty(Input_Rainfall.dt_force)
-    dt_force = Input_Rainfall.dt_force;
-else
-    dt_force = localEstimateConstantDt(times);
-end
-
 % Bounds of current forcing interval
-if cursor == 1
-    t_start_i = times(1) - dt_force;
-else
-    t_start_i = times(cursor-1);
-end
-t_end_i = times(cursor);
+[t_start_i, t_end_i] = localForcingInterval(times, cursor);
 
 % ---- FAST PATH: entire model step lies inside one forcing interval ----
 if t0 >= t_start_i && t1 <= t_end_i
@@ -1346,12 +1328,7 @@ end
 accum_map = zeros(gridSize);
 
 for i = cursor:numel(times)
-    if i == 1
-        t_start_i = times(1) - dt_force;
-    else
-        t_start_i = times(i-1);
-    end
-    t_end_i = times(i);
+    [t_start_i, t_end_i] = localForcingInterval(times, i);
 
     overlap = max(0, min(t1, t_end_i) - max(t0, t_start_i));
 
@@ -1384,23 +1361,17 @@ if isempty(times) || t1 <= t0
 end
 
 dt_total = t1 - t0;
-cursor = localAdvanceEndStampedCursor(times, t0, cursor);
+cursor = localAdvanceStartStampedCursor(times, t0, cursor);
 if isempty(cursor)
     cursor = 1;
 end
 
-dt_force = localEstimateConstantDt(times);
 
 accum_map = zeros(gridSize);
 accum_map(idx_nan) = 0;
 
 for i = cursor:numel(times)
-    if i == 1
-        t_start_i = times(1) - dt_force;
-    else
-        t_start_i = times(i-1);
-    end
-    t_end_i = times(i);
+    [t_start_i, t_end_i] = localForcingInterval(times, i);
 
     overlap = max(0, min(t1, t_end_i) - max(t0, t_start_i));
 
@@ -1435,23 +1406,17 @@ if isempty(times) || t1 <= t0
 end
 
 dt_total = t1 - t0;
-cursor = localAdvanceEndStampedCursor(times, t0, cursor);
+cursor = localAdvanceStartStampedCursor(times, t0, cursor);
 if isempty(cursor)
     cursor = 1;
 end
 
-dt_force = localEstimateConstantDt(times);
 
 accum_map = zeros(gridSize);
 accum_map(idx_nan) = 0;
 
 for i = cursor:numel(times)
-    if i == 1
-        t_start_i = times(1) - dt_force;
-    else
-        t_start_i = times(i-1);
-    end
-    t_end_i = times(i);
+    [t_start_i, t_end_i] = localForcingInterval(times, i);
 
     overlap = max(0, min(t1, t_end_i) - max(t0, t_start_i));
 
