@@ -179,7 +179,7 @@ time_tolerance=max(1e-9,100*eps(max(config.duration_s,1)));
 while t < config.duration_s-time_tolerance
     cfl_state=struct('surface_volume_m3',surface_volume,'channel_volume_m3',channel_volume, ...
         'groundwater_head_m',groundwater.head,'surface_momentum_x_m2_s',hu,'surface_momentum_y_m2_s',hv);
-    cfl_boundary=boundary_at(forcing,'surface_boundary',t,cfl_state,mesh);
+    cfl_boundary=hp2d_voronoi_split_inflow(mesh,boundary_at(forcing,'surface_boundary',t,cfl_state,mesh),1);
     [dt,cfl] = stable_timestep(mesh, surface_volume, edge_q, channel_volume, link_q, transition_q, ...
         groundwater, roughness, hu, hv, cfl_boundary, config, t);
     stability_dt = min(dt,config.max_dt_s);
@@ -215,6 +215,11 @@ while t < config.duration_s-time_tolerance
     surface_channel_exchange=0;
     source = source_at(forcing, t, state, mesh, n);
     source_volume = source .* mesh.cell_area(:) .* dt;
+    % Inflow hydrographs enter their cells as volume before the vertical
+    % step (HydroPol2D-Python); their edges are walls for routing.
+    [~, inflow_volume] = hp2d_voronoi_split_inflow(mesh, ...
+        boundary_at(forcing, 'surface_boundary', t, state, mesh), dt);
+    surface_volume = surface_volume + inflow_volume;
     cumulative_surface_source = cumulative_surface_source + max(source,0).*dt;
     potential_et = zeros(n,1); open_water_evaporation = zeros(n,1);
     hydrology_diag = empty_hydrology_diagnostics();
@@ -353,6 +358,7 @@ while t < config.duration_s-time_tolerance
     end
     surface_flux_evaluation_volume = surface_volume;
     surface_boundary = boundary_at(forcing, 'surface_boundary', t, state, mesh);
+    surface_boundary = hp2d_voronoi_split_inflow(mesh, surface_boundary, dt);
     if solver == "full_momentum"
         [surface_volume,hu,hv,edge_q,surface_diag,surface_boundary_diag] = Voronoi_Full_Momentum_Step( ...
             mesh,surface_volume,hu,hv,roughness,surface_boundary,dt,gravity=config.gravity, ...
@@ -420,7 +426,8 @@ while t < config.duration_s-time_tolerance
     if groundwater.enabled, mass = mass + sum(groundwater.storage) + sum(groundwater.pending_exchange_m3); end
     if hydrology.enabled, mass = mass + hydrology_mass(hydrology); end
     if modules.active, mass = mass + module_storage(modules); end
-    boundary_volume = surface_boundary_diag.net_inflow_volume_m3 + channel_boundary_diag.net_inflow_volume_m3;
+    boundary_volume = surface_boundary_diag.net_inflow_volume_m3 + channel_boundary_diag.net_inflow_volume_m3 + ...
+        sum(inflow_volume);
     expected = initial_mass + sum(source_volume) + sum(groundwater_source_volume) + boundary_volume ...
         + groundwater_diag.fixed_head_exchange_m3 ...
         - hydrology_diag.actual_et_volume_m3 - hydrology_diag.deep_drainage_volume_m3 ...
@@ -898,7 +905,23 @@ function boundary = boundary_at(forcing, name, time_s, state, mesh)
 if ~isfield(forcing, name), boundary = struct(); return; end
 boundary = forcing.(name);
 if isa(boundary, 'function_handle'), boundary = boundary(time_s, state, mesh); end
-if strcmp(name, 'surface_boundary'), boundary = hp2d_voronoi_fill_boundary(mesh, boundary); end
+if strcmp(name, 'surface_boundary')
+    boundary = hp2d_voronoi_fill_boundary(mesh, boundary);
+    % stage_reference "depth_above_local_invert": a stage value is a depth
+    % above the edge cell's bed (HydroPol2D-Python 12f494b); else a WSE.
+    if isstruct(boundary) && isfield(boundary, 'stage_reference') && isfield(boundary, 'edge_id')
+        reference = string(boundary.stage_reference(:));
+        types = string(boundary.type(:));
+        if isscalar(types), types = repmat(types, numel(boundary.edge_id), 1); end
+        if isscalar(reference), reference = repmat(reference, numel(boundary.edge_id), 1); end
+        values = double(boundary.value(:));
+        if isscalar(values), values = repmat(values, numel(boundary.edge_id), 1); end
+        relative = types == "stage" & reference == "depth_above_local_invert";
+        values(relative) = mesh.surface_bed(mesh.edge_owner(boundary.edge_id(relative))) + values(relative);
+        boundary.value = values;
+        boundary = rmfield(boundary, 'stage_reference');
+    end
+end
 end
 
 function groundwater = initialize_groundwater(config, mesh)

@@ -53,19 +53,17 @@ for k = 1:numel(edge_id)
                 error('HydroPol2D:KinematicStageBoundaryUnavailable', ...
                     'A kinematic-wave boundary cannot prescribe stage; use inflow, normal_flow, critical_flow, or wall.');
             end
+            % The local-inertial face formula under every scheme, as in
+            % HydroPol2D-Python (the diffusive solver used Manning here).
             hflow = max(max(wse(k), values(k)) - mesh.surface_bed(owner(k)), 0);
             slope = (values(k) - wse(k)) / mesh.edge_distance(edge_id(k));
-            if strcmpi(options.routing_solver, 'diffusive')
-                qout(k) = width(k) / roughness(owner(k)) * hflow^(5/3) * sign(-slope) * sqrt(abs(slope));
+            if isempty(options.previous_edge_q)
+                qold = edge_q(edge_id(k));
             else
-                if isempty(options.previous_edge_q)
-                    qold = edge_q(edge_id(k));
-                else
-                    qold = options.previous_edge_q(edge_id(k));
-                end
-                denominator = 1 + options.gravity * dt * roughness(owner(k))^2 * abs(qold) / max(hflow^(7/3), eps);
-                qout(k) = width(k) * (qold - options.gravity * hflow * dt * slope) / denominator;
+                qold = options.previous_edge_q(edge_id(k));
             end
+            denominator = 1 + options.gravity * dt * roughness(owner(k))^2 * abs(qold) / max(hflow^(7/3), eps);
+            qout(k) = width(k) * (qold - options.gravity * hflow * dt * slope) / denominator;
         case "normal_flow"
             qout(k) = width(k) / roughness(owner(k)) * depth(k)^(5/3) * sqrt(max(values(k), 0));
         case "critical_flow"
