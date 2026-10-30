@@ -400,7 +400,14 @@ while t < config.duration_s-time_tolerance
         [channel_volume, link_q, channel_diag] = Voronoi_Neal_Channel_Step( ...
             mesh.channel, channel_volume, link_q, dt, gravity=config.gravity, ...
             dry_tolerance_m=config.dry_tolerance_m, critical_flow=config.critical_flow);
-        channel_boundary = boundary_at(forcing, 'channel_boundary', t, state, mesh);
+        if isfield(forcing, 'channel_boundary')
+            channel_boundary = boundary_at(forcing, 'channel_boundary', t, state, mesh);
+        else
+            % Channel nodes in boundary cells take the cell's surface outlet
+            % (HydroPol2D-Python).
+            channel_boundary = hp2d_voronoi_auto_channel_boundary(mesh, ...
+                boundary_at(forcing, 'surface_boundary', t, state, mesh));
+        end
         [channel_volume, channel_boundary_q, channel_boundary_diag] = Voronoi_Channel_Boundary_Step( ...
             mesh.channel, channel_volume, channel_boundary_q, channel_boundary, dt, ...
             gravity=config.gravity, evaluation_volume=channel_flux_evaluation_volume);
@@ -917,6 +924,8 @@ if strcmp(name, 'surface_boundary')
         values = double(boundary.value(:));
         if isscalar(values), values = repmat(values, numel(boundary.edge_id), 1); end
         relative = types == "stage" & reference == "depth_above_local_invert";
+        boundary.stage_depth_m = nan(size(values));
+        boundary.stage_depth_m(relative) = values(relative);   % channel nodes measure it from their bed
         values(relative) = mesh.surface_bed(mesh.edge_owner(boundary.edge_id(relative))) + values(relative);
         boundary.value = values;
         boundary = rmfield(boundary, 'stage_reference');
