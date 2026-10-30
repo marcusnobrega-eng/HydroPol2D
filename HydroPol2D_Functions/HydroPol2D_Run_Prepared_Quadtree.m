@@ -28,10 +28,12 @@ overlap_file=fullfile(case_root,'processed_inputs','Mesh','hydropol_quadtree_ove
 mesh=HydroPol2D_Read_UGRID(mesh_file);
 mapping=HydroPol2D_Read_Overlap(overlap_file,mesh_file);
 
-lulc=map_category(fullfile(static_root,'LULC.tif'),mapping);
-soil=max(1,min(12,map_category(fullfile(static_root,'SOIL.tif'),mapping)));
-lai=map_mean(fullfile(static_root,'LAI.tif'),mapping,0);
-initial_theta=map_mean(fullfile(static_root,'Initial_Soil_Moisture_Fraction.tif'),mapping,0.25);
+% Each mesh cell gets one HRU per land-use x soil pair it overlaps, with that
+% pair's share of the cell and the area means of the continuous rasters
+% (hp2d_quadtree_hrus), as HydroPol2D-Python builds HRUs from the overlaps.
+lulc_raw=read_south_up(fullfile(static_root,'LULC.tif'));
+soil_raw=read_south_up(fullfile(static_root,'SOIL.tif'));
+soil_raw(isfinite(soil_raw))=max(1,min(12,soil_raw(isfinite(soil_raw))));
 dtb=max(map_mean(fullfile(static_root,'DTB.tif'),mapping,2),0.1);
 groundwater_head=map_mean_required(fullfile(static_root,'GW_table.tif'),mapping,'initial groundwater head');
 [groundwater_fixed_mask,groundwater_fixed_head]=map_fixed_head( ...
@@ -39,23 +41,50 @@ groundwater_head=map_mean_required(fullfile(static_root,'GW_table.tif'),mapping,
 
 land_cover_parameters=config_json.class_parameters.land_cover;
 soil_parameters=config_json.class_parameters.soil;
-roughness=parameter_lookup(land_cover_parameters,lulc,'manning_n', ...
-    double(config_json.parameters.surface_manning_fallback_n));
-root_depth=parameter_lookup_required(land_cover_parameters,lulc,'root_depth_m');
-impervious=logical(parameter_lookup_required(land_cover_parameters,lulc,'impervious'));
-tr=parameter_lookup_required(soil_parameters,soil,'theta_r');
-ts=parameter_lookup_required(soil_parameters,soil,'theta_s');
-alpha_vg=parameter_lookup_required(soil_parameters,soil,'alpha_vg_m_inverse');
-n_vg=parameter_lookup_required(soil_parameters,soil,'n_vg');
-ksat_mm_h=parameter_lookup_required(soil_parameters,soil,'ksat_mm_h');
-specific_yield=parameter_lookup_required(soil_parameters,soil,'specific_yield');
-groundwater_ksat_mm_h=parameter_lookup_required(soil_parameters,soil,'groundwater_ksat_mm_h');
+valid_raw=isfinite(lulc_raw) & isfinite(soil_raw);
+% Impervious share: the ImperviousFraction raster where the Builder wrote one
+% (percent when its largest value exceeds 1), 1 on impervious classes.
+impervious_raw=zeros(size(lulc_raw));
+impervious_path=fullfile(static_root,'ImperviousFraction.tif');
+if isfile(impervious_path)
+    impervious_raw=read_south_up(impervious_path);
+    if max(impervious_raw(valid_raw),[],'omitnan')>1, impervious_raw=impervious_raw/100; end
+    impervious_raw(~isfinite(impervious_raw))=0;
+end
+impervious_class=false(size(lulc_raw));
+impervious_class(valid_raw)=logical(parameter_lookup_required(land_cover_parameters, ...
+    lulc_raw(valid_raw),'impervious'));
+impervious_raw(impervious_class)=1;
+hrus=hp2d_quadtree_hrus(mapping.raster_to_mesh,lulc_raw,soil_raw,struct( ...
+    'lai',read_optional(fullfile(static_root,'LAI.tif'),size(lulc_raw)), ...
+    'theta',read_optional(fullfile(static_root,'Initial_Soil_Moisture_Fraction.tif'),size(lulc_raw)), ...
+    'dtb',read_optional(fullfile(static_root,'DTB.tif'),size(lulc_raw)), ...
+    'impervious',impervious_raw));
+lai=hrus.lai; lai(~isfinite(lai))=0;
+initial_theta=hrus.theta; initial_theta(~isfinite(initial_theta))=0.25;
+hru_dtb=hrus.dtb; missing_dtb=~isfinite(hru_dtb);
+cell_dtb=repmat(dtb,1,size(hru_dtb,2)); hru_dtb(missing_dtb)=cell_dtb(missing_dtb);
+hru_dtb=max(hru_dtb,0.1);
+root_depth=parameter_lookup_required(land_cover_parameters,hrus.lulc,'root_depth_m');
+tr=parameter_lookup_required(soil_parameters,hrus.soil,'theta_r');
+ts=parameter_lookup_required(soil_parameters,hrus.soil,'theta_s');
+alpha_vg=parameter_lookup_required(soil_parameters,hrus.soil,'alpha_vg_m_inverse');
+n_vg=parameter_lookup_required(soil_parameters,hrus.soil,'n_vg');
+ksat_mm_h=parameter_lookup_required(soil_parameters,hrus.soil,'ksat_mm_h');
+% Roughness and the groundwater parameters are area means over the cell.
+roughness=raster_mean(mapping,valid_raw,class_raster(land_cover_parameters,lulc_raw,valid_raw, ...
+    'manning_n',double(config_json.parameters.surface_manning_fallback_n)));
+specific_yield=raster_mean(mapping,valid_raw,class_raster(soil_parameters,soil_raw,valid_raw, ...
+    'specific_yield',[]));
+groundwater_ksat_mm_h=raster_mean(mapping,valid_raw,class_raster(soil_parameters,soil_raw,valid_raw, ...
+    'groundwater_ksat_mm_h',[]));
 
 flags=config_json.flags;
 hydrology=struct( ...
-    'pervious_fraction',double(~impervious), ...
+    'hru_fraction',hrus.fraction, ...
+    'pervious_fraction',min(max(1-hrus.impervious,0),1), ...
     'lai',lai.*double(flags.canopy_interception), ...
-    'soil_depth_m',dtb,'root_depth_m',min(dtb,root_depth), ...
+    'soil_depth_m',hru_dtb,'root_depth_m',min(hru_dtb,root_depth), ...
     'theta_r',tr,'theta_sat',ts, ...
     'alpha_vg_1_m',alpha_vg,'n_vg',n_vg, ...
     'ksat_m_s',ksat_mm_h./1000./3600, ...
@@ -281,13 +310,25 @@ value=(mapping.raster_to_mesh*raw)./max(weight,eps);
 mask=weight>0; value(~mask)=fallback(~mask);
 end
 
-function value=map_category(path,mapping)
-raw=read_south_up(path); classes=unique(raw(isfinite(raw)));
-score=zeros(size(mapping.raster_to_mesh,1),numel(classes));
-for k=1:numel(classes)
-    score(:,k)=mapping.raster_to_mesh*double(raw==classes(k));
+function raw=read_optional(path,raster_size)
+% A prepared raster, or NaN everywhere when the Builder did not write it.
+if isfile(path), raw=read_south_up(path); else, raw=nan(raster_size); end
 end
-[~,selected]=max(score,[],2); value=classes(selected);
+
+function value=class_raster(records,code,valid,field_name,fallback)
+% A class parameter on every active raster cell.
+value=nan(size(code));
+if isempty(fallback)
+    value(valid)=parameter_lookup_required(records,code(valid),field_name);
+else
+    value(valid)=parameter_lookup(records,code(valid),field_name,fallback);
+end
+end
+
+function value=raster_mean(mapping,valid,raw)
+% Area mean over each mesh cell's active raster cells.
+raw(~valid)=0;
+value=(mapping.raster_to_mesh*raw)./max(mapping.raster_to_mesh*double(valid),eps);
 end
 
 function raw=read_south_up(path)
