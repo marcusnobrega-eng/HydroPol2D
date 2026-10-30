@@ -224,8 +224,15 @@ if has_layered_soil && flags.flag_capillary_rise == 1
     pending_net_m(~isfinite(pending_net_m)) = 0;
     available_gw_depth_m = max(saturated_thickness_m .* Sy_for_cap + pending_net_m, 0);
 
+    % Field-capacity head from the case (capillary_field_capacity_head_m,
+    % default 3.3 m), as HydroPol2D-Python's legacy capillary rise.
+    field_capacity_head_m = 3.3;
+    if isfield(flags,'capillary_field_capacity_head_m') && ~isempty(flags.capillary_field_capacity_head_m)
+        field_capacity_head_m = double(flags.capillary_field_capacity_head_m);
+    end
     [capillary_rate, Soil_Properties] = simulate_layered_capillary_rise( ...
-        Soil_Properties, BC_States, z_terrain, dt_s, idx_nan, available_gw_depth_m);
+        Soil_Properties, BC_States, z_terrain, dt_s, idx_nan, available_gw_depth_m, ...
+        field_capacity_head_m);
 end
 
 recharge_rate = recharge_down_rate - capillary_rate; % net vadose-GW exchange [m/s]
@@ -327,10 +334,16 @@ normalized_head_change=abs(BC_States.h_t-GW_States.lateral_reference_head_m)./ma
 normalized_head_change(idx_nan)=0;
 head_change_due=max(normalized_head_change(:),[],'omitnan')>=1;
 
+% Courant number of the lateral solver (groundwater_courant, default 0.25),
+% configurable as in HydroPol2D-Python.
+groundwater_courant=0.25;
+if isfield(flags,'groundwater_courant') && ~isempty(flags.groundwater_courant)
+    groundwater_courant=double(flags.groundwater_courant);
+end
 if flags.flag_baseflow==1
     dt_stable_s=estimate_groundwater_stable_timestep( ...
         Soil_Properties,BC_States,z_bed,Wshed_Properties.Resolution, ...
-        Wshed_Properties.Resolution,idx_nan);
+        Wshed_Properties.Resolution,idx_nan,groundwater_courant);
 else
     dt_stable_s=inf;
 end
@@ -392,15 +405,17 @@ if groundwater_update_due
     % 4a) FULL GROUNDWATER PROPAGATION: BOUSSINESQ SOLVER
     %% --------------------------------------------------------------------
 
+    % Adaptive floor groundwater_min_dt_s from the case (default 60 s), as
+    % HydroPol2D-Python.
     initial_step_s=min(GW_States.suggested_dt_s,dt_gw_s);
-    minimum_step_s=max(min(dt_s,1),eps);
+    minimum_step_s=groundwater_min_dt_s;
     [BC_States.h_t,~,~,lateral_q_exf,error,seepage_discharge_m3_s,adaptive] = ...
         hp2d_boussinesq_adaptive(dt_gw_s,initial_step_s,minimum_step_s, ...
         flags.groundwater_relative_tolerance,flags.groundwater_head_tolerance_m, ...
         Wshed_Properties.Resolution,Wshed_Properties.Resolution,BC_States.h_t, ...
         z_bed,Soil_Properties.Sy,recharge_for_gw,gw_ksat_m_s,z_terrain, ...
         Soil_Properties.Soil_Depth,Wshed_Properties.domain,dirichlet_mask, ...
-        h_dirichlet,seepage_mask,h_seepage,Wshed_Properties.perimeter,0.25);
+        h_dirichlet,seepage_mask,h_seepage,Wshed_Properties.perimeter,groundwater_courant);
 
     % Update previous groundwater head
     BC_States.h_0 = BC_States.h_t;

@@ -29,7 +29,7 @@ rooted_capacity(~use_root)=layers.near_surface_capacity_mm(~use_root).*(root_dep
 rooted_storage=layers.root_zone_storage_mm;
 rooted_storage(~use_root)=layers.near_surface_storage_mm(~use_root);
 capillary_depth_mm=1000.*hp2d_vg_mualem_capillary_transfer( ...
-    layers.ksat_root_zone./1000./3600,alpha,n_value,0.5,gap, ...
+    layers.ksat_root_zone./1000./3600,alpha,n_value,soil_l_vg(Soil_Properties),gap, ...
     field_capacity_head_m,rooted_capacity./1000,rooted_storage./1000, ...
     remaining_mm./1000,dt_s);
 layers.root_zone_storage_mm=layers.root_zone_storage_mm+capillary_depth_mm.*use_root;
@@ -41,4 +41,14 @@ capillary_rate(idx_nan) = nan;
 
 Soil_Properties.Layers = layers;
 Soil_Properties = sync_layered_soil_storage(Soil_Properties, idx_nan);
+end
+
+function l_vg = soil_l_vg(Soil_Properties)
+% Mualem pore connectivity of the soil (soil table column l_vg; it was fixed
+% at 0.5 here, as HydroPol2D-Python's legacy capillary rise reads l_vg).
+l_vg = 0.5;
+if isfield(Soil_Properties, 'l_vg') && ~isempty(Soil_Properties.l_vg)
+    l_vg = Soil_Properties.l_vg;
+    l_vg(~isfinite(l_vg)) = 0.5;
+end
 end
