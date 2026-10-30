@@ -52,6 +52,7 @@ CHECKS = (
     Check("quadtree HRUs", "Validation/Voronoi/QuadtreeHRUs/run_quadtree_hru_check.m", "Validation/Voronoi/QuadtreeHRUs/Outputs/Validation/Pass_Fail.csv", "fast"),
     Check("mesh snow", "Validation/Voronoi/MeshSnow/run_mesh_snow_check.m", "Validation/Voronoi/MeshSnow/Outputs/Validation/Pass_Fail.csv", "fast"),
     Check("west-face velocity", "Validation/Hydrodynamics/FaceVelocity_WestFace/run_west_face_velocity_check.m", "Validation/Hydrodynamics/FaceVelocity_WestFace/Outputs/Validation/Pass_Fail.csv", "fast"),
+    Check("canopy potential and negative ET", "Validation/Evapotranspiration/CanopyPotential_NegativeET/run_canopy_potential_check.m", "Validation/Evapotranspiration/CanopyPotential_NegativeET/Outputs/Validation/Pass_Fail.csv", "fast"),
     Check("forcing time stamps", "Validation/BoundaryConditions/ForcingTimeStamps_StartOfInterval/run_forcing_time_stamp_check.m", "Validation/BoundaryConditions/ForcingTimeStamps_StartOfInterval/Outputs/Validation/Pass_Fail.csv", "fast"),
     Check("spatial rainfall", "Validation/SpatialRainfall/TinyRaster_TotalRainfall/run_spatial_rainfall_raster_validation.m", "Validation/SpatialRainfall/TinyRaster_TotalRainfall/Outputs/Validation/SpatialRainfall_Raster_Pass_Fail.csv", "fast"),
     Check("water quality", "Validation/WaterQuality/BuildUpWashOff_MassBalance/run_water_quality_washoff_validation.m", "Validation/WaterQuality/BuildUpWashOff_MassBalance/Outputs/Validation/WaterQuality_Washoff_Pass_Fail.csv", "fast"),

@@ -56,7 +56,21 @@ end
 
 
 if flags.flag_ETP == 1 && flags.flag_abstraction == 1
-    [Hydro_States.S, Hydro_States.T, Hydro_States.E_int, Hydro_States.St_F, error] = interceptionModel(P_interception, Hydro_States.Ep*(time_step/60/24), LAI_raster.Z, Hydro_States.S, 0.2, zero_matrix);
+    % The canopy evaporates at the reference ET, or at the prescribed
+    % evaporation + transpiration when ET comes from maps (HydroPol2D-Python).
+    % The open-water rate Ep is for ponded water only.
+    if flags.flag_input_ETP_map == 1
+        if isfield(BC_States,'current_evaporation_map') && ~isempty(BC_States.current_evaporation_map)
+            canopy_potential = BC_States.current_evaporation_map + BC_States.current_transpiration_map;
+        else
+            canopy_potential = input_evaporation + input_transpiration;
+        end
+    else
+        canopy_potential = Hydro_States.ETP;
+    end
+    canopy_potential(~isfinite(canopy_potential)) = 0;
+    canopy_potential = max(canopy_potential, 0); % mm/day
+    [Hydro_States.S, Hydro_States.T, Hydro_States.E_int, Hydro_States.St_F, error] = interceptionModel(P_interception, canopy_potential*(time_step/60/24), LAI_raster.Z, Hydro_States.S, 0.2, zero_matrix);
 elseif flags.flag_ETP == 0 && flags.flag_abstraction == 1
     [Hydro_States.S, Hydro_States.T, Hydro_States.E_int, Hydro_States.St_F, error] = interceptionModel(P_interception, zeros(size(elevation,1),size(elevation,2)), LAI_raster.Z, Hydro_States.S, 0.2, zero_matrix);
 else

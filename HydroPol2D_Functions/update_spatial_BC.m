@@ -630,8 +630,12 @@ if flags.flag_ETP == 1 && flags.flag_input_ETP_map ~= 1
                 ETP_Parameters.mintemp_stations,ETP_Parameters.avgtemp_stations,ETP_Parameters.u2_stations,ETP_Parameters.ur_stations, ...
                 ETP_Parameters.G_stations,ETP_Parameters.DEM_etp,ETP_Parameters.lat,ETP_Parameters.Krs,ETP_Parameters.alfa_albedo_input,idx_nan);
 
-            Hydro_States.ETP(isnan(Hydro_States.ETP)) = 0; Hydro_States.ETP(idx_nan) = nan;
-            Hydro_States.Ep(isnan(Hydro_States.Ep))   = 0; Hydro_States.Ep(idx_nan)  = nan;
+            Hydro_States.ETP(isnan(Hydro_States.ETP)) = 0;
+            Hydro_States.Ep(isnan(Hydro_States.Ep))   = 0;
+            % A negative Penman-Monteith value (cold, humid days) is no
+            % evaporation, not a source of water (HydroPol2D-Python clips it).
+            Hydro_States.ETP = max(Hydro_States.ETP, 0); Hydro_States.ETP(idx_nan) = nan;
+            Hydro_States.Ep  = max(Hydro_States.Ep, 0);  Hydro_States.Ep(idx_nan)  = nan;
             BC_States.Average_Daily_Temperature = avg_temp;
             BC_States.min_temp = min_temp;
             BC_States.wind = wind_speed;
@@ -665,8 +669,12 @@ if flags.flag_ETP == 1 && flags.flag_input_ETP_map ~= 1
                 ETP_Parameters.mintemp_stations,ETP_Parameters.avgtemp_stations,ETP_Parameters.u2_stations,ETP_Parameters.ur_stations, ...
                 ETP_Parameters.G_stations,ETP_Parameters.DEM_etp,ETP_Parameters.lat,ETP_Parameters.Krs,ETP_Parameters.alfa_albedo_input,idx_nan);
 
-            Hydro_States.ETP(isnan(Hydro_States.ETP)) = 0; Hydro_States.ETP(idx_nan) = nan;
-            Hydro_States.Ep(isnan(Hydro_States.Ep))   = 0; Hydro_States.Ep(idx_nan)  = nan;
+            Hydro_States.ETP(isnan(Hydro_States.ETP)) = 0;
+            Hydro_States.Ep(isnan(Hydro_States.Ep))   = 0;
+            % A negative Penman-Monteith value (cold, humid days) is no
+            % evaporation, not a source of water (HydroPol2D-Python clips it).
+            Hydro_States.ETP = max(Hydro_States.ETP, 0); Hydro_States.ETP(idx_nan) = nan;
+            Hydro_States.Ep  = max(Hydro_States.Ep, 0);  Hydro_States.Ep(idx_nan)  = nan;
             BC_States.Average_Daily_Temperature = avg_temp;
             BC_States.min_temp = min_temp;
             BC_States.wind = wind_speed;
