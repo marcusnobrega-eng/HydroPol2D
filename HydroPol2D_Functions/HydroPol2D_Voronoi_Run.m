@@ -944,6 +944,13 @@ else
     % after its face has drained creates a fictitious q/h velocity and can
     % collapse the CFL timestep before the solver zeros/clips that flux.
     internal_depth = face_depth(internal);
+    % With hydraulic tables the wave speed comes from the face's hydraulic
+    % depth A/P at the higher of the two water surfaces, where either cell
+    % holds water (HydroPol2D-Python), not from the volume spread over the cell.
+    if isfield(config, 'subgrid_tables') && isfield(config.subgrid_tables, 'face_datum_m')
+        internal_depth = table_face_depth(mesh, config.subgrid_tables, surface_volume, ...
+            internal, internal_depth, config.dry_tolerance_m);
+    end
     cfl_q = abs(edge_q(internal));
     cfl_q(internal_depth <= config.dry_tolerance_m) = 0;
     if config.critical_flow
@@ -1226,12 +1233,43 @@ geometry.den_y = per_cell(length_.*abs(sy));
 geometry.width = side;
 end
 
+function depth = table_face_depth(mesh, tables, surface_volume, internal, flat_depth, dry_tolerance_m)
+% Hydraulic depth A/P of the interior faces that use hydraulic tables.
+faces = find(internal);
+owner = mesh.edge_owner(faces); neighbor = mesh.edge_neighbor(faces);
+[cell_wse, ~] = hp2d_voronoi_subgrid_cell_stage(tables, surface_volume);
+uses_tables = true(size(faces));
+if isfield(tables, 'cell_is_subgrid') && ~isempty(tables.cell_is_subgrid)
+    flag = logical(tables.cell_is_subgrid);
+    uses_tables = flag(owner) & flag(neighbor);
+end
+depth = flat_depth;
+if ~any(uses_tables), return; end
+table_faces = faces(uses_tables);
+sub_tables = struct('face_datum_m', tables.face_datum_m(table_faces), ...
+    'face_zeta_m', tables.face_zeta_m(table_faces, :), ...
+    'face_flow_area_m2', tables.face_flow_area_m2(table_faces, :), ...
+    'face_perimeter_m', tables.face_perimeter_m(table_faces, :), ...
+    'face_conveyance', tables.face_conveyance(table_faces, :), ...
+    'face_point_count', tables.face_point_count(table_faces));
+stage = max(cell_wse(owner(uses_tables)), cell_wse(neighbor(uses_tables)));
+[area, perimeter] = hp2d_voronoi_subgrid_face_state(sub_tables, stage);
+hydraulic = zeros(size(area));
+hydraulic(perimeter > 0) = area(perimeter > 0)./perimeter(perimeter > 0);
+has_water = surface_volume(:) > 0;
+hydraulic(~(has_water(owner(uses_tables)) | has_water(neighbor(uses_tables)))) = 0;
+depth(uses_tables) = max(hydraulic, max(dry_tolerance_m, 1e-9));
+depth(uses_tables & ~(has_water(owner) | has_water(neighbor))) = 0;
+end
+
 function [dt, diagnostic] = bates_cartesian_timestep(mesh, surface_volume, edge_q, config)
 %BATES_CARTESIAN_TIMESTEP Structured Bates rule (refreshing_timestep.m) cell by cell.
 %   Face depth = max water surface - max bed; face speed q/h (h below the depth tolerance
 %   counts as 1e9 m); cell speed = magnitude of the mean opposite-face velocities; cell
-%   depth = deepest interior face; wave limit alfa_min*width/sqrt(g h) over cells moving
-%   at >= 0.01 m/s; optional advective limit; floored to the increment.
+%   depth = deepest interior face; wave limit alfa_min*width/(|q/h| + sqrt(g h)) over every
+%   wet cell, |q/h| the cell's fastest interior face (standing water counts, as on the
+%   grid since 20f2ded and in HydroPol2D-Python); optional advective limit; floored to
+%   the increment.
 G = config.gravity;
 g = config.bates_geometry;
 depth = max(surface_volume(:)./mesh.surface_area(:), 0);
@@ -1250,12 +1288,15 @@ uy(g.den_y > 0) = uy(g.den_y > 0)./g.den_y(g.den_y > 0); uy(g.den_y <= 0) = 0;
 speed = hypot(ux, uy);
 hcell = max(accumarray(o, hface, [n 1], @max, 0), accumarray(d, hface, [n 1], @max, 0));
 celerity = sqrt(G*hcell);
+face_speed = max(accumarray(o, abs(speed_face), [n 1], @max, 0), ...
+    accumarray(d, abs(speed_face), [n 1], @max, 0));
+signal = face_speed + celerity;
 alfa_min = config.courant; if ~isempty(config.alfa_min), alfa_min = config.alfa_min; end
 alfa_max = config.courant; if ~isempty(config.alfa_max), alfa_max = config.alfa_max; end
-moving = speed >= 0.01 & celerity > 0;
-if any(moving)
-    [dt_wave, index] = min(alfa_min*g.width(moving)./celerity(moving));
-    moving_id = find(moving); control = moving_id(index);
+wet = signal > 1e-10;
+if any(wet)
+    [dt_wave, index] = min(alfa_min*g.width(wet)./signal(wet));
+    wet_id = find(wet); control = wet_id(index);
 else
     dt_wave = config.max_dt_s; control = 1;
 end
