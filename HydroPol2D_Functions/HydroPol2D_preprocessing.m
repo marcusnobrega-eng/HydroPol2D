@@ -3639,28 +3639,23 @@ Soil_Properties.I_t = Soil_Properties.I_0;
 layer_options = struct('near_surface_depth_m', 0.05, 'min_layer_thickness_m', 0.005);
 [Soil_Properties, LULC_Properties] = derive_layered_soil_profile( ...
     Soil_Properties, LULC_Properties, BC_States, elevation, idx_nan, layer_options);
+% Each layer's initial-moisture raster is optional; a layer without one
+% starts at theta_i. initialize_layered_soil_storage turns theta into
+% f_p (theta - theta_r) thickness, as HydroPol2D-Python does.
 layer_theta_paths = {InitialNearSurfaceTheta_path, InitialRootZoneTheta_path, ...
     InitialTransmissionTheta_path};
-if all(cellfun(@(p) strlength(string(p)) > 0 && isfile(char(p)), layer_theta_paths))
-    layer_theta = cell(1,3);
-    for layer_index = 1:3
-        layer_raster = GRIDobj(char(layer_theta_paths{layer_index}));
+layer_theta_names = {'near_surface','root_zone','transmission'};
+for layer_index = 1:3
+    layer_path = layer_theta_paths{layer_index};
+    if strlength(string(layer_path)) > 0 && isfile(char(layer_path))
+        layer_raster = GRIDobj(char(layer_path));
         layer_raster = resample(layer_raster, DEM_raster, 'bilinear');
         values = double(layer_raster.Z);
         values = min(max(values, Soil_Properties.theta_r), Soil_Properties.theta_sat);
         values(idx_nan) = nan;
-        layer_theta{layer_index} = values;
+        Soil_Properties.initial_layer_theta.(layer_theta_names{layer_index}) = values;
+        Soil_Properties.initial_soil_storage_source = 'layer_specific_theta_rasters';
     end
-    Soil_Properties.Layers.near_surface_storage_mm = ...
-        max(layer_theta{1} - Soil_Properties.theta_r,0) .* ...
-        Soil_Properties.Layers.near_surface_thickness_m .* 1000;
-    Soil_Properties.Layers.root_zone_storage_mm = ...
-        max(layer_theta{2} - Soil_Properties.theta_r,0) .* ...
-        Soil_Properties.Layers.root_zone_thickness_m .* 1000;
-    Soil_Properties.Layers.transmission_storage_mm = ...
-        max(layer_theta{3} - Soil_Properties.theta_r,0) .* ...
-        Soil_Properties.Layers.transmission_thickness_m .* 1000;
-    Soil_Properties.initial_soil_storage_source = 'layer_specific_theta_rasters';
 end
 Soil_Properties = initialize_layered_soil_storage(Soil_Properties, idx_nan);
 Soil_Properties.Feddes = Subsurface_Config.feddes;

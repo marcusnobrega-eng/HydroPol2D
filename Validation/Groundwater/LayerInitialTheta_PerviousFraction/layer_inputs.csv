@@ -1,0 +1,7 @@
+pervious_fraction,near_thickness_m,root_thickness_m,transmission_thickness_m,near_capacity_mm,root_capacity_mm,transmission_capacity_mm,theta_r,theta_near,theta_root,theta_transmission
+1,0.05,0.45,1.5,20,180,600,0.05,0.3,0.4,0.3
+0.8,0.05,0.3,1.2,16,96,384,0.05,0.25,0.1,0.25
+0.5,0.05,0.6,0.9,10,120,180,0.05,0.4,0.3,0.4
+0.25,0.05,0.4,1,5,40,100,0.05,0.2,0.44,0.2
+0.05,0.05,0.25,1.6,1,5,32,0.05,0.35,0.2,0.35
+0,0.05,0.5,1.5,0,0,0,0.05,0.3,0.3,0.3
