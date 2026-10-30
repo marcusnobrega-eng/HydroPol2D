@@ -95,17 +95,24 @@ Nx = size(h,2); Ny = size(h,1);
 % Compute groundwater velocities
 [u_x, u_y] = compute_boussinesq_velocities(h_t, K, dx, dy); % m/s
 
+% The step T is split where the Darcy-velocity Courant limit asks for it;
+% the last inner step ends exactly at T, and exfiltration, seepage and the
+% mass error are summed over every inner step (HydroPol2D-Python takes one
+% predictor-corrector per requested step).
+exfiltration_depth_m = zeros(size(h));
+seepage_volume_m3 = 0;
+error_total = 0;
+time_tolerance = 10*eps(max(T,1));
 
-while t < T
+while t < T - time_tolerance
     h_previous = h_t;
-    n_steps = ceil(T/dt);
-    kk = 1;
 
     % Compute new stable dt at each step
     dt_GW = nanmin(nanmin(compute_stable_dt(u_x, u_y, dx, dy, Courant))); % Adaptive time step
 
     % Ensure dt does not exceed remaining simulation time
-    dt = min(dt_GW,dt);
+    dt = min(dt_GW, T - t);
+    if ~(dt > 0), dt = T - t; end
 
     % Compute groundwater discharge to rivers (maybe this has to be
     % deactivated)
@@ -160,6 +167,7 @@ while t < T
 
     % Compute exfiltration where groundwater head exceeds surface elevation
     q_exf = max(0, (h_t - h_surf)) .* Sy / dt;  % [m/s]
+    exfiltration_depth_m = exfiltration_depth_m + q_exf .* dt;
 
     exf_vol = dt*nansum(nansum(q_exf*dx*dy)); % exiltration volume [m3]
 
@@ -168,7 +176,7 @@ while t < T
 
     % Compute groundwater velocities
     [u_x, u_y] = compute_boussinesq_velocities(h_t, K, dx, dy); % m/s
-    seepage_discharge_m3_s = nansum(nansum(q_seep_avg .* dx .* dy));
+    seepage_volume_m3 = seepage_volume_m3 + nansum(nansum(q_seep_avg .* dx .* dy)) * dt;
 
     % Apply catchment mask (ensuring calculations remain within domain)
     h_t(~catchment_mask) = nan;
@@ -200,17 +208,17 @@ while t < T
     storage_change = storage_curr - storage_prev;
 
     % Step 4: Mass balance error [m³]
-    error = recharge_mass - exfil_mass - dirichlet_exchange_m3 - storage_change;
-
+    error_total = error_total + recharge_mass - exfil_mass - dirichlet_exchange_m3 - storage_change;
 
     % Update variables for next time step
     h = h_t;
-    kk = kk + 1;
-    if kk == (n_steps -1) % Last time-step
-        dt = T - kk*dt;
-    end
     t = t + dt;
 end
+% Rates over the whole step T
+q_exf = exfiltration_depth_m / T;
+q_exf(~catchment_mask) = nan;
+seepage_discharge_m3_s = seepage_volume_m3 / T;
+error = error_total;
 
 
 end
