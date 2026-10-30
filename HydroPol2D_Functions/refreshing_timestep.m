@@ -337,13 +337,8 @@ if running_control.delta_time_save > 0 || k == 1
         new_timestep = min(new_timestep, Courant_Parameters.dt_neal);
     end
 
-    %% --------------------------------------------------------------------
-    % Water quality restriction
-    % ---------------------------------------------------------------------
-    if flags.flag_waterquality == 1
-        Courant_Parameters.alfa_wq = 1; % Reduction factor of water quality
-        new_timestep = min(Courant_Parameters.alfa_wq * tmin_wq, new_timestep);
-    end
+    % Water quality does not limit the step: build_up_wash_off sub-cycles
+    % inside it, as HydroPol2D-Python's wash-off does.
 
     %% --------------------------------------------------------------------
     % Safety fallback
