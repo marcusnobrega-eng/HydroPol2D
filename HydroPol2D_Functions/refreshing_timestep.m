@@ -70,7 +70,8 @@ if running_control.delta_time_save > 0 || k == 1
         % Face velocities
         velocities.vel_right = (flow_rate.qout_right_t / 1000 / 3600) .* ...
             Wshed_Properties.Resolution ./ (safe_depth(:,:,1) / 1000); % m/s
-        velocities.vel_left  = -[zeros(ny,1), velocities.vel_right(:,2:end)];
+        % The west face of cell j is the east face of cell j-1.
+        velocities.vel_left  = -[zeros(ny,1), velocities.vel_right(:,1:end-1)];
 
         velocities.vel_up    = (flow_rate.qout_up_t / 1000 / 3600) .* ...
             Wshed_Properties.Resolution ./ (safe_depth(:,:,2) / 1000); % m/s
