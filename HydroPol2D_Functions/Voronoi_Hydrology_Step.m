@@ -83,7 +83,7 @@ surface_volume = max(surface_volume-infiltration_volume,0);
 % Match the reference ordering: infiltration first, then open-water
 % evaporation or root-accessible ET above the wilting threshold.
 ponded = surface_volume > 0;
-surface_evaporation_volume = min(surface_volume, open_water_evaporation_m_s .* dt_s .* mesh.cell_area(:));
+surface_evaporation_volume = min(surface_volume, open_water_evaporation_m_s .* dt_s .* mesh.surface_area(:));
 surface_evaporation_volume(~ponded) = 0;
 surface_volume = surface_volume - surface_evaporation_volume;
 soil_et_demand = pet_hru .* state.crop_coefficient;
@@ -249,7 +249,10 @@ upper=upper-moved; lower=lower+moved;
 end
 
 function [state,capillary] = capillary_rise(state,available_cell_depth,dt_s)
-remaining=max(available_cell_depth,0)+zeros(size(state.fraction));
+% Each HRU takes what its deficit and conductivity allow; the HRUs of a cell
+% then share the cell's groundwater, scaled together when they ask for more
+% than it holds (HydroPol2D-Python _capillary_rise).
+remaining=inf(size(state.fraction));
 gap=max(state.water_table_depth_m-state.root_depth_m,0);
 use_root=state.root_capacity_m>0;
 rooted_capacity=state.root_capacity_m;
@@ -259,6 +262,10 @@ rooted_storage(~use_root)=state.near_storage_m(~use_root);
 capillary=hp2d_vg_mualem_capillary_transfer(state.ksat_root_m_s,state.alpha_vg_1_m, ...
     state.n_vg,state.l_vg,gap,state.capillary_field_capacity_head_m, ...
     rooted_capacity,rooted_storage,remaining,dt_s);
+available_volume=max(available_cell_depth,0).*sum(state.area_m2,2);
+requested=sum(capillary.*state.area_m2,2);
+scale=min(1,available_volume./max(requested,eps));
+capillary=capillary.*scale;
 state.root_storage_m=state.root_storage_m+capillary.*use_root;
 state.near_storage_m=state.near_storage_m+capillary.*~use_root;
 end

@@ -59,6 +59,7 @@ CHECKS = (
     Check("mesh standing-water time step", "Validation/Voronoi/BatesStandingWater/run_mesh_bates_standing_water_check.m", "Validation/Voronoi/BatesStandingWater/Outputs/Validation/Pass_Fail.csv", "fast"),
     Check("mesh soil layers", "Validation/Voronoi/MeshSoilLayers/run_mesh_soil_layers_check.m", "Validation/Voronoi/MeshSoilLayers/Outputs/Validation/Pass_Fail.csv", "fast"),
     Check("mesh diffusive critical cap", "Validation/Voronoi/DiffusiveCriticalCap/run_diffusive_critical_cap_check.m", "Validation/Voronoi/DiffusiveCriticalCap/Outputs/Validation/Pass_Fail.csv", "fast"),
+    Check("mesh capillary pool", "Validation/Voronoi/MeshCapillaryPool/run_mesh_capillary_pool_check.m", "Validation/Voronoi/MeshCapillaryPool/Outputs/Validation/Pass_Fail.csv", "fast"),
     Check("forcing time stamps", "Validation/BoundaryConditions/ForcingTimeStamps_StartOfInterval/run_forcing_time_stamp_check.m", "Validation/BoundaryConditions/ForcingTimeStamps_StartOfInterval/Outputs/Validation/Pass_Fail.csv", "fast"),
     Check("spatial rainfall", "Validation/SpatialRainfall/TinyRaster_TotalRainfall/run_spatial_rainfall_raster_validation.m", "Validation/SpatialRainfall/TinyRaster_TotalRainfall/Outputs/Validation/SpatialRainfall_Raster_Pass_Fail.csv", "fast"),
     Check("water quality", "Validation/WaterQuality/BuildUpWashOff_MassBalance/run_water_quality_washoff_validation.m", "Validation/WaterQuality/BuildUpWashOff_MassBalance/Outputs/Validation/WaterQuality_Washoff_Pass_Fail.csv", "fast"),
