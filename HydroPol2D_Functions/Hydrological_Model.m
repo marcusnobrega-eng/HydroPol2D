@@ -34,6 +34,21 @@ end
 % rain reaches the canopy (as in HydroPol2D-Python).
 Snow_Module
 
+% Rain on a detention pond goes to its level pool (hp2d_detention_ponds_forcing_step
+% before this script), not to the canopy and the soil of the pond cells.
+use_detention_ponds = isfield(flags, 'flag_detention_ponds') && flags.flag_detention_ponds == 1;
+if use_detention_ponds && ~(exist('detention_ponds_coupled', 'var') && detention_ponds_coupled)
+    error('HydroPol2D:DetentionPonds', ...
+        'Detention ponds are coupled in HydroPol2D_Main_While only; this time loop does not run them.');
+end
+if use_detention_ponds
+    if isscalar(BC_States.Liquid_Precipitation)
+        BC_States.Liquid_Precipitation = BC_States.Liquid_Precipitation .* ...
+            ones(size(depths.d_t), 'like', depths.d_t);
+    end
+    BC_States.Liquid_Precipitation(Detention_Ponds.mask) = 0;
+end
+
 % Interception Module: intercepts the rain and adds the throughfall to the surface
 interception_module
 
@@ -56,6 +71,11 @@ end
 
 % Inflow
 depths.d_t = depths.d_t + BC_States.inflow;
+
+% Water left on pond cells (groundwater exfiltration, an inflow cell) joins the pond.
+if use_detention_ponds
+    [Detention_Ponds, depths.d_t] = hp2d_detention_ponds_take_surface(Detention_Ponds, depths.d_t);
+end
 
 % Lookup-table subgrid stores water by volume, not by representative area.
 % Hydrologic source/sink modules update depth in mm, so convert the net

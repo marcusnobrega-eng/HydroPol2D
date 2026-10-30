@@ -340,6 +340,7 @@ InputData_Bypass.flags.flag_full_momentum                = 0;
 InputData_Bypass.flags.flag_waterbalance                 = 0;
 InputData_Bypass.flags.flag_waterquality                 = 0;
 InputData_Bypass.flags.flag_reservoir                    = 0;
+InputData_Bypass.flags.flag_detention_ponds              = 0;   % level-pool ponds (Section 12b)
 InputData_Bypass.flags.flag_wq_model                     = 0;
 InputData_Bypass.flags.flag_groundwater_modeling         = 0;
 InputData_Bypass.flags.flag_river_groundwater_exchange   = 0;
@@ -1181,6 +1182,52 @@ Reservoir_Data.y_ds2 = []; % [m]
 % Reservoir_Data.y_ds2 = [4099800.0]; % [m]
 
 InputData_Bypass.Reservoir_Data = Reservoir_Data;
+
+%% ========================================================================
+% SECTION 12b — DETENTION PONDS (flag_detention_ponds = 1)
+% ========================================================================
+% Level-pool ponds, as in HydroPol2D-Python. A pond cell is not surface: rain,
+% open-water evaporation (Ep, flag_ETP = 1) and bottom seepage act on the pond;
+% the cells around it drain into it over critical faces; its devices exchange
+% water with surface cells. Seepage recharges the groundwater under the pond
+% (it leaves the model when flag_groundwater_modeling = 0). Needs the D4
+% local-inertial solver; not with sub-grid channels, water quality or snow.
+% Bypass only (the workbook has no pond sheet). Fields and defaults:
+% hp2d_prepare_detention_ponds.
+%
+% Footprint: vertices_m ([x y] in the DEM's CRS, cell centres inside), or mask
+% (logical, DEM size), cells ([row col]), or raster_path + raster_value.
+% storage_method: 'dtm' (stage-storage from the DEM cells) or 'power_law'
+% (V = storage_coefficient * (stage - invert_elevation_m)^storage_exponent).
+% Devices: 'orifice' (invert_elevation_m, opening_area_m2, Cd 0.62), 'spillway'
+% (crest_elevation_m, crest_length_m, Cd 1.7), 'pump' (maximum_flow_m3_s,
+% shutoff_head_m, additional_head_loss_m, start_stage_m, stop_stage_m). Each
+% has destination_row/destination_column (1-based) or destination_x/destination_y;
+% (0, 0) sends the discharge out of the model, booked as outlet flow.
+% ========================================================================
+
+Detention_Ponds = struct([]);
+
+% Detention_Ponds = struct( ...
+%     'identifier', 'north_pond', ...
+%     'vertices_m', [500080 4099870; 500150 4099870; 500150 4099920; 500080 4099920], ...
+%     'storage_method', 'dtm', ...
+%     'initial_stage_m', 101.05, ...
+%     'lined', false, ...
+%     'bottom_ksat_mm_h', 2.5, ...
+%     'devices', {{ ...
+%         struct('kind', 'orifice', 'identifier', 'low_orifice', ...
+%             'destination_x', 500160, 'destination_y', 4099895, ...
+%             'invert_elevation_m', 100.80, 'opening_area_m2', 0.12), ...
+%         struct('kind', 'spillway', 'identifier', 'emergency_spillway', ...
+%             'destination_x', 500160, 'destination_y', 4099905, ...
+%             'crest_elevation_m', 101.15, 'crest_length_m', 3.0), ...
+%         struct('kind', 'pump', 'identifier', 'lift_pump', ...
+%             'destination_x', 0, 'destination_y', 0, ...
+%             'maximum_flow_m3_s', 0.08, 'shutoff_head_m', 4.0, ...
+%             'start_stage_m', 100.95, 'stop_stage_m', 100.82)}});
+
+InputData_Bypass.Detention_Ponds = Detention_Ponds;
 
 %% ========================================================================
 % SECTION 13 — OBSERVED GAUGES

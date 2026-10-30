@@ -123,6 +123,15 @@ lay_river_m3 = 0;
 lay_boundary_out_m3 = 0;
 lay_recharge = lay_S.recharge_mm;
 lay_capillary = lay_S.capillary_mm;
+lay_pond_mm = zeros(size(lay_head), 'like', lay_head);
+if flags.flag_groundwater_modeling == 1 && isfield(flags, 'flag_detention_ponds') && ...
+        flags.flag_detention_ponds == 1
+    % Detention-pond bottom seepage goes to the water table under the pond, as
+    % internal recharge (it already left the pond; HydroPol2D-Python 8bfadde).
+    lay_pond_mm = Detention_Ponds.recharge_rate_m_s(:) * dt_s * 1000;
+    lay_pond_mm(~lay_valid) = 0;
+    lay_recharge = lay_recharge + lay_pond_mm;
+end
 
 if flags.flag_groundwater_modeling == 1
     lay_to_table = lay_recharge;
@@ -265,4 +274,4 @@ errors(4) = 0;
 errors(5) = (lay_storage_after_m3 + lay_surface_after_m3) - ...
     (lay_storage_before_m3 + lay_surface_before_m3) + ...
     (sum(lay_S.soil_et_mm) + sum(lay_S.surface_evaporation_mm) + sum(lay_deep_recharge_mm) ...
-    - sum(lay_deep_added_mm))/1000*lay_area + lay_boundary_out_m3;
+    - sum(lay_deep_added_mm) - sum(lay_pond_mm))/1000*lay_area + lay_boundary_out_m3;

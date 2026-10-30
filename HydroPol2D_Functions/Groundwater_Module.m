@@ -157,6 +157,14 @@ if has_prescribed_recharge
     GW_States.last_surface_recharge_rate_m_s = zero_matrix;
     GW_States.last_capillary_rate_m_s = zero_matrix;
     GW_States.last_net_exchange_rate_m_s = zero_matrix;
+    if isfield(flags, 'flag_detention_ponds') && flags.flag_detention_ponds == 1
+        % Pond seepage still reaches the aquifer; it is not prescribed input.
+        pond_seepage_m = Detention_Ponds.recharge_rate_m_s .* dt_s;
+        GW_States.pending_net_exchange_m = GW_States.pending_net_exchange_m + pond_seepage_m;
+        GW_States.pending_recharge_m = GW_States.pending_recharge_m + pond_seepage_m;
+        GW_States.total_recharge_m3 = GW_States.total_recharge_m3 + ...
+            nansum(pond_seepage_m(:) .* GW_States.cell_area_m2(:));
+    end
 else
     if has_layered_soil
     [recharge_down_rate, Soil_Properties, cumulative_recharge] = ...
@@ -187,6 +195,13 @@ else
     end
 
 recharge_down_rate(isnan(recharge_down_rate)) = nan;
+
+% Detention-pond bottom seepage recharges the aquifer under the pond. It is internal
+% recharge (it already left the pond), so it is not booked again as an input; like the
+% soil recharge it feeds the deep aquifer's share (HydroPol2D-Python, 8bfadde).
+if isfield(flags, 'flag_detention_ponds') && flags.flag_detention_ponds == 1
+    recharge_down_rate = recharge_down_rate + Detention_Ponds.recharge_rate_m_s;
+end
 
 if isfield(flags,'flag_deep_aquifer') && flags.flag_deep_aquifer == 1
     assert(isfield(BC_States,'deep_aquifer_subbasin_id') && ...
@@ -299,6 +314,9 @@ if isfield(flags,'flag_river_groundwater_exchange') && ...
     % in HydroPol2D-Python (it reaches the table, not the river, this step).
     this_step_recharge_m=downward_depth_m;
     if has_prescribed_recharge, this_step_recharge_m=this_step_recharge_m+prescribed_depth_m; end
+    if has_prescribed_recharge && exist('pond_seepage_m','var')
+        this_step_recharge_m=this_step_recharge_m+pond_seepage_m;   % (else it is in downward_depth_m)
+    end
     [effective_after,depths.d_t,q_river,river_exchange_m3]= ...
         hp2d_structured_river_exchange(effective_head,depths.d_t,z_bed,z_terrain, ...
         Soil_Properties,idx_rivers,dt_s,GW_States.cell_area_m2,idx_nan,this_step_recharge_m);

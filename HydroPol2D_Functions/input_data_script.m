@@ -468,6 +468,16 @@ if use_inputdata_bypass == 1
         end
     end
 
+    % ---------------- Detention Ponds ----------------
+    % Level-pool ponds with orifices, spillways and pumps (hp2d_prepare_detention_ponds
+    % lists the fields). Bypass only: HydroPol2D-Python's workbook reader has no ponds.
+    if isfield(flags,'flag_detention_ponds') && flags.flag_detention_ponds == 1
+        if ~isfield(InputData_Bypass,'Detention_Ponds') || isempty(InputData_Bypass.Detention_Ponds)
+            error('Bypass mode requires InputData_Bypass.Detention_Ponds when flag_detention_ponds = 1.');
+        end
+        Detention_Ponds_Input = InputData_Bypass.Detention_Ponds;
+    end
+
     % ---------------- Observed Gauges ----------------
     if flags.flag_obs_gauges == 1
         if ~isfield(InputData_Bypass,'Obs')
@@ -565,6 +575,13 @@ if ~isfield(flags,'flag_prescribed_recharge')
     flags.flag_prescribed_recharge = 0;
 end
 flags = hp2d_urban_drainage_flags(flags, false);   % bypass mode only
+if ~isfield(flags,'flag_detention_ponds')
+    flags.flag_detention_ponds = 0;
+end
+if flags.flag_detention_ponds == 1
+    error(['Detention ponds are read in bypass mode only (InputData_Bypass.Detention_Ponds, ', ...
+        'Config/input_data_bypass_script.m): the workbook has no pond sheet.']);
+end
 
 % Error tolerances control the lateral groundwater clock; fixed intervals are
 % no longer model inputs.
@@ -1295,6 +1312,9 @@ function flags = normalize_flags_struct(flagsIn)
     end
     if ~isfield(flags,'flag_export_groundwater_maps')
         flags.flag_export_groundwater_maps = 0;
+    end
+    if ~isfield(flags,'flag_detention_ponds')
+        flags.flag_detention_ponds = 0;   % level-pool detention ponds (off by default)
     end
     flags = HydroPol2D_Normalize_Subgrid_Flags(flags);
 end

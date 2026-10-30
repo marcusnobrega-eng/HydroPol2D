@@ -318,6 +318,19 @@ if isfield(flags, 'flag_urban_drainage') && flags.flag_urban_drainage == 1
 end
 S_prev = S_c + S_p + S_UZ + S_GW + S_SWE;
 
+% Detention ponds (flag_detention_ponds): their level-pool storage is a store, and the
+% local-inertial solver sees each pond cell as a wall (a pond cell is not surface).
+if ~exist('Detention_Ponds', 'var')
+    Detention_Ponds = [];
+end
+use_detention_ponds = isfield(flags, 'flag_detention_ponds') && flags.flag_detention_ponds == 1;
+detention_ponds_coupled = use_detention_ponds;   % Hydrological_Model checks it
+routing_elevation = Elevation_Properties.elevation_cell;
+if use_detention_ponds
+    S_prev = S_prev + sum(Detention_Ponds.storage_m3);
+    routing_elevation(Detention_Ponds.mask) = Detention_Ponds.wall_elevation_m;
+end
+
 % Optional non-intrusive, event-scale water-balance ledger. It is disabled
 % for ordinary runs and does not modify the routing or hydrologic state.
 track_system_mass = isfield(running_control, 'flag_system_mass_ledger') && ...
@@ -514,6 +527,13 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         if flags.flag_urban_drainage == 1
             Drainage_States_before_step = Drainage_States;
         end
+        if use_detention_ponds
+            Detention_Ponds_before_step = Detention_Ponds;
+            % Rain, open-water evaporation and bottom seepage of the ponds, before
+            % the vertical step (as in HydroPol2D-Python).
+            Detention_Ponds = hp2d_detention_ponds_forcing_step(Detention_Ponds, ...
+                BC_States.delta_p_agg, Hydro_States.Ep, flags, time_step);
+        end
         if exist('Subsurface', 'var') && isstruct(Subsurface)
             Subsurface_water_before_step = Subsurface.water_mm;
         end
@@ -692,7 +712,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                             Reservoir_Data.h2,Reservoir_Data.k4, ...
                             Reservoir_Data.y_ds1_index,Reservoir_Data.x_ds1_index, ...
                             Reservoir_Data.y_ds2_index,Reservoir_Data.x_ds2_index, ...
-                            flags.flag_reservoir, Elevation_Properties.elevation_cell, ...
+                            flags.flag_reservoir, routing_elevation, ...
                             depths.d_tot, depths.d_p, ...
                             LULC_Properties.roughness, roughness_squared, ...
                             Wshed_Properties.cell_area, time_step, Wshed_Properties.Resolution, ...
@@ -709,6 +729,14 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
 
                 end
             end
+        end
+
+        % Detention ponds: critical capture from the cells around each pond, then
+        % its orifices, spillways and pumps (after the face fluxes, as in Python).
+        if use_detention_ponds
+            [Detention_Ponds, depths.d_t, outlet_states.outlet_flow] = ...
+                hp2d_detention_ponds_exchange_step(Detention_Ponds, depths.d_t, ...
+                outlet_states.outlet_flow, time_step * 60);
         end
 
         active_depths = depths.d_t(~idx_nan);
@@ -817,7 +845,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 system_mass_ledger, flags, BC_States, Hydro_States, Snow_Properties, ...
                 Soil_Properties, ledger_gw_states, depths, outlet_states, ...
                 Wshed_Properties, Elevation_Properties, time_step, C_a, SubgridTables, ...
-                ledger_drainage);
+                ledger_drainage, Detention_Ponds);
         end
 
         %% Refreshing Time-step
@@ -885,6 +913,15 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         %% Saving Output Maps
 
         save_output_maps;
+        if use_detention_ponds && flags.flag_automatic_calibration ~= 1 && ...
+                (k == 1 || recording_parameters.delta_record_hydrograph > 0)
+            if k == 1
+                pond_record = 1;
+            else
+                pond_record = recording_parameters.actual_record_hydrograph;
+            end
+            Detention_Ponds = hp2d_detention_ponds_record(Detention_Ponds, pond_record, t);
+        end
 
         % Clearing stored values in-place (reuse memory)
         flow_rate.qout_left_t(:)  = 0;
@@ -1182,9 +1219,20 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             BC_States.h_t = BC_States.h_0;
         end
         % current_storage = previous_storage;
+        if use_detention_ponds && exist('Detention_Ponds_before_step', 'var')
+            Detention_Ponds = Detention_Ponds_before_step;
+        end
         update_spatial_BC
 
     end
+end
+
+if use_detention_ponds
+    pond_output_folder = '';
+    if exist('Paths', 'var') && isstruct(Paths) && isfield(Paths, 'Tables')
+        pond_output_folder = Paths.Tables;
+    end
+    Detention_Ponds = hp2d_detention_ponds_write_outputs(Detention_Ponds, pond_output_folder);
 end
 
 %% Trim preallocated mass-balance history

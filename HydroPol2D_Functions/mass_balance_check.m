@@ -94,6 +94,16 @@ if drainage_on
     % Water in the drainage nodes and pipes counts with the overland storage.
     S_p = S_p + sum(Drainage_States.State.node_volume_m3);
 end
+pond_storage_m3 = 0;
+if isfield(flags, 'flag_detention_ponds') && flags.flag_detention_ponds == 1
+    % Detention ponds: level-pool storage, evaporation, and seepage that leaves the
+    % model (groundwater off). Rain on them is in delta_p_agg; device discharge out of
+    % the model is in the outlet flow.
+    pond_storage_m3 = sum(Detention_Ponds.storage_m3);
+    S_p = S_p + pond_storage_m3;
+    E_ow = E_ow + Detention_Ponds.last_evaporation_m3;
+    Qout = Qout + Detention_Ponds.last_seepage_out_m3;
+end
 
 [dS, fluxes, S_prev, error] = system_mass_balance(P, Qin, E_int, ETR, E_ow, Qout, E_s, S_c, S_p, S_UZ, S_GW, S_SWE, S_prev);
 volume_error = error;
@@ -145,8 +155,12 @@ if isfield(flags, 'flag_deep_aquifer') && flags.flag_deep_aquifer == 1 && exist(
     current_storage = current_storage + sum(GW_States.deep_aquifer_storage_m3(:), 'omitnan');
 end
 
-if drainage_on
-    current_storage = current_storage + sum(Drainage_States.State.node_volume_m3);
+if ~layered_mass_balance
+    % Drainage and pond water (S_p already holds both in the layered case).
+    if drainage_on
+        current_storage = current_storage + sum(Drainage_States.State.node_volume_m3);
+    end
+    current_storage = current_storage + pond_storage_m3;
 end
 
 loss_volume = inf_volume;
