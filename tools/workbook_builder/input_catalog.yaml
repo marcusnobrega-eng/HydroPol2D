@@ -849,10 +849,11 @@ tabs:
       kind: number
       unit: s
       used_when: layered on
-      note: groundwater_target_dt_s is the interval in seconds between lateral groundwater updates in
-        the layered scheme. A shorter interval is used when the stability limit requires it. Vertical
-        soil fluxes still run every model timestep. Default 3600 s.
-      default: 3600
+      note: groundwater_target_dt_s is the longest interval in seconds between lateral groundwater
+        updates, in the legacy and the layered scheme. A shorter interval is used when the stability
+        limit requires it or the head has moved by groundwater_max_head_change_m. Vertical soil fluxes
+        still run every model timestep. Default 86400 s (one day), as in HydroPol2D-Python.
+      default: 86400
     - key: groundwater_min_dt_s
       label: Shortest lateral interval
       kind: number
@@ -861,6 +862,14 @@ tabs:
       note: groundwater_min_dt_s is the shortest interval in seconds allowed between lateral groundwater
         updates, even when the stability limit asks for less. Default 60 s.
       default: 60
+    - key: groundwater_max_head_change_m
+      label: Head change for an early update
+      kind: number
+      unit: m
+      used_when: layered on
+      note: groundwater_max_head_change_m runs the lateral groundwater update early once the water
+        table has moved this far in any cell since the last update. Default 0.25 m.
+      default: 0.25
     - key: flag_implicit_water_table_flux
       label: Implicit water-table flux
       kind: switch

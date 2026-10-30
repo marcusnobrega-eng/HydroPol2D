@@ -331,9 +331,8 @@ if flags.flag_baseflow==1
     dt_stable_s=estimate_groundwater_stable_timestep( ...
         Soil_Properties,BC_States,z_bed,Wshed_Properties.Resolution, ...
         Wshed_Properties.Resolution,idx_nan);
-    next_lateral_dt_s=min(dt_stable_s,GW_States.suggested_dt_s);
 else
-    next_lateral_dt_s=inf;
+    dt_stable_s=inf;
 end
 
 is_final_step = false;
@@ -342,8 +341,20 @@ if exist('t', 'var') && exist('running_control', 'var') && ...
     is_final_step = t >= (running_control.routing_time - 1e-9);
 end
 
-groundwater_update_due=flags.flag_baseflow==1 && ...
-    (GW_States.elapsed_s>=next_lateral_dt_s || head_change_due || is_final_step);
+% Interval max(min(target, stable, suggested), min_dt), as HydroPol2D-Python:
+% at most groundwater_target_dt_s (one day by default), at least
+% groundwater_min_dt_s (60 s).
+groundwater_target_dt_s=86400; groundwater_min_dt_s=60;
+if isfield(flags,'groundwater_target_dt_s') && ~isempty(flags.groundwater_target_dt_s)
+    groundwater_target_dt_s=double(flags.groundwater_target_dt_s);
+end
+if isfield(flags,'groundwater_min_dt_s') && ~isempty(flags.groundwater_min_dt_s)
+    groundwater_min_dt_s=double(flags.groundwater_min_dt_s);
+end
+[lateral_time_due,next_lateral_dt_s]=hp2d_groundwater_lateral_due(GW_States.elapsed_s, ...
+    groundwater_target_dt_s,dt_stable_s,GW_States.suggested_dt_s,groundwater_min_dt_s, ...
+    [],[],is_final_step);
+groundwater_update_due=flags.flag_baseflow==1 && (lateral_time_due || head_change_due);
 groundwater_update_ran=true;
 lateral_update_ran=false;
 dt_gw_s = max(GW_States.elapsed_s, eps);

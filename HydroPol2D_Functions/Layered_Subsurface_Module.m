@@ -105,6 +105,7 @@ lay_P = struct('valid', lay_valid, 'pervious', lay_pervious(:), ...
 for lay_name = {'l_vg', 'ltop_m', 'dh_max_m', 'ksurf_weight'}
     if ~isscalar(lay_P.(lay_name{1})), lay_P.(lay_name{1}) = lay_P.(lay_name{1})(:); end
 end
+lay_head_start = BC_States.h_t(:);
 lay_S = struct('water_mm', Subsurface.water_mm, 'head_m', BC_States.h_t(:), ...
     'surface_depth_mm', max(lay_surface_before, 0), ...
     'open_water_evaporation_mm', lay_open_water_mm(:), ...
@@ -179,9 +180,18 @@ if flags.flag_groundwater_modeling == 1
     lay_final = exist('t', 'var') && exist('running_control', 'var') && ...
         isstruct(running_control) && isfield(running_control, 'routing_time') && ...
         t >= running_control.routing_time - 1e-9;
-    lay_target_dt = max(min(lay_cfg.groundwater_target_dt_s, GW_States.suggested_dt_s), ...
-        lay_cfg.groundwater_min_dt_s);
-    lay_due = GW_States.elapsed_s >= lay_target_dt || lay_final;
+    % The head moved by this step's vertical exchange counts towards the
+    % head-change trigger (record_local_head_change in HydroPol2D-Python).
+    if ~isfield(GW_States, 'layered_head_change_m') || ...
+            numel(GW_States.layered_head_change_m) ~= numel(lay_head)
+        GW_States.layered_head_change_m = zeros(size(lay_head), 'like', lay_head);
+    end
+    lay_head_change = lay_head - lay_head_start;
+    lay_head_change(~lay_valid | ~isfinite(lay_head_change)) = 0;
+    GW_States.layered_head_change_m = GW_States.layered_head_change_m + lay_head_change;
+    lay_due = hp2d_groundwater_lateral_due(GW_States.elapsed_s, lay_cfg.groundwater_target_dt_s, ...
+        [], GW_States.suggested_dt_s, lay_cfg.groundwater_min_dt_s, ...
+        GW_States.layered_head_change_m, lay_cfg.groundwater_max_head_change_m, lay_final);
     if flags.flag_baseflow == 1 && lay_due
         lay_dir_mask = []; lay_dir_head = [];
         if isfield(BC_States, 'gw_dirichlet_mask') && isfield(BC_States, 'gw_dirichlet_head') && ...
@@ -200,8 +210,10 @@ if flags.flag_groundwater_modeling == 1
         GW_States.adaptive_accepted_steps = GW_States.adaptive_accepted_steps + lay_R.substeps;
         GW_States.last_groundwater_dt_s = GW_States.elapsed_s;
         GW_States.elapsed_s = 0;
+        GW_States.layered_head_change_m(:) = 0;
     elseif flags.flag_baseflow ~= 1 && lay_due
         GW_States.elapsed_s = 0;
+        GW_States.layered_head_change_m(:) = 0;
     end
     lay_exfiltration(~lay_valid) = 0;
     if ~(isfield(flags, 'flag_groundwater_surface_coupling') && flags.flag_groundwater_surface_coupling == 0)
