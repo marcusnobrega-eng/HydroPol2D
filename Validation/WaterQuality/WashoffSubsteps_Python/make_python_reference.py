@@ -5,7 +5,7 @@ python_reference.csv. Run with the HydroPol2D-Python venv:
 
     PYTHONPATH=<HydroPol2D-Python>/src <venv>/bin/python make_python_reference.py
 
-Made with HydroPol2D-Python release/studio-0.9.0rc2 at 66cd12f. MATLAB's C_3 is
+Made with HydroPol2D-Python release/studio-0.9.0rc2 at b5f224b. MATLAB's C_3 is
 per hour (W in kg/h); Python's coefficient is per second, so it gets C_3/3600.
 """
 

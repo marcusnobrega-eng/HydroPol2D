@@ -30,7 +30,7 @@ directions and out of every side. C_3 is high enough to need many
 sub-steps, and one cell is below `min_Bt`. The masses and the total export
 are compared with Python's `mass_based_washoff_step` on the same numbers.
 MATLAB writes the inputs to `washoff_inputs.csv`, and `make_python_reference.py`
-turns them into `python_reference.csv` (HydroPol2D-Python 66cd12f). Python
+turns them into `python_reference.csv` (HydroPol2D-Python b5f224b). Python
 reads C_3 per second, so it gets C_3/3600.
 
 ## Run

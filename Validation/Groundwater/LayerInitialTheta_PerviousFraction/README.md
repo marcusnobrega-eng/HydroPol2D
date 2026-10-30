@@ -22,7 +22,7 @@ The check builds the storages of six cells, with pervious fractions 1 to 0,
 when only the root-zone raster is given. It compares them with Python's
 `initialize_layered_soil_storage` on the same numbers: MATLAB writes
 `layer_inputs.csv`, and `make_python_reference.py` turns it into
-`python_reference.csv` (HydroPol2D-Python 66cd12f).
+`python_reference.csv` (HydroPol2D-Python b5f224b).
 
 ## Run
 

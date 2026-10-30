@@ -6,7 +6,7 @@ python_reference_scalars.csv. Run with the HydroPol2D-Python venv, e.g.
 
     PYTHONPATH=<HydroPol2D-Python>/src <venv>/bin/python make_python_reference.py
 
-Made with HydroPol2D-Python release/studio-0.9.0rc2 at 66cd12f.
+Made with HydroPol2D-Python release/studio-0.9.0rc2 at b5f224b.
 """
 
 from __future__ import annotations

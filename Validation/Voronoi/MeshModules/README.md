@@ -34,7 +34,7 @@ The check:
    HydroPol2D-Python kernels on the same numbers. MATLAB writes
    `kernel_cells.csv`, `kernel_edges.csv` and `kernel_outlets.csv`.
    `make_python_reference.py` turns them into `python_reference_*.csv` using
-   HydroPol2D-Python at 66cd12f. Python reads `C_3` per second (audit
+   HydroPol2D-Python at b5f224b. Python reads `C_3` per second (audit
    section 4), so it gets `C_3/3600`.
 2. A one-hour mesh run with rain, a critical-flow outlet and all three
    modules. The water ledger must close with the reservoir outflow, the
