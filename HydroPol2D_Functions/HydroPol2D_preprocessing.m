@@ -3215,6 +3215,11 @@ if ~isempty(LAI_raster)
         kernell(isnan(kernell) & ~isnan(LAI_raster.Z)) = LAI_raster.Z(isnan(kernell) & ~isnan(LAI_raster.Z));
         LAI_raster.Z = kernell;
     end
+    % Active cells without an LAI value take the fallback (lai_fallback in
+    % the flags, default 0), as HydroPol2D-Python does.
+    lai_fallback = 0;
+    if isfield(flags,'lai_fallback') && ~isempty(flags.lai_fallback), lai_fallback = double(flags.lai_fallback); end
+    LAI_raster.Z = hp2d_fill_lai_gaps(LAI_raster.Z, idx_nan, lai_fallback);
 end
 if ~isempty(Albedo_raster)
     try
