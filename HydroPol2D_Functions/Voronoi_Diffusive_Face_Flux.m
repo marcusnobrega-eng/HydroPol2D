@@ -10,6 +10,8 @@ arguments
     roughness double
     options.dry_tolerance_m (1,1) double = 1e-3
     options.slope_regularization (1,1) double {mustBePositive} = 1e-4
+    options.critical_flow (1,1) logical = false
+    options.gravity (1,1) double = 9.81
 end
 
 n = mesh.n_cells;
@@ -28,6 +30,11 @@ nface(~isfinite(nface) | nface <= 0) = 1e-6;
 coefficient = h.^(5/3) ./ nface;
 q = sign(slope) .* coefficient .* sqrt(abs(slope));
 q(h <= options.dry_tolerance_m | abs(slope) <= 0) = 0;
+% With critical_flow the face discharge is capped at h sqrt(g h), as in
+% HydroPol2D-Python's mesh diffusive step.
+if options.critical_flow
+    q = sign(q) .* min(abs(q), h .* sqrt(options.gravity .* h));
+end
 
 % The first term is the regularized slope derivative. The second safely
 % accounts for the changing hydrostatic face depth when either stage rises.

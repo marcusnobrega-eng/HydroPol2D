@@ -8,10 +8,13 @@ arguments
     dt (1,1) double {mustBePositive}
     options.dry_tolerance_m (1,1) double = 1e-3
     options.slope_regularization (1,1) double {mustBePositive} = 1e-4
+    options.critical_flow (1,1) logical = false
+    options.gravity (1,1) double = 9.81
 end
 
 [edge_q, face_depth] = Voronoi_Diffusive_Face_Flux(mesh, surface_volume, roughness, ...
-    dry_tolerance_m=options.dry_tolerance_m, slope_regularization=options.slope_regularization);
+    dry_tolerance_m=options.dry_tolerance_m, slope_regularization=options.slope_regularization, ...
+    critical_flow=options.critical_flow, gravity=options.gravity);
 internal = mesh.edge_neighbor > 0;
 owner = mesh.edge_owner(internal); neighbor = mesh.edge_neighbor(internal);
 Q = edge_q(internal) .* mesh.edge_length(internal);

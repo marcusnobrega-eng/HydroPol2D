@@ -356,7 +356,8 @@ while t < config.duration_s-time_tolerance
     else
         [surface_volume, edge_q, surface_diag] = Voronoi_Diffusive_Step( ...
             mesh, surface_volume, roughness, dt, dry_tolerance_m=config.dry_tolerance_m, ...
-            slope_regularization=config.diffusive_slope_regularization);
+            slope_regularization=config.diffusive_slope_regularization, ...
+            critical_flow=config.critical_flow, gravity=config.gravity);
     end
     if solver ~= "full_momentum"
         if ~exist('edge_q_before_surface', 'var'), edge_q_before_surface = edge_q; end
