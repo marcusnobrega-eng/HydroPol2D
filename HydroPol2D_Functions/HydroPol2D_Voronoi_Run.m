@@ -110,6 +110,26 @@ if hydrology.enabled, hru_fraction = hydrology.fraction; end
 modules = hp2d_voronoi_modules_initialize(mesh, mesh_file, config, module_overlap_file, ...
     mesh.channel.n_nodes > 0, use_subgrid, hru_fraction);
 initial_mass = initial_mass + module_storage(modules);
+% Rain gauges (forcing.rain_gauges): inverse-distance weights over the
+% overlap raster cells, averaged over each mesh cell, as HydroPol2D-Python
+% samples its HRU pieces; at the cell centres when the case has no overlap.
+if isfield(forcing, 'rain_gauges') && ~isempty(forcing.rain_gauges)
+    gauge_mapping = [];
+    if isfield(forcing, 'mapping') && ~isempty(forcing.mapping)
+        gauge_mapping = forcing.mapping;
+    elseif ~isempty(module_overlap_file)
+        gauge_mapping = HydroPol2D_Read_Overlap(module_overlap_file, mesh_file);
+    end
+    if isempty(gauge_mapping)
+        forcing.rain_gauge_weights = hp2d_gauge_rainfall('weights', forcing.rain_gauges, ...
+            mesh.cell_x(:), mesh.cell_y(:));
+    else
+        [raster_x, raster_y] = hp2d_overlap_raster_centres(gauge_mapping);
+        forcing.rain_gauge_weights = hp2d_gauge_rainfall('weights', forcing.rain_gauges, ...
+            raster_x, raster_y);
+        forcing.rain_gauge_mapping = gauge_mapping;
+    end
+end
 
 n_output_slots = ceil(config.duration_s / config.output_interval_s) + 1;
 output_count = 1;
@@ -779,6 +799,16 @@ assert(numel(value) == count && all(isfinite(value) & value >= 0));
 end
 
 function source = source_at(forcing, time_s, state, mesh, n)
+if isfield(forcing, 'rain_gauge_weights')
+    rate = hp2d_gauge_rainfall('rate', forcing.rain_gauge_weights, time_s) / 1000 / 3600;
+    if isfield(forcing, 'rain_gauge_mapping')
+        operator = forcing.rain_gauge_mapping.raster_to_mesh;
+        source = (operator * rate) ./ max(operator * ones(size(rate)), eps);
+    else
+        source = rate;
+    end
+    return
+end
 if isfield(forcing, 'surface_source_m_s')
     source = forcing.surface_source_m_s;
 elseif isfield(forcing, 'raster_source_m_s') && isfield(forcing, 'mapping')
