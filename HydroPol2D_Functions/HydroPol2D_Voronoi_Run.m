@@ -105,8 +105,11 @@ end
 % ---- the grid's optional modules on the mesh ----------------------------
 module_overlap_file = '';
 if isfield(forcing,'overlap_file'), module_overlap_file = forcing.overlap_file; end
+hru_fraction = [];
+if hydrology.enabled, hru_fraction = hydrology.fraction; end
 modules = hp2d_voronoi_modules_initialize(mesh, mesh_file, config, module_overlap_file, ...
-    mesh.channel.n_nodes > 0, use_subgrid);
+    mesh.channel.n_nodes > 0, use_subgrid, hru_fraction);
+initial_mass = initial_mass + module_storage(modules);
 
 n_output_slots = ceil(config.duration_s / config.output_interval_s) + 1;
 output_count = 1;
@@ -195,6 +198,7 @@ while t < config.duration_s-time_tolerance
     cumulative_surface_source = cumulative_surface_source + max(source,0).*dt;
     potential_et = zeros(n,1); open_water_evaporation = zeros(n,1);
     hydrology_diag = empty_hydrology_diagnostics();
+    snow_sublimation_volume = 0;
     if hydrology.enabled
         assert(all(source >= 0), 'HydroPol2D:InvalidVoronoiForcing', ...
             'Hydrology-enabled surface forcing is precipitation and cannot be negative.');
@@ -218,12 +222,20 @@ while t < config.duration_s-time_tolerance
             open_water_evaporation = forcing_at(forcing,'open_water_evaporation_m_s', ...
                 'raster_open_water_evaporation_m_s',t,state,mesh,n,potential_et);
         end
+        % Snow splits the precipitation of each HRU before the canopy; the
+        % melt goes straight to the surface (as on the grid).
+        liquid_precipitation = source;
+        if ~isempty(modules.snow)
+            [modules.snow,liquid_precipitation,melt_volume,snow_sublimation_volume] = ...
+                hp2d_voronoi_snow_step(modules.snow,source,snow_meteorology_at(forcing,t,state,mesh,n),dt);
+            surface_volume = surface_volume + melt_volume;
+        end
         if layered_mesh
             [surface_volume,hydrology,groundwater,hydrology_diag] = Voronoi_Layered_Hydrology_Step( ...
-                mesh,surface_volume,hydrology,groundwater,source,potential_et,open_water_evaporation,dt);
+                mesh,surface_volume,hydrology,groundwater,liquid_precipitation,potential_et,open_water_evaporation,dt);
         else
             [surface_volume,hydrology,groundwater,hydrology_diag] = Voronoi_Hydrology_Step( ...
-                mesh,surface_volume,hydrology,groundwater,source,potential_et,open_water_evaporation,dt);
+                mesh,surface_volume,hydrology,groundwater,liquid_precipitation,potential_et,open_water_evaporation,dt);
         end
     else
         if any(source_volume < 0), source_volume=max(source_volume,-surface_volume); end
@@ -386,11 +398,12 @@ while t < config.duration_s-time_tolerance
     mass = sum(surface_volume) + sum(channel_volume);
     if groundwater.enabled, mass = mass + sum(groundwater.storage) + sum(groundwater.pending_exchange_m3); end
     if hydrology.enabled, mass = mass + hydrology_mass(hydrology); end
+    if modules.active, mass = mass + module_storage(modules); end
     boundary_volume = surface_boundary_diag.net_inflow_volume_m3 + channel_boundary_diag.net_inflow_volume_m3;
     expected = initial_mass + sum(source_volume) + sum(groundwater_source_volume) + boundary_volume ...
         + groundwater_diag.fixed_head_exchange_m3 ...
         - hydrology_diag.actual_et_volume_m3 - hydrology_diag.deep_drainage_volume_m3 ...
-        - module_diag.reservoir_outflow_m3;
+        - module_diag.reservoir_outflow_m3 - snow_sublimation_volume;
     diagnostics(step).time_s = t;
     diagnostics(step).dt_s = dt;
     diagnostics(step).mass_m3 = mass;
@@ -417,6 +430,7 @@ while t < config.duration_s-time_tolerance
     if modules.active
         diagnostics(step).reservoir_outflow_volume_m3 = module_diag.reservoir_outflow_m3;
         diagnostics(step).pollutant_export_kg = module_diag.pollutant_export_kg;
+        diagnostics(step).snow_sublimation_volume_m3 = snow_sublimation_volume;
     end
     running_min_dt = min(running_min_dt,stability_dt);
     if isfinite(config.progress_interval_s) && t + time_tolerance >= next_progress
@@ -584,6 +598,47 @@ if ~isempty(modules.human_risk)
     record.human_risk_index = modules.human_risk.risk;
     record.maximum_human_risk_index = modules.human_risk.max_risk;
 end
+if ~isempty(modules.snow)
+    record.snow_swe_mm = sum(modules.snow.swe_mm .* modules.snow.fraction, 2);
+    record.snow_storage_m3 = module_storage(modules);
+    record.cumulative_snow_sublimation_m3 = modules.snow.cumulative_sublimation_m3;
+end
+end
+
+function total = module_storage(modules)
+% Water the modules hold outside the surface, soil and groundwater stores.
+total = 0;
+if ~isempty(modules.snow)
+    total = total + sum(max(modules.snow.swe_mm, 0) / 1000 .* modules.snow.area_m2, 'all');
+end
+end
+
+function meteorology = snow_meteorology_at(forcing, time_s, state, mesh, n)
+% The meteorology snow needs, per cell, from the case's meteorological forcing.
+if isfield(forcing, 'meteorology')
+    source = forcing.meteorology; mapping = [];
+else
+    assert(isfield(forcing, 'raster_meteorology') && isfield(forcing, 'mapping'), ...
+        'HydroPol2D:InvalidVoronoiForcing', ...
+        'Snow on a mesh needs meteorology or raster_meteorology forcing.');
+    source = forcing.raster_meteorology; mapping = forcing.mapping;
+end
+if isa(source, 'function_handle'), source = source(time_s, state, mesh); end
+if ~isempty(mapping)
+    names = fieldnames(source);
+    for k = 1:numel(names)
+        value = source.(names{k});
+        if ~isscalar(value), source.(names{k}) = mapping.raster_to_mesh*double(value(:)); end
+    end
+end
+meteorology = struct( ...
+    'temperature_c', meteorology_field(source, 'temperature_c', n), ...
+    'minimum_temperature_c', meteorology_field(source, 'minimum_temperature_c', n), ...
+    'wind_speed_m_s', meteorology_field(source, 'wind_speed_m_s', n), ...
+    'latitude_deg', meteorology_field(source, 'latitude_deg', n));
+day = meteorology_field(source, 'day_of_year', n);
+assert(all(day == day(1)), 'HydroPol2D:InvalidVoronoiForcing', 'day_of_year must be spatially uniform.');
+meteorology.day_of_year = day(1);
 end
 
 function out = pack_module_outputs(modules, records)

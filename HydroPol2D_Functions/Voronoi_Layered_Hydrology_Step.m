@@ -10,7 +10,10 @@ L = state.layered;
 host = L.host;
 area = L.area_m2;
 column = L.column;
-precipitation_m_s = cell_vector(precipitation_m_s, n);
+% Precipitation is one rate per cell, or one per HRU (n x h) when snow has
+% already split it.
+per_hru_precipitation = ~isscalar(precipitation_m_s) && size(precipitation_m_s, 2) > 1;
+if ~per_hru_precipitation, precipitation_m_s = cell_vector(precipitation_m_s, n); end
 potential_et_m_s = cell_vector(potential_et_m_s, n);
 open_water_evaporation_m_s = cell_vector(open_water_evaporation_m_s, n);
 dt_s = max(double(dt_s), eps);
@@ -18,7 +21,11 @@ head = groundwater_head(groundwater, L);
 head_hru = head(host);
 initial_storage = layered_storage(surface_volume, state, L, groundwater, head);
 
-rain = precipitation_m_s(host)*dt_s;
+if per_hru_precipitation
+    rain = double(precipitation_m_s(:))*dt_s;   % HRU columns in linear order
+else
+    rain = precipitation_m_s(host)*dt_s;
+end
 pet = potential_et_m_s(host)*dt_s;
 capacity = state.canopy_capacity_per_lai_m(:).*state.lai(:);
 canopy = state.canopy_storage_m(:);

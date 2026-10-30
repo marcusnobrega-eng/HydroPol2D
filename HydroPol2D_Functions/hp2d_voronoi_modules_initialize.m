@@ -1,4 +1,4 @@
-function modules = hp2d_voronoi_modules_initialize(mesh, mesh_file, config, overlap_file, uses_channels, uses_subgrid)
+function modules = hp2d_voronoi_modules_initialize(mesh, mesh_file, config, overlap_file, uses_channels, uses_subgrid, hru_fraction)
 %HP2D_VORONOI_MODULES_INITIALIZE The grid's optional modules on mesh cells.
 %   Reservoir controls, water quality (mass-based wash-off) and the human
 %   risk index, as HydroPol2D-Python runs them on a mesh (mesh_modules/).
@@ -18,10 +18,19 @@ function modules = hp2d_voronoi_modules_initialize(mesh, mesh_file, config, over
 %   config.human_risk     mu, Cd, weight_person [kg], width1_person and
 %       width2_person [m], ro_water [kg/m3], gravity [m/s2] (the grid's
 %       flag_human_instability = 1 index). Mode 3 does not run on meshes.
+%   config.snow           the grid's Snow_Properties parameters (alpha,
+%       epsilon, C_e, DDF, T_snow_all, T_rain_all, rho_snow_init, rho_max,
+%       k_t, k_swe, k_D), each a scalar, one value per cell or one per HRU
+%       (n x h), and optional initial_swe_mm and initial_depth_mm. Snow runs
+%       on every HRU with Snow_Model_Function, as HydroPol2D-Python runs
+%       snow_step on its HRU pieces; it needs the mesh hydrology on and
+%       meteorological forcing (temperature_c, minimum_temperature_c,
+%       wind_speed_m_s, latitude_deg, day_of_year).
 
-modules = struct('active', false, 'reservoirs', [], 'water_quality', [], 'human_risk', []);
+modules = struct('active', false, 'reservoirs', [], 'water_quality', [], 'human_risk', [], 'snow', []);
 n = mesh.n_cells;
 mapping = [];
+if nargin < 7 || isempty(hru_fraction), hru_fraction = ones(n, 1); end
 
 if isfield(config, 'reservoirs') && ~isempty(config.reservoirs)
     % As on the grid and in HydroPol2D-Python: a reservoir cell stores only
@@ -96,8 +105,63 @@ if isfield(config, 'human_risk') && ~isempty(config.human_risk)
         'risk', zeros(n, 1), 'max_risk', zeros(n, 1));
 end
 
+if isfield(config, 'snow') && ~isempty(config.snow)
+    assert(isfield(config, 'hydrology_enabled') && logical(config.hydrology_enabled), ...
+        'HydroPol2D:InvalidVoronoiCase', 'Snow on a mesh needs hydrology_enabled = true.');
+    modules.snow = initialize_snow(config.snow, hru_fraction, mesh.cell_area(:));
+end
+
 modules.active = ~isempty(modules.reservoirs) || ~isempty(modules.water_quality) || ...
-    ~isempty(modules.human_risk);
+    ~isempty(modules.human_risk) || ~isempty(modules.snow);
+end
+
+function snow = initialize_snow(S, fraction, cell_area)
+% Snow parameters and initial pack on every HRU (hp2d_initialize_snow_state).
+[n, h] = size(fraction);
+names = {'alpha','epsilon','C_e','DDF','T_snow_all','T_rain_all', ...
+    'rho_snow_init','rho_max','k_t','k_swe','k_D'};
+snow = struct('area_m2', cell_area .* fraction, 'fraction', fraction);
+for k = 1:numel(names)
+    assert(isfield(S, names{k}), 'HydroPol2D:InvalidVoronoiCase', ...
+        'config.snow is missing %s.', names{k});
+    snow.(names{k}) = per_hru(S.(names{k}), n, h);
+end
+rho_water = 1000;
+swe = zeros(n, h); depth = zeros(n, h); rho = snow.rho_snow_init;
+has_swe = isfield(S, 'initial_swe_mm') && ~isempty(S.initial_swe_mm);
+has_depth = isfield(S, 'initial_depth_mm') && ~isempty(S.initial_depth_mm);
+if has_swe, swe = per_hru(S.initial_swe_mm, n, h); end
+if has_depth, depth = per_hru(S.initial_depth_mm, n, h); end
+if has_swe && ~has_depth
+    depth = swe .* rho_water ./ rho;
+elseif has_depth && ~has_swe
+    swe = depth .* rho ./ rho_water;
+elseif has_swe && has_depth
+    assert(~any(xor(swe(:) > 0, depth(:) > 0)), 'HydroPol2D:InvalidVoronoiCase', ...
+        'Initial SWE and snow depth must both be positive or both zero.');
+    both = swe > 0;
+    rho(both) = rho_water .* swe(both) ./ depth(both);
+    assert(all(rho(both) > 0 & rho(both) <= snow.rho_max(both)), 'HydroPol2D:InvalidVoronoiCase', ...
+        'Initial SWE and snow depth imply a nonphysical snow density.');
+end
+snow.swe_mm = swe; snow.depth_mm = depth; snow.density_kg_m3 = rho;
+snow.melt_mm = zeros(n, h); snow.sublimation_mm = zeros(n, h);
+snow.cumulative_sublimation_m3 = 0;
+end
+
+function value = per_hru(value, n, h)
+value = double(value);
+if isscalar(value)
+    value = repmat(value, n, h);
+elseif isequal(size(value), [n 1])
+    value = repmat(value, 1, h);
+elseif isvector(value) && numel(value) == h
+    value = repmat(reshape(value, 1, h), n, 1);   % one value per HRU type
+elseif isvector(value) && numel(value) == n
+    value = repmat(value(:), 1, h);
+end
+assert(isequal(size(value), [n h]) && all(isfinite(value(:))), 'HydroPol2D:InvalidVoronoiCase', ...
+    'A snow field must be a scalar, one value per mesh cell, per HRU type or per HRU.');
 end
 
 function [discharge_x, discharge_y] = cell_discharge_operators(mesh)

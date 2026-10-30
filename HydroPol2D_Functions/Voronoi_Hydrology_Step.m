@@ -3,7 +3,15 @@ function [surface_volume, state, groundwater, diagnostics] = Voronoi_Hydrology_S
 %VORONOI_HYDROLOGY_STEP Conservative canopy, vadose, ET, and recharge step.
 
 n = mesh.n_cells;
-precipitation_m_s = cell_vector(precipitation_m_s,n);
+% Precipitation is one rate per cell, or one per HRU (n x h) when snow has
+% already split it.
+per_hru_precipitation = ~isscalar(precipitation_m_s) && size(precipitation_m_s,2) > 1;
+if per_hru_precipitation
+    precipitation_m_s = double(precipitation_m_s);
+    assert(isequal(size(precipitation_m_s),size(state.fraction)) && all(isfinite(precipitation_m_s(:))));
+else
+    precipitation_m_s = cell_vector(precipitation_m_s,n);
+end
 potential_et_m_s = cell_vector(potential_et_m_s,n);
 open_water_evaporation_m_s = cell_vector(open_water_evaporation_m_s,n);
 dt_s = max(double(dt_s),eps);
@@ -124,7 +132,11 @@ state.last_actual_et_rate_m_s = actual_soil_et ./ dt_s;
 state.last_canopy_evaporation_rate_m_s = canopy_evaporation ./ dt_s;
 state.last_surface_evaporation_rate_m_s = surface_evaporation_volume ./ mesh.cell_area(:) ./ dt_s;
 
-rain_volume = sum(precipitation_m_s .* mesh.cell_area(:)) .* dt_s;
+if per_hru_precipitation
+    rain_volume = sum(precipitation_m_s .* state.area_m2,'all') .* dt_s;
+else
+    rain_volume = sum(precipitation_m_s .* mesh.cell_area(:)) .* dt_s;
+end
 et_volume = sum((actual_soil_et+canopy_evaporation).*state.area_m2,'all') + sum(surface_evaporation_volume);
 final_storage = sum(surface_volume) + hru_storage(state);
 if groundwater.enabled, final_storage = final_storage + sum(groundwater.pending_exchange_m3); end

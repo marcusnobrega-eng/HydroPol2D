@@ -11,7 +11,8 @@ risk, dam break and the deep aquifer switched on in the grid inputs (or in
 the Builder's `hydropol_config.json`) were dropped from the run without a
 word. `hp2d_refuse_mesh_modules` now stops the run and names each module.
 A module is let through only when the prepared case carries its data
-(`config.reservoirs`, `config.water_quality`, `config.human_risk`). The deep
+(`config.reservoirs`, `config.water_quality`, `config.human_risk`,
+`config.snow`). Human risk mode 3 is always refused on meshes. The deep
 aquifer never runs on meshes, in MATLAB or in HydroPol2D-Python, which also
 refuses it. Detention ponds, urban drainage and green infrastructure are in
 the list for when the grid gets them.
