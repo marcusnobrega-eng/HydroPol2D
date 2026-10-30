@@ -898,6 +898,7 @@ function boundary = boundary_at(forcing, name, time_s, state, mesh)
 if ~isfield(forcing, name), boundary = struct(); return; end
 boundary = forcing.(name);
 if isa(boundary, 'function_handle'), boundary = boundary(time_s, state, mesh); end
+if strcmp(name, 'surface_boundary'), boundary = hp2d_voronoi_fill_boundary(mesh, boundary); end
 end
 
 function groundwater = initialize_groundwater(config, mesh)
