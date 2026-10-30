@@ -1,0 +1,6 @@
+# HydroPol2D-Python release/studio-0.9.0rc2 3cbd8ddb6c3767416279c32cb8b5d3da196413fe
+# terrain_m of the 4 x 5 kernel grid (rows from the top), dx = 10 m
+10.0,9.9,9.8,9.7,9.6
+9.8,9.7,9.5,9.4,9.3
+9.4,9.3,9.2,9.0,8.9
+7.6,7.5,7.7,7.75,7.8
