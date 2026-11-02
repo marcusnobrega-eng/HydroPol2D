@@ -228,9 +228,10 @@ end
 end
 
 function write_station_forcing(path)
-% Warm, dry summer days so the ponds evaporate (Penman open-water Ep).
+% Warm, dry summer days so the ponds evaporate (Penman open-water Ep). The ground
+% heat flux is 0, as for daily data (ETP_model reads it, as HydroPol2D-Python does).
 times = datetime(2025, 7, 15, 0, 0, 0) + hours([0; 24; 48]);
-data = [32 18 25 3 35 25; 32 18 25 3 35 25; 32 18 25 3 35 25];
+data = [32 18 25 3 35 0; 32 18 25 3 35 0; 32 18 25 3 35 0];
 cells = cell(6, 8);
 cells(1,:) = {'Index','Date','Tmax_C','Tmin_C','Tavg_C','U2_m_s','RH_pct','G_MJ_m2_day'};
 cells(2,:) = {NaN,NaT,NaN,NaN,NaN,0,NaN,0};
