@@ -1,0 +1,9 @@
+kind,row,column,facility,value
+compartment,4,4,1,33.659942656307791
+compartment,5,4,1,42.547909729929678
+compartment,6,4,1,34.292147613762481
+compartment,3,2,2,40
+compartment,3,3,2,40
+edge,1,2,,4.158971513133551
+edge,2,3,,4.3506104328523847
+edge,4,5,,5

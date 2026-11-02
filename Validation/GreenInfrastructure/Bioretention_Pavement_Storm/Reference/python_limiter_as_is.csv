@@ -1,0 +1,4 @@
+variant,steps,matlab_rule_gi_mass_residual_m3,python_as_is_gi_mass_residual_m3,python_as_is_negative_store_steps,python_as_is_max_state_difference_m3
+legacy,684,1.7809972246984884e-14,1.7809972246984884e-14,0,4.235164736271502e-22
+layered,650,1.943323973963018e-15,1.943323973963018e-15,0,3.3881317890172014e-21
+limiter_case,20,3.785860513971784e-14,0.034697717487226276,18,0.039235137647446905

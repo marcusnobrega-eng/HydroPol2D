@@ -1,0 +1,411 @@
+{
+  "note": "Written by run_green_infrastructure_check.m (HYDROPOL_GI_WRITE_REPLAY=1). Rows and columns are 0-based.",
+  "nrows": 10,
+  "ncols": 7,
+  "dx_m": 10,
+  "x_left_m": 0,
+  "y_top_m": 100,
+  "elevation_m": [
+    [
+      2.85,
+      2.5500000000000003,
+      2.25,
+      1.9500000000000002,
+      2.25,
+      2.5500000000000003,
+      2.85
+    ],
+    [
+      2.75,
+      2.45,
+      2.15,
+      1.85,
+      2.15,
+      2.45,
+      2.75
+    ],
+    [
+      2.65,
+      2.35,
+      2.05,
+      1.75,
+      2.05,
+      2.35,
+      2.65
+    ],
+    [
+      2.55,
+      2.25,
+      1.95,
+      1.65,
+      1.95,
+      2.25,
+      2.55
+    ],
+    [
+      2.45,
+      2.15,
+      1.85,
+      1.55,
+      1.85,
+      2.15,
+      2.45
+    ],
+    [
+      2.3499999999999996,
+      2.05,
+      1.75,
+      1.45,
+      1.75,
+      2.05,
+      2.3499999999999996
+    ],
+    [
+      2.25,
+      1.9500000000000002,
+      1.6500000000000001,
+      1.35,
+      1.6500000000000001,
+      1.9500000000000002,
+      2.25
+    ],
+    [
+      2.15,
+      1.85,
+      1.55,
+      1.25,
+      1.55,
+      1.85,
+      2.15
+    ],
+    [
+      2.05,
+      1.75,
+      1.45,
+      1.15,
+      1.45,
+      1.75,
+      2.05
+    ],
+    [
+      1.95,
+      1.65,
+      1.35,
+      1.05,
+      1.35,
+      1.65,
+      1.95
+    ]
+  ],
+  "valid": [
+    [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  ],
+  "native_ksat_mm_h": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      10,
+      10,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      10,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      10,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      10,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "designs": [
+    {
+      "identifier": "rain_garden",
+      "name": "Rain garden",
+      "practice_type": "bioretention",
+      "surface_storage_depth_m": 0.15,
+      "surface_manning_n": 0.1,
+      "media_depth_m": 0.3,
+      "media_porosity": 0.4,
+      "media_residual_water_content": 0.05,
+      "media_initial_water_content": 0.2,
+      "media_ksat_mm_h": 80,
+      "media_alpha_vg_m_inverse": 3.5,
+      "media_n_vg": 1.6,
+      "gravel_depth_m": 0.3,
+      "gravel_void_fraction": 0.4,
+      "gravel_ksat_mm_h": 3000,
+      "et_crop_coefficient": 1,
+      "surface_exchange_coefficient": 0.6,
+      "inlet_width_m": 2,
+      "overflow_crest_depth_m": 0.08,
+      "overflow_coefficient": 1.7,
+      "underdrain_coefficient_m3_s_m_exponent": 0.003,
+      "underdrain_exponent": 0.5,
+      "underdrain_sill_depth_m": 0
+    },
+    {
+      "identifier": "pavement",
+      "name": "Permeable pavement",
+      "practice_type": "permeable_pavement",
+      "surface_storage_depth_m": 0.03,
+      "surface_manning_n": 0.02,
+      "media_depth_m": 0.15,
+      "media_porosity": 0.35,
+      "media_residual_water_content": 0.05,
+      "media_initial_water_content": 0.1,
+      "media_ksat_mm_h": 250,
+      "media_alpha_vg_m_inverse": 3.5,
+      "media_n_vg": 1.6,
+      "gravel_depth_m": 0.3,
+      "gravel_void_fraction": 0.4,
+      "gravel_ksat_mm_h": 5000,
+      "et_crop_coefficient": 0.3,
+      "surface_exchange_coefficient": 0.6,
+      "inlet_width_m": 1,
+      "overflow_crest_depth_m": 0.02,
+      "overflow_coefficient": 1.7,
+      "underdrain_coefficient_m3_s_m_exponent": 0.004,
+      "underdrain_exponent": 0.5,
+      "underdrain_sill_depth_m": 0.02
+    }
+  ],
+  "placements": [
+    {
+      "identifier": "rain_garden_1",
+      "design_identifier": "rain_garden",
+      "vertices_m": [
+        [
+          33,
+          68
+        ],
+        [
+          37,
+          68.5
+        ],
+        [
+          37.3,
+          42
+        ],
+        [
+          32.8,
+          42.5
+        ]
+      ],
+      "underdrain_destination": {
+        "kind": "surface_cell",
+        "row": 9,
+        "column": 3
+      }
+    },
+    {
+      "identifier": "pavement_1",
+      "design_identifier": "pavement",
+      "vertices_m": [
+        [
+          12,
+          72
+        ],
+        [
+          28,
+          72
+        ],
+        [
+          28,
+          77
+        ],
+        [
+          12,
+          77
+        ]
+      ],
+      "underdrain_destination": {
+        "kind": "outside_domain",
+        "row": -1,
+        "column": -1
+      }
+    }
+  ],
+  "courant": 0.5,
+  "minimum_substep_s": 0.01,
+  "maximum_substeps": 10000,
+  "host_rows": [
+    3,
+    4,
+    5,
+    2,
+    2,
+    9
+  ],
+  "host_columns": [
+    3,
+    3,
+    3,
+    1,
+    2,
+    3
+  ]
+}

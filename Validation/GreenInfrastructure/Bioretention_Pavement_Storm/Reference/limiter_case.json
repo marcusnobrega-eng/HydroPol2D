@@ -1,0 +1,239 @@
+{
+ "note": "Written by make_python_reference.py. Rows and columns are 0-based.",
+ "nrows": 4,
+ "ncols": 5,
+ "dx_m": 10.0,
+ "x_left_m": 0.0,
+ "y_top_m": 40.0,
+ "elevation_m": [
+  [
+   9.85,
+   9.75,
+   9.65,
+   9.55,
+   9.450000000000001
+  ],
+  [
+   9.649999999999999,
+   9.549999999999999,
+   9.45,
+   9.35,
+   9.25
+  ],
+  [
+   9.45,
+   9.35,
+   9.25,
+   9.15,
+   9.05
+  ],
+  [
+   9.25,
+   9.15,
+   9.05,
+   8.950000000000001,
+   8.850000000000001
+  ]
+ ],
+ "valid": [
+  [
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  [
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  [
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  [
+   true,
+   true,
+   true,
+   true,
+   true
+  ]
+ ],
+ "native_ksat_mm_h": [
+  [
+   5.0,
+   5.0,
+   5.0,
+   5.0,
+   5.0
+  ],
+  [
+   5.0,
+   5.0,
+   5.0,
+   5.0,
+   5.0
+  ],
+  [
+   5.0,
+   5.0,
+   5.0,
+   5.0,
+   5.0
+  ],
+  [
+   5.0,
+   5.0,
+   5.0,
+   5.0,
+   5.0
+  ]
+ ],
+ "designs": [
+  {
+   "identifier": "bioretention_default",
+   "name": "Bioretention / rain garden",
+   "practice_type": "bioretention",
+   "surface_storage_depth_m": 0.2,
+   "surface_manning_n": 0.12,
+   "media_depth_m": 0.6,
+   "media_porosity": 0.35,
+   "media_residual_water_content": 0.05,
+   "media_initial_water_content": 0.15,
+   "media_ksat_mm_h": 100.0,
+   "media_alpha_vg_m_inverse": 3.5,
+   "media_n_vg": 1.6,
+   "gravel_depth_m": 0.3,
+   "gravel_void_fraction": 0.4,
+   "gravel_ksat_mm_h": 1000.0,
+   "et_crop_coefficient": 1.0,
+   "surface_exchange_coefficient": 0.6,
+   "inlet_width_m": 1.0,
+   "overflow_crest_depth_m": 0.15,
+   "overflow_coefficient": 1.7,
+   "underdrain_coefficient_m3_s_m_exponent": 0.02,
+   "underdrain_exponent": 0.5,
+   "underdrain_sill_depth_m": 0.0
+  },
+  {
+   "identifier": "infiltration_trench_default",
+   "name": "Infiltration trench",
+   "practice_type": "infiltration_trench",
+   "surface_storage_depth_m": 0.1,
+   "surface_manning_n": 0.08,
+   "media_depth_m": 0.3,
+   "media_porosity": 0.35,
+   "media_residual_water_content": 0.05,
+   "media_initial_water_content": 0.15,
+   "media_ksat_mm_h": 200.0,
+   "media_alpha_vg_m_inverse": 3.5,
+   "media_n_vg": 1.6,
+   "gravel_depth_m": 0.9,
+   "gravel_void_fraction": 0.4,
+   "gravel_ksat_mm_h": 1000.0,
+   "et_crop_coefficient": 1.0,
+   "surface_exchange_coefficient": 0.6,
+   "inlet_width_m": 1.0,
+   "overflow_crest_depth_m": 0.1,
+   "overflow_coefficient": 1.7,
+   "underdrain_coefficient_m3_s_m_exponent": 0.0,
+   "underdrain_exponent": 0.5,
+   "underdrain_sill_depth_m": 0.0
+  },
+  {
+   "identifier": "permeable_pavement_default",
+   "name": "Permeable pavement",
+   "practice_type": "permeable_pavement",
+   "surface_storage_depth_m": 0.03,
+   "surface_manning_n": 0.02,
+   "media_depth_m": 0.2,
+   "media_porosity": 0.35,
+   "media_residual_water_content": 0.05,
+   "media_initial_water_content": 0.15,
+   "media_ksat_mm_h": 250.0,
+   "media_alpha_vg_m_inverse": 3.5,
+   "media_n_vg": 1.6,
+   "gravel_depth_m": 0.35,
+   "gravel_void_fraction": 0.4,
+   "gravel_ksat_mm_h": 1000.0,
+   "et_crop_coefficient": 0.0,
+   "surface_exchange_coefficient": 0.6,
+   "inlet_width_m": 1.0,
+   "overflow_crest_depth_m": 0.03,
+   "overflow_coefficient": 1.7,
+   "underdrain_coefficient_m3_s_m_exponent": 0.0,
+   "underdrain_exponent": 0.5,
+   "underdrain_sill_depth_m": 0.0
+  }
+ ],
+ "placements": [
+  {
+   "identifier": "bio",
+   "design_identifier": "bioretention_default",
+   "vertices_m": [
+    [
+     12,
+     33
+    ],
+    [
+     38,
+     31
+    ],
+    [
+     37,
+     24
+    ],
+    [
+     13,
+     26
+    ]
+   ],
+   "underdrain_destination": {
+    "kind": "surface_cell",
+    "row": 3,
+    "column": 4
+   }
+  },
+  {
+   "identifier": "pp",
+   "design_identifier": "permeable_pavement_default",
+   "vertices_m": [
+    [
+     3,
+     3
+    ],
+    [
+     18,
+     3
+    ],
+    [
+     18,
+     12
+    ],
+    [
+     3,
+     12
+    ]
+   ],
+   "underdrain_destination": {
+    "kind": "outside_domain",
+    "row": -1,
+    "column": -1
+   }
+  }
+ ],
+ "courant": 0.5,
+ "minimum_substep_s": 0.01,
+ "maximum_substeps": 10000,
+ "steps": 20,
+ "dt_s": 30.0,
+ "host_m3": 8.0,
+ "rain_mm_h": 60.0,
+ "et_mm_day": 4.0
+}
