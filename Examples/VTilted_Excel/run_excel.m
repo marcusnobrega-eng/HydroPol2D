@@ -8,7 +8,10 @@ if ~isfile(workbook)
 end
 addpath(fullfile(model_root,'HydroPol2D_Functions'));
 flag_data = hp2d_read_flags_grid(workbook);   % Flags sheet, or the settings tabs
-[flag_row,flag_col] = find(strcmpi(string(flag_data),'flag_voronoi'),1);
+% Match cell by cell: the grid also holds numbers, dates and empty cells.
+is_voronoi_flag = cellfun(@(cell_value) (ischar(cell_value) || (isstring(cell_value) && isscalar(cell_value))) && ...
+    strcmpi(strtrim(char(cell_value)),'flag_voronoi'), flag_data);
+[flag_row,flag_col] = find(is_voronoi_flag,1);
 if isempty(flag_row) || flag_col >= size(flag_data,2)
     error('HydroPol2D:MissingVoronoiFlag', ...
         'The workbook must contain flag_voronoi and its value to the right.');
