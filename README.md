@@ -38,14 +38,14 @@ The current integration candidate is `v1.19.0-rc1`, coordinated with HydroPol2D-
 | Example | Folder | Run | What it shows | Run time | Expected results |
 |---|---|---|---|---|---|
 | V-tilted catchment (synthetic) | `Examples/VTilted_Excel` | `run('Examples/VTilted_Excel/run_excel.m')` | 10.8 mm/h for 90 min on a tilted V catchment, 180 min simulated; regular grid or prepared Voronoi mesh (`flag_voronoi`) | about 3 min | regular grid: rain 16.20 mm, peak outflow 1.525 m³/s, runoff coefficient 0.94, max depth 0.15 m |
-| San Francisquito Creek near Stanford, CA (30 m) | `Examples/Stanford` | `run('Examples/Stanford/run_excel.m')` | 100 mm/h for 1 h on a 157 km² real catchment, 180 min simulated | about 12 min (10 of them post-processing) | rain 99.97 mm, peak outflow 342.5 m³/s, runoff coefficient 0.12, max depth 3.35 m |
+| San Francisquito Creek near Stanford, CA (30 m) | `Examples/Stanford` | `run('Examples/Stanford/run_excel.m')` | 100 mm/h for 1 h on a 157 km² real catchment, 180 min simulated | about 14 min (11 of them post-processing) | rain 99.97 mm, peak outflow 402.8 m³/s, runoff coefficient 0.16, max depth 5.87 m |
 | One check per process | `Validation/` (see [Validation/README.md](Validation/README.md)) | each case's run script | about 80 small synthetic cases, each with a pass/fail rule | 1 to 10 min each | [Validation/Validation_Cases.csv](Validation/Validation_Cases.csv) |
 
 Results go to each example's `Outputs/` folder, which Git ignores.
 
 ### Data sources
 
-- **San Francisquito Creek, terrain.** The 10 m DEM in `Examples/Stanford/Static_10m_LiDAR` is the USGS 3D Elevation Program (3DEP) 10 m DEM, U.S. public domain. The source of the 30 m DEM used by the example (`Examples/Stanford/Static/DEM.tif`) is being confirmed.
+- **San Francisquito Creek, terrain.** The 30 m DEM used by the example (`Examples/Stanford/Static/DEM.tif`) is from the USGS 3D Elevation Program (3DEP), 3DEPElevation service at 10 m averaged to 30 m (2026-11-02), U.S. public domain. The 10 m DEM in `Examples/Stanford/Static_10m_LiDAR` is also 3DEP, U.S. public domain.
 - **San Francisquito Creek, land use.** ESA WorldCover 2020 (v100), CC BY 4.0, on the 30 m grid: © ESA WorldCover project 2020 / Contains modified Copernicus Sentinel data (2020) processed by ESA WorldCover consortium. The class codes 10 to 90 and their names in `LULC_parameters.xlsx` are WorldCover's.
 - **San Francisquito Creek, other maps.** The soil class (8), depth to bedrock (1.5 m), LAI (1), albedo (0.25) and initial soil moisture (0.1104) are uniform values set for the example; no outside data.
 - **V-tilted catchment.** All inputs are generated (`Examples/VTilted_Excel/prepare_standard_case.m`).
