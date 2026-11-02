@@ -61,12 +61,17 @@ var_obs = u2_stations(k,1:n_stations)';
 % UR
 var_obs = ur_stations(k,1:n_stations)';
 [ur,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid,'nearest');
-% G
-% Here, we are assuming daily evapotranspiration calculation such that G =
-% 0
-% var_obs = G_stations(k,1:n_stations)';
-% [G,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid);
+% G: the stations' ground heat flux [MJ/m2/day], nearest station, as
+% HydroPol2D-Python reads it (it is 0 for daily data, the usual case).
 G  = 0*idx_mask;
+if ~isempty(G_stations) && size(G_stations,1) >= k && size(G_stations,2) >= n_stations
+    var_obs = G_stations(k,1:n_stations)';
+    if any(isfinite(var_obs) & var_obs ~= 0)
+        var_obs(~isfinite(var_obs)) = 0;
+        [G,~,~] = IDW_Interpolator(x_coordinate,y_coordinate,var_obs,x_grid,y_grid,'nearest');
+        G(~isfinite(G)) = 0;
+    end
+end
 
 %% Run ETP code
 [ETP,Ep] = Evapotranspiration(DEM_etp, avg_temp,max_temp,min_temp,day_of_year,lat,u2, ur, Krs, alfa_albedo_input, G);
