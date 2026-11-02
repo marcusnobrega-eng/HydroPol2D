@@ -159,6 +159,16 @@ if flags.flag_automatic_calibration ~= 1
         end
 
         % -----------------------------------------------------------------
+        % Green infrastructure: ponded depth [m], media saturation and
+        % gravel fill [-] of the GI compartments
+        % -----------------------------------------------------------------
+        if isfield(flags, 'flag_green_infrastructure') && flags.flag_green_infrastructure == 1
+            [Maps.Hydro.GI_surface_depth_m(:,:,1), Maps.Hydro.GI_media_saturation(:,:,1), ...
+                Maps.Hydro.GI_gravel_fraction(:,:,1)] = ...
+                hp2d_green_infrastructure_outputs(Green_Infrastructure, GI_States);
+        end
+
+        % -----------------------------------------------------------------
         % Water quality
         % -----------------------------------------------------------------
         if flags.flag_waterquality == 1
@@ -275,6 +285,16 @@ if flags.flag_automatic_calibration ~= 1
         % -----------------------------------------------------------------
         if flags.flag_snow_modeling == 1
             Maps.Hydro.Snowpack(:,:,saver_count) = Snow_Properties.H_snow_t;
+        end
+
+        % -----------------------------------------------------------------
+        % Green infrastructure
+        % -----------------------------------------------------------------
+        if isfield(flags, 'flag_green_infrastructure') && flags.flag_green_infrastructure == 1
+            [Maps.Hydro.GI_surface_depth_m(:,:,saver_count), ...
+                Maps.Hydro.GI_media_saturation(:,:,saver_count), ...
+                Maps.Hydro.GI_gravel_fraction(:,:,saver_count)] = ...
+                hp2d_green_infrastructure_outputs(Green_Infrastructure, GI_States);
         end
 
         % -----------------------------------------------------------------
@@ -704,6 +724,22 @@ if flags.flag_automatic_calibration ~= 1
                 end
             end
         end
+    end
+
+    % ---------------------------------------------------------------------
+    % Green-infrastructure facility series at the hydrograph records
+    % (storages, rates of the last step and cumulative volumes)
+    % ---------------------------------------------------------------------
+    if (k == 1 || recording_parameters.delta_record_hydrograph > 0) && ...
+            isfield(flags, 'flag_green_infrastructure') && flags.flag_green_infrastructure == 1
+        [~, ~, ~, gi_history_row] = hp2d_green_infrastructure_outputs( ...
+            Green_Infrastructure, GI_States, double(gather(t)));
+        if k == 1 || ~exist('Green_Infrastructure_History', 'var')
+            Green_Infrastructure_History = gi_history_row;
+        else
+            Green_Infrastructure_History = [Green_Infrastructure_History; gi_history_row]; %#ok<AGROW>
+        end
+        clear gi_history_row
     end
 
     % ---------------------------------------------------------------------

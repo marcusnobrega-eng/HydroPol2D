@@ -32,6 +32,7 @@
 %   Inflow_Parameters
 %   Stage_Parameters
 %   Reservoir_Data
+%   Green_Infrastructure
 %   Snow
 %
 % IMPORTANT PHILOSOPHY
@@ -92,6 +93,7 @@
 %   InputData_Bypass.Inflow
 %   InputData_Bypass.Stage
 %   InputData_Bypass.Reservoir_Data
+%   InputData_Bypass.Green_Infrastructure
 %
 % IMPORTANT
 % ------------------------------------------------------------------------
@@ -396,6 +398,7 @@ InputData_Bypass.flags.flag_river_heigth_compensation    = 0;
 InputData_Bypass.flags.flag_dashboard                    = 0;
 InputData_Bypass.flags.flag_elapsed_time                 = 1;
 InputData_Bypass.flags.flag_obs_gauges                   = 0;
+InputData_Bypass.flags.flag_green_infrastructure         = 0; % subgrid GI facilities (SECTION 12c)
 
 % Used only when flag_voronoi = 1. Unresolved rivers are either represented
 % by the physical-width Neal graph or deliberately omitted.
@@ -1240,6 +1243,46 @@ Detention_Ponds = struct([]);
 %             'start_stage_m', 100.95, 'stop_stage_m', 100.82)}});
 
 InputData_Bypass.Detention_Ponds = Detention_Ponds;
+
+%% ========================================================================
+% SECTION 12c — GREEN INFRASTRUCTURE (flag_green_infrastructure = 1)
+% ========================================================================
+% Bioretention, infiltration trenches and permeable pavement as subgrid
+% compartments (HydroPol2D-Python green_infrastructure; bypass mode only:
+% the workbook has no GI inputs). Each facility is a polygon in the DEM's
+% map coordinates [m]; its part inside each cell is one compartment with
+% surface, media and gravel stores. The host part of the cell keeps (1 - f)
+% of the rain, ET and LAI. Requires flag_infiltration = 1; not with snow,
+% water quality, sub-grid channels or Voronoi meshes.
+%
+% designs: struct array (or table), Python field names and units; leave it
+% empty for the three templates of hp2d_green_infrastructure_designs():
+%   'bioretention_default', 'infiltration_trench_default',
+%   'permeable_pavement_default'. Fields left out take the defaults listed
+%   in hp2d_green_infrastructure_designs.m (media_ksat_mm_h, gravel depth,
+%   overflow crest, underdrain Q = C max(h - sill, 0)^b, ...).
+% placements: one struct per facility with identifier, design_identifier,
+%   vertices_m ([x y] rows), enabled, and underdrain_destination:
+%     []                                   no underdrain
+%     struct('kind','surface_cell','x_m',X,'y_m',Y)   to the cell holding (X, Y)
+%       (or 'row', 'column' of the model grid)
+%     struct('kind','outside_domain')     leaves the model, booked as outlet flow
+%   Native exfiltration from the gravel enters the soil below at the
+%   transmission-layer Ks; water the soil cannot take stays in the gravel.
+% Outputs: Maps.Hydro.GI_surface_depth_m, GI_media_saturation,
+% GI_gravel_fraction, and Tables_CSV/Green_Infrastructure_Facilities.csv.
+% ========================================================================
+InputData_Bypass.Green_Infrastructure = struct( ...
+    'designs', [], ...
+    'placements', struct('identifier', {}, 'design_identifier', {}, 'vertices_m', {}, ...
+        'enabled', {}, 'underdrain_destination', {}), ...
+    'courant', 0.5, 'minimum_substep_s', 0.01, 'maximum_substeps', 10000);
+% Example:
+% InputData_Bypass.Green_Infrastructure.placements = struct( ...
+%     'identifier', 'rain_garden_1', 'design_identifier', 'bioretention_default', ...
+%     'vertices_m', [500100 4099900; 500130 4099900; 500130 4099880; 500100 4099880], ...
+%     'enabled', true, ...
+%     'underdrain_destination', struct('kind', 'surface_cell', 'x_m', 500150, 'y_m', 4099850));
 
 %% ========================================================================
 % SECTION 13 — OBSERVED GAUGES

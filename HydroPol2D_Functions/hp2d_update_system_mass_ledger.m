@@ -1,7 +1,7 @@
 function [ledger, step_residual_m3] = hp2d_update_system_mass_ledger( ...
     ledger, flags, BC_States, Hydro_States, Snow_Properties, Soil_Properties, GW_States, ...
     depths, outlet_states, Wshed_Properties, Elevation_Properties, time_step, ...
-    C_a, SubgridTables, Drainage_States, Detention_Ponds)
+    C_a, SubgridTables, Drainage_States, Detention_Ponds, GI_States, Subsurface)
 %HP2D_UPDATE_SYSTEM_MASS_LEDGER Non-intrusive event water-balance ledger.
 %
 % The legacy mass_balance_check script is a progress-report diagnostic. This
@@ -17,6 +17,13 @@ function [ledger, step_residual_m3] = hp2d_update_system_mass_ledger( ...
 % evaporation and seepage that leaves the model (groundwater off) are losses; rain
 % on the ponds is in delta_p_agg and device discharge out of the model in the
 % outlet flow.
+%
+% GI_States (optional, flag_green_infrastructure): the GI compartments count
+% as storage and their ET as a loss; GI underdrain water that leaves the
+% model is already in the outlet flow.
+% Subsurface (optional, flag_layered_subsurface): soil and groundwater storage
+% is the layered column storage, as in the initial storage of
+% HydroPol2D_Main_While and in mass_balance_check.
 
 coarse_cell_area = ones(size(Elevation_Properties.elevation_cell), 'like', depths.d_t) ...
     .* Wshed_Properties.cell_area;
@@ -58,6 +65,13 @@ open_water_evap_m3 = nansum(nansum(coarse_cell_area .* BC_States.delta_E ./ 1000
 snow_sublimation_m3 = nansum(nansum(coarse_cell_area .* Snow_Properties.E_s ./ 1000));
 outlet_m3 = nansum(nansum(outlet_states.outlet_flow .* coarse_cell_area)) ...
     ./ 1000 ./ 3600 .* time_step .* 60;
+use_gi = nargin >= 17 && isstruct(GI_States) && isfield(GI_States, 'surface_m3');
+gi_et_m3 = 0;
+gi_storage_m3 = 0;
+if use_gi
+    gi_et_m3 = GI_States.step_total_et_m3;
+    gi_storage_m3 = sum(GI_States.surface_m3) + sum(GI_States.media_m3) + sum(GI_States.gravel_m3);
+end
 
 % Current total storage.
 canopy_storage_m3 = nansum(nansum(coarse_cell_area .* Hydro_States.S ./ 1000));
@@ -80,9 +94,15 @@ if flags.flag_groundwater_modeling == 1 && isstruct(GW_States) && ...
     groundwater_storage_m3 = groundwater_storage_m3 + nansum(nansum( ...
         coarse_cell_area .* GW_States.pending_net_exchange_m));
 end
+if nargin >= 18 && isstruct(Subsurface) && isfield(flags, 'flag_layered_subsurface') && ...
+        flags.flag_layered_subsurface == 1
+    soil_storage_m3 = Wshed_Properties.cell_area * sum(hp2d_column_storage_mm(Subsurface.column, ...
+        BC_States.h_t(:), Subsurface.water_mm), 'omitnan') / 1000;
+    groundwater_storage_m3 = 0;
+end
 snow_storage_m3 = nansum(nansum(coarse_cell_area .* Snow_Properties.SWE_t ./ 1000));
 storage_m3 = canopy_storage_m3 + surface_storage_m3 + soil_storage_m3 + ...
-    groundwater_storage_m3 + snow_storage_m3;
+    groundwater_storage_m3 + snow_storage_m3 + gi_storage_m3;
 drainage_inflow_m3 = 0;
 if nargin >= 15 && isstruct(Drainage_States) && isfield(Drainage_States, 'State')
     drainage_storage_m3 = sum(Drainage_States.State.node_volume_m3);
@@ -115,7 +135,7 @@ end
 
 net_flux_m3 = rain_m3 + inflow_m3 + stage_m3 + prescribed_recharge_m3 ...
     - canopy_evap_m3 - etr_m3 - open_water_evap_m3 - outlet_m3 - snow_sublimation_m3 ...
-    - pond_evaporation_m3 - pond_seepage_out_m3;
+    - pond_evaporation_m3 - pond_seepage_out_m3 - gi_et_m3;
 step_residual_m3 = (storage_m3 - ledger.previous_storage_m3) - net_flux_m3;
 
 ledger.previous_storage_m3 = storage_m3;
@@ -131,6 +151,13 @@ ledger.cumulative_outlet_m3 = ledger.cumulative_outlet_m3 + outlet_m3;
 if has_ponds
     ledger.cumulative_pond_evaporation_m3 = ledger.cumulative_pond_evaporation_m3 + pond_evaporation_m3;
     ledger.cumulative_pond_seepage_out_m3 = ledger.cumulative_pond_seepage_out_m3 + pond_seepage_out_m3;
+end
+if use_gi
+    if ~isfield(ledger, 'cumulative_green_infrastructure_et_m3')
+        ledger.cumulative_green_infrastructure_et_m3 = 0;
+    end
+    ledger.cumulative_green_infrastructure_et_m3 = ...
+        ledger.cumulative_green_infrastructure_et_m3 + gi_et_m3;
 end
 ledger.cumulative_residual_m3 = ledger.cumulative_residual_m3 + step_residual_m3;
 ledger.step_count = ledger.step_count + 1;

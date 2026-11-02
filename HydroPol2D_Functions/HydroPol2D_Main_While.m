@@ -325,7 +325,12 @@ if isfield(flags, 'flag_urban_drainage') && flags.flag_urban_drainage == 1
     % Water in the drainage nodes and pipes is storage (counted with the surface).
     S_p = S_p + sum(Drainage_States.State.node_volume_m3);
 end
-S_prev = S_c + S_p + S_UZ + S_GW + S_SWE;
+% Green-infrastructure compartments (surface, media and gravel water).
+S_GI = 0;
+if isfield(flags, 'flag_green_infrastructure') && flags.flag_green_infrastructure == 1
+    S_GI = sum(GI_States.surface_m3) + sum(GI_States.media_m3) + sum(GI_States.gravel_m3);
+end
+S_prev = S_c + S_p + S_UZ + S_GW + S_SWE + S_GI;
 
 % Detention ponds (flag_detention_ponds): their level-pool storage is a store, and the
 % local-inertial solver sees each pond cell as a wall (a pond cell is not surface).
@@ -549,6 +554,9 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         if use_d8_local_inertial
             D8_States_before_step = D8_States;
         end
+        if exist('GI_States', 'var') && isstruct(GI_States)
+            GI_States_before_step = GI_States;
+        end
         % -------------- Hydrological Model --------------- %
         Hydrological_Model; % Runs the interception + infiltration + GW routing model
 
@@ -770,6 +778,17 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 'Numerical instability detected: non-finite or >1000 m surface-water depth.');
         end
 
+        % Green-infrastructure underdrain water that left the model this step
+        % (Green_Infrastructure_Module) is outlet flow at its host cells.
+        if isfield(flags, 'flag_green_infrastructure') && flags.flag_green_infrastructure == 1 && ...
+                GI_States.step_total_external_m3 > 0
+            gi_external_map = zeros(size(outlet_states.outlet_flow), 'like', outlet_states.outlet_flow);
+            gi_external_map(Green_Infrastructure.host_cells) = GI_States.step_external_m3_host;
+            outlet_states.outlet_flow = hp2d_reservoir_book_external(outlet_states.outlet_flow, ...
+                gi_external_map, Wshed_Properties.cell_area, time_step*60);
+            clear gi_external_map
+        end
+
         %         zzz_time_tesk(k,1) = toc;
         %
         %         if k == 1000
@@ -866,11 +885,21 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
             else
                 ledger_drainage = [];
             end
+            if exist('GI_States', 'var') && isstruct(GI_States)
+                ledger_gi_states = GI_States;
+            else
+                ledger_gi_states = [];
+            end
+            if exist('Subsurface', 'var') && isstruct(Subsurface)
+                ledger_subsurface = Subsurface;
+            else
+                ledger_subsurface = [];
+            end
             [system_mass_ledger, system_step_residual_m3] = hp2d_update_system_mass_ledger( ...
                 system_mass_ledger, flags, BC_States, Hydro_States, Snow_Properties, ...
                 Soil_Properties, ledger_gw_states, depths, outlet_states, ...
                 Wshed_Properties, Elevation_Properties, time_step, C_a, SubgridTables, ...
-                ledger_drainage, Detention_Ponds);
+                ledger_drainage, Detention_Ponds, ledger_gi_states, ledger_subsurface);
         end
 
         %% Refreshing Time-step
@@ -1228,6 +1257,16 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
         if use_d8_local_inertial && exist('D8_States_before_step', 'var')
             D8_States = D8_States_before_step;
         end
+        % Green infrastructure: its stores, and the gross forcing if the step
+        % failed while the host share was in place.
+        if exist('GI_States_before_step', 'var')
+            GI_States = GI_States_before_step;
+        end
+        if exist('GI_Gross_Forcing', 'var') && isstruct(GI_Gross_Forcing)
+            [BC_States, Hydro_States, LAI_raster, GI_Gross_Forcing] = ...
+                hp2d_green_infrastructure_restore_forcing(BC_States, Hydro_States, LAI_raster, ...
+                GI_Gross_Forcing);
+        end
 
         %% ------------------------------------------------------------
         % Roll back full-momentum conservative memory after rejected step
@@ -1320,6 +1359,22 @@ end
 if flags.flag_waterquality == 1
     Maps.WQ_States.Pol_Conc_Map=Maps.WQ_States.Pol_Conc_Map(:,:,1:saver_count);
     Maps.WQ_States.Pol_mass_map=Maps.WQ_States.Pol_mass_map(:,:,1:saver_count);
+end
+if isfield(flags, 'flag_green_infrastructure') && flags.flag_green_infrastructure == 1 && ...
+        isfield(Maps.Hydro, 'GI_surface_depth_m')
+    gi_pages = min(saver_count, size(Maps.Hydro.GI_surface_depth_m, 3));
+    Maps.Hydro.GI_surface_depth_m = Maps.Hydro.GI_surface_depth_m(:,:,1:gi_pages);
+    Maps.Hydro.GI_media_saturation = Maps.Hydro.GI_media_saturation(:,:,1:gi_pages);
+    Maps.Hydro.GI_gravel_fraction = Maps.Hydro.GI_gravel_fraction(:,:,1:gi_pages);
+end
+% Green-infrastructure facility series (HydroPol2D-Python's green_infrastructure_* outputs).
+if isfield(flags, 'flag_green_infrastructure') && flags.flag_green_infrastructure == 1 && ...
+        exist('Green_Infrastructure_History', 'var') && exist('Paths', 'var') && isfield(Paths, 'Tables')
+    try
+        writetable(Green_Infrastructure_History, fullfile(Paths.Tables, 'Green_Infrastructure_Facilities.csv'));
+    catch gi_write_error
+        warning('Green-infrastructure facility series not written: %s', gi_write_error.message);
+    end
 end
 tempDir = fullfile(Paths.Temp);
 map_checkpoint = fullfile(tempDir, ['save_map_hydro_' num2str(store) '.mat']);

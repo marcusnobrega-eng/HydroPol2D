@@ -43,6 +43,17 @@ if use_d8_channel_storage
     depths.d_t = depths.d_t - d8_channel_mm;
 end
 
+% Green infrastructure covers a fraction f of some cells: the host soil,
+% canopy and surface of those cells get the rain, ET and LAI over (1 - f), as
+% in HydroPol2D-Python. The gross forcing is restored after the soil block.
+use_green_infrastructure = isfield(flags, 'flag_green_infrastructure') && ...
+    flags.flag_green_infrastructure == 1;
+if use_green_infrastructure
+    [BC_States, Hydro_States, LAI_raster, GI_Gross_Forcing] = ...
+        hp2d_green_infrastructure_scale_forcing(BC_States, Hydro_States, LAI_raster, ...
+        Green_Infrastructure.host_fraction_map, flags);
+end
+
 % Snow Module: splits the precipitation into rain and snowfall before the
 % canopy. Snowfall goes to the snowpack and melt to the surface; only the
 % rain reaches the canopy (as in HydroPol2D-Python).
@@ -81,6 +92,15 @@ else
 
     % Recharge and Groundwater Module
     Groundwater_Module
+end
+
+% Green infrastructure: after the host cell's vertical step, before the
+% inflow and the routing (HydroPol2D-Python _advance_green_infrastructure).
+if use_green_infrastructure
+    [BC_States, Hydro_States, LAI_raster, GI_Gross_Forcing] = ...
+        hp2d_green_infrastructure_restore_forcing(BC_States, Hydro_States, LAI_raster, ...
+        GI_Gross_Forcing);
+    Green_Infrastructure_Module
 end
 
 % Inflow

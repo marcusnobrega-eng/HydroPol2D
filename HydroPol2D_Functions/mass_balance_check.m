@@ -104,8 +104,17 @@ if isfield(flags, 'flag_detention_ponds') && flags.flag_detention_ponds == 1
     E_ow = E_ow + Detention_Ponds.last_evaporation_m3;
     Qout = Qout + Detention_Ponds.last_seepage_out_m3;
 end
+% Green-infrastructure compartments: their water counts with the surface
+% storage and their ET with the ET (underdrain water that leaves the model is
+% already in the outlet flow).
+S_GI = 0;
+if isfield(flags, 'flag_green_infrastructure') && flags.flag_green_infrastructure == 1 && ...
+        exist('GI_States', 'var') && isstruct(GI_States)
+    S_GI = sum(GI_States.surface_m3) + sum(GI_States.media_m3) + sum(GI_States.gravel_m3);
+    ETR = ETR + GI_States.step_total_et_m3;
+end
 
-[dS, fluxes, S_prev, error] = system_mass_balance(P, Qin, E_int, ETR, E_ow, Qout, E_s, S_c, S_p, S_UZ, S_GW, S_SWE, S_prev);
+[dS, fluxes, S_prev, error] = system_mass_balance(P, Qin, E_int, ETR, E_ow, Qout, E_s, S_c, S_p + S_GI, S_UZ, S_GW, S_SWE, S_prev);
 volume_error = error;
 
 % if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
@@ -150,6 +159,7 @@ end
 if layered_mass_balance
     current_storage = S_p + nansum(nansum(C_a.*Hydro_States.S/1000)) + S_UZ;
 end
+current_storage = current_storage + S_GI;
 if isfield(flags, 'flag_deep_aquifer') && flags.flag_deep_aquifer == 1 && exist('GW_States', 'var') && ...
         isstruct(GW_States) && isfield(GW_States, 'deep_aquifer_storage_m3')
     current_storage = current_storage + sum(GW_States.deep_aquifer_storage_m3(:), 'omitnan');

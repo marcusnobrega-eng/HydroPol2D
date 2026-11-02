@@ -486,6 +486,15 @@ if use_inputdata_bypass == 1
         Obs = InputData_Bypass.Obs;
     end
 
+    % ---------------- Green Infrastructure ----------------
+    % Design library and facility polygons (hp2d_prepare_green_infrastructure).
+    if isfield(flags,'flag_green_infrastructure') && flags.flag_green_infrastructure == 1
+        if ~isfield(InputData_Bypass,'Green_Infrastructure')
+            error('Bypass mode requires InputData_Bypass.Green_Infrastructure when flag_green_infrastructure = 1.');
+        end
+        Green_Infrastructure_Input = InputData_Bypass.Green_Infrastructure;
+    end
+
     clear input_data input_table
 
 else
