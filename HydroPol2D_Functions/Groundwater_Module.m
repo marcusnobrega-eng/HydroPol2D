@@ -295,9 +295,13 @@ if isfield(flags,'flag_river_groundwater_exchange') && ...
         flags.flag_river_groundwater_exchange==1
     effective_head=BC_States.h_t+ ...
         GW_States.pending_net_exchange_m./max(Sy_head,1e-9);
+    % The groundwater the river can take excludes this step's recharge, as
+    % in HydroPol2D-Python (it reaches the table, not the river, this step).
+    this_step_recharge_m=downward_depth_m;
+    if has_prescribed_recharge, this_step_recharge_m=this_step_recharge_m+prescribed_depth_m; end
     [effective_after,depths.d_t,q_river,river_exchange_m3]= ...
-        structured_river_exchange(effective_head,depths.d_t,z_bed,z_terrain, ...
-        Soil_Properties,idx_rivers,dt_s,GW_States.cell_area_m2,idx_nan);
+        hp2d_structured_river_exchange(effective_head,depths.d_t,z_bed,z_terrain, ...
+        Soil_Properties,idx_rivers,dt_s,GW_States.cell_area_m2,idx_nan,this_step_recharge_m);
     GW_States.pending_net_exchange_m=GW_States.pending_net_exchange_m+ ...
         (effective_after-effective_head).*Sy_head;
     if ~isfield(GW_States,'total_river_exchange_m3')
@@ -560,33 +564,6 @@ else
     Sy_local = Soil_Properties.theta_sat - Soil_Properties.theta_r;
 end
 Sy_local = max(Sy_local, 1e-6);
-end
-
-function [head,surface_depth_mm,rate_m_s,net_volume_m3] = structured_river_exchange( ...
-        head,surface_depth_mm,bedrock,surface,soil,river_mask,dt_s,cell_area,idx_nan)
-assert(isfield(soil,'riverbed_hydraulic_conductivity_m_s') && ...
-    isfield(soil,'cell_riverbed_area_m2') && isfield(soil,'riverbed_thickness_m'), ...
-    'HydroPol2D:MissingRiverbedParameters', ...
-    'River-groundwater exchange requires riverbed conductivity, area, and thickness.');
-kbed=double(soil.riverbed_hydraulic_conductivity_m_s);
-area=max(double(soil.cell_riverbed_area_m2),0);
-thickness=double(soil.riverbed_thickness_m);
-assert(isfinite(thickness) && thickness>0 && all(kbed(~idx_nan)>=0), ...
-    'HydroPol2D:InvalidRiverbedParameters', ...
-    'Riverbed conductivity must be nonnegative and thickness positive.');
-active=logical(river_mask) & area>0 & ~idx_nan;
-stage=surface+max(surface_depth_mm,0)./1000;
-sy=local_groundwater_specific_yield(soil);
-groundwater_available=max(head-bedrock,0).*sy.*cell_area;
-surface_available=max(surface_depth_mm,0)./1000.*cell_area;
-[volume,~]=hp2d_river_groundwater_exchange_step(kbed,thickness,area,head,stage, ...
-    groundwater_available,surface_available,sy.*cell_area,cell_area,dt_s,active);
-head=head-volume./max(sy.*cell_area,eps);
-surface_depth_mm=surface_depth_mm+volume./max(cell_area,eps).*1000;
-surface_depth_mm=max(surface_depth_mm,0);
-rate_m_s=volume./max(cell_area,eps)./dt_s;
-rate_m_s(idx_nan)=nan;
-net_volume_m3=nansum(volume,'all');
 end
 
 function [q_m3_s, q_mm_h, active_area_m2] = compute_mass_balance_seepage_discharge( ...
