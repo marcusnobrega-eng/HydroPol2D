@@ -2310,7 +2310,11 @@ Wshed_Properties.width_SWMM = Wshed_Properties.compactness_coefficient*sqrt(Wshe
 %%% - Rainfall Volume
 rainfall_vol = 0; % catchment-average rainfall depth [mm]
 
-if flags.flag_rainfall == 1
+if flags.flag_rainfall == 1 && isfield(BC_States, 'rainfall_volume_m3') && ...
+        Wshed_Properties.drainage_area > 0
+    % The precipitation the model applied, step by step (mass_balance_check).
+    rainfall_vol = gather(BC_States.rainfall_volume_m3) / Wshed_Properties.drainage_area * 1000; % mm
+elseif flags.flag_rainfall == 1
 
     if flags.flag_spatial_rainfall == 1
         % Spatial rainfall branch: keep the existing post-processing logic
@@ -2330,17 +2334,23 @@ if flags.flag_rainfall == 1
         rain_t = rain_t(1:nRain);
         rain_i = rain_i(1:nRain);
 
+        % Each time starts an interval, as in update_spatial_BC: row k holds from
+        % rain_t(k) to rain_t(k+1), and the last row for the last spacing (a single
+        % row never ends). Clipped to the run.
         if flags.flag_elapsed_time ~= 1
-            % rain_t is serial date number after conversion above
-            dt_rain_hr = hours(diff([date_begin; rain_t]));
+            rain_t_min = minutes(rain_t - date_begin);
         else
-            % rain_t is elapsed time in minutes (DOUBLE CHECK)
-            dt_rain_hr = (diff([0; rain_t]) / 60);
+            rain_t_min = double(rain_t); % elapsed minutes
         end
+        if nRain >= 2
+            rain_end_min = [rain_t_min(2:end); 2*rain_t_min(end) - rain_t_min(end-1)];
+        else
+            rain_end_min = inf(size(rain_t_min));
+        end
+        overlap_hr = max(min(rain_end_min, running_control.routing_time) - ...
+            max(rain_t_min, 0), 0) / 60;
 
-        dt_rain_hr(dt_rain_hr < 0) = 0;
-
-        rainfall_vol = sum(rain_i .* (dt_rain_hr), 'omitnan'); % mm
+        rainfall_vol = sum(rain_i .* overlap_hr, 'omitnan'); % mm
     end
 end
 
@@ -2383,7 +2393,7 @@ if flags.flag_waterquality == 0
         round(Wshed_Properties.width_SWMM,3), ...
         round(Wshed_Properties.form_factor,3), ...
         round(simulation_time_minutes,3), ...
-        round(1/1000*max(max(max(Maps.Hydro.d))),2), ...
+        round(1/1000*max(gather(depths.dmax_final(:)),[],'omitnan'),2), ...
         round(max(outlet_states.outlet_hydrograph),4), ...
         'VariableNames', ...
         {'Drainage area (km2)', ...
@@ -2409,7 +2419,7 @@ else
         round(Wshed_Properties.width_SWMM,3), ...
         round(Wshed_Properties.form_factor,3), ...
         round(simulation_time_minutes,3), ...
-        round(1/1000*max(max(max(Maps.Hydro.d))),2), ...
+        round(1/1000*max(gather(depths.dmax_final(:)),[],'omitnan'),2), ...
         round(max(outlet_states.outlet_hydrograph),4), ...
         round(max(max(max(Maps.WQ_States.Pol_Conc_Map))),3), ...
         1000*(1/Wshed_Properties.cell_area)*round(max(max(WQ_States.B_t(~isinf(WQ_States.B_t)))),4), ...
@@ -2456,7 +2466,9 @@ fprintf('Simulation time (minutes) = %f\n', round(simulation_time_minutes,3));
 fprintf('Post-processing runtime (minutes) = %f\n', round(post_processing_runtime_seconds/60,3));
 % Summary
 % fprintf('Maximum Flood Depth (m) = %f\n', round(1/1000*max(max(Max_depth_d))));
-fprintf('Maximum Flood Depth (m) = %f\n', round(1/1000*max(max(max(Maps.Hydro.d))),2));
+% Largest depth of the run (depths.dmax_final, every step): Maps.Hydro.d holds
+% only the last chunk of saved maps here.
+fprintf('Maximum Flood Depth (m) = %f\n', round(1/1000*max(gather(depths.dmax_final(:)),[],'omitnan'),2));
 fprintf('Maximum Outflow (m^3/s) = %f\n', round(max(outlet_states.outlet_hydrograph),4));
 if flags.flag_waterquality == 1
     % fprintf('Maximum Concentration (mg/L) = %f\n', round(max(max(Max_Pol_Conc_Map))));
