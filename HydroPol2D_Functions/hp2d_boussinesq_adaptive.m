@@ -12,6 +12,9 @@ assert(interval_s>0 && min_step_s>0 && relative_tolerance>0 && head_tolerance_m>
     'HydroPol2D:InvalidGroundwaterTolerance', ...
     'Adaptive groundwater interval, floor, and tolerances must be positive.');
 
+% Time in double precision: with single heads the carried step was single,
+% so an interval could end a rounding error short and the loop never closed.
+interval_s=double(interval_s); initial_step_s=double(initial_step_s); min_step_s=double(min_step_s);
 elapsed=0;
 candidate=min(initial_step_s,interval_s);
 if ~isfinite(candidate) || candidate<=0, candidate=interval_s; end
@@ -22,8 +25,8 @@ u_x=zeros(size(head)); u_y=zeros(size(head));
 
 while elapsed<interval_s-10*eps(max(interval_s,1))
     remaining=interval_s-elapsed;
-    stable=local_stable_step(head,bedrock,specific_yield, ...
-        hydraulic_conductivity_m_s,dx,dy,courant);
+    stable=double(local_stable_step(head,bedrock,specific_yield, ...
+        hydraulic_conductivity_m_s,dx,dy,courant));
     step_s=min([candidate,stable,remaining]);
     floor_s=min(min_step_s,remaining);
     step_s=max(step_s,floor_s);
@@ -36,7 +39,7 @@ while elapsed<interval_s-10*eps(max(interval_s,1))
         abs(fine-bedrock),abs(coarse-bedrock));
     normalized=abs(fine-coarse)./max(scale,realmin);
     normalized(~domain)=0;
-    local_error=max(normalized(:),[],'omitnan');
+    local_error=double(max(normalized(:),[],'omitnan'));
     if isempty(local_error) || ~isfinite(local_error)
         error('HydroPol2D:GroundwaterAdaptiveError', ...
             'Adaptive Boussinesq error estimate is not finite.');

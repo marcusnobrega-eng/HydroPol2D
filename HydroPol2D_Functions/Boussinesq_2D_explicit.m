@@ -83,7 +83,8 @@ L_river = 1/2*(dx+dy);
 
 %% TIME STEPPING LOOP
 t = 0; % Initialize time
-T = dt; % Set total simulation time to initial dt
+T = double(dt); % Set total simulation time to initial dt (time in double precision)
+q_river = zeros(size(h)); error = 0; %#ok<NASGU>
 
 %% Loop
 h_0 = h;
@@ -108,7 +109,7 @@ while t < T - time_tolerance
     h_previous = h_t;
 
     % Compute new stable dt at each step
-    dt_GW = nanmin(nanmin(compute_stable_dt(u_x, u_y, dx, dy, Courant))); % Adaptive time step
+    dt_GW = double(nanmin(nanmin(compute_stable_dt(u_x, u_y, dx, dy, Courant)))); % Adaptive time step (double, so t reaches T with single heads)
 
     % Ensure dt does not exceed remaining simulation time
     dt = min(dt_GW, T - t);
