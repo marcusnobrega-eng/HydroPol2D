@@ -69,6 +69,7 @@ CHECKS = (
     Check("mesh channel outlets", "Validation/Voronoi/AutoChannelBoundary/run_auto_channel_boundary_check.m", "Validation/Voronoi/AutoChannelBoundary/Outputs/Validation/Pass_Fail.csv", "fast"),
     Check("LAI gaps", "Validation/Interception/LAIGaps/run_lai_gap_check.m", "Validation/Interception/LAIGaps/Outputs/Validation/Pass_Fail.csv", "fast"),
     Check("legacy groundwater settings", "Validation/Groundwater/LegacySettingsFromCase/run_legacy_groundwater_settings_check.m", "Validation/Groundwater/LegacySettingsFromCase/Outputs/Validation/Pass_Fail.csv", "fast"),
+    Check("river availability, heat flux, single heads", "Validation/Groundwater/RiverAvailabilityHeatFlux/run_river_heat_flux_checks.m", "Validation/Groundwater/RiverAvailabilityHeatFlux/Outputs/Validation/Pass_Fail.csv", "fast"),
     Check("forcing time stamps", "Validation/BoundaryConditions/ForcingTimeStamps_StartOfInterval/run_forcing_time_stamp_check.m", "Validation/BoundaryConditions/ForcingTimeStamps_StartOfInterval/Outputs/Validation/Pass_Fail.csv", "fast"),
     Check("spatial rainfall", "Validation/SpatialRainfall/TinyRaster_TotalRainfall/run_spatial_rainfall_raster_validation.m", "Validation/SpatialRainfall/TinyRaster_TotalRainfall/Outputs/Validation/SpatialRainfall_Raster_Pass_Fail.csv", "fast"),
     Check("water quality", "Validation/WaterQuality/BuildUpWashOff_MassBalance/run_water_quality_washoff_validation.m", "Validation/WaterQuality/BuildUpWashOff_MassBalance/Outputs/Validation/WaterQuality_Washoff_Pass_Fail.csv", "fast"),
