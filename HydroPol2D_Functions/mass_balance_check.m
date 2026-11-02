@@ -43,6 +43,11 @@ if drainage_on
 end
 inflow_vol = rain_vol + inflow_bc_vol + inflow_stage + gw_prescribed_vol;
 BC_States.inflow_volume = inflow_vol + BC_States.inflow_volume; % m3
+% Precipitation the model applied over the run (the summary's rainfall volume).
+if ~isfield(BC_States, 'rainfall_volume_m3')
+    BC_States.rainfall_volume_m3 = 0;
+end
+BC_States.rainfall_volume_m3 = BC_States.rainfall_volume_m3 + rain_vol;
 
 P = rain_vol + gw_prescribed_vol; % m3
 Qin = inflow_vol - P; % m3
@@ -116,6 +121,11 @@ end
 
 [dS, fluxes, S_prev, error] = system_mass_balance(P, Qin, E_int, ETR, E_ow, Qout, E_s, S_c, S_p + S_GI, S_UZ, S_GW, S_SWE, S_prev);
 volume_error = error;
+% Running total of the step errors (printed at the progress reports).
+if ~isfield(BC_States, 'cumulative_volume_error_m3')
+    BC_States.cumulative_volume_error_m3 = 0;
+end
+BC_States.cumulative_volume_error_m3 = BC_States.cumulative_volume_error_m3 + volume_error;
 
 % if flags.flag_subgrid == 1 && flags.flag_overbanks == 1
 %     current_storage = nansum(nansum((Wshed_Properties.Resolution - Wshed_Properties.River_Width).*Wshed_Properties.Resolution.*max((depths.d_t/1000 - Wshed_Properties.River_Depth),0))) + ...

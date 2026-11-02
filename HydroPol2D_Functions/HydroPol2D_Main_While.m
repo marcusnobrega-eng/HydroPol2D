@@ -902,6 +902,12 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 ledger_drainage, Detention_Ponds, ledger_gi_states, ledger_subsurface);
         end
 
+        % Legacy water balance (mass_balance_check): every accepted step, with this
+        % step's rain, outflow and time step (before refreshing_timestep and
+        % update_spatial_BC change them). Run only at the progress reports, it
+        % booked one step of fluxes per report against the whole storage change.
+        mass_balance_check
+
         %% Refreshing Time-step
         running_control.pos_save = ceil((t*60)/running_control.time_step_change);
         running_control.time_save = (running_control.pos_save - 1)*running_control.time_step_change/60;
@@ -1027,10 +1033,6 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
 
         if do_report_now
 
-
-            %% Mass Balance Check
-            mass_balance_check
-
             if ~isempty(run_progress_path)
                 elapsed_seconds = toc(run_monitor_timer);
                 bounded_percent = min(max(progress_percent, 0), 100);
@@ -1066,7 +1068,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                     'max_surface_depth_m', max(gather_deep(depths.d_t(:)), [], 'omitnan') / 1000, ...
                     'outlet_discharge_m3_s', gather_deep(outlet_discharge_m3_s), ...
                     'total_storage_m3', gather_deep(current_storage), ...
-                    'mass_balance_error_m3', gather_deep(volume_error), ...
+                    'mass_balance_error_m3', gather_deep(BC_States.cumulative_volume_error_m3), ...
                     'mean_groundwater_depth_m', mean(groundwater_depth(:), 'omitnan'));
                 hp2d_write_run_monitor(run_progress_path, run_metrics_path, ...
                     run_monitor_values, true);
@@ -1134,7 +1136,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                     max(max(depths.d_t(~isinf(depths.d_t)))), ... % Max depth [mm in your internal storage]
                     max(max(Hydro_States.f)), ... % Max Infiltration Rate
                     max(max(WQ_States.P_conc)), ... % Max Water Quality Pollutant concentration
-                    volume_error];  % Volume error [m3]
+                    BC_States.cumulative_volume_error_m3];  % Cumulative volume error [m3]
 
                 % Print formatted output for water quality
                 fprintf('==== Water Quality Stats ====\n');
@@ -1144,7 +1146,9 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 fprintf('Max Depth: %.2f m\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(4));
                 fprintf('Max Inf. Rate: %.2f mm/h\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(5));
                 fprintf('Max Water Quality Concentration: %.2e Cmg/L\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(6));
-                fprintf('Volume Error: %.3f m³\n', perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(7));
+                fprintf('Volume Error: %.3f m³ (cumulative, %.2e of the inflow)\n', ...
+                    perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(7), ...
+                    perc_duremain_tsec_dtmm_infmmhr_CmgL_dtmWQ_VolErrorm3(7) / max(BC_States.inflow_volume, eps));
             else
                 perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3 = [
                     (t) / running_control.routing_time * 100, ... % Percentage complete
@@ -1154,7 +1158,7 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                     1/1000 * max(max(depths.d_t(~isinf(depths.d_t)))), ... % Max depth [m]
                     max(max(Hydro_States.f)), ... % Max Inf Rate
                     velocities.max_velocity, ... % Max Velocity
-                    volume_error];  % Volume error [m3]
+                    BC_States.cumulative_volume_error_m3];  % Cumulative volume error [m3]
 
                 % Print formatted output for general model stats
                 fprintf('---- General Model Stats ----\n');
@@ -1165,7 +1169,9 @@ while t <= (running_control.routing_time + running_control.min_time_step/60) % R
                 fprintf('Max Depth: %.2f m\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(5));
                 fprintf('Max Inf Rate: %.2f mm/h\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(6));
                 fprintf('Max Velocity: %.2f m/s\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(7));
-                fprintf('Volume Error: %.3f m³\n', perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(8));
+                fprintf('Volume Error: %.3f m³ (cumulative, %.2e of the inflow)\n', ...
+                    perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(8), ...
+                    perc_t_duremain_tsec_dtmm_infmmhr_CmgL_vel_VolErrorm3(8) / max(BC_States.inflow_volume, eps));
             end
 
             fprintf('\n==== Mass Balance Diagnostics Over Catchment ====\n');
