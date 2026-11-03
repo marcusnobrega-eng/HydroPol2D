@@ -13,8 +13,8 @@ written back through the Builder and exported to MATLAB with the rest of the
 final case. See the shared
 [model-building workflow](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/getting-started/model-building-workflow).
 
-The current integration candidate is `v1.19.0-rc1`, coordinated with HydroPol2D-Python
-`v0.9.0-rc1` and HydroBathyDEM `v0.4.0-rc1`. The stable public numerical reference remains
+The current integration candidate is `v1.19.0-rc2`, coordinated with HydroPol2D-Python
+`v0.9.0-rc2` and HydroBathyDEM `v0.4.0-rc1`. The stable public numerical reference remains
 `v1.17.0` until the remaining hardware and packaging gates pass.
 
 ---
