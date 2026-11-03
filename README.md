@@ -27,41 +27,40 @@
   <a href="#quick-start"><b>Quick start</b></a> ·
   <a href="#examples-you-can-run"><b>Examples</b></a> ·
   <a href="#gallery"><b>Gallery</b></a> ·
-  <a href="https://github.com/marcusnobrega-eng/HydroPol2D-Studio-releases/releases"><b>Studio</b></a> ·
+  <a href="#the-hydropol2d-family"><b>Studio and Case Builder</b></a> ·
+  <a href="#licences"><b>Licences</b></a> ·
   <a href="#cite"><b>Cite</b></a>
 </p>
 
-HydroPol2D is a distributed 2D hydrologic-hydrodynamic and water-quality model. It follows rain
-across a landscape, cell by cell: what the canopy and snowpack hold, what infiltrates and
-recharges the aquifer, and where the runoff flows, how deep it gets and what pollutants it
-carries. It runs in MATLAB on a raster grid or a mesh, on the CPU or an NVIDIA GPU, for urban,
-peri-urban and rural catchments, gauged or data-scarce. The same physics runs in
-[HydroPol2D Studio](https://github.com/marcusnobrega-eng/HydroPol2D-Studio-releases/releases),
-a desktop app with a graphical interface.
+HydroPol2D is a computer model of floods and water quality. It follows rain across a landscape,
+cell by cell. It computes how much water plants and snow hold, how much soaks into the soil and
+reaches the groundwater, and where the rest flows, how deep it gets and what pollutants it
+carries. It works for cities, suburbs and rural catchments, including places with few
+measurements. This repository is the MATLAB version of the model. It is free and open source.
 
 <p align="center">
   <a href="https://marcusnobrega-eng.github.io/profile/files/stanford-campus-coupled-states.mp4">
-    <img src=".github/assets/stanford-campus-10m-coupled-states.gif" width="900" alt="Animated maps of eight synchronized HydroPol2D outputs for a 10 m coupled simulation of Stanford campus" />
+    <img src=".github/assets/stanford-campus-10m-coupled-states.gif" width="900" alt="Animated maps of eight synchronized HydroPol2D outputs for a 10 m simulation of Stanford campus" />
   </a>
   <br />
-  <sub>Stanford campus, CA, 10 m coupled simulation: flood depth, velocity, depth-velocity index and water-surface elevation (top); infiltration rate, rainfall, groundwater depth and effective recharge (bottom). Click for the full-resolution video.</sub>
+  <sub>Stanford campus, CA, simulated on a 10 m grid. Top: flood depth, flow speed, flood hazard and water level. Bottom: infiltration, rainfall, groundwater depth and groundwater recharge. Click for the full video.</sub>
 </p>
 
 ## What it does
 
 <p align="center">
-  <img src="https://marcusnobrega-eng.github.io/HydroPol2D-docs/img/getting-started/questions-modules-outputs.svg" width="760" alt="Six questions, the module that answers each and the outputs that show it: surface routing, hydrologic core, snow, groundwater, human instability and water quality" />
+  <img src="https://marcusnobrega-eng.github.io/HydroPol2D-docs/img/getting-started/questions-modules-outputs.svg" width="760" alt="Six questions, the part of the model that answers each and the outputs that show it: surface flow, rain to runoff, snow, groundwater, people at risk and water quality" />
 </p>
 
 | Area | What HydroPol2D computes |
 |---|---|
-| **Surface flow** | Local-inertial routing (default); kinematic, diffusive, full-momentum and cellular-automata solvers; D8 local inertial; Neal (2012) subgrid channels |
-| **Hydrology** | Interception, Penman-Monteith evapotranspiration, snow accumulation and melt, Darcy-based infiltration through three soil layers |
-| **Subsurface** | Water table with 2D Boussinesq lateral flow, an optional soil-over-regolith column, a deep aquifer and river-aquifer exchange |
-| **Infrastructure** | Reservoirs and control structures, dam break, urban drainage networks, detention ponds and green infrastructure |
-| **Water quality and risk** | Pollutant build-up and wash-off; human instability as a risk index or as slide, topple and drowning classes |
-| **Grids and computing** | Raster grid or prepared Voronoi and quadtree meshes; CPU or GPU; Courant-based adaptive time step with a mass-balance check |
-| **Outputs** | GeoTIFF maps, MP4 animations, hydrographs and water balances as CSV, figures as PDF and PNG |
+| **Flood flow** | Water flowing over the land and in rivers. Five ways to compute it are available. The default is local inertial. |
+| **Rain to runoff** | Rain caught by leaves, snow that builds up and melts, evaporation and plant water use, and water soaking into three soil layers. |
+| **Groundwater** | The water table, groundwater flow between cells, a deep aquifer and water exchange with rivers. |
+| **Structures** | Reservoirs and gates, dam breaks, storm drains, detention ponds and green infrastructure such as rain gardens. |
+| **Water quality and risk** | Pollutants that build up on surfaces and wash off with runoff, and the risk for people standing in floodwater. |
+| **Grids and computers** | A regular grid or a flexible mesh. It runs on a normal computer or on an NVIDIA graphics card, and its time step adapts so that water is conserved. |
+| **Outputs** | Maps (GeoTIFF), animations (MP4), hydrographs and water balances (CSV), and figures (PDF and PNG). |
 
 ## Quick start
 
@@ -72,33 +71,34 @@ git clone https://github.com/marcusnobrega-eng/HydroPol2D.git
 Open MATLAB in the `HydroPol2D` folder and run an example:
 
 ```matlab
-run('Examples/VTilted_Excel/run_excel.m')   % synthetic V-tilted catchment, about 3 min
+run('Examples/VTilted_Excel/run_excel.m')   % a simple synthetic catchment, about 3 min
 run('Examples/Stanford/run_excel.m')        % San Francisquito Creek, CA, about 14 min
 ```
 
-**Requirements:** MATLAB R2020a or newer with the Mapping and Image Processing Toolboxes. GPU
-runs need the Parallel Computing Toolbox and an NVIDIA GPU; DEM smoothing needs the
-Optimization Toolbox.
+**You need** MATLAB R2020a or newer with the Mapping Toolbox and the Image Processing Toolbox.
+Runs on a graphics card also need the Parallel Computing Toolbox and an NVIDIA card. Terrain
+smoothing needs the Optimization Toolbox.
 
-**Your own case:** a case is one Excel workbook. Copy
-[`Input_Data_Sheets/HydroPol2D_Inputs.xlsx`](Input_Data_Sheets/HydroPol2D_Inputs.xlsx), fill its
-tabs and run `HydroPol2D_V115.m`. Every tab and setting is described, with a picture of each tab,
-in [Case Workbook Settings](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/configuration/general_data)
+**Your own case** is one Excel workbook. Copy
+[`Input_Data_Sheets/HydroPol2D_Inputs.xlsx`](Input_Data_Sheets/HydroPol2D_Inputs.xlsx), fill in
+its tabs and run [`run_HydroPol2D.m`](run_HydroPol2D.m). The website explains every tab, with a
+picture of each one, in
+[Case Workbook Settings](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/configuration/general_data)
 and [Run from Excel](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/getting-started/excel-workflow).
-Scripted studies use [`Config/input_data_bypass_script.m`](Config/input_data_bypass_script.m)
-instead.
+For automated studies, a script can replace the workbook
+([`Config/input_data_bypass_script.m`](Config/input_data_bypass_script.m)).
 
 ## Examples you can run
 
 | Example | Run in MATLAB | What it shows | Time | Expected results |
 |---|---|---|---|---|
-| [V-tilted catchment](Examples/VTilted_Excel/README.md) (synthetic) | `run('Examples/VTilted_Excel/run_excel.m')` | 10.8 mm/h for 90 min, 180 min simulated; regular grid or a prepared Voronoi mesh | ~3 min | rain 16.20 mm, peak outflow 1.525 m³/s, runoff coefficient 0.94, max depth 0.15 m |
-| [San Francisquito Creek](Examples/Stanford/README.md), CA (30 m) | `run('Examples/Stanford/run_excel.m')` | 100 mm/h for 1 h on a 157 km² catchment, 180 min simulated | ~14 min | rain 99.97 mm, peak outflow 402.8 m³/s, runoff coefficient 0.16, max depth 5.87 m |
-| [One check per process](Validation/README.md) | each case's run script | about 80 small synthetic cases, each with a pass/fail rule | 1-10 min each | [Validation_Cases.csv](Validation/Validation_Cases.csv) |
+| [V-tilted catchment](Examples/VTilted_Excel/README.md) (synthetic) | `run('Examples/VTilted_Excel/run_excel.m')` | 10.8 mm/h of rain for 90 min, 180 min simulated, on a regular grid or a mesh | ~3 min | rain 16.20 mm, peak outflow 1.525 m³/s, runoff coefficient 0.94, maximum depth 0.15 m |
+| [San Francisquito Creek](Examples/Stanford/README.md), CA (30 m grid) | `run('Examples/Stanford/run_excel.m')` | 100 mm/h of rain for 1 h on a 157 km² catchment, 180 min simulated | ~14 min | rain 99.97 mm, peak outflow 402.8 m³/s, runoff coefficient 0.16, maximum depth 5.87 m |
+| [One check per process](Validation/README.md) | each case's run script | about 80 small synthetic cases, each with a pass or fail rule | 1-10 min each | [Validation_Cases.csv](Validation/Validation_Cases.csv) |
 
-Results go to each example's `Outputs/` folder. The
-[24 h version of the Stanford case](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/Examples/RainfallRunoff)
-is on the website, with its maps and video.
+Each example writes its results to its own `Outputs/` folder. A 24 h version of the Stanford case,
+with maps and a video, is on the
+[website](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/Examples/RainfallRunoff).
 
 ## Gallery
 
@@ -107,66 +107,79 @@ Results from studies. Their inputs are not in this repository.
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="https://marcusnobrega-eng.github.io/profile//files/Rain_on_the_grid.gif" width="300" alt="Animated rain-on-the-grid flood simulation of an urban catchment" /><br />
-      <sub>Rain on the grid: a 50-year storm over an urban catchment with drainage, São Paulo, Brazil</sub>
+      <img src="https://marcusnobrega-eng.github.io/profile//files/Rain_on_the_grid.gif" width="300" alt="Animated flood simulation of an urban catchment" /><br />
+      <sub>A 50-year storm over an urban catchment with storm drains, São Paulo, Brazil</sub>
     </td>
     <td align="center" width="50%">
       <img src="https://github.com/user-attachments/assets/adfcdfe4-66e7-42aa-9335-de0e6d56a729" width="300" alt="Dam-break flood over a city" /><br />
-      <sub>Total dam-break collapse over a city in Pernambuco, Brazil</sub>
+      <sub>A full dam break over a city in Pernambuco, Brazil</sub>
     </td>
   </tr>
 </table>
 
-**Rainfall-runoff event in a catchment near Palo Alto, CA**
+**A rainfall-runoff event in a catchment near Palo Alto, CA**
 
 https://github.com/user-attachments/assets/739e39eb-18e8-4ec3-bee6-a7a647793774
 
-**22-day continuous simulation with spatially varied MSWEP rainfall, Pune, India**
+**A 22-day simulation with rainfall that varies in space (MSWEP), Pune, India**
 
 https://github.com/user-attachments/assets/3ad69bb3-3e24-4df3-b5ff-584aafcc6296
 
-## How a run works
+## The HydroPol2D family
+
+| Product | What it is | Licence |
+|---|---|---|
+| **HydroPol2D (MATLAB)** | This repository. The model's source code in MATLAB. You prepare a case in an Excel workbook and run it in MATLAB. | Free and open source ([GPL-3.0](LICENSE)) |
+| **[HydroPol2D Studio](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/studio/overview)** | A desktop app for Mac and Windows. You build a model on a map, run it, calibrate it and view the results in one window, with no MATLAB and no coding. It runs the Python version of the model. | Proprietary, needs a licence code |
+| **[HydroPol2D Case Builder](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/builder/overview)** | A tool that prepares a ready-to-run case for a city or a catchment from public global data: the model area, terrain, rivers, land use, soil, rain and weather. It writes cases for this MATLAB version and for the Python version. | Proprietary, needs a licence code |
 
 <p align="center">
-  <img src="https://marcusnobrega-eng.github.io/HydroPol2D-docs/img/getting-started/data-to-results.svg" width="720" alt="Maps, parameter tables, forcing and settings make one case, which HydroPol2D Studio or HydroPol2D-MATLAB runs into maps, time series, animations and a results package" />
+  <img src="https://marcusnobrega-eng.github.io/HydroPol2D-docs/img/getting-started/data-to-results.svg" width="720" alt="Maps, parameter tables, forcing and settings make one case, which HydroPol2D Studio or HydroPol2D (MATLAB) runs into maps, time series, animations and a results package" />
 </p>
 
-Maps (DEM, land use and soil, plus optional rasters), class tables, forcing and settings make one
-case. HydroPol2D-MATLAB runs the case workbook; HydroPol2D Studio runs the same physics from its
-own model file. For cases prepared by the HydroPol2D Case Builder, see the shared
-[model-building workflow](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/getting-started/model-building-workflow).
+## Licences
+
+- **HydroPol2D (MATLAB)** is free under the [GNU General Public License v3.0](LICENSE). You may use,
+  study, change and share it. Software that you distribute and that is built on it must stay open
+  source under the same licence. The bundled TopoToolbox code keeps its own GPL-3.0 licence
+  ([`third_party/NOTICE.md`](third_party/NOTICE.md)).
+- **HydroPol2D Studio** and **HydroPol2D Case Builder** are proprietary. To get a licence, write to
+  Marcus N. Gomes Jr. at [marcusnobrega.engcivil@gmail.com](mailto:marcusnobrega.engcivil@gmail.com).
+  Studio downloads are on its
+  [release page](https://github.com/marcusnobrega-eng/HydroPol2D-Studio-releases/releases).
 
 ## Repository layout
 
 | Path | Contents |
 |---|---|
-| [`HydroPol2D_V115.m`](HydroPol2D_V115.m) | Main script; reads the case workbook |
+| [`run_HydroPol2D.m`](run_HydroPol2D.m) | Main script. It reads the case workbook and runs the model. `HydroPol2D_V115.m`, its former name, still works. |
 | [`HydroPol2D_Functions/`](HydroPol2D_Functions) | Model code |
 | [`Input_Data_Sheets/`](Input_Data_Sheets) | Case workbook template |
-| [`Config/`](Config) | Script configuration for automated studies |
-| [`Examples/`](Examples) | Runnable examples |
-| [`Validation/`](Validation/README.md) | Process checks with pass/fail rules |
-| [`Applications/`](Applications/README.md) | SLURM template and dam-case runners |
-| [`tools/`](tools) | Workbook builder (converts older `General_Data.xlsx` cases) and utilities |
-| [`third_party/`](third_party/NOTICE.md) | Bundled TopoToolbox terrain runtime |
+| [`Config/`](Config) | Script settings for automated studies |
+| [`Examples/`](Examples) | Examples you can run |
+| [`Validation/`](Validation/README.md) | Process checks with pass or fail rules |
+| [`Applications/`](Applications/README.md) | Cluster (SLURM) template and dam-case runners |
+| [`tools/`](tools) | Workbook builder, which converts older `General_Data.xlsx` cases, and other tools |
+| [`third_party/`](third_party/NOTICE.md) | Bundled TopoToolbox terrain code |
 
 ## Documentation
 
-The [HydroPol2D website](https://marcusnobrega-eng.github.io/HydroPol2D-docs/) (English,
-Portuguese and Spanish) has the full manual:
+The [HydroPol2D website](https://marcusnobrega-eng.github.io/HydroPol2D-docs/), in English,
+Portuguese and Spanish, has the full manual:
 [getting started](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/getting-started/overview),
 [inputs](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/inputs/overview),
 [case workbook](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/configuration/general_data),
 [theory](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/theory/overview),
-[validation](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/validation/overview) and the
+[validation](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/validation/overview),
+[Studio](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/studio/overview),
+[Case Builder](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/builder/overview) and the
 [changelog](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/validation/changelog).
 
 ## Versions
 
-The current release candidate is **v1.19.0-rc2** ([release notes](RELEASE_NOTES_v1.19.0-rc2.md)),
-coordinated with HydroPol2D-Python v0.9.0-rc2 (HydroPol2D Studio 0.9.0rc2) and HydroBathyDEM
-0.4.0rc1. The stable numerical reference remains `v1.17.0` until the remaining hardware and
-packaging checks pass.
+This repository is at **v1.19.0-rc2** ([release notes](RELEASE_NOTES_v1.19.0-rc2.md)), a release
+candidate. It matches HydroPol2D Studio 0.9.0rc2. Version `v1.17.0` stays the stable reference
+until the last hardware and packaging checks pass.
 
 ## Data sources of the examples
 
@@ -175,7 +188,7 @@ packaging checks pass.
 - **San Francisquito Creek, land use:** ESA WorldCover 2020 (v100), CC BY 4.0. © ESA WorldCover
   project 2020 / Contains modified Copernicus Sentinel data (2020) processed by ESA WorldCover
   consortium. The class codes 10 to 90 and their names in the land-use table are WorldCover's.
-- **San Francisquito Creek, other maps:** uniform values set for the example (soil class 8, depth
+- **San Francisquito Creek, other maps:** single values set for the example (soil class 8, depth
   to bedrock 1.5 m, LAI 1, albedo 0.25, initial soil moisture 0.1104).
 - **V-tilted catchment:** all inputs are generated by
   [`prepare_standard_case.m`](Examples/VTilted_Excel/prepare_standard_case.m).
@@ -205,19 +218,13 @@ If you use HydroPol2D, please cite:
 
 </details>
 
-## License
-
-HydroPol2D is licensed under the [GNU General Public License v3.0](LICENSE). The bundled
-TopoToolbox runtime is described in [`third_party/NOTICE.md`](third_party/NOTICE.md) and
-[`third_party/topotoolbox_lite/UPSTREAM.md`](third_party/topotoolbox_lite/UPSTREAM.md).
-
 ## Contact
 
-**Dr. Marcus N. Gomes Jr.**, [mngomes@stanford.edu](mailto:mngomes@stanford.edu). Questions and
-bug reports are welcome as [GitHub issues](https://github.com/marcusnobrega-eng/HydroPol2D/issues).
-A short course (2-hour classes with slides) is available on request at
-marcusnobrega.engcivil@gmail.com.
+**Dr. Marcus N. Gomes Jr.**, [mngomes@stanford.edu](mailto:mngomes@stanford.edu). Please report bugs
+and ask questions as [GitHub issues](https://github.com/marcusnobrega-eng/HydroPol2D/issues).
+For licences and for a short course (2-hour classes with slides), write to
+[marcusnobrega.engcivil@gmail.com](mailto:marcusnobrega.engcivil@gmail.com).
 
-**Acknowledgments:** University of São Paulo, São Carlos School of Engineering; University of
-Texas at San Antonio, Civil and Environmental Engineering; Stanford University, Stanford Doerr
+**Acknowledgments:** University of São Paulo, São Carlos School of Engineering. University of
+Texas at San Antonio, Civil and Environmental Engineering. Stanford University, Stanford Doerr
 School of Sustainability, Department of Earth System Science.
