@@ -84,7 +84,7 @@ setenv('HYDROPOL_INPUT_EXCEL_FILE', workbook);
 setenv('HYDROPOL_EXPORT_ROOT_DIR', fullfile(work, 'Outputs'));
 setenv('HYDROPOL_SKIP_POSTPROCESS', '1');
 setenv('HP2D_SINGLE_RESULT', fullfile(work, 'result.mat'));
-run(fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'HydroPol2D_V115.m'));
+run(fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'run_HydroPol2D.m'));
 R = struct();
 R.outlet_m3_s = double(gather(outlet_states.outlet_hydrograph));
 R.depth_mm = double(gather(depths.d_t));

@@ -32,7 +32,7 @@ setenv('HYDROPOL_EXPORT_ROOT_DIR', ...
     fullfile(example_root, 'Outputs', ['code_' mesh_mode]));
 setenv('HYDROPOL_SKIP_POSTPROCESS', '');
 
-launcher = strrep(fullfile(model_root, 'HydroPol2D_V115.m'), '''', '''''');
+launcher = strrep(fullfile(model_root, 'run_HydroPol2D.m'), '''', '''''');
 evalin('base', sprintf('run(''%s'')', launcher));
 end
 

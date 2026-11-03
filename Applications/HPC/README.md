@@ -1,6 +1,6 @@
 # SLURM Batch Template
 
-`HP2D_HPC_Config.sbatch` submits the standard HydroPol2D launcher to a SLURM cluster. `HP2D_Wrapper.m` locates the repository root, registers the bundled runtime, disables figure display, and runs `HydroPol2D_V115.m`.
+`HP2D_HPC_Config.sbatch` submits the standard HydroPol2D launcher to a SLURM cluster. `HP2D_Wrapper.m` locates the repository root, registers the bundled runtime, disables figure display, and runs `run_HydroPol2D.m`.
 
 Submit the template from the repository root:
 

@@ -38,4 +38,4 @@ setenv('HYDROPOL_INPUT_EXCEL_FILE',workbook);
 setenv('HYDROPOL_EXPORT_ROOT_DIR',fullfile(example_root,'Outputs',output_name));
 setenv('HYDROPOL_SKIP_POSTPROCESS','');
 
-run(fullfile(model_root,'HydroPol2D_V115.m'));
+run(fullfile(model_root,'run_HydroPol2D.m'));

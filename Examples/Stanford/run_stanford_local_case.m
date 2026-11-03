@@ -1,7 +1,7 @@
 function run_stanford_local_case(varargin)
 %RUN_STANFORD_LOCAL_CASE Run the local Stanford example with current code.
 %
-% This runner is intentionally separate from HydroPol2D_V115.m and uses the
+% This runner is intentionally separate from run_HydroPol2D.m and uses the
 % bundled HydroPol2D runtime with case inputs under Examples/Stanford.
 
 p = inputParser;

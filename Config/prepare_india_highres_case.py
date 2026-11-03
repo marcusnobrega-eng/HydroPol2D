@@ -64,7 +64,7 @@ def sha256(path: Path) -> str:
 
 def source_tree_sha256(model_root: Path) -> str:
     digest = hashlib.sha256()
-    roots = [model_root / "HydroPol2D_V115.m", model_root / "HydroPol2D_Functions", model_root / "Config"]
+    roots = [model_root / "run_HydroPol2D.m", model_root / "HydroPol2D_Functions", model_root / "Config"]
     files = []
     for root in roots:
         if root.is_file():

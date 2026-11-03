@@ -84,7 +84,7 @@ class HighResolutionCaseConfigTests(unittest.TestCase):
         self.assertEqual(self.catalog["defaults"]["minimum_effective_soil_depth_m"], 0.01)
 
     def test_highres_cases_use_case_specific_etp(self):
-        launcher = (ROOT / "HydroPol2D_V115.m").read_text()
+        launcher = (ROOT / "run_HydroPol2D.m").read_text()
         runner = (ROOT / "Config" / "run_india_highres_case.sbatch").read_text()
         variable = "HYDROPOL_DISABLE_ERA5_DAILY_NETCDF"
         self.assertIn(f"getenv('{variable}')", launcher)
@@ -146,7 +146,7 @@ class HighResolutionCaseConfigTests(unittest.TestCase):
         self.assertGreater(prepared, transform)
 
     def test_preflight_only_stops_before_solver(self):
-        launcher = (ROOT / "HydroPol2D_V115.m").read_text()
+        launcher = (ROOT / "run_HydroPol2D.m").read_text()
         preprocessing = launcher.index("HydroPol2D_preprocessing;")
         preflight_exit = launcher.index("HYDROPOL_PREFLIGHT_ONLY", preprocessing)
         solver = launcher.index("HydroPol2D_Main_While", preflight_exit)

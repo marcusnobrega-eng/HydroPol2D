@@ -13,7 +13,7 @@ function Result = run_layered_vtilted_case(variant)
 %   Validation/Gauges/run_gauge_cross_section_checks.m).
 %   Copies Examples/VTilted_Excel to tempdir, enables
 %   infiltration, groundwater, capillary rise and the layered scheme in the copy's
-%   Flags sheet (double precision), runs HydroPol2D_V115.m without post-processing and
+%   Flags sheet (double precision), runs run_HydroPol2D.m without post-processing and
 %   returns the mass-balance diagnostics and the final layered state.
 arguments
     variant (1,:) char {mustBeMember(variant, {'local', 'lateral', 'feddes', 'legacy', ...
@@ -127,7 +127,7 @@ setenv('HYDROPOL_INPUT_EXCEL_FILE', workbook);
 setenv('HYDROPOL_EXPORT_ROOT_DIR', fullfile(work, 'Outputs'));
 setenv('HYDROPOL_SKIP_POSTPROCESS', '1');
 setenv('HYDROPOL_LAYERED_RESULT_FILE', fullfile(work, 'layered_result.mat'));
-run(fullfile(root, 'HydroPol2D_V115.m'));
+run(fullfile(root, 'run_HydroPol2D.m'));
 % The model script clears the workspace; recover the paths from the environment.
 result_file = getenv('HYDROPOL_LAYERED_RESULT_FILE');
 Result = struct();

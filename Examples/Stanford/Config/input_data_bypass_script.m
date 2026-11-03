@@ -63,7 +63,7 @@
 % 1) Copy this file into the HydroPol2D working folder.
 % 2) Rename it exactly to:
 %       input_data_bypass_script.m
-% 3) In HydroPol2D_V115, set:
+% 3) In run_HydroPol2D.m, set:
 %       use_inputdata_bypass = 1;
 % 4) Edit the sections below.
 %

@@ -134,7 +134,7 @@ setenv('HYDROPOL_RUN_MODE','excel')
 setenv('HYDROPOL_INPUT_EXCEL_FILE','/absolute/path/to/General_Data.xlsx')
 setenv('HYDROPOL_EXPORT_ROOT_DIR','/absolute/path/to/Outputs/my_run')
 setenv('HYDROPOL_SKIP_POSTPROCESS','')
-run('HydroPol2D_V115.m')
+run('run_HydroPol2D.m')
 ```
 
 Set `HYDROPOL_SKIP_POSTPROCESS` to `1` only for a solver-only diagnostic run.

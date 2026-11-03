@@ -3,7 +3,7 @@
 %
 % Assumptions:
 %   - this wrapper lives in the model root folder
-%   - the main script is always HydroPol2D_V115.m
+%   - the main script is always run_HydroPol2D.m
 %   - results are always written to ./Modeling_Results
 
 clc;
@@ -16,7 +16,7 @@ fprintf('============================================================\n');
 
 %% Fixed paths based on current folder
 project_root     = pwd;
-main_script      = 'HydroPol2D_V115.m';
+main_script      = 'run_HydroPol2D.m';
 main_script_path = fullfile(project_root, main_script);
 results_dir      = fullfile(project_root, 'Modeling_Results');
 
@@ -67,7 +67,7 @@ fprintf('GPUs visible      : %s\n', getenv('CUDA_VISIBLE_DEVICES'));
 fprintf('MATLAB version    : %s\n', version);
 fprintf('============================================================\n');
 
-%% Put results directory in base workspace so HydroPol2D_V115.m can use it
+%% Put results directory in base workspace so run_HydroPol2D.m can use it
 assignin('base', 'exportDirectory', results_dir);
 assignin('base', 'project_root', project_root);
 

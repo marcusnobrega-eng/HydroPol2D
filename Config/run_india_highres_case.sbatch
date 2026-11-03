@@ -76,8 +76,8 @@ echo "Memory request: ${SLURM_MEM_PER_NODE:-unknown} MB"
 
 cd "$HP2D_MODEL_ROOT"
 export HYDROPOL_PREFLIGHT_ONLY=1
-matlab -batch "run(fullfile(pwd,'HydroPol2D_V115.m'))"
+matlab -batch "run(fullfile(pwd,'run_HydroPol2D.m'))"
 export HYDROPOL_PREFLIGHT_ONLY=0
-matlab -batch "run(fullfile(pwd,'HydroPol2D_V115.m'))"
+matlab -batch "run(fullfile(pwd,'run_HydroPol2D.m'))"
 
 echo "Run completed: $(date --iso-8601=seconds)"

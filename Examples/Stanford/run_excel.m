@@ -23,4 +23,4 @@ setenv('HYDROPOL_EXPORT_ROOT_DIR', ...
     fullfile(case_root, 'Outputs', 'Reruns_CurrentModel', 'Stanford_30m_Excel'));
 setenv('HYDROPOL_SKIP_POSTPROCESS', '');
 
-run(fullfile(model_root, 'HydroPol2D_V115.m'));
+run(fullfile(model_root, 'run_HydroPol2D.m'));
