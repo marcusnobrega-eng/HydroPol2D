@@ -1,486 +1,223 @@
-# HydroPol2D: Distributed 2D Hydrologic-Hydrodynamic and Water Quality Model
-- **Documentation** fully available with examples in the [HydroPol2D - Docs](https://marcusnobrega-eng.github.io/HydroPol2D-docs/).
+<p align="center">
+  <a href="https://marcusnobrega-eng.github.io/HydroPol2D-docs/">
+    <img src="https://marcusnobrega-eng.github.io/HydroPol2D-docs/img/social_card.png" width="720" alt="HydroPol2D: a distributed hydrologic-hydrodynamic framework for coupled surface-subsurface processes" />
+  </a>
+</p>
 
-HydroPol2D is an open-source, high-resolution 2D model built in MATLAB for simulating overland flow, infiltration, groundwater-surface water interactions, and pollutant transport. Developed with performance and flexibility in mind, it supports both CPU and GPU computations and can handle diverse forcing conditions such as spatially distributed rainfall, satellite-derived precipitation, design storms, and hydrograph inputs.
+<p align="center">
+  <a href="https://github.com/marcusnobrega-eng/HydroPol2D/stargazers"><img src="https://img.shields.io/github/stars/marcusnobrega-eng/HydroPol2D?style=social" alt="GitHub stars" /></a>
+  <a href="https://github.com/marcusnobrega-eng/HydroPol2D/forks"><img src="https://img.shields.io/github/forks/marcusnobrega-eng/HydroPol2D?style=social" alt="GitHub forks" /></a>
+  <a href="https://github.com/marcusnobrega-eng/HydroPol2D/watchers"><img src="https://img.shields.io/github/watchers/marcusnobrega-eng/HydroPol2D?style=social" alt="GitHub watchers" /></a>
+</p>
 
-The model is particularly suited for urban, peri-urban, and rural catchments in both gauged and data-scarce regions.
+<p align="center">
+  <a href="https://github.com/marcusnobrega-eng/HydroPol2D/tags"><img src="https://img.shields.io/github/v/tag/marcusnobrega-eng/HydroPol2D?sort=semver&include_prereleases&label=version&color=0a6e4f" alt="Latest version" /></a>
+  <a href="https://github.com/marcusnobrega-eng/HydroPol2D/commits/main"><img src="https://img.shields.io/github/last-commit/marcusnobrega-eng/HydroPol2D/main?label=last%20commit" alt="Last commit" /></a>
+  <a href="https://github.com/marcusnobrega-eng/HydroPol2D/commits/main"><img src="https://img.shields.io/github/commit-activity/m/marcusnobrega-eng/HydroPol2D?label=commits" alt="Commit activity" /></a>
+  <a href="https://github.com/marcusnobrega-eng/HydroPol2D/issues"><img src="https://img.shields.io/github/issues/marcusnobrega-eng/HydroPol2D" alt="Open issues" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/marcusnobrega-eng/HydroPol2D" alt="License: GPL-3.0" /></a>
+  <img src="https://img.shields.io/badge/MATLAB-R2020a%2B-e16737" alt="MATLAB R2020a or newer" />
+  <a href="https://marcusnobrega-eng.github.io/HydroPol2D-docs/"><img src="https://img.shields.io/badge/docs-website-2f6fb5" alt="Documentation" /></a>
+  <a href="https://github.com/marcusnobrega-eng/HydroPol2D-Studio-releases/releases"><img src="https://img.shields.io/badge/Studio-desktop%20app-6b3fa0" alt="HydroPol2D Studio" /></a>
+  <a href="https://doi.org/10.1016/j.jhydrol.2023.129982"><img src="https://img.shields.io/badge/paper-J.%20Hydrology%202023-555555" alt="HydroPol2D paper" /></a>
+</p>
 
-For a Case Builder-managed scientific case, this repository is a solver, not a
-second case-building or calibration system. The Builder owns the finalized
-domain, forcing, parameters, initial states, and provenance. The optional
-groundwater inverse procedure runs in HydroPol2D-Python; accepted results are
-written back through the Builder and exported to MATLAB with the rest of the
-final case. See the shared
-[model-building workflow](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/getting-started/model-building-workflow).
+<p align="center">
+  <a href="https://marcusnobrega-eng.github.io/HydroPol2D-docs/"><b>Documentation</b></a> ·
+  <a href="#quick-start"><b>Quick start</b></a> ·
+  <a href="#examples-you-can-run"><b>Examples</b></a> ·
+  <a href="#gallery"><b>Gallery</b></a> ·
+  <a href="https://github.com/marcusnobrega-eng/HydroPol2D-Studio-releases/releases"><b>Studio</b></a> ·
+  <a href="#cite"><b>Cite</b></a>
+</p>
 
-The current integration candidate is `v1.19.0-rc2`, coordinated with HydroPol2D-Python
-`v0.9.0-rc2` and HydroBathyDEM `v0.4.0-rc1`. The stable public numerical reference remains
-`v1.17.0` until the remaining hardware and packaging gates pass.
+HydroPol2D is a distributed 2D hydrologic-hydrodynamic and water-quality model. It follows rain
+across a landscape, cell by cell: what the canopy and snowpack hold, what infiltrates and
+recharges the aquifer, and where the runoff flows, how deep it gets and what pollutants it
+carries. It runs in MATLAB on a raster grid or a mesh, on the CPU or an NVIDIA GPU, for urban,
+peri-urban and rural catchments, gauged or data-scarce. The same physics runs in
+[HydroPol2D Studio](https://github.com/marcusnobrega-eng/HydroPol2D-Studio-releases/releases),
+a desktop app with a graphical interface.
 
----
+<p align="center">
+  <a href="https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/Examples/RainfallRunoff">
+    <img src="https://marcusnobrega-eng.github.io/HydroPol2D-docs/videos/stanford_30m_website_100mmh_1h_24h_panels.png" width="900" alt="Flood depth, velocity, hazard and cumulative infiltration maps of San Francisquito Creek, California" />
+  </a>
+  <br />
+  <sub>San Francisquito Creek, CA, at 3.5 h of a run with 100 mm/h of rain for 1 h: flood depth, velocity, hazard and cumulative infiltration (the 24 h version of the Stanford example below).</sub>
+</p>
 
-##  Key Features
+## What it does
 
-- **2D overland flow** via Local-Inertial Model or Cellular-Automata
-- **Fully distributed infiltration** with Green-Ampt or Darcy's law
-- **Groundwater recharge and shallow aquifer flow** using Darcy's law and 2D Boussinesq Dynamics
-- **Flexible rainfall input**: gauges, satellite, interpolated, synthetic hyetographs, rasters
-- **Snow accumulation and melt** with mass balance tracking
-- **Dynamic reservoir and dam-break modeling**
-- **Pollutant simulation**: 1 pollutant per simulation with build-up/wash-off dynamics
-- **Mass-conserving adaptive time stepping** (Courant-based)
-- **Output visualizations** in `.tif`, `.mp4`, `.csv`, `.pdf`, and `.png`
+<p align="center">
+  <img src="https://marcusnobrega-eng.github.io/HydroPol2D-docs/img/getting-started/questions-modules-outputs.svg" width="760" alt="Six questions, the module that answers each and the outputs that show it: surface routing, hydrologic core, snow, groundwater, human instability and water quality" />
+</p>
 
----
+| Area | What HydroPol2D computes |
+|---|---|
+| **Surface flow** | Local-inertial routing (default); kinematic, diffusive, full-momentum and cellular-automata solvers; D8 local inertial; Neal (2012) subgrid channels |
+| **Hydrology** | Interception, Penman-Monteith evapotranspiration, snow accumulation and melt, Darcy-based infiltration through three soil layers |
+| **Subsurface** | Water table with 2D Boussinesq lateral flow, an optional soil-over-regolith column, a deep aquifer and river-aquifer exchange |
+| **Infrastructure** | Reservoirs and control structures, dam break, urban drainage networks, detention ponds and green infrastructure |
+| **Water quality and risk** | Pollutant build-up and wash-off; human instability as a risk index or as slide, topple and drowning classes |
+| **Grids and computing** | Raster grid or prepared Voronoi and quadtree meshes; CPU or GPU; Courant-based adaptive time step with a mass-balance check |
+| **Outputs** | GeoTIFF maps, MP4 animations, hydrographs and water balances as CSV, figures as PDF and PNG |
 
-## Examples you can run
-
-| Example | Folder | Run | What it shows | Run time | Expected results |
-|---|---|---|---|---|---|
-| V-tilted catchment (synthetic) | `Examples/VTilted_Excel` | `run('Examples/VTilted_Excel/run_excel.m')` | 10.8 mm/h for 90 min on a tilted V catchment, 180 min simulated; regular grid or prepared Voronoi mesh (`flag_voronoi`) | about 3 min | regular grid: rain 16.20 mm, peak outflow 1.525 m³/s, runoff coefficient 0.94, max depth 0.15 m |
-| San Francisquito Creek near Stanford, CA (30 m) | `Examples/Stanford` | `run('Examples/Stanford/run_excel.m')` | 100 mm/h for 1 h on a 157 km² real catchment, 180 min simulated | about 14 min (11 of them post-processing) | rain 99.97 mm, peak outflow 402.8 m³/s, runoff coefficient 0.16, max depth 5.87 m |
-| One check per process | `Validation/` (see [Validation/README.md](Validation/README.md)) | each case's run script | about 80 small synthetic cases, each with a pass/fail rule | 1 to 10 min each | [Validation/Validation_Cases.csv](Validation/Validation_Cases.csv) |
-
-Results go to each example's `Outputs/` folder, which Git ignores.
-
-### Data sources
-
-- **San Francisquito Creek, terrain.** The 30 m DEM used by the example (`Examples/Stanford/Static/DEM.tif`) is from the USGS 3D Elevation Program (3DEP), 3DEPElevation service at 10 m averaged to 30 m (2026-11-02), U.S. public domain. The 10 m DEM in `Examples/Stanford/Static_10m_LiDAR` is also 3DEP, U.S. public domain.
-- **San Francisquito Creek, land use.** ESA WorldCover 2020 (v100), CC BY 4.0, on the 30 m grid: © ESA WorldCover project 2020 / Contains modified Copernicus Sentinel data (2020) processed by ESA WorldCover consortium. The class codes 10 to 90 and their names in `LULC_parameters.xlsx` are WorldCover's.
-- **San Francisquito Creek, other maps.** The soil class (8), depth to bedrock (1.5 m), LAI (1), albedo (0.25) and initial soil moisture (0.1104) are uniform values set for the example; no outside data.
-- **V-tilted catchment.** All inputs are generated (`Examples/VTilted_Excel/prepare_standard_case.m`).
-
-##  Installation & Dependencies
-
-### MATLAB Requirements:
-- MATLAB R2020a or newer
-- Required Toolboxes:
-  - Mapping Toolbox
-  - Image Processing Toolbox
-- Optimization Toolbox when `flag_smoothening = 1`
-  - Parallel Computing Toolbox (for GPU mode)
-
-### Recommended:
-- NVIDIA GPU with at least 2 GB VRAM and compute capability > 3.5
-- 8+ GB RAM for CPU mode
-
-### External Tools:
-- **Microsoft Excel** (for parameter configuration). Alternatively, users can only edit files in /config for rapid parametrization without requiring filling parameters/inputs in the Excel spreadsheets
-- **QGIS, Google Earth Engine, or R** for raster preprocessing (DEM, LULC, soils, etc.)
-- **Documentation** fully available with examples in the [HydroPol2D - Docs](https://marcusnobrega-eng.github.io/HydroPol2D-docs/).
-
-##  Getting Started
-
-### 1 Clone the Repository
+## Quick start
 
 ```bash
 git clone https://github.com/marcusnobrega-eng/HydroPol2D.git
-cd HydroPol2D
 ```
-Alternatively, download the ZIP from GitHub and extract it to your desired directory.
 
-## 2. Open MATLAB and Navigate to the Model Folder
-```bash
-cd('path/to/your/model/folder')
-```
-Replace path/to/your/model/folder with the location where you cloned the repository.
-
-### 3. Verify Required Files
-Ensure the following are present in your working directory:
-
-- `HydroPol2D_V115.m` (main model script)
-- `/config/` folder (parameters and flags)
-- `/HydroPol2D_functions`
-- `/third_party/topotoolbox_lite/` (bundled terrain runtime)
-- `Input_Data_Sheets` (when Excel configuration is used)
-
-### 4. Set Up MATLAB
-Open MATLAB or directly go in your model folder and open the file `HydroPol2D_V115.m` that MATLAB will automatically path to the model folder.
-
-### 5. Configure the Model
-
-Choose one configuration source:
-
-- **Excel:** use `General_Data.xlsx` with the companion parameter and forcing
-  workbooks in the same directory. Relative raster paths are resolved from the
-  selected workbook directory.
-- **MATLAB configuration:** use `Config/input_data_bypass_script.m` and
-  `Config/input_paths_bypass.m` for automated or version-controlled studies.
-
-The tested [V-Tilted Excel example](Examples/VTilted_Excel/README.md) uses one
-`General_Data.xlsx` workbook for the simulation and a dedicated
-`Voronoi_Settings.xlsx` workbook for prepared-mesh compatibility and output
-controls. It reproduces the standard 10.8 mm/h, 90-minute validation storm and
-continues routing to 180 minutes to capture hydrograph propagation and
-recession, without requiring edits to the main script.
-
-The portable [Stanford 30 m example](Examples/Stanford/README.md) can also be
-run from either the supplied Excel workbooks or the equivalent MATLAB
-configuration. Both routes use the same 100 mm/h, 60-minute storm and continue
-routing to 180 minutes.
-
-### 6. Run the Model
-
-Run `HydroPol2D_V115.m`, or start with the reproducible V-Tilted example.
-For spreadsheet inputs:
+Open MATLAB in the `HydroPol2D` folder and run an example:
 
 ```matlab
-run('Examples/VTilted_Excel/run_excel.m')
+run('Examples/VTilted_Excel/run_excel.m')   % synthetic V-tilted catchment, about 3 min
+run('Examples/Stanford/run_excel.m')        % San Francisquito Creek, CA, about 14 min
 ```
 
-For the equivalent MATLAB-code inputs:
+**Requirements:** MATLAB R2020a or newer with the Mapping and Image Processing Toolboxes. GPU
+runs need the Parallel Computing Toolbox and an NVIDIA GPU; DEM smoothing needs the
+Optimization Toolbox.
 
-```matlab
-addpath('Examples/VTilted_Excel')
-run_code('regular')
-run_code('voronoi')
-```
+**Your own case:** a case is one Excel workbook. Copy
+[`Input_Data_Sheets/HydroPol2D_Inputs.xlsx`](Input_Data_Sheets/HydroPol2D_Inputs.xlsx), fill its
+tabs and run `HydroPol2D_V115.m`. Every tab and setting is described, with a picture of each tab,
+in [Case Workbook Settings](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/configuration/general_data)
+and [Run from Excel](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/getting-started/excel-workflow).
+Scripted studies use [`Config/input_data_bypass_script.m`](Config/input_data_bypass_script.m)
+instead.
 
-For the Stanford example, use:
+## Examples you can run
 
-```matlab
-run('Examples/Stanford/run_excel.m')
-addpath('Examples/Stanford')
-run_code
-```
+| Example | Run in MATLAB | What it shows | Time | Expected results |
+|---|---|---|---|---|
+| [V-tilted catchment](Examples/VTilted_Excel/README.md) (synthetic) | `run('Examples/VTilted_Excel/run_excel.m')` | 10.8 mm/h for 90 min, 180 min simulated; regular grid or a prepared Voronoi mesh | ~3 min | rain 16.20 mm, peak outflow 1.525 m³/s, runoff coefficient 0.94, max depth 0.15 m |
+| [San Francisquito Creek](Examples/Stanford/README.md), CA (30 m) | `run('Examples/Stanford/run_excel.m')` | 100 mm/h for 1 h on a 157 km² catchment, 180 min simulated | ~14 min | rain 99.97 mm, peak outflow 402.8 m³/s, runoff coefficient 0.16, max depth 5.87 m |
+| [One check per process](Validation/README.md) | each case's run script | about 80 small synthetic cases, each with a pass/fail rule | 1-10 min each | [Validation_Cases.csv](Validation/Validation_Cases.csv) |
 
-Find `flag_voronoi` in the Excel `Flags` worksheet before running the spreadsheet
-example. The mesh selector
-is intentionally compact: `flag_voronoi=0` uses the
-production raster D4 workflow; `flag_voronoi=1` loads the prepared UGRID case
-specified by `Voronoi case file` in `Voronoi_Settings.xlsx` or
-`InputData_Bypass.Voronoi.case_file` in script mode. Voronoi controls define
-background, urban, and minimum widths, the adjacent-size ratio, and whether
-unresolved rivers use `neal_subgrid` or `none`. These values validate the
-prepared mesh metadata; they do not regenerate the mesh during a run.
-Voronoi execution is CPU-only. `local_inertial` supports resolved 2D flow and
-the Neal channel graph; `kinematic`, explicit `diffusive`, and
-`full_momentum` currently support resolved 2D flow only. GPU execution and
-production-scale performance remain gated until their separate validation
-criteria are met.
+Results go to each example's `Outputs/` folder. The
+[24 h version of the Stanford case](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/Examples/RainfallRunoff)
+is on the website, with its maps and video.
 
-Voronoi runs use the same visible post-processing interface as raster runs:
-GeoTIFF stacks, PNG/PDF/SVG figures, MP4 videos, CSV hydrographs, and balance
-tables under `Modeling_Results`. The complete polygon/edge/channel history is
-kept separately at `Modeling_Results/Native/unstructured_results.nc` and can
-be post-processed later with `HydroPol2D_Postprocess_Voronoi` without rerunning
-the solver. Configure the two schedules and export switches in the
-dedicated `Voronoi_Settings.xlsx` workbook or
-`InputData_Bypass.VoronoiOutput`.
+## Gallery
 
-### Shared edited-mesh acceptance
+Results from studies. Their inputs are not in this repository.
 
-The MATLAB reader and solver are checked against the same edited UGRID package
-used by HydroPol2D-Python. From MATLAB, run:
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="https://marcusnobrega-eng.github.io/profile//files/Rain_on_the_grid.gif" width="300" alt="Animated rain-on-the-grid flood simulation of an urban catchment" /><br />
+      <sub>Rain on the grid: a 50-year storm over an urban catchment with drainage, São Paulo, Brazil</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="https://github.com/user-attachments/assets/adfcdfe4-66e7-42aa-9335-de0e6d56a729" width="300" alt="Dam-break flood over a city" /><br />
+      <sub>Total dam-break collapse over a city in Pernambuco, Brazil</sub>
+    </td>
+  </tr>
+</table>
 
-```matlab
-run_mesh_editor_shared_acceptance(meshFile, overlapFile, outputDirectory)
-```
-
-The acceptance requires identical zero-based owner/neighbor topology after
-MATLAB's explicit internal one-based conversion, identical initial storage,
-and numerical-precision mass closure. CRS validation first compares exact WKT
-and then compares parsed projected CRS definitions, so equivalent WKT1 and
-WKT2 encodings are accepted while genuinely different coordinate systems are
-rejected.
-
-Optional application workflows, including the SLURM template and SNISB dam-case runners, are grouped in [`Applications`](Applications/README.md).
-
-## Example
-These are results from studies; their inputs are not in the repository (the MSWEP rainfall cannot be redistributed), so the runnable examples are the ones in [Examples you can run](#examples-you-can-run).
-
-Example of a rain-on-the-grid simulation of a 1 in 50-year rainfall in an urban area with the influence of urban drainage - Sao Paulo, Brazil.
-
-<p align="center">
-  <img src="Generical_Input_Files/Rain_on_the_grid.gif.gif" width="600">
-</p>
-
-<img src="https://marcusnobrega-eng.github.io/profile//files/Rain_on_the_grid.gif">
-
-## Example of a total dam-break collapse scenario in a city in Pernambuco, Northeast - Brazil.
-
-<img width="672" height="1008" alt="dam_break" src="https://github.com/user-attachments/assets/adfcdfe4-66e7-42aa-9335-de0e6d56a729" />
-
-## Example of Rainfall-Runoff event in a catchment near Palo Alto -CA.
+**Rainfall-runoff event in a catchment near Palo Alto, CA**
 
 https://github.com/user-attachments/assets/739e39eb-18e8-4ec3-bee6-a7a647793774
 
-## Example of a continuous simulation of a catchment in Pune - India with spatially-varied rainfall from MSWEP for a period of approximately 22 days.
+**22-day continuous simulation with spatially varied MSWEP rainfall, Pune, India**
 
 https://github.com/user-attachments/assets/3ad69bb3-3e24-4df3-b5ff-584aafcc6296
 
-## Input Data Structure
+## How a run works
 
-HydroPol2D requires the following input data files and parameters, which must be prepared and aligned before running the model:
+<p align="center">
+  <img src="https://marcusnobrega-eng.github.io/HydroPol2D-docs/img/getting-started/data-to-results.svg" width="720" alt="Maps, parameter tables, forcing and settings make one case, which HydroPol2D Studio or HydroPol2D-MATLAB runs into maps, time series, animations and a results package" />
+</p>
 
-### Raster Inputs (.tif)
-- **Digital Elevation Model (DEM):** Defines terrain slope, flow direction, and is used for hydrologic routing and terrain preprocessing. Must be gap-filled and optionally smoothed. Elevation in meters.
-- **Land Use / Land Cover (LULC):** Used to assign surface properties (e.g., roughness, imperviousness, pollutant loading). Each class must be indexed and named consistently with the LULC parameter table.
-- **Soil Map:** Classifies soils spatially to define infiltration and water balance parameters. Must match indices in the soil parameter table.
-- **Depth to aquifer or Depth to Bedrock** Constrains the vadose zone depth and surface sub-surface interactions
-- **Albedo / Leaf Area Index** Constrain the model parametrization for snow melt and evapotranspiration calculations
-- **Initial Conditions of Surface Depth, Soil Moisture, and Pollutant Mass** Constrain the model to appropriate initial conditions prior to simulations
-- **Optional Gridded Maps:**
-  - Rainfall intensity maps (mm/hr)
-  - Potential Evapotranspiration (ETP)
-  - Actual Evapotranspiration (ETa)
-  - Snow Depth
-  - Groundwater Table Depth
-  - Subgrid river bathymetry and slope rasters
+Maps (DEM, land use and soil, plus optional rasters), class tables, forcing and settings make one
+case. HydroPol2D-MATLAB runs the case workbook; HydroPol2D Studio runs the same physics from its
+own model file. For cases prepared by the HydroPol2D Case Builder, see the shared
+[model-building workflow](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/getting-started/model-building-workflow).
 
-All rasters must be aligned spatially (same extent, resolution, and coordinate reference, preferably EPSG:3857) or with an Equal Area projection.
+## Repository layout
 
-###  The case workbook (Excel)
-
-A case is one workbook, `Input_Data_Sheets/HydroPol2D_Inputs.xlsx`, which
-`HydroPol2D_V115.m` reads by default (`HYDROPOL_INPUT_EXCEL_FILE` points elsewhere). Its
-tabs, left to right:
-
-| Tabs | Content |
+| Path | Contents |
 |---|---|
-| Start here | how to fill it, the colour legend, links to every tab |
-| Run control, Input maps, Soil and groundwater, Surface flow, Rain and ET, Design storm, Water quality, Risk and gauges | every setting, one row each (name, key, value, unit, default, when it is used), with a note on each value; a block greys out while its switch is 0 |
-| Soil classes, Land use classes, Human instability, Mesh, Control structures | the class tables |
-| Rain series, Rain gauges, Climate stations, Inflow hydrographs, Stage hydrographs | the time series |
+| [`HydroPol2D_V115.m`](HydroPol2D_V115.m) | Main script; reads the case workbook |
+| [`HydroPol2D_Functions/`](HydroPol2D_Functions) | Model code |
+| [`Input_Data_Sheets/`](Input_Data_Sheets) | Case workbook template |
+| [`Config/`](Config) | Script configuration for automated studies |
+| [`Examples/`](Examples) | Runnable examples |
+| [`Validation/`](Validation/README.md) | Process checks with pass/fail rules |
+| [`Applications/`](Applications/README.md) | SLURM template and dam-case runners |
+| [`tools/`](tools) | Workbook builder (converts older `General_Data.xlsx` cases) and utilities |
+| [`third_party/`](third_party/NOTICE.md) | Bundled TopoToolbox terrain runtime |
 
-The class-table and series tabs keep the cell layout of the workbooks they replace
-(`SOIL_parameters.xlsx`, `LULC_parameters.xlsx`, `human_risk.xlsx`,
-`Voronoi_Settings.xlsx`, `BC_Control_structure.xlsx`, `Rainfall_Intensity_Data.xlsx`,
-`Rainfall_Spatial_Input.xlsx`, `ETP_input_data.xlsx`, `Inflow_Hydrograph.xlsx`,
-`Stage_Hydrograph.xlsx`): the model reads some of them by position, so keep rows and
-columns where they are. A sheet holds up to 1,048,576 rows (two years of 1-min data).
+## Documentation
 
-Older cases still run unchanged: `General_Data.xlsx` with its `Flags` sheet and the
-separate workbooks. Each reader takes the tab from the case workbook when it has it, and
-the old workbook otherwise. `tools/workbook_builder/build_input_workbook.py` converts an
-old case (`python build_input_workbook.py input_catalog.yaml General_Data.xlsx
-HydroPol2D_Inputs.xlsx`). A series the case's switches do not read is kept as a
-header-only template. Check: `Validation/Workbook/run_single_workbook_checks.m` (the
-V-tilted case gives identical results from either layout).
+The [HydroPol2D website](https://marcusnobrega-eng.github.io/HydroPol2D-docs/) (English,
+Portuguese and Spanish) has the full manual:
+[getting started](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/getting-started/overview),
+[inputs](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/inputs/overview),
+[case workbook](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/configuration/general_data),
+[theory](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/theory/overview),
+[validation](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/validation/overview) and the
+[changelog](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/validation/changelog).
 
-###  Parameter Tables
-- **LULC Parameter Table:** Each land use class must include:
-  - Manning's `n` roughness coefficient
-  - Initial-abstraction `h0` and initial surface-water depth `d0` in mm
-  - Representative rooting depth in m
-  - Land-cover coefficient `Kc`, which scales internally calculated reference ET to potential soil ET. Ponded open water evaporates separately at `Ep`.
-  - Impervious index (0 or 1)
-  - Water-quality coefficients: `C1` (maximum buildup, kg ha^-1), `C2` (buildup coefficient, d^-1), `C3` (mass-based washoff coefficient), and `C4` (washoff exponent). These coefficients are pollutant- and site-specific; the generic template leaves buildup and washoff disabled.
-  - Per-LULC snow albedo, emissivity, phase thresholds, density bounds, and process-rate parameters when snow modeling is enabled.
+## Versions
 
-The generic LULC table is a documented starting parameterization, not a substitute for local calibration. See [LULC default parameter basis](Input_Data_Sheets/LULC_Defaults.md) for the source basis and the scope of each field.
+The current release candidate is **v1.19.0-rc2** ([release notes](RELEASE_NOTES_v1.19.0-rc2.md)),
+coordinated with HydroPol2D-Python v0.9.0-rc2 (HydroPol2D Studio 0.9.0rc2) and HydroBathyDEM
+0.4.0rc1. The stable numerical reference remains `v1.17.0` until the remaining hardware and
+packaging checks pass.
 
-For the Neal (2012) channel-subgrid formulation, the LULC `n` column is the spatial floodplain roughness. Set the single in-bank/channel coefficient separately in the case workbook (or `General_Data.xlsx`) as `Manning`, or in script mode as `InputData_Bypass.general.Manning`. Observation-gauge data only define output locations and never alter either roughness field.
+## Data sources of the examples
 
-- **Soil Parameter Table:** Each soil class must include:
-  - Vertical Saturated hydraulic conductivity $K_{\mathrm{sat}}$
-  - van Genutchen $n$ and $\alpha$
-  - Initial soil water content $\theta_{\mathrm{i}}$
-  - Saturated water content $\theta_{\mathrm{sat}}$
-  - Residual water content $\theta_{\mathrm{r}}$
-  - Horizontal Saturated hydraulic conductivity $K_{\mathrm{sat,gw}}$
+- **San Francisquito Creek, terrain:** USGS 3D Elevation Program (3DEP), 10 m averaged to 30 m
+  (`Examples/Stanford/Static/DEM.tif`) and 10 m (`Examples/Stanford/Static_10m_LiDAR`), U.S. public domain.
+- **San Francisquito Creek, land use:** ESA WorldCover 2020 (v100), CC BY 4.0. © ESA WorldCover
+  project 2020 / Contains modified Copernicus Sentinel data (2020) processed by ESA WorldCover
+  consortium. The class codes 10 to 90 and their names in the land-use table are WorldCover's.
+- **San Francisquito Creek, other maps:** uniform values set for the example (soil class 8, depth
+  to bedrock 1.5 m, LAI 1, albedo 0.25, initial soil moisture 0.1104).
+- **V-tilted catchment:** all inputs are generated by
+  [`prepare_standard_case.m`](Examples/VTilted_Excel/prepare_standard_case.m).
 
-Preprocessing must ensure that all rasters are aligned and projected.
+## Cite
 
----
+If you use HydroPol2D, please cite:
 
+- Gomes Jr, M.N., et al., 2023. [HydroPol2D: Distributed hydrodynamic and water quality model: Challenges and opportunities in poorly-gauged catchments](https://doi.org/10.1016/j.jhydrol.2023.129982). *Journal of Hydrology*, 625, 129982.
+- Gomes Jr, M.N., Castro, M.A., Castillo, L.M., Sánchez, M.H., Giacomoni, M.H., de Paiva, R.C. and Bates, P.D., 2025. [Spatio-temporal performance of 2D local inertial hydrodynamic models for urban drainage and dam-break applications](https://doi.org/10.1016/j.jhydrol.2025.134661). *Journal of Hydrology*.
 
-##  Output Files
+<details>
+<summary><b>More publications using HydroPol2D</b></summary>
 
-HydroPol2D saves results in:
-- **Geospatial**: `.tif` rasters (depth, infiltration, pollutant, velocity, recharge, etc.) Alternatively, `.nc` files can be saved for time series of gridded data.
-- **Graphics**: `.png`, `.pdf` (hydrographs, profiles, maps)
-- **Animation**: `.mp4` (dynamic maps)
-- **Numerical**: `.csv` (time series, diagnostics)
+- Gomes Jr, M.N., Jalihal, V., Castro, M. and Mendiondo, E.M., 2025. [Exploring the impact of rainfall temporal distribution and critical durations on flood hazard modeling](https://doi.org/10.1007/s11069-025-07186-3). *Natural Hazards*.
+- Gomes Jr, M.N., et al., 2024. [Global optimization-based calibration algorithm for a 2D distributed hydrologic-hydrodynamic and water quality model](https://doi.org/10.1016/j.envsoft.2024.106128). *Environmental Modelling & Software*, 179, 106128.
+- Rápalo, L.M., Gomes Jr, M.N. and Mendiondo, E.M., 2024. [Developing an open-source flood forecasting system adapted to data-scarce regions: A digital twin coupled with hydrologic-hydrodynamic simulations](https://doi.org/10.1016/j.jhydrol.2024.131929). *Journal of Hydrology*, 644, 131929.
+- Rápalo, L.M., Gomes Jr, M.N. and Mendiondo, E.M., 2025. [Multiple levels of human instability due to urban overland flow within the 21st century: An urban catchment study case in Brazil](https://doi.org/10.1016/j.ijdrr.2025.105931). *International Journal of Disaster Risk Reduction*.
+- Castro, M., Gomes Jr, M., Rápalo, L. and Mendiondo, E., 2025. [Performance of low-complexity hydrodynamic models for dam-break flood mapping: Trade-offs between full momentum, diffusive-wave, and local-inertial models](https://doi.org/10.22541/essoar.175242171.16927854/v1) (under review).
+- Castro, M.D.A.R.A., Gomes Jr, M.N. and Mendiondo, E.M., 2025. *Probabilistic dam-break flood mapping via Monte Carlo simulations using a 2D local-inertial model* (DOI not available).
+- Sanchez, M.H., Gomes Jr, M.N., Rápalo, L., Castro, M.D.A.R.A. and Mendiondo, E.M., 2026. [Assessment of urban vulnerability to floods under current and future demographic and climate scenarios](https://doi.org/10.2139/ssrn.6381670). SSRN (under review).
+- Sousa, M.R.D., Mendiondo, E.M. and Gomes, M.N., 2026. [Hydrological-hydrodynamic modeling of climate-induced urban flooding of design storms using HydroPol2D: a case study in São Carlos, Brazil](https://www.scielo.br/j/rbrh/a/KFQjyK4vxHPscnyCCRrBGjH/?format=pdf&lang=en). *RBRH*.
+- Sánchez, M.H., 2025. [A novel framework for flood vulnerability assessment and fuzzy-controlled reservoir optimization in data-scarce urban watersheds](https://teses.usp.br/teses/disponiveis/18/18138/tde-30072025-105642/publico/CORRIGIDO_Mateo_Hernandez_Sanchez.pdf). Master's thesis, University of São Paulo.
+- Castro, M.D.A.R.A., 2024. [Métodos determinísticos e probabilísticos para a avaliação do impacto de rompimentos de barragens via modelagem hidrodinâmica](https://teses.usp.br/teses/disponiveis/18/18138/tde-21032025-085649/publico/Dissertacao_versao_corrigida.pdf). Master's thesis, University of São Paulo.
+- Rápalo, L.M.C., 2024. [Open-source tools for flood risk assessment for multiple spatio-temporal scales under scenarios of change](https://teses.usp.br/teses/disponiveis/18/18138/tde-07102024-094249/publico/ThesisCastilloRapaloLuisMiguelCorrected.pdf). Doctoral dissertation, University of São Paulo.
+- Gomes Jr, M.N., 2023. [Advances in open source hydroinformatics for flood modeling and disaster education](https://teses.usp.br/teses/disponiveis/18/18138/tde-18042024-142515/publico/TeseMarcusNobregaGomesJuniorVersaoCorrigidaCompressed.pdf). Doctoral dissertation, University of São Paulo.
 
----
+</details>
 
-##  Configuration Flags
+## License
 
-Flags are configured via Excel and define:
-- Simulation type (rainfall vs hydrograph)
-- Processing mode (CPU vs GPU)
-- Routing method (CA or Local Inertial)
-- Hydrologic modules (baseflow, ET, GW, snow, pollutant)
-- DEM preprocessing routines
-
-Ensure consistency among flags (e.g., only one rainfall mode active).
-
-### Mesh and subgrid selection
-
-- `flag_voronoi` selects Voronoi mesh topology. It does not enable a subgrid formulation by itself.
-- `flag_neal_channel` enables the Neal rectangular channel embedded in the structured raster grid.
-- `flag_structured_lookup_subgrid` enables structured cell/face lookup tables generated by HydroBathyDEM.
-- `flag_voronoi_subgrid` enables Voronoi cell/face subgrid relations and requires `flag_voronoi = 1`.
-
-Select at most one of the three subgrid flags. Neal channel and structured lookup require the
-structured raster solver; Voronoi subgrid requires the standalone Voronoi runner and a validated
-HydroBathyDEM mesh package. The former `flag_subgrid` and `flag_overbanks` names are accepted only
-for migration of older cases and are converted with an explicit warning.
-
-### Layered subsurface and Feddes stress (opt-in)
-
-`flag_layered_subsurface = 1` replaces the three-layer soil column over a single aquifer
-with a layered soil-over-regolith column, the same physics as HydroPol2D-Python
-(`vertical.subsurface.scheme: layered`, `docs/layered-subsurface.md` there):
-
-- three soil slots (near-surface, root zone, transmission) down to the soil base, then deep
-  slots (0.25 m, doubling, at most 4 m) down to the depth to bedrock, capped at 50 m;
-- one water table per cell splitting the slot it is in, with Noah-MP MMF rules (a rise
-  fills theta_s - theta; a fall leaves field capacity), gravity drainage between slots, a
-  Darcy flux at the table (recharge, or capillary rise that refills only up to field
-  capacity), layered transmissivity for lateral flow, and the existing deep linear
-  reservoir below;
-- a rising water table no longer pushes soil water to the surface.
-
-`flag_feddes = 1` adds Feddes et al. (1978) root-water stress to ET in either scheme.
-Both default to 0 and are rows of the `Flags` sheet (column E, rows 38-39 in the distributed
-workbooks). `flag_implicit_water_table_flux` (row 40, default 1) takes the Darcy flux at the
-table implicitly (one linearised backward-Euler step per cell, as HydroPol2D-Python), which
-stays accurate at long steps over a shallow table; 0 is the explicit flux
-(`HYDROPOL_IMPLICIT_WATER_TABLE_FLUX` overrides it). The numeric settings are `General_Data` keys, in the blocks "Layered Subsurface"
-(D10:F28) and "Feddes Root-Water Stress" (D30:F36); in bypass mode they are fields of
-`InputData_Bypass.flags`. An empty value keeps the HydroPol2D-Python default or fallback: `subsurface_soil_base_depth_m` (2), `subsurface_depth_to_bedrock_m`,
-`subsurface_max_depth_m` (50), `subsurface_deep_first_thickness_m` (0.25), `subsurface_deep_growth_ratio` (2),
-`subsurface_deep_max_thickness_m` (4), `regolith_theta_s` (0.35), `regolith_theta_r` (0.05),
-`regolith_alpha_vg_m_inverse` (2), `regolith_n_vg` (1.5), `regolith_ksat_v_mm_h` (5),
-`regolith_ksat_h_mm_h` (empty: `ksat_gw`), `regolith_specific_yield` (empty: theta_s - theta_fc),
-`soil_lateral_anisotropy` (1), `subsurface_drainage_substeps` (1), `capillary_field_capacity_head_m` (3.3),
-`groundwater_target_dt_s` (3600), `groundwater_min_dt_s` (60), `groundwater_courant` (0.25),
-`soil_lateral_conductivity_multiplier` and `regolith_lateral_conductivity_multiplier` (1; block
-"Lateral Conductivity Multipliers", D42:F44: factors on the soil-slot and deep-slot horizontal K,
-fitted by the HydroPol2D-Python layered recession calibration) and
-`feddes_h1_m`, `feddes_h2_m`, `feddes_h3_m`, `feddes_h3_low_m`, `feddes_h3_high_m`, `feddes_h4_m`.
-Environment variables `HYDROPOL_SUBSURFACE_SCHEME`, `HYDROPOL_ENABLE_FEDDES` and
-`HYDROPOL_<NAME>` override them (the Case Builder uses them).
-
-Optional rasters (`<Name>_path` keys in `General_Data`, T21:T28, or `InputPaths` fields with default
-`Static/<Name>.tif` in bypass mode):
-`SoilBaseDepth`, `RegolithThetaS`, `RegolithThetaR`, `RegolithAlphaVG`, `RegolithNVG`,
-`RegolithKsatV`, `RegolithKsatH`, `RegolithSpecificYield`. Finite raster cells win; the
-scalar fills the rest. The column bottom is the DTB raster, then `subsurface_depth_to_bedrock_m`,
-then `Soil_Depth` (with a warning), which in Excel mode is the `DTB (m)` of each soil class in
-`SOIL_parameters.xlsx`; so `DTB_path` is optional in layered mode (legacy groundwater still
-requires it).
-
-Soil properties can also come from rasters in Excel mode (T30:T38, as the Case Builder's maps do
-in bypass mode): `ThetaS`, `ThetaR`, `AlphaVG`, `NVG`, `KsatNearSurface`, `KsatRootZone`,
-`KsatTransmission`, `GroundwaterKsat` and `SpecificYield` (legacy scheme only). Finite cells
-override the `SOIL_parameters` class values; nodata keeps them. The standalone Voronoi/quadtree runner reads
-`config.layered_subsurface` (or the environment). Tests: `Validation/Groundwater/Layered`.
-
-### Deep-aquifer starting state
-
-With `flag_deep_aquifer = 1`, each subbasin of `DeepAquiferSubbasins_path` is a linear
-reservoir (outflow = storage / `deep_aquifer_tau_days`) that returns water to the cells of
-`DeepAquiferChannelWeight_path`. Its starting storage follows from a starting outflow:
-S0 = q0 x subbasin area x tau. Give one of these in the "Deep Aquifer Initial State" block of
-`General_Data` (D38:F40), as `InputData_Bypass.general` fields, or through
-`HYDROPOL_DEEP_INITIAL_BASEFLOW_MM_DAY` / `HYDROPOL_DEEP_MEAN_RECHARGE_MM_YEAR`:
-
-- `deep_aquifer_initial_baseflow_mm_day`: q0 on the start date, e.g. from a gauge with
-  HydroPol2D-Python `hydropol2d estimate-deep-baseflow`;
-- `deep_aquifer_mean_recharge_mm_year`: the long-term mean recharge R; the reservoirs start at
-  steady state, q0 = `deep_recharge_fraction` x R;
-- or `DeepAquiferInitialState_path` (T29; the Case Builder's calibrated JSON, also
-  `HYDROPOL_DEEP_INITIAL_STATE_PATH`).
-
-Empty: the reservoirs start empty. `deep_recharge_fraction` and `deep_aquifer_tau_days` are now
-read in Excel mode too. `Validation/Groundwater/run_groundwater_release_checks.m` runs every
-groundwater, layered, Feddes and deep-aquifer check, including full Excel-mode V-tilted runs.
-
-### Gauge discharge cross-sections
-
-With `flag_obs_gauges = 1`, each gauge records depth and water level at its own cell and
-discharge across a cross-section: a line of cells across the flow, centred on the gauge cell.
-Two optional columns of the `General_Data` gauge table set it (anywhere in the table's header
-row; bypass CSV: `Cross_section_width_cells`, `Downstream_direction`):
-
-- `Cross-section width (cells)`: empty is 5. An even width is raised by 1 so the gauge stays
-  in the middle. Cells outside the grid or the domain are dropped.
-- `Downstream direction`: `auto` (default; downhill from the mean terrain gradient over a
-  width x width window), or `N`, `S`, `E`, `W` where the terrain is flat. N/S gives an
-  east-west line, E/W a north-south one.
-
-The discharge is the signed sum over the line's downstream faces, the same rule as the
-HydroPol2D-Python routing gauges; D8 diagonals that cross the line count too. It handles both
-face conventions of the routing solvers: one-sided outflows (CA, D8 inertial) and signed face
-fluxes stored twice (D4 inertial, diffusive, kinematic, full momentum). Outputs: a dash-dot
-line on each gauge hydrograph, the column `Cross-section Discharge (m3/s)` in
-`Rating_Curve_Gauges.csv`, and `Gauge_Cross_Sections.csv` (grid row and column of each section cell). Tests:
-`Validation/Gauges/run_gauge_cross_section_checks.m`.
-
----
-
-##  Performance & Scaling
-
-| Mode | Grid Size         | Notes                          |
-|------|-------------------|--------------------------------|
-| CPU  | < 1 million cells | Single-core, slower            |
-| GPU  | > 1 million cells | Faster, requires NVIDIA GPU    |
-
-- Adaptive time stepping based on Courant number (recommended: 0.3–0.7)
-
----
-
-##  References
-Cite HydroPol2D using:
-
-- Gomes Jr, M.N., Castro, M.A., Castillo, L.M., Sánchez, M.H., Giacomoni, M.H., de Paiva, R.C. and Bates, P.D., 2025. *[Spatio-temporal performance of 2D local inertial hydrodynamic models for urban drainage and dam-break applications](https://doi.org/10.1016/j.jhydrol.2025.134661).* Journal of Hydrology.
-
-- Gomes Jr, M. N., et al. (2023). *[HydroPol2D—Distributed hydrodynamic and water quality model: Challenges and opportunities in poorly-gauged catchments](https://doi.org/10.1016/j.jhydrol.2023.129982).* Journal of Hydrology, 625, 129982.
-
-- Gomes Jr, M.N., Jalihal, V., Castro, M. and Mendiondo, E.M., 2025. *[Exploring the impact of rainfall temporal distribution and critical durations on flood hazard modeling](https://doi.org/10.1007/s11069-025-07186-3).* Natural Hazards.
-
-- Gomes Jr, M. N., et al. (2024). *[Global optimization-based calibration algorithm for a 2D distributed hydrologic-hydrodynamic and water quality model](https://doi.org/10.1016/j.envsoft.2024.106128).* Environmental Modelling & Software, 179, 106128.
-
-- Rápalo, L.M., Gomes Jr, M.N. and Mendiondo, E.M., 2024. *[Developing an open-source flood forecasting system adapted to data-scarce regions: A digital twin coupled with hydrologic-hydrodynamic simulations](https://doi.org/10.1016/j.jhydrol.2024.131929).* Journal of Hydrology, 644, 131929.
-
-- Castro, M.D.A.R.A., Jr, M.N.G. and Mendiondo, E.M., 2025. *Probabilistic DAM break flood mapping via monte-carlo simulations using a 2D local-inertial model.*
-  *(DOI not available)*
-
-- Castro, M., Gomes Jr, M., Rápalo, L. and Mendiondo, E., 2025. *[Performance of Low-Complexity Hydrodynamic Models for Dam-Break Flood Mapping: Trade-offs between Full Momentum, Diffusive-Wave, and Local-Inertial Models](https://doi.org/10.22541/essoar.175242171.16927854/v1) (under review).
-
-- Sánchez, M.H., 2025. [A novel framework for flood vulnerability assessment and fuzzy-controlled reservoir optimization in data-scarce urban watersheds](https://teses.usp.br/teses/disponiveis/18/18138/tde-30072025-105642/publico/CORRIGIDO_Mateo_Hernandez_Sanchez.pdf) (Master's thesis, University of São Paulo).
-
-- Sanchez, M.H., Gomes Jr, M.N., Rápalo, L., Castro, M.D.A.R.A. and Mendiondo, E.M. 2026. *[Assessment of urban vulnerability to floods under current and future demographic and climate scenarios](https://doi.org/10.2139/ssrn.6381670).* SSRN (under review).
-
-- Castro, M.D.A.R.A., 2024. [Métodos determinísticos e probabilísticos para a avaliação do impacto de rompimentos de barragens via modelagem hidrodinâmica](https://teses.usp.br/teses/disponiveis/18/18138/tde-21032025-085649/publico/Dissertacao_versao_corrigida.pdf).
-
-
-- Gomes Jr., M. N. 2023. [Advances in open source hydroinformatics for flood modeling and disaster education](https://teses.usp.br/teses/disponiveis/18/18138/tde-18042024-142515/publico/TeseMarcusNobregaGomesJuniorVersaoCorrigidaCompressed.pdf) (Doctoral dissertation, Universidade de São Paulo).
-
-- Rápalo, L.M.C., 2024. [Open-source tools for flood risk assessment for multiple spatio-temporal scales under scenarios of change](https://teses.usp.br/teses/disponiveis/18/18138/tde-07102024-094249/publico/ThesisCastilloRapaloLuisMiguelCorrected.pdf) (Doctoral dissertation, Universidade de São Paulo).
-
-- Rápalo, L.M., Gomes Jr, M.N. and Mendiondo, E.M., 2025. *[Multiple levels of human instability due to urban overland flow within the 21st century: An urban Catchment study case in Brazil](https://doi.org/10.1016/j.ijdrr.2025.105931).* International Journal of Disaster Risk Reduction.
-
-- Sousa, M.R.D., Mendiondo, E.M. and Gomes, M.N., 2026. [Hydrological-hydrodynamic modeling of climate-induced urban flooding of design storms using HydroPol2D: a case study in São Carlos, Brazil](https://www.scielo.br/j/rbrh/a/KFQjyK4vxHPscnyCCRrBGjH/?format=pdf&lang=en).* RBRH.
-
----
-
-## Contributing & Support
-
-For issues, contact:
-- **Dr. Marcus N. Gomes Jr.** – [mngomes@stanford.edu](mailto:mngomes@stanford.edu)
-
-Repository: [https://github.com/marcusnobrega-eng/HydroPol2D](https://github.com/marcusnobrega-eng/HydroPol2D)
-
----
-
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-
-This project is licensed under the **GNU General Public License, version 3**.
-The bundled TopoToolbox runtime is documented in
-[`third_party/NOTICE.md`](third_party/NOTICE.md) and
+HydroPol2D is licensed under the [GNU General Public License v3.0](LICENSE). The bundled
+TopoToolbox runtime is described in [`third_party/NOTICE.md`](third_party/NOTICE.md) and
 [`third_party/topotoolbox_lite/UPSTREAM.md`](third_party/topotoolbox_lite/UPSTREAM.md).
 
+## Contact
 
-# Short Course Link with 2-h classes + PPT material (Available upon request): marcusnobrega.engcivil@gmail.com
+**Dr. Marcus N. Gomes Jr.**, [mngomes@stanford.edu](mailto:mngomes@stanford.edu). Questions and
+bug reports are welcome as [GitHub issues](https://github.com/marcusnobrega-eng/HydroPol2D/issues).
+A short course (2-hour classes with slides) is available on request at
+marcusnobrega.engcivil@gmail.com.
 
-## Acknowledgments
-
-- University of São Paulo — São Carlos School of Engineering
-- University of Texas at San Antonio — Civil and Environmental Engineering
-- Stanford University — Stanford Doerr School of Sustainability; Department of Earth System Science
-
-
+**Acknowledgments:** University of São Paulo, São Carlos School of Engineering; University of
+Texas at San Antonio, Civil and Environmental Engineering; Stanford University, Stanford Doerr
+School of Sustainability, Department of Earth System Science.
