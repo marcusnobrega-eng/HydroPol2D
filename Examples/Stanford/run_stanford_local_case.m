@@ -41,6 +41,10 @@ rainfall_path = char(p.Results.RainfallTimeseriesPath);
 if isempty(rainfall_path)
     rainfall_path = fullfile(case_root, 'Forcing', 'Rainfall', 'Rainfall_Intensity_Event_Clean.csv');
 end
+% Relative paths are taken from the folder the call is made in: the model's
+% scripts run from their own folders, where a relative path no longer resolves.
+static_folder = local_absolute_path(static_folder);
+rainfall_path = local_absolute_path(rainfall_path);
 output_tag = char(p.Results.OutputTag);
 if isempty(output_tag)
     output_tag = sprintf('Stanford_%dm_Event', round(resolution));
@@ -188,4 +192,14 @@ function Paths = init_results_tree(exportRootDir, cleanOutputFolder)
             mkdir(d);
         end
     end
+end
+
+function path_out = local_absolute_path(path_in)
+%LOCAL_ABSOLUTE_PATH The path itself if absolute, else from the current folder.
+path_out = char(path_in);
+if isempty(path_out) || startsWith(path_out, {'/', '\\'}) || ...
+        ~isempty(regexp(path_out, '^[A-Za-z]:', 'once'))
+    return
+end
+path_out = fullfile(pwd, path_out);
 end

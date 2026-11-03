@@ -669,6 +669,11 @@ rainfall_file = '';  % Use InputPaths.Rainfall_Timeseries_File when provided.
 
 if isfield(InputPaths,'Rainfall_Timeseries_File') && ~isempty(InputPaths.Rainfall_Timeseries_File)
     rainfall_file = InputPaths.Rainfall_Timeseries_File;
+    % A named file that cannot be found is an error, not the example series below.
+    if exist(rainfall_file,'file') ~= 2
+        error('HydroPol2D:RainfallFileNotFound', ...
+            'Rainfall time-series file not found: %s (current folder %s).', rainfall_file, pwd);
+    end
 end
 
 if ~isempty(rainfall_file) && exist(rainfall_file,'file') == 2
