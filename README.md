@@ -40,11 +40,11 @@ peri-urban and rural catchments, gauged or data-scarce. The same physics runs in
 a desktop app with a graphical interface.
 
 <p align="center">
-  <a href="https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/Examples/RainfallRunoff">
-    <img src="https://marcusnobrega-eng.github.io/HydroPol2D-docs/videos/stanford_30m_website_100mmh_1h_24h_panels.png" width="900" alt="Flood depth, velocity, hazard and cumulative infiltration maps of San Francisquito Creek, California" />
+  <a href="https://marcusnobrega-eng.github.io/profile/files/stanford-campus-coupled-states.mp4">
+    <img src=".github/assets/stanford-campus-10m-coupled-states.gif" width="900" alt="Animated maps of eight synchronized HydroPol2D outputs for a 10 m coupled simulation of Stanford campus" />
   </a>
   <br />
-  <sub>San Francisquito Creek, CA, at 3.5 h of a run with 100 mm/h of rain for 1 h: flood depth, velocity, hazard and cumulative infiltration (the 24 h version of the Stanford example below).</sub>
+  <sub>Stanford campus, CA, 10 m coupled simulation: flood depth, velocity, depth-velocity index and water-surface elevation (top); infiltration rate, rainfall, groundwater depth and effective recharge (bottom). Click for the full-resolution video.</sub>
 </p>
 
 ## What it does
