@@ -567,7 +567,10 @@ for t = 1:f:n_saved_maps
     zlabel(ax,'Depth [m]', 'Interpreter','latex');
 
     set(ax, 'FontName','Garamond','FontSize',12,'LineWidth',2,'TickDir','out');
-    xtickformat(ax,'%.0f'); ytickformat(ax,'%.0f');
+    % Whole metres without the x10^n exponent; with it, '%.0f' rounded every
+    % Easting tick to the same label (-2 x10^5 at Stanford).
+    ax.XAxis.Exponent = 0; xtickformat(ax,'%.0f');
+    ax.YAxis.Exponent = 0; ytickformat(ax,'%.0f');
 
     if no_plot == 0 && ~isempty(S_p)
         try mapshow(ax, S_p, 'FaceColor','none'); catch, end
@@ -683,7 +686,8 @@ if flags.flag_subgrid == 1 && flags.flag_overbanks ~= 1
         ylabel(ax,'Northing [m]', 'Interpreter','latex');
         zlabel(ax,'Depth [m]', 'Interpreter','latex');
         set(ax,'FontName','Helvetica','FontSize',12,'LineWidth',2,'TickDir','out','TickLength',[0.02 0.01]);
-        xtickformat(ax,'%.0f'); ytickformat(ax,'%.0f');
+        ax.XAxis.Exponent = 0; xtickformat(ax,'%.0f');
+        ax.YAxis.Exponent = 0; ytickformat(ax,'%.0f');
 
         if no_plot == 0 && ~isempty(S_p)
             try mapshow(ax, S_p, 'FaceColor', 'none'); catch, end
@@ -971,8 +975,8 @@ if flags.flag_groundwater_modeling == 1 && flag_export_groundwater_maps
         zlabel(ax, 'GW Depth [m]', 'Interpreter', 'latex');
 
         set(ax, 'FontName', 'Garamond', 'FontSize', 12, 'LineWidth', 2, 'TickDir', 'out');
-        xtickformat(ax, '%.0f');
-        ytickformat(ax, '%.0f');
+        ax.XAxis.Exponent = 0; xtickformat(ax, '%.0f');
+        ax.YAxis.Exponent = 0; ytickformat(ax, '%.0f');
 
         if no_plot == 0 && ~isempty(S_p)
             try mapshow(ax, S_p, 'FaceColor', 'none'); catch, end
