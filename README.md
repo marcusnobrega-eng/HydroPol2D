@@ -81,7 +81,9 @@ smoothing needs the Optimization Toolbox.
 
 **Your own case** is one Excel workbook. Copy
 [`Input_Data_Sheets/HydroPol2D_Inputs.xlsx`](Input_Data_Sheets/HydroPol2D_Inputs.xlsx), fill in
-its tabs and run [`run_HydroPol2D.m`](run_HydroPol2D.m). The website explains every tab, with a
+its tabs and run [`run_HydroPol2D.m`](run_HydroPol2D.m). As supplied, the workbook runs the
+30 m San Francisquito Creek example on the CPU
+([`Input_Data_Sheets/Readme.txt`](Input_Data_Sheets/Readme.txt)). The website explains every tab, with a
 picture of each one, in
 [Case Workbook Settings](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/configuration/general_data)
 and [Run from Excel](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/getting-started/excel-workflow).
