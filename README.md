@@ -93,7 +93,7 @@ For automated studies, a script can replace the workbook
 | Example | Run in MATLAB | What it shows | Time | Expected results |
 |---|---|---|---|---|
 | [V-tilted catchment](Examples/VTilted_Excel/README.md) (synthetic) | `run('Examples/VTilted_Excel/run_excel.m')` | 10.8 mm/h of rain for 90 min, 180 min simulated, on a regular grid or a mesh | ~3 min | rain 16.20 mm, peak outflow 1.525 m³/s, runoff coefficient 0.94, maximum depth 0.15 m |
-| [San Francisquito Creek](Examples/Stanford/README.md), CA (30 m grid) | `run('Examples/Stanford/run_excel.m')` | 100 mm/h of rain for 1 h on a 157 km² catchment, 180 min simulated | ~14 min | rain 99.97 mm, peak outflow 402.8 m³/s, runoff coefficient 0.16, maximum depth 5.87 m |
+| [San Francisquito Creek](Examples/Stanford/README.md), CA (30 m grid) | `run('Examples/Stanford/run_excel.m')` | 100 mm/h of rain for 1 h on a 157 km² catchment, 180 min simulated | ~14 min | rain 99.97 mm, peak outflow across the domain edge 402.8 m³/s, runoff coefficient 0.16, maximum depth 5.87 m |
 | [One check per process](Validation/README.md) | each case's run script | about 80 small synthetic cases, each with a pass or fail rule | 1-10 min each | [Validation_Cases.csv](Validation/Validation_Cases.csv) |
 
 Each example writes its results to its own `Outputs/` folder. A 24 h version of the Stanford case,
