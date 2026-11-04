@@ -304,14 +304,17 @@ if ~isempty(FLOWACC)
     FLOWACC_km2(FLOWACC_km2 <= 0) = nan;
     FLOWACC_km2(~domain_mask) = nan;
 
-    % Plot log10(area)
+    % Plot log10(area). The scale starts at 10 cells (or 0.01 km2): below that the
+    % hillslope cells only add grey noise and hide the drainage network.
     FLOWACC_log = log10(FLOWACC_km2);
+    flowacc_floor = log10(max(10 * cell_area_km2, 0.01));
+    flowacc_clim = [flowacc_floor, max(maxFinite(FLOWACC_log), flowacc_floor + 1)];
 
     plotRasterPanel(FLOWACC_log, xv, yv, domain_mask, CM.flowacc, ...
         'Flow accumulation', '$\log_{10}(A\,[\mathrm{km}^2])$ [-]', true, coord_meta, ...
         title_fs, label_fs, tick_fs, cb_fs, ...
         cb_linewidth, cb_tickdir, cb_location, ...
-        axes_linewidth, axes_tickdir, axis_equal_xy, font_name, interp_latex, []);
+        axes_linewidth, axes_tickdir, axis_equal_xy, font_name, interp_latex, flowacc_clim);
 else
     plotMissingPanel('Flow accumulation not available', text_fs, font_name, interp_latex);
 end
@@ -687,9 +690,11 @@ drawnow;
 end
 
 function exportFigurePDF(fig, outfolder, fname, dpi_res)
+% A raster page at dpi_res. As vector content MATLAB writes each map as several
+% image strips, and PDF viewers draw a white line where two strips meet.
 drawnow;
 exportgraphics(fig, fullfile(outfolder, fname), ...
-    'ContentType', 'vector', ...
+    'ContentType', 'image', ...
     'Resolution', dpi_res, ...
     'BackgroundColor', 'white');
 end
