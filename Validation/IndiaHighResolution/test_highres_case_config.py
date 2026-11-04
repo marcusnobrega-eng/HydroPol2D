@@ -125,7 +125,9 @@ class HighResolutionCaseConfigTests(unittest.TestCase):
         self.assertIn("flag_spatial_rainfall = 1", profile)
         self.assertIn("HYDROPOL_ENABLE_GROUNDWATER", profile)
         self.assertIn("flag_initial_soil_moisture = 1", profile)
-        self.assertIn("flag_neal_channel = 1", profile)
+        # HYDROPOL_SUBGRID_METHOD picks the sub-grid method; the Neal channel is the default.
+        self.assertIn("subgrid_method = 'neal';", profile)
+        self.assertIn("flag_neal_channel = double(strcmp(subgrid_method, 'neal'))", profile)
         self.assertIn("HYDROPOL_RAINFALL_INTERVAL_MIN", profile)
         self.assertIn("HYDROPOL_RAINFALL_FILENAME_EXAMPLE", profile)
         self.assertIn("timestep_cfl = 0.4", profile)
