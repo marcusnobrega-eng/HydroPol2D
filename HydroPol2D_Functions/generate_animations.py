@@ -32,7 +32,10 @@ from rasterio.enums import Resampling
 from rasterio.transform import array_bounds, from_bounds
 from rasterio import features
 
-import contextily as cx
+try:
+    import contextily as cx
+except ImportError:  # only needed for the optional web basemap
+    cx = None
 
 try:
     from scipy.io import loadmat as scipy_loadmat
@@ -199,9 +202,12 @@ HILLSHADE_ZORDER = 1
 # ============================================================
 # USER INPUTS - BASEMAP CUSTOMIZATION
 # ============================================================
-USE_CONTEXTILY_BASEMAP = True
+# CARTO's tiles now need an API key, so the web basemap is off by default and the maps
+# sit on the hillshade alone. Set this to True, or pass --basemap, to draw one. The
+# frames are drawn in EPSG:3857 either way.
+USE_CONTEXTILY_BASEMAP = False
 
-BASEMAP_SOURCE = cx.providers.CartoDB.DarkMatter
+BASEMAP_SOURCE = cx.providers.CartoDB.DarkMatter if cx is not None else None
 BASEMAP_ZOOM = "auto"
 BASEMAP_ATTRIBUTION = False
 BASEMAP_ZORDER = 0
@@ -1891,6 +1897,8 @@ def main():
 
     print("Working native/model CRS for arrays and default GeoTIFFs: {}".format(dem_meta["crs"]))
     print("PNG plotting CRS: {}".format(target_grid["crs"]))
+    if USE_CONTEXTILY_BASEMAP and cx is None:
+        raise ImportError("USE_CONTEXTILY_BASEMAP needs the contextily package.")
     if USE_CONTEXTILY_BASEMAP and str(target_grid["crs"]).upper() != "EPSG:3857":
         raise ValueError("Contextily basemap requires the plotting grid to be EPSG:3857.")
 
@@ -2621,7 +2629,14 @@ def dynamic_cli(argv=None):
     parser.add_argument("--scale-percentile", type=float, default=99.0)
     parser.add_argument("--max-frames", type=int, default=None)
     parser.add_argument("--title", default=None)
+    parser.add_argument("--basemap", action="store_true",
+                        help="Draw the CARTO web basemap (needs contextily and, now, a CARTO API key).")
     args = parser.parse_args(argv)
+    if args.basemap:
+        if cx is None:
+            raise ImportError("--basemap needs the contextily package.")
+        global USE_CONTEXTILY_BASEMAP
+        USE_CONTEXTILY_BASEMAP = True
 
     generate_dynamic_panel_animation(
         results_dir=args.results_dir,
