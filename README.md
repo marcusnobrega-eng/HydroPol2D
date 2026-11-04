@@ -28,7 +28,7 @@
   <a href="#examples-you-can-run"><b>Examples</b></a> ·
   <a href="#gallery"><b>Gallery</b></a> ·
   <a href="#the-hydropol2d-family"><b>Studio and Case Builder</b></a> ·
-  <a href="#licences"><b>Licences</b></a> ·
+  <a href="#licenses"><b>Licenses</b></a> ·
   <a href="#cite"><b>Cite</b></a>
 </p>
 
@@ -127,23 +127,23 @@ https://github.com/user-attachments/assets/3ad69bb3-3e24-4df3-b5ff-584aafcc6296
 
 ## The HydroPol2D family
 
-| Product | What it is | Licence |
+| Product | What it is | License |
 |---|---|---|
 | **HydroPol2D (MATLAB)** | This repository. The model's source code in MATLAB. You prepare a case in an Excel workbook and run it in MATLAB. | Free and open source ([GPL-3.0](LICENSE)) |
-| **[HydroPol2D Studio](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/studio/overview)** | A desktop app for Mac and Windows. You build a model on a map, run it, calibrate it and view the results in one window, with no MATLAB and no coding. It runs the Python version of the model. | Proprietary, needs a licence code |
-| **[HydroPol2D Case Builder](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/builder/overview)** | A tool that prepares a ready-to-run case for a city or a catchment from public global data: the model area, terrain, rivers, land use, soil, rain and weather. It writes cases for this MATLAB version and for the Python version. | Proprietary, needs a licence code |
+| **[HydroPol2D Studio](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/studio/overview)** | A desktop app for Mac and Windows. You build a model on a map, run it, calibrate it and view the results in one window, with no MATLAB and no coding. It runs the Python version of the model. | Proprietary, needs a license code |
+| **[HydroPol2D Case Builder](https://marcusnobrega-eng.github.io/HydroPol2D-docs/manual/builder/overview)** | A tool that prepares a ready-to-run case for a city or a catchment from public global data: the model area, terrain, rivers, land use, soil, rain and weather. It writes cases for this MATLAB version and for the Python version. | Proprietary, needs a license code |
 
 <p align="center">
   <img src="https://marcusnobrega-eng.github.io/HydroPol2D-docs/img/getting-started/data-to-results.svg" width="720" alt="Maps, parameter tables, forcing and settings make one case, which HydroPol2D Studio or HydroPol2D (MATLAB) runs into maps, time series, animations and a results package" />
 </p>
 
-## Licences
+## Licenses
 
 - **HydroPol2D (MATLAB)** is free under the [GNU General Public License v3.0](LICENSE). You may use,
   study, change and share it. Software that you distribute and that is built on it must stay open
-  source under the same licence. The bundled TopoToolbox code keeps its own GPL-3.0 licence
+  source under the same license. The bundled TopoToolbox code keeps its own GPL-3.0 license
   ([`third_party/NOTICE.md`](third_party/NOTICE.md)).
-- **HydroPol2D Studio** and **HydroPol2D Case Builder** are proprietary. To get a licence, write to
+- **HydroPol2D Studio** and **HydroPol2D Case Builder** are proprietary. To get a license, write to
   Marcus N. Gomes Jr. at [marcusnobrega.engcivil@gmail.com](mailto:marcusnobrega.engcivil@gmail.com).
   Studio downloads are on its
   [release page](https://github.com/marcusnobrega-eng/HydroPol2D-Studio-releases/releases).
@@ -222,7 +222,7 @@ If you use HydroPol2D, please cite:
 
 **Dr. Marcus N. Gomes Jr.**, [mngomes@stanford.edu](mailto:mngomes@stanford.edu). Please report bugs
 and ask questions as [GitHub issues](https://github.com/marcusnobrega-eng/HydroPol2D/issues).
-For licences and for a short course (2-hour classes with slides), write to
+For licenses and for a short course (2-hour classes with slides), write to
 [marcusnobrega.engcivil@gmail.com](mailto:marcusnobrega.engcivil@gmail.com).
 
 **Acknowledgments:** University of São Paulo, São Carlos School of Engineering. University of
