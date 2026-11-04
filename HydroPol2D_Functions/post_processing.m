@@ -30,7 +30,6 @@
 %   │    ├── Figures_FIG
 %   │    ├── Tables_CSV
 %   │    ├── Rasters_Water_Depths         % time-varying depth OR WSE (depending on flags.flag_wse)
-%   │    ├── Rasters_WSE                  % created, but not used by current code (reserved)
 %   │    ├── Rasters_Static               % static rasters (max, totals, DEM, LULC, etc.)
 %   │    ├── Rasters_WQ                   % time-varying water quality rasters (if flag_waterquality==1)
 %   │    ├── Rasters_Human_Risk           % time-varying human risk rasters (if flag_human_instability>0)
@@ -208,7 +207,6 @@ Dirs.FigFIG   = Paths.FigFIG;
 Dirs.Tables   = Paths.Tables;
 
 Dirs.RastersWD     = Paths.RastersWD;
-Dirs.RastersWSE    = Paths.RastersWSE;
 Dirs.RastersStatic = Paths.RastersStatic;
 if isfield(Paths, 'RastersVelocity')
     Dirs.RastersVelocity = Paths.RastersVelocity;

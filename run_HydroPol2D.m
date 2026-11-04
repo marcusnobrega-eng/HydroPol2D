@@ -483,7 +483,6 @@ fprintf('Figures_PDF:           %s\n', Paths.FigPDF);
 fprintf('Figures_FIG:           %s\n', Paths.FigFIG);
 fprintf('Tables_CSV:            %s\n', Paths.Tables);
 fprintf('Rasters_Water_Depths:  %s\n', Paths.RastersWD);
-fprintf('Rasters_WSE:           %s\n', Paths.RastersWSE);
 fprintf('Rasters_Static:        %s\n', Paths.RastersStatic);
 fprintf('Rasters_WQ:            %s\n', Paths.WQMaps);
 fprintf('Rasters_Human_Risk:    %s\n', Paths.HRMaps);
@@ -714,7 +713,6 @@ function Paths = init_results_tree(exportRootDir, cleanOutputFolder)
 %           Figures_FIG/
 %           Tables_CSV/
 %           Rasters_Water_Depths/
-%           Rasters_WSE/
 %           Rasters_Static/
 %           Rasters_WQ/
 %           Rasters_Human_Risk/
@@ -750,7 +748,6 @@ function Paths = init_results_tree(exportRootDir, cleanOutputFolder)
     Paths.Tables        = fullfile(Paths.Results, 'Tables_CSV');
 
     Paths.RastersWD       = fullfile(Paths.Results, 'Rasters_Water_Depths');
-    Paths.RastersWSE      = fullfile(Paths.Results, 'Rasters_WSE');
     Paths.RastersStatic   = fullfile(Paths.Results, 'Rasters_Static');
     Paths.RastersVelocity = fullfile(Paths.Results, 'Rasters_Velocity');
     Paths.RastersHazard   = fullfile(Paths.Results, 'Rasters_Hazard');
@@ -774,7 +771,6 @@ function Paths = init_results_tree(exportRootDir, cleanOutputFolder)
     mkdir_if_missing(Paths.Tables);
 
     mkdir_if_missing(Paths.RastersWD);
-    mkdir_if_missing(Paths.RastersWSE);
     mkdir_if_missing(Paths.RastersStatic);
     mkdir_if_missing(Paths.RastersVelocity);
     mkdir_if_missing(Paths.RastersHazard);

@@ -491,7 +491,6 @@ Paths.FigPDF = fullfile(Paths.Results, 'Figures_PDF');
 Paths.FigFIG = fullfile(Paths.Results, 'Figures_FIG');
 Paths.Tables = fullfile(Paths.Results, 'Tables_CSV');
 Paths.RastersWD = fullfile(Paths.Results, 'Rasters_Water_Depths');
-Paths.RastersWSE = fullfile(Paths.Results, 'Rasters_WSE');
 Paths.RastersVelocity = fullfile(Paths.Results, 'Rasters_Velocity');
 Paths.RastersHazard = fullfile(Paths.Results, 'Rasters_Hazard');
 Paths.RastersStatic = fullfile(Paths.Results, 'Rasters_Static');
